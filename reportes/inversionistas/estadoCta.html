@@ -1,0 +1,1723 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estado de Cuenta - Grupo SPH</title>
+    
+    <!-- jsPDF para generar PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <!-- Tabulator CSS - Versión más reciente -->
+    <link href="https://unpkg.com/tabulator-tables@6.2.5/dist/css/tabulator.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Supabase - CDN Principal -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" 
+            onerror="loadSupabaseFallback()"></script>
+    
+    <!-- Script para cargar CDN alternativo en caso de fallo -->
+    <script>
+        function loadSupabaseFallback() {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/@supabase/supabase-js@2';
+            script.onerror = function() {
+                console.error('Ambos CDNs fallaron. No se puede cargar Supabase.');
+                alert('Error crítico: No se pudo cargar Supabase desde ningún CDN. Verifica tu conexión a internet.');
+            };
+            document.head.appendChild(script);
+        }
+    </script>
+    <!-- Tabulator JS - Versión más reciente -->
+    <script src="https://unpkg.com/tabulator-tables@6.2.5/dist/js/tabulator.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: #f8fafc;
+            color: #374151;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: #4f46e5;
+            color: white;
+            padding: 20px 30px;
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .header h1 {
+            font-size: 2.8rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header .subtitle {
+            font-size: 1.3rem;
+            font-weight: 500;
+            opacity: 0.95;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            font-size: 1rem;
+            opacity: 0.8;
+            font-weight: 300;
+        }
+        
+        /* Cards de totales - Estilo compacto como el PDF */
+        .totals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .total-card {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-left: 4px solid;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-height: 80px;
+        }
+        
+        .total-card.monto { border-left-color: #ef4444; }
+        .total-card.pagos { border-left-color: #10b981; }
+        .total-card.balance { border-left-color: #3b82f6; }
+        .total-card.vencidos { border-left-color: #f59e0b; }
+        
+        .total-card .icon {
+            font-size: 1.5rem;
+            opacity: 0.8;
+        }
+        
+        .total-card .content {
+            flex: 1;
+        }
+        
+        .total-card .label {
+            font-size: 0.75rem;
+            color: #6b7280;
+            font-weight: 500;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+        
+        .total-card .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #111827;
+            text-align: right;
+        }
+        
+        /* Filtros - Estilo más compacto */
+        .filters-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .filters-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #374151;
+        }
+        
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .filter-group label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #6b7280;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+        
+        .filter-group select,
+        .filter-group input {
+            padding: 8px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            background: white;
+            width: 100%;
+        }
+        
+        .filter-group select:focus,
+        .filter-group input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+        
+        /* Estilos para dropdown con buscador */
+        .searchable-select {
+            position: relative;
+            width: 100%;
+        }
+        
+        .select-display {
+            padding: 8px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            min-height: 36px;
+        }
+        
+        .select-display:hover {
+            border-color: #9ca3af;
+        }
+        
+        .select-display.active {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+        
+        .dropdown-arrow {
+            font-size: 0.75rem;
+            color: #6b7280;
+            transition: transform 0.2s ease;
+        }
+        
+        .select-display.active .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+        
+        .dropdown-content {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: none;
+            max-height: 300px;
+            overflow: hidden;
+        }
+        
+        .dropdown-content.show {
+            display: block;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 8px 10px;
+            border: none;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 0.875rem;
+            outline: none;
+        }
+        
+        .search-input:focus {
+            border-bottom-color: #3b82f6;
+        }
+        
+        .options-list {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        
+        .option {
+            padding: 8px 10px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .option:hover {
+            background-color: #f3f4f6;
+        }
+        
+        .option.selected {
+            background-color: #eff6ff;
+            color: #1d4ed8;
+            font-weight: 500;
+        }
+        
+        .option:last-child {
+            border-bottom: none;
+        }
+        
+        .filter-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .download-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .download-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 1.2rem;
+            border: 2px solid transparent;
+            position: relative;
+        }
+        
+        .download-icon:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .download-icon.csv {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+        
+        .download-icon.csv:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+        }
+        
+        .download-icon.json {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+        }
+        
+        .download-icon.json:hover {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        }
+        
+        .download-icon.pdf {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+        
+        .download-icon.pdf:hover {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+        }
+        
+        /* Tooltip styles */
+        .download-icon::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: -35px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1f2937;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 1000;
+        }
+        
+        .download-icon::before {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 5px solid #1f2937;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 1000;
+        }
+        
+        .download-icon:hover::after,
+        .download-icon:hover::before {
+            opacity: 1;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #059669;
+        }
+        
+        /* Tabla - Estilo más limpio como el PDF */
+        .table-section {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .table-header {
+            padding: 15px 20px;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .table-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        /* Customización de Tabulator - Estilo más simple */
+        .tabulator {
+            border: none !important;
+            font-family: 'Inter', sans-serif !important;
+            font-size: 0.875rem !important;
+        }
+        
+        .tabulator .tabulator-header {
+            background: #374151 !important;
+            color: white !important;
+            border: none !important;
+        }
+        
+        .tabulator .tabulator-col {
+            background: #374151 !important;
+            color: white !important;
+            border-right: 1px solid #4b5563 !important;
+        }
+        
+        .tabulator .tabulator-col-title {
+            color: white !important;
+            font-weight: 600 !important;
+            font-size: 0.8rem !important;
+        }
+        
+        .tabulator .tabulator-row {
+            border-bottom: 1px solid #f3f4f6 !important;
+        }
+        
+        .tabulator .tabulator-row:hover {
+            background: #f9fafb !important;
+        }
+        
+        .tabulator .tabulator-calcs-holder {
+            background: #1f2937 !important;
+            color: white !important;
+            font-weight: 700 !important;
+            border-top: 2px solid #374151 !important;
+        }
+        
+        .tabulator .tabulator-calcs-holder .tabulator-cell {
+            color: white !important;
+            border-right: 1px solid #374151 !important;
+            font-size: 0.875rem !important;
+            font-weight: 700 !important;
+            padding: 8px !important;
+        }
+        
+        /* Estilo para subtotales nativos de Tabulator */
+        .tabulator .tabulator-calcs-holder {
+            background: #1f2937 !important;
+            color: white !important;
+            font-weight: 700 !important;
+            border-top: 2px solid #374151 !important;
+        }
+        
+        .tabulator .tabulator-calcs-holder .tabulator-cell {
+            color: white !important;
+            border-right: 1px solid #374151 !important;
+            font-size: 0.875rem !important;
+            font-weight: 700 !important;
+            padding: 8px !important;
+        }
+        
+        .tabulator .tabulator-calcs-holder .tabulator-cell:first-child {
+            color: #fbbf24 !important;
+            font-weight: 700 !important;
+            text-transform: uppercase !important;
+        }
+        
+        /* Loading spinner */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 50px;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f4f6;
+            border-left: 4px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .totals-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .filters-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            Estado de Cuenta
+        </div>
+        
+        <!-- Filtros -->
+        <div class="filters-section">
+            <div class="filters-title">Filtros</div>
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label>Nombre o Razón Social</label>
+                    <div class="searchable-select" id="searchable-razonsocial">
+                        <div class="select-display" onclick="toggleDropdown('razonsocial')">
+                            <span class="selected-text">Todos</span>
+                            <span class="dropdown-arrow">▼</span>
+                        </div>
+                        <div class="dropdown-content" id="dropdown-razonsocial">
+                            <input type="text" class="search-input" placeholder="Buscar razón social..." 
+                                   onkeyup="filterOptions('razonsocial', this.value)" onclick="event.stopPropagation()">
+                            <div class="options-list" id="options-razonsocial">
+                                <div class="option" data-value="" onclick="selectOption('razonsocial', '', 'Todos')">Todos</div>
+                            </div>
+                        </div>
+                    </div>
+                    <select id="filter-razonsocial" style="display: none;">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Parque</label>
+                    <div class="searchable-select" id="searchable-parque">
+                        <div class="select-display" onclick="toggleDropdown('parque')">
+                            <span class="selected-text">Todos</span>
+                            <span class="dropdown-arrow">▼</span>
+                        </div>
+                        <div class="dropdown-content" id="dropdown-parque">
+                            <input type="text" class="search-input" placeholder="Buscar parque..." 
+                                   onkeyup="filterOptions('parque', this.value)" onclick="event.stopPropagation()">
+                            <div class="options-list" id="options-parque">
+                                <div class="option" data-value="" onclick="selectOption('parque', '', 'Todos')">Todos</div>
+                            </div>
+                        </div>
+                    </div>
+                    <select id="filter-parque" style="display: none;">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Propiedad</label>
+                    <div class="searchable-select" id="searchable-propiedad">
+                        <div class="select-display" onclick="toggleDropdown('propiedad')">
+                            <span class="selected-text">Todas</span>
+                            <span class="dropdown-arrow">▼</span>
+                        </div>
+                        <div class="dropdown-content" id="dropdown-propiedad">
+                            <input type="text" class="search-input" placeholder="Buscar propiedad..." 
+                                   onkeyup="filterOptions('propiedad', this.value)" onclick="event.stopPropagation()">
+                            <div class="options-list" id="options-propiedad">
+                                <div class="option" data-value="" onclick="selectOption('propiedad', '', 'Todas')">Todas</div>
+                            </div>
+                        </div>
+                    </div>
+                    <select id="filter-propiedad" style="display: none;">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Año</label>
+                    <select id="filter-anio">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Mes</label>
+                    <select id="filter-mes">
+                        <option value="">Todos</option>
+                        <option value="1">Enero</option>
+                        <option value="2">Febrero</option>
+                        <option value="3">Marzo</option>
+                        <option value="4">Abril</option>
+                        <option value="5">Mayo</option>
+                        <option value="6">Junio</option>
+                        <option value="7">Julio</option>
+                        <option value="8">Agosto</option>
+                        <option value="9">Septiembre</option>
+                        <option value="10">Octubre</option>
+                        <option value="11">Noviembre</option>
+                        <option value="12">Diciembre</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>pago_vencido</label>
+                    <select id="filter-vencido">
+                        <option value="">Todos</option>
+                        <option value="true">Sí</option>
+                        <option value="false">No</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Tipo de Pago</label>
+                    <select id="filter-tipo-pago">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>esTicket</label>
+                    <select id="filter-ticket">
+                        <option value="">Todos</option>
+                        <option value="true">Sí</option>
+                        <option value="false">No</option>
+                    </select>
+                </div>
+            </div>
+            <div class="filter-actions">
+                <div class="filter-buttons">
+                    <button class="btn btn-primary" onclick="aplicarFiltros()">
+                        Aplicar Filtros
+                    </button>
+                    <button class="btn btn-secondary" onclick="limpiarFiltros()">
+                        Limpiar
+                    </button>
+                </div>
+                <div class="download-actions">
+                    <div class="download-icon csv" onclick="descargarCSV()" data-tooltip="Descargar como CSV (Excel)">
+                        📋
+                    </div>
+                    <div class="download-icon json" onclick="descargarJSON()" data-tooltip="Descargar como JSON">
+                        📊
+                    </div>
+                    <div class="download-icon pdf" onclick="descargarPDF()" data-tooltip="Descargar como PDF">
+                        📄
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cards de Totales -->
+        <div class="totals-grid">
+            <div class="total-card monto">
+                <div class="icon">🎯</div>
+                <div class="content">
+                    <div class="label">Monto</div>
+                    <div class="value" id="total-monto">$0</div>
+                </div>
+            </div>
+            <div class="total-card pagos">
+                <div class="icon">💰</div>
+                <div class="content">
+                    <div class="label">Pagos</div>
+                    <div class="value" id="total-pagos">$0</div>
+                </div>
+            </div>
+            <div class="total-card balance">
+                <div class="icon">⚖️</div>
+                <div class="content">
+                    <div class="label">Balance</div>
+                    <div class="value" id="total-balance">$0</div>
+                </div>
+            </div>
+            <div class="total-card vencidos">
+                <div class="icon">⚠️</div>
+                <div class="content">
+                    <div class="label">Montos vencidos</div>
+                    <div class="value" id="total-vencidos">$0</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tabla -->
+        <div class="table-section">
+            <div class="table-header">
+                <div class="table-title">Estado de Cuenta</div>
+            </div>
+            <div id="tabla-estado-cuenta"></div>
+        </div>
+    </div>
+
+    <script>
+        // Configuración de Supabase - CREDENCIALES REALES
+        const SUPABASE_URL = 'https://szjlkvakwljssdnysazp.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6amxrdmFrd2xqc3NkbnlzYXpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTY4MTkxOTEsImV4cCI6MjAxMjM5NTE5MX0.OvICpRi2IHrrzwQ6TDl_031QRU6qTy2gRWylMrGU8y8';
+        
+        // Inicializar cliente Supabase
+        let supabaseClient;
+        
+        // Esperar a que Supabase se cargue
+        function inicializarSupabase() {
+            if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                return true;
+            } else {
+                console.error('Supabase no está disponible o no tiene createClient');
+                return false;
+            }
+        }
+        
+        // Variables globales
+        let tabla;
+        let datosOriginales = [];
+        let datosFiltrados = [];
+        
+        // Formateo de moneda
+        function formatearMoneda(value) {
+            if (!value && value !== 0) return '$0';
+            return new Intl.NumberFormat('es-MX', {
+                style: 'currency',
+                currency: 'MXN',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(value);
+        }
+        
+        // Formateo de fecha en formato dd/mm/yyyy
+        function formatearFecha(value) {
+            if (!value) return '';
+            const fecha = new Date(value);
+            const dia = fecha.getDate().toString().padStart(2, '0');
+            const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
+            const anio = fecha.getFullYear();
+            return `${dia}/${mes}/${anio}`;
+        }
+        
+        // Configuración de columnas de Tabulator
+        const columnas = [
+            {title: "Razón Social", field: "razonsocial", width: 250, headerFilter: "input"},
+            {title: "Propiedad", field: "nompropiedad", width: 180, headerFilter: "input"},
+            {title: "# Pago", field: "numPago", width: 80, sorter: "number", headerFilter: "number", hozAlign: "right"},
+            {title: "Fecha", field: "fecha", width: 120, formatter: function(cell) {
+                return formatearFecha(cell.getValue());
+            }, hozAlign: "center"},
+            {title: "Monto", field: "suma_monto", width: 140, formatter: function(cell) {
+                return formatearMoneda(cell.getValue());
+            }, hozAlign: "right"},
+            {title: "Fec. Pago", field: "pago_fecha", width: 120, formatter: function(cell) {
+                return formatearFecha(cell.getValue());
+            }, hozAlign: "center"},
+            {title: "Pagos", field: "suma_pago_monto", width: 140, formatter: function(cell) {
+                return formatearMoneda(cell.getValue());
+            }, hozAlign: "right"},
+            {title: "Balance", field: "balance", width: 140, formatter: function(cell) {
+                const value = cell.getValue();
+                const formattedValue = formatearMoneda(value);
+                if (value < 0) {
+                    cell.getElement().style.color = "#dc2626";
+                } else if (value > 0) {
+                    cell.getElement().style.color = "#16a34a";
+                }
+                return formattedValue;
+            }, hozAlign: "right"},
+            {title: "Pago Vencido", field: "pago_vencido", width: 120, formatter: function(cell) {
+                return cell.getValue() ? "❌ Sí" : "✅ No";
+            }, hozAlign: "center"},
+            {title: "Días Venc.", field: "dias_vencimiento", width: 100, sorter: "number", formatter: function(cell) {
+                const value = cell.getValue();
+                if (value > 0) {
+                    cell.getElement().style.color = "#dc2626";
+                    cell.getElement().style.fontWeight = "bold";
+                }
+                return value;
+            }, hozAlign: "right"},
+            {title: "Tipo Pago", field: "tipoPago", width: 120},
+            {title: "Avance %", field: "avance", width: 100, formatter: function(cell) {
+                const value = parseFloat(cell.getValue()) * 100;
+                return value.toFixed(1) + '%';
+            }, hozAlign: "right"}
+        ];
+        
+        // Inicializar tabla
+        function inicializarTabla() {
+            tabla = new Tabulator("#tabla-estado-cuenta", {
+                data: [],
+                layout: "fitColumns",
+                pagination: "local",
+                paginationSize: 50,
+                paginationSizeSelector: [25, 50, 100, 500],
+                movableColumns: true,
+                resizableRows: true,
+                // columnCalcs: "bottom", // Desactivado - problemas con todas las versiones de Tabulator
+                selectable: true,
+                tooltipsHeader: true,
+                columns: columnas,
+                locale: "es-es",
+                langs: {
+                    "es-es": {
+                        "pagination": {
+                            "page_size": "Filas por página",
+                            "first": "Primera",
+                            "last": "Última",
+                            "prev": "Anterior",
+                            "next": "Siguiente"
+                        }
+                    }
+                },
+                rowFormatter: function(row) {
+                    const data = row.getData();
+                    if (data.pago_vencido) {
+                        row.getElement().style.backgroundColor = "#fef2f2";
+                    }
+                },
+                placeholder: "Selecciona filtros y presiona 'Aplicar Filtros' para cargar los datos"
+            });
+        }
+        
+        // Cargar opciones de filtros desde Supabase
+        async function cargarOpcionesFiltros() {
+            try {
+                // Verificar si Supabase está inicializado
+                if (!inicializarSupabase()) {
+                    console.error('No se pudo inicializar Supabase');
+                    alert('Error: No se pudo conectar a Supabase. Verifica que la librería se haya cargado correctamente.');
+                    return;
+                }
+                
+                // Cargar opciones únicas usando función optimizada de Supabase
+                // La función v_pdpdetalle_get_unique_values procesa los datos directamente en la base de datos
+                const queries = await Promise.all([
+                    // Razones sociales únicas (tipo_dato: 1)
+                    supabaseClient.rpc('v_pdpdetalle_get_unique_values', { tipo_dato: 1 }),
+                    // Parques únicos (tipo_dato: 2)
+                    supabaseClient.rpc('v_pdpdetalle_get_unique_values', { tipo_dato: 2 }),
+                    // Propiedades únicas (tipo_dato: 3)
+                    supabaseClient.rpc('v_pdpdetalle_get_unique_values', { tipo_dato: 3 }),
+                    // Años únicos (tipo_dato: 4)
+                    supabaseClient.rpc('v_pdpdetalle_get_unique_values', { tipo_dato: 4 }),
+                    // Tipos de pago únicos (tipo_dato: 5)
+                    supabaseClient.rpc('v_pdpdetalle_get_unique_values', { tipo_dato: 5 })
+                ]);
+                
+                // Procesar resultados
+                const [razonesSociales, parques, propiedades, anios, tiposPago] = queries;
+                
+                if (razonesSociales.error || parques.error || propiedades.error || anios.error || tiposPago.error) {
+                    console.error('Error al cargar opciones de filtros');
+                    return;
+                }
+                
+                // Los datos ya vienen únicos y ordenados desde la función de Supabase
+                const razonesSocialesUnicas = razonesSociales.data.map(d => d.valor);
+                const parquesUnicos = parques.data.map(d => d.valor);
+                const propiedadesUnicas = propiedades.data.map(d => d.valor);
+                const aniosUnicos = anios.data.map(d => d.valor);
+                const tiposPagoUnicos = tiposPago.data.map(d => d.valor);
+                
+                // Llenar los selectores
+                llenarSelect('filter-razonsocial', razonesSocialesUnicas);
+                llenarSearchableSelect('razonsocial', razonesSocialesUnicas);
+                llenarSelect('filter-parque', parquesUnicos);
+                llenarSearchableSelect('parque', parquesUnicos);
+                llenarSelect('filter-propiedad', propiedadesUnicas);
+                llenarSearchableSelect('propiedad', propiedadesUnicas);
+                llenarSelect('filter-anio', aniosUnicos);
+                llenarSelect('filter-tipo-pago', tiposPagoUnicos);
+                
+                configurarEventosFiltros();
+                
+            } catch (error) {
+                console.error('Error de conexión:', error);
+                alert('Error de conexión a Supabase: ' + error.message);
+            }
+        }
+        
+        // Actualizar totales en las cards
+        function actualizarTotales(datos) {
+            const totales = datos.reduce((acc, row) => {
+                acc.monto += row.suma_monto || 0;
+                acc.pagos += row.suma_pago_monto || 0;
+                acc.balance += row.balance || 0;
+                if (row.pago_vencido && row.suma_monto) {
+                    acc.vencidos += row.suma_monto;
+                }
+                return acc;
+            }, { monto: 0, pagos: 0, balance: 0, vencidos: 0 });
+            
+            document.getElementById('total-monto').textContent = formatearMoneda(totales.monto);
+            document.getElementById('total-pagos').textContent = formatearMoneda(totales.pagos);
+            document.getElementById('total-balance').textContent = formatearMoneda(totales.balance);
+            document.getElementById('total-vencidos').textContent = formatearMoneda(totales.vencidos);
+        }
+        
+        // Llenar filtros con valores únicos
+        function llenarFiltros(datos) {
+            // Razón Social
+            const razonesSociales = [...new Set(datos.map(d => d.razonsocial))].filter(Boolean).sort();
+            llenarSelect('filter-razonsocial', razonesSociales);
+            
+            // Parques
+            const parques = [...new Set(datos.map(d => d.nomParque))].filter(Boolean).sort();
+            llenarSelect('filter-parque', parques);
+            
+            // Propiedades
+            const propiedades = [...new Set(datos.map(d => d.nompropiedad))].filter(Boolean).sort();
+            llenarSelect('filter-propiedad', propiedades);
+            
+            // Años
+            const anios = [...new Set(datos.map(d => d.anio))].filter(Boolean).sort().reverse();
+            llenarSelect('filter-anio', anios);
+            
+            // Tipos de Pago
+            const tiposPago = [...new Set(datos.map(d => d.tipoPago))].filter(Boolean).sort();
+            llenarSelect('filter-tipo-pago', tiposPago);
+        }
+        
+        // Actualizar filtros dependientes basados en selección actual
+        function actualizarFiltrosDependientes() {
+            // Obtener filtros actuales
+            const razonsocial = document.getElementById('filter-razonsocial').value;
+            const parque = document.getElementById('filter-parque').value;
+            
+            // Si no hay razón social seleccionada, no hacer nada
+            if (!razonsocial) {
+                return;
+            }
+            
+            // Hacer una consulta específica a Supabase para obtener datos de esta razón social
+            cargarDatosDependientes(razonsocial, parque);
+        }
+        
+        // Cargar datos dependientes desde Supabase
+        async function cargarDatosDependientes(razonsocial, parqueSeleccionado = null) {
+            try {
+                // Usar función RPC para obtener datos dependientes
+                const parametros = {
+                    p_razonsocial: razonsocial || null,
+                    p_parque: parqueSeleccionado || null
+                };
+                
+                const { data, error } = await supabaseClient.rpc('v_pdpdetalle_get_filtros_dependientes', parametros);
+                
+                if (error) {
+                    console.error('Error al cargar datos dependientes:', error);
+                    return;
+                }
+                
+                if (data && data.length > 0) {
+                    // Actualizar filtros con los datos obtenidos - optimizado
+                    const parquesFiltrados = Array.from(new Set(data.map(d => d.nomParque).filter(Boolean))).sort();
+                    const propiedadesFiltradas = Array.from(new Set(data.map(d => d.nompropiedad).filter(Boolean))).sort();
+                    const aniosFiltrados = Array.from(new Set(data.map(d => d.anio).filter(Boolean))).sort((a, b) => b - a);
+                    const tiposPagoFiltrados = Array.from(new Set(data.map(d => d.tipoPago).filter(Boolean))).sort();
+                    
+                    // Llenar filtros
+                    llenarSelect('filter-parque', parquesFiltrados, parqueSeleccionado);
+                    llenarSelect('filter-propiedad', propiedadesFiltradas);
+                    llenarSelect('filter-anio', aniosFiltrados);
+                    llenarSelect('filter-tipo-pago', tiposPagoFiltrados);
+                }
+                
+            } catch (error) {
+                console.error('Error en filtros dependientes:', error);
+            }
+        }
+        
+        function llenarSelect(selectId, opciones, valorSeleccionado = null) {
+            const select = document.getElementById(selectId);
+            
+            if (!select) {
+                console.error(`Elemento select con ID ${selectId} no encontrado`);
+                return;
+            }
+            
+            // Guardar valor actual si no se especifica uno
+            const valorActual = valorSeleccionado || select.value;
+            
+            // Mantener la opción "Todos"
+            const primeraOpcion = select.firstElementChild;
+            select.innerHTML = '';
+            if (primeraOpcion) {
+                select.appendChild(primeraOpcion);
+            }
+            
+            opciones.forEach(opcion => {
+                const option = document.createElement('option');
+                option.value = opcion;
+                option.textContent = opcion;
+                select.appendChild(option);
+            });
+            
+            // Restaurar selección si existe en las nuevas opciones
+            if (valorActual && opciones.includes(valorActual)) {
+                select.value = valorActual;
+            }
+        }
+        
+        // Función para llenar dropdown con buscador
+        function llenarSearchableSelect(selectType, opciones) {
+            const optionsList = document.getElementById(`options-${selectType}`);
+            if (!optionsList) {
+                console.error(`Elemento options-${selectType} no encontrado`);
+                return;
+            }
+            
+            // Limpiar opciones existentes
+            optionsList.innerHTML = '';
+            
+            // Crear opción "Todos" o "Todas"
+            const defaultText = selectType === 'propiedad' ? 'Todas' : 'Todos';
+            const defaultOption = document.createElement('div');
+            defaultOption.className = 'option selected';
+            defaultOption.setAttribute('data-value', '');
+            defaultOption.textContent = defaultText;
+            defaultOption.onclick = () => selectOption(selectType, '', defaultText);
+            optionsList.appendChild(defaultOption);
+            
+            // Agregar nuevas opciones
+            opciones.forEach(opcion => {
+                const optionDiv = document.createElement('div');
+                optionDiv.className = 'option';
+                optionDiv.setAttribute('data-value', opcion);
+                optionDiv.textContent = opcion;
+                optionDiv.onclick = () => selectOption(selectType, opcion, opcion);
+                optionsList.appendChild(optionDiv);
+            });
+        }
+        
+        // Función para alternar dropdown
+        function toggleDropdown(selectType) {
+            const dropdown = document.getElementById(`dropdown-${selectType}`);
+            const display = document.querySelector(`#searchable-${selectType} .select-display`);
+            
+            // Cerrar otros dropdowns
+            document.querySelectorAll('.dropdown-content').forEach(d => {
+                if (d.id !== `dropdown-${selectType}`) {
+                    d.classList.remove('show');
+                    d.parentElement.querySelector('.select-display').classList.remove('active');
+                }
+            });
+            
+            // Alternar dropdown actual
+            dropdown.classList.toggle('show');
+            display.classList.toggle('active');
+            
+            // Enfocar input de búsqueda si se abre
+            if (dropdown.classList.contains('show')) {
+                const searchInput = dropdown.querySelector('.search-input');
+                setTimeout(() => searchInput.focus(), 100);
+            }
+        }
+        
+        // Función para filtrar opciones
+        function filterOptions(selectType, searchTerm) {
+            const optionsList = document.getElementById(`options-${selectType}`);
+            const options = optionsList.querySelectorAll('.option');
+            
+            options.forEach(option => {
+                const text = option.textContent.toLowerCase();
+                const matches = text.includes(searchTerm.toLowerCase());
+                option.style.display = matches ? 'block' : 'none';
+            });
+        }
+        
+        // Función para seleccionar opción
+        function selectOption(selectType, value, text) {
+            // Actualizar display
+            const selectedText = document.querySelector(`#searchable-${selectType} .selected-text`);
+            selectedText.textContent = text;
+            
+            // Actualizar select oculto
+            const hiddenSelect = document.getElementById(`filter-${selectType}`);
+            hiddenSelect.value = value;
+            
+            // Actualizar clases selected
+            const optionsList = document.getElementById(`options-${selectType}`);
+            optionsList.querySelectorAll('.option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            
+            const selectedOption = optionsList.querySelector(`[data-value="${value}"]`);
+            if (selectedOption) {
+                selectedOption.classList.add('selected');
+            }
+            
+            // Cerrar dropdown
+            const dropdown = document.getElementById(`dropdown-${selectType}`);
+            const display = document.querySelector(`#searchable-${selectType} .select-display`);
+            dropdown.classList.remove('show');
+            display.classList.remove('active');
+            
+            // Limpiar búsqueda
+            const searchInput = dropdown.querySelector('.search-input');
+            searchInput.value = '';
+            filterOptions(selectType, '');
+            
+            // Disparar evento change para filtros dependientes
+            hiddenSelect.dispatchEvent(new Event('change'));
+            
+            // Actualizar filtros dependientes si es razón social o parque
+            if (selectType === 'razonsocial' || selectType === 'parque') {
+                actualizarFiltrosDependientes();
+            }
+        }
+        
+        // Cerrar dropdowns al hacer clic fuera
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.searchable-select')) {
+                document.querySelectorAll('.dropdown-content').forEach(dropdown => {
+                    dropdown.classList.remove('show');
+                    dropdown.parentElement.querySelector('.select-display').classList.remove('active');
+                });
+            }
+        });
+        
+        // Actualizar filtros dependientes basados en selecciones actuales
+        async function actualizarFiltrosDependientes() {
+            try {
+                // Obtener valores actuales de filtros
+                const razonsocial = document.getElementById('filter-razonsocial').value;
+                const parque = document.getElementById('filter-parque').value;
+                
+                // Si no hay filtros seleccionados, cargar todas las opciones
+                if (!razonsocial && !parque) {
+                    await cargarOpcionesFiltros();
+                    return;
+                }
+                
+                // Usar función RPC para obtener filtros dependientes
+                const parametros = {
+                    p_razonsocial: razonsocial || null,
+                    p_parque: parque || null
+                };
+                
+                const { data, error } = await supabaseClient.rpc('v_pdpdetalle_get_filtros_dependientes', parametros);
+                
+                if (error) {
+                    console.error('Error al cargar datos dependientes:', error);
+                    return;
+                }
+                
+                if (data && data.length > 0) {
+                    // Extraer valores únicos
+                    const parquesUnicos = [...new Set(data.map(d => d.nomParque))].filter(Boolean).sort();
+                    const propiedadesUnicas = [...new Set(data.map(d => d.nompropiedad))].filter(Boolean).sort();
+                    const aniosUnicos = [...new Set(data.map(d => d.anio))].filter(Boolean).sort().reverse();
+                    const tiposPagoUnicos = [...new Set(data.map(d => d.tipoPago))].filter(Boolean).sort();
+                    
+                    // Actualizar filtros manteniendo selecciones válidas
+                    if (!razonsocial) {
+                        // Si no hay razón social seleccionada, actualizar razones sociales también
+                        const razonesSocialesUnicas = [...new Set(data.map(d => d.razonsocial))].filter(Boolean).sort();
+                        llenarSelect('filter-razonsocial', razonesSocialesUnicas);
+                        llenarSearchableSelect('razonsocial', razonesSocialesUnicas);
+                    }
+                    
+                    if (!parque) {
+                        // Si no hay parque seleccionado, actualizar parques
+                        llenarSelect('filter-parque', parquesUnicos);
+                        llenarSearchableSelect('parque', parquesUnicos);
+                    }
+                    
+                    // Siempre actualizar propiedades, años y tipos de pago
+                    llenarSelect('filter-propiedad', propiedadesUnicas);
+                    llenarSearchableSelect('propiedad', propiedadesUnicas);
+                    llenarSelect('filter-anio', aniosUnicos);
+                    llenarSelect('filter-tipo-pago', tiposPagoUnicos);
+                } else {
+                    // Si no hay datos, limpiar filtros dependientes
+                    if (!parque) {
+                        llenarSelect('filter-parque', []);
+                        llenarSearchableSelect('parque', []);
+                    }
+                    
+                    llenarSelect('filter-propiedad', []);
+                    llenarSearchableSelect('propiedad', []);
+                    llenarSelect('filter-anio', []);
+                    llenarSelect('filter-tipo-pago', []);
+                }
+                
+            } catch (error) {
+                console.error('Error en actualización de filtros dependientes:', error);
+            }
+        }
+        
+        // Configurar eventos de filtros dependientes
+        function configurarEventosFiltros() {
+            // Evento para razón social
+            document.getElementById('filter-razonsocial').addEventListener('change', function() {
+                actualizarFiltrosDependientes();
+            });
+            
+            // Evento para parque
+            document.getElementById('filter-parque').addEventListener('change', function() {
+                actualizarFiltrosDependientes();
+            });
+        }
+        
+        // Función legacy mantenida para compatibilidad
+        function cargarDatosDependientes(razonsocial, parqueSeleccionado = null) {
+            actualizarFiltrosDependientes();
+        }
+        
+        // Configurar eventos de filtros dependientes (continuación)
+        function configurarEventosFiltrosLegacy() {
+            // Evento para razón social (legacy)
+            document.getElementById('filter-razonsocial').addEventListener('change', function() {
+                actualizarFiltrosDependientes();
+            });
+            
+            // Evento para parque
+            document.getElementById('filter-parque').addEventListener('change', function() {
+                const razonsocial = document.getElementById('filter-razonsocial').value;
+                if (razonsocial) {
+                    cargarDatosDependientes(razonsocial, this.value);
+                }
+            });
+        }
+        
+        // Aplicar filtros - Nueva versión con consulta dinámica
+        async function aplicarFiltros() {
+            try {
+                // Mostrar indicador de carga
+                tabla.setData([]);
+                document.getElementById('total-monto').textContent = 'Cargando...';
+                document.getElementById('total-pagos').textContent = 'Cargando...';
+                document.getElementById('total-balance').textContent = 'Cargando...';
+                document.getElementById('total-vencidos').textContent = 'Cargando...';
+                
+                const filtros = {
+                    razonsocial: document.getElementById('filter-razonsocial').value,
+                    parque: document.getElementById('filter-parque').value,
+                    propiedad: document.getElementById('filter-propiedad').value,
+                    anio: document.getElementById('filter-anio').value,
+                    mes: document.getElementById('filter-mes').value,
+                    vencido: document.getElementById('filter-vencido').value,
+                    tipoPago: document.getElementById('filter-tipo-pago').value,
+                    ticket: document.getElementById('filter-ticket').value
+                };
+                
+                // Preparar parámetros para la función RPC
+                const parametros = {
+                    p_anio: filtros.anio ? parseInt(filtros.anio) : null,
+                    p_mes: filtros.mes ? parseInt(filtros.mes) : null,
+                    p_razonsocial: filtros.razonsocial || null,
+                    p_parque: filtros.parque || null,
+                    p_propiedad: filtros.propiedad || null
+                };
+                
+                // Ejecutar función RPC con SECURITY DEFINER
+                const { data, error } = await supabaseClient.rpc('v_pdpdetalle_get_estado_cuenta_detalle', parametros);
+                
+                if (error) {
+                    console.error('Error al aplicar filtros:', error);
+                    alert('Error al aplicar filtros: ' + error.message);
+                    return;
+                }
+                
+                // Actualizar datos
+                datosFiltrados = data || [];
+                tabla.setData(datosFiltrados);
+                actualizarTotales(datosFiltrados);
+                
+            } catch (error) {
+                console.error('Error al aplicar filtros:', error);
+                alert('Error al aplicar filtros: ' + error.message);
+            }
+        }
+        
+        
+        // Limpiar filtros
+        async function limpiarFiltros() {
+            // Limpiar selects normales
+            document.querySelectorAll('.filter-group select').forEach(select => {
+                select.selectedIndex = 0;
+            });
+            
+            // Limpiar inputs normales
+            document.querySelectorAll('.filter-group input').forEach(input => {
+                input.value = '';
+            });
+            
+            // Limpiar dropdowns personalizados
+            document.querySelectorAll('.searchable-select .selected-text').forEach(span => {
+                if (span.closest('#searchable-razonsocial')) {
+                    span.textContent = 'Todos';
+                } else if (span.closest('#searchable-parque')) {
+                    span.textContent = 'Todos';
+                } else if (span.closest('#searchable-propiedad')) {
+                    span.textContent = 'Todas';
+                }
+            });
+            
+            // Resetear valores de selects ocultos
+            document.querySelectorAll('#filter-razonsocial, #filter-parque, #filter-propiedad').forEach(select => {
+                select.value = '';
+            });
+            
+            // Resetear clases selected en opciones
+            document.querySelectorAll('.dropdown-content .option').forEach(option => {
+                option.classList.remove('selected');
+                if (option.getAttribute('data-value') === '') {
+                    option.classList.add('selected');
+                }
+            });
+            
+            // Limpiar inputs de búsqueda en dropdowns
+            document.querySelectorAll('.search-input').forEach(input => {
+                input.value = '';
+            });
+            
+            // Cerrar todos los dropdowns abiertos
+            document.querySelectorAll('.dropdown-content').forEach(dropdown => {
+                dropdown.classList.remove('show');
+                dropdown.parentElement.querySelector('.select-display').classList.remove('active');
+            });
+            
+            // Limpiar tabla y totales
+            tabla.setData([]);
+            document.getElementById('total-monto').textContent = '$0';
+            document.getElementById('total-pagos').textContent = '$0';
+            document.getElementById('total-balance').textContent = '$0';
+            document.getElementById('total-vencidos').textContent = '$0';
+            
+            // Cargar opciones de filtros (restaurar todas las opciones)
+            await cargarOpcionesFiltros();
+        }
+        
+        // Función para obtener filtros aplicados
+        function obtenerFiltrosAplicados() {
+            const filtros = [];
+            
+            // Filtros de selects normales
+            const selectFiltros = [
+                { id: 'filter-ano', label: 'Año' },
+                { id: 'filter-tipopago', label: 'Tipo de Pago' }
+            ];
+            
+            selectFiltros.forEach(filtro => {
+                const select = document.getElementById(filtro.id);
+                if (select && select.value && select.value !== '') {
+                    const texto = select.options[select.selectedIndex].text;
+                    filtros.push(`${filtro.label}: ${texto}`);
+                }
+            });
+            
+            // Filtros de dropdowns personalizados
+            const customFiltros = [
+                { id: 'filter-razonsocial', label: 'Razón Social', displayId: 'searchable-razonsocial' },
+                { id: 'filter-parque', label: 'Parque', displayId: 'searchable-parque' },
+                { id: 'filter-propiedad', label: 'Propiedad', displayId: 'searchable-propiedad' }
+            ];
+            
+            customFiltros.forEach(filtro => {
+                const hiddenSelect = document.getElementById(filtro.id);
+                if (hiddenSelect && hiddenSelect.value && hiddenSelect.value !== '') {
+                    const displayElement = document.querySelector(`#${filtro.displayId} .selected-text`);
+                    const texto = displayElement ? displayElement.textContent : hiddenSelect.value;
+                    if (texto !== 'Todos' && texto !== 'Todas') {
+                        filtros.push(`${filtro.label}: ${texto}`);
+                    }
+                }
+            });
+            
+            // Filtros de fechas
+            const fechaInicio = document.getElementById('filter-fecha-inicio');
+            const fechaFin = document.getElementById('filter-fecha-fin');
+            
+            if (fechaInicio && fechaInicio.value) {
+                filtros.push(`Fecha Inicio: ${fechaInicio.value}`);
+            }
+            
+            if (fechaFin && fechaFin.value) {
+                filtros.push(`Fecha Fin: ${fechaFin.value}`);
+            }
+            
+            return filtros;
+        }
+        
+        // Función para descargar PDF
+        function descargarPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4'); // Landscape para más columnas
+            
+            // Título del documento
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Estado de Cuenta - Grupo SPH', 20, 20);
+            
+            // Fecha del reporte
+            const fecha = new Date().toLocaleDateString('es-MX');
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Generado: ${fecha}`, 20, 30);
+            
+            let yPosition = 45;
+            
+            // 1. SECCIÓN DE FILTROS
+            const filtrosAplicados = obtenerFiltrosAplicados();
+            if (filtrosAplicados.length > 0) {
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Filtros Aplicados:', 20, yPosition);
+                yPosition += 8;
+                
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'normal');
+                
+                // Separar razón social del resto de filtros
+                const razonSocialFiltro = filtrosAplicados.find(filtro => filtro.includes('Razón Social:'));
+                const otrosFiltros = filtrosAplicados.filter(filtro => !filtro.includes('Razón Social:'));
+                
+                let currentY = yPosition;
+                
+                // Primera línea: Razón Social completa (sin truncar) con sangría
+                if (razonSocialFiltro) {
+                    doc.text(razonSocialFiltro, 48, currentY); // Sangría de 1 cm (28 puntos)
+                    currentY += 8;
+                }
+                
+                // Segunda línea: Resto de filtros distribuidos horizontalmente
+                if (otrosFiltros.length > 0) {
+                    const pageWidth = doc.internal.pageSize.getWidth();
+                    const maxWidth = pageWidth - 40; // Margen de 20 a cada lado
+                    const filtrosPerRow = Math.min(3, otrosFiltros.length); // Máximo 3 por fila
+                    const columnWidth = maxWidth / filtrosPerRow;
+                    
+                    let currentCol = 0;
+                    let currentRow = 0;
+                    
+                    otrosFiltros.forEach((filtro, index) => {
+                        const xPosition = 48 + (currentCol * columnWidth); // Sangría de 1 cm (28 puntos)
+                        const rowY = currentY + (currentRow * 8);
+                        
+                        // Truncar texto si es muy largo
+                        const maxChars = Math.floor(columnWidth / 2.5);
+                        const textoFiltro = filtro.length > maxChars ? filtro.substring(0, maxChars - 3) + '...' : filtro;
+                        
+                        doc.text(textoFiltro, xPosition, rowY);
+                        
+                        currentCol++;
+                        if (currentCol >= filtrosPerRow) {
+                            currentCol = 0;
+                            currentRow++;
+                        }
+                    });
+                    
+                    // Calcular nueva posición Y basada en el número de filas usadas para otros filtros
+                    const totalRows = Math.ceil(otrosFiltros.length / filtrosPerRow);
+                    currentY += (totalRows * 8);
+                }
+                
+                yPosition = currentY + 5; // Espacio reducido entre filtros y resumen
+            }
+            
+            // 2. SECCIÓN DE RESUMEN
+            // Calcular totales
+            const totales = datosFiltrados.reduce((acc, row) => {
+                acc.monto += row.suma_monto || 0;
+                acc.pagos += row.suma_pago_monto || 0;
+                acc.balance += row.balance || 0;
+                if (row.pago_vencido && row.suma_monto) {
+                    acc.vencidos += row.suma_monto;
+                }
+                return acc;
+            }, { monto: 0, pagos: 0, balance: 0, vencidos: 0 });
+            
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Resumen:', 20, yPosition);
+            yPosition += 4;
+            
+            // Configuración para las tarjetas del resumen con sangría
+            const cardY = yPosition;
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const cardWidth = (pageWidth - 120) / 4; // 4 tarjetas más angostas para permitir sangría
+            const cardHeight = 12.5;
+            
+            // Datos de las tarjetas (sin iconos)
+            const cards = [
+                { label: 'MONTO', value: formatearMoneda(totales.monto), color: [52, 152, 219] },
+                { label: 'PAGOS', value: formatearMoneda(totales.pagos), color: [46, 204, 113] },
+                { label: 'BALANCE', value: formatearMoneda(totales.balance), color: [155, 89, 182] },
+                { label: 'MONTOS VENCIDOS', value: formatearMoneda(totales.vencidos), color: [230, 126, 34] }
+            ];
+            
+            // Dibujar cada tarjeta con sangría
+            cards.forEach((card, index) => {
+                const cardX = 48 + (index * (cardWidth + 10)); // Sangría de 1 cm (28 puntos)
+                
+                // Fondo de la tarjeta
+                doc.setFillColor(248, 249, 250);
+                doc.rect(cardX, cardY, cardWidth, cardHeight, 'F');
+                
+                // Borde de la tarjeta
+                doc.setDrawColor(220, 220, 220);
+                doc.setLineWidth(0.5);
+                doc.rect(cardX, cardY, cardWidth, cardHeight, 'S');
+                
+                // Línea de color en la parte izquierda
+                doc.setFillColor(card.color[0], card.color[1], card.color[2]);
+                doc.rect(cardX, cardY, 3, cardHeight, 'F');
+                
+                // Label
+                doc.setFontSize(7);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 100, 100);
+                doc.text(card.label, cardX + 8, cardY + 6);
+                
+                // Valor
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(0, 0, 0);
+                const valueText = card.value.length > 12 ? card.value.substring(0, 10) + '...' : card.value;
+                doc.text(valueText, cardX + 8, cardY + 11);
+            });
+            
+            // Resetear colores y calcular nueva posición
+            doc.setTextColor(0, 0, 0);
+            doc.setDrawColor(0, 0, 0);
+            yPosition = cardY + cardHeight + 10; // Espacio después del resumen
+            
+            // 3. SECCIÓN DE DETALLE
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Detalle:', 20, yPosition);
+            yPosition += 4;
+            
+            // Obtener datos de la tabla
+            const datos = tabla.getData();
+            
+            // Preparar datos para la tabla PDF
+            const headers = [
+                'Razón Social',
+                'Propiedad', 
+                '# Pago',
+                'Fecha',
+                'Monto',
+                'Fec. Pago',
+                'Pagos',
+                'Balance',
+                'Vencido',
+                'Días Venc.'
+            ];
+            
+            const rows = datos.map(row => [
+                row.razonsocial || '',
+                row.nompropiedad || '',
+                row.numPago || '',
+                formatearFecha(row.fecha),
+                formatearMoneda(row.suma_monto),
+                formatearFecha(row.pago_fecha),
+                formatearMoneda(row.suma_pago_monto),
+                formatearMoneda(row.balance),
+                row.pago_vencido ? 'Sí' : 'No',
+                row.dias_vencimiento || 0
+            ]);
+            
+            // Generar tabla
+            doc.autoTable({
+                head: [headers],
+                body: rows,
+                startY: yPosition,
+                styles: {
+                    fontSize: 8,
+                    cellPadding: 2
+                },
+                headStyles: {
+                    fillColor: [55, 65, 81],
+                    textColor: 255,
+                    fontStyle: 'bold'
+                },
+                columnStyles: {
+                    4: { halign: 'right' }, // Monto
+                    6: { halign: 'right' }, // Pagos
+                    7: { halign: 'right' }  // Balance
+                }
+            });
+            
+            // Descargar
+            doc.save(`estado-cuenta-${fecha.replace(/\//g, '-')}.pdf`);
+        }
+        
+        // Función para descargar CSV usando Tabulator nativo
+        function descargarCSV() {
+            if (!tabla.getData() || tabla.getData().length === 0) {
+                alert('No hay datos para exportar. Por favor aplica algunos filtros primero.');
+                return;
+            }
+            
+            const fecha = new Date().toLocaleDateString('es-MX').replace(/\//g, '-');
+            const nombreArchivo = `estado-cuenta-${fecha}.csv`;
+            
+            try {
+                tabla.download("csv", nombreArchivo, {
+                    delimiter: ",",
+                    bom: true // Para acentos en Excel
+                });
+            } catch (error) {
+                console.error('Error al descargar CSV:', error);
+                alert('Error al descargar CSV. Intentando método alternativo...');
+                descargarCSVAlternativo();
+            }
+        }
+        
+        // Función alternativa para CSV si falla la nativa
+        function descargarCSVAlternativo() {
+            const datos = tabla.getData();
+            const headers = ['Razón Social', 'Propiedad', '# Pago', 'Fecha', 'Monto', 'Fec. Pago', 'Pagos', 'Balance', 'Pago Vencido', 'Días Venc.', 'Tipo Pago', 'Avance %'];
+            
+            let csvContent = '\uFEFF'; // BOM para acentos
+            csvContent += headers.join(',') + '\n';
+            
+            datos.forEach(row => {
+                const csvRow = [
+                    '"' + (row.razonsocial || '') + '"',
+                    '"' + (row.nompropiedad || '') + '"',
+                    row.numPago || '',
+                    formatearFecha(row.fecha),
+                    row.suma_monto || 0,
+                    formatearFecha(row.pago_fecha),
+                    row.suma_pago_monto || 0,
+                    row.balance || 0,
+                    row.pago_vencido ? 'Sí' : 'No',
+                    row.dias_vencimiento || 0,
+                    '"' + (row.tipoPago || '') + '"',
+                    row.avance ? (parseFloat(row.avance) * 100).toFixed(1) + '%' : '0.0%'
+                ];
+                csvContent += csvRow.join(',') + '\n';
+            });
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            const fecha = new Date().toLocaleDateString('es-MX').replace(/\//g, '-');
+            link.download = `estado-cuenta-${fecha}.csv`;
+            link.click();
+        }
+        
+        // Función para descargar JSON usando Tabulator nativo
+        function descargarJSON() {
+            if (!tabla.getData() || tabla.getData().length === 0) {
+                alert('No hay datos para exportar. Por favor aplica algunos filtros primero.');
+                return;
+            }
+            
+            const fecha = new Date().toLocaleDateString('es-MX').replace(/\//g, '-');
+            const nombreArchivo = `estado-cuenta-${fecha}.json`;
+            
+            try {
+                tabla.download("json", nombreArchivo);
+            } catch (error) {
+                console.error('Error al descargar JSON:', error);
+                alert('Error al descargar JSON: ' + error.message);
+            }
+        }
+        
+        // Inicializar aplicación
+        document.addEventListener('DOMContentLoaded', function() {
+            inicializarTabla();
+            
+            // Esperar a que Supabase se cargue antes de cargar datos
+            const intervalId = setInterval(() => {
+                if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+                    clearInterval(intervalId);
+                    cargarOpcionesFiltros();
+                }
+            }, 500);
+            
+            // Timeout después de 10 segundos
+            setTimeout(() => {
+                if (typeof window.supabase === 'undefined' || !window.supabase.createClient) {
+                    clearInterval(intervalId);
+                    console.error('Timeout: Supabase no se cargó después de 10 segundos');
+                    alert('Error: No se pudo cargar la librería de Supabase. Verifica tu conexión a internet.');
+                }
+            }, 10000);
+        });
+    </script>
+</body>
+</html>

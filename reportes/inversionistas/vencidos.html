@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saldos Vencidos por Parque - Grupo SPH</title>
+    
+    <!-- jsPDF para generar PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <!-- Tabulator CSS -->
+    <link href="https://unpkg.com/tabulator-tables@6.2.5/dist/css/tabulator.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" 
+            onerror="loadSupabaseFallback()"></script>
+    
+    <!-- Script para cargar CDN alternativo en caso de fallo -->
+    <script>
+        function loadSupabaseFallback() {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/@supabase/supabase-js@2';
+            script.onerror = function() {
+                console.error('Ambos CDNs fallaron. No se puede cargar Supabase.');
+                alert('Error crítico: No se pudo cargar Supabase desde ningún CDN. Verifica tu conexión a internet.');
+            };
+            document.head.appendChild(script);
+        }
+    </script>
+    <!-- Tabulator JS -->
+    <script src="https://unpkg.com/tabulator-tables@6.2.5/dist/js/tabulator.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: #f8fafc;
+            color: #374151;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            color: white;
+            padding: 20px 30px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header h1 {
+            font-size: 2.8rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .header .subtitle {
+            font-size: 1.3rem;
+            font-weight: 500;
+            opacity: 0.95;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            font-size: 1rem;
+            opacity: 0.8;
+            font-weight: 300;
+        }
+        
+        /* Cards de totales */
+        .totals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .total-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .total-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.15);
+        }
+        
+        .total-card.total-vencidos { border-left-color: #dc2626; }
+        .total-card.cantidad-registros { border-left-color: #f59e0b; }
+        .total-card.parques-afectados { border-left-color: #3b82f6; }
+        .total-card.promedio-dias { border-left-color: #8b5cf6; }
+        
+        .total-card .icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            opacity: 0.8;
+        }
+        
+        .total-card .label {
+            font-size: 0.875rem;
+            color: #6b7280;
+            font-weight: 500;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .total-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #111827;
+        }
+        
+        /* Sección de gráficos */
+        .charts-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .chart-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #374151;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        .chart-bar-container {
+            position: relative;
+            height: 400px;
+        }
+        
+        /* Tabla de resumen de parques */
+        .table-resumen-container {
+            height: 300px;
+            overflow-y: auto;
+        }
+        
+        .tabla-resumen {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+        
+        .tabla-resumen thead {
+            background: #dc2626;
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .tabla-resumen th {
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .tabla-resumen th:nth-child(2),
+        .tabla-resumen th:nth-child(4) {
+            text-align: right;
+        }
+        
+        .tabla-resumen th:nth-child(3) {
+            text-align: center;
+        }
+        
+        .tabla-resumen tbody tr {
+            border-bottom: 1px solid #f3f4f6;
+            transition: background-color 0.2s ease;
+        }
+        
+        .tabla-resumen tbody tr:hover {
+            background-color: #fef2f2;
+        }
+        
+        .tabla-resumen td {
+            padding: 10px 8px;
+            vertical-align: middle;
+        }
+        
+        .tabla-resumen .parque-cell {
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .tabla-resumen .saldo-cell {
+            text-align: right;
+            font-weight: 600;
+            color: #dc2626;
+        }
+        
+        .tabla-resumen .registros-cell {
+            text-align: center;
+            color: #6b7280;
+        }
+        
+        .tabla-resumen .porcentaje-cell {
+            text-align: right;
+            font-weight: 500;
+            color: #059669;
+        }
+        
+        .tabla-resumen .loading-cell {
+            text-align: center;
+            padding: 20px;
+            color: #6b7280;
+            font-style: italic;
+        }
+        
+        /* Barra de porcentaje visual */
+        .porcentaje-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .porcentaje-bar-bg {
+            flex: 1;
+            height: 6px;
+            background: #f3f4f6;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .porcentaje-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #dc2626, #ef4444);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+        
+        .porcentaje-text {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #059669;
+            min-width: 45px;
+        }
+        
+        /* Filtros */
+        .filters-section {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .filters-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #374151;
+        }
+        
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .filter-group label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #6b7280;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .filter-group select,
+        .filter-group input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            background: white;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .filter-group select:focus,
+        .filter-group input:focus {
+            outline: none;
+            border-color: #dc2626;
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+        }
+        
+        .filter-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .download-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .download-icon {
+            width: 45px;
+            height: 45px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 1.3rem;
+            position: relative;
+        }
+        
+        .download-icon:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .download-icon.csv {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+        
+        .download-icon.json {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+        }
+        
+        .download-icon.pdf {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+        
+        /* Tooltip styles */
+        .download-icon::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1f2937;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 1000;
+        }
+        
+        .download-icon:hover::after {
+            opacity: 1;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #b91c1c, #991b1b);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #4b5563, #374151);
+            transform: translateY(-1px);
+        }
+        
+        /* Tabla */
+        .table-section {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .table-header {
+            padding: 20px;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .table-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        /* Customización de Tabulator */
+        .tabulator {
+            border: none !important;
+            font-family: 'Inter', sans-serif !important;
+            font-size: 0.875rem !important;
+        }
+        
+        .tabulator .tabulator-header {
+            background: #dc2626 !important;
+            color: white !important;
+            border: none !important;
+        }
+        
+        .tabulator .tabulator-col {
+            background: #dc2626 !important;
+            color: white !important;
+            border-right: 1px solid #ef4444 !important;
+        }
+        
+        .tabulator .tabulator-col-title {
+            color: white !important;
+            font-weight: 600 !important;
+            font-size: 0.8rem !important;
+        }
+        
+        .tabulator .tabulator-row {
+            border-bottom: 1px solid #f3f4f6 !important;
+        }
+        
+        .tabulator .tabulator-row:hover {
+            background: #fef2f2 !important;
+        }
+        
+        .tabulator .tabulator-row.vencido {
+            background: #fef2f2 !important;
+            border-left: 3px solid #dc2626 !important;
+        }
+        
+        /* Loading spinner */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 50px;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f4f6;
+            border-left: 4px solid #dc2626;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .totals-grid {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .totals-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .filters-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .filter-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>Saldos Vencidos por Parque</h1>
+            <div class="subtitle">Dashboard de Control de Cartera</div>
+            <p>Análisis detallado de saldos vencidos distribuidos por parque industrial</p>
+        </div>
+        
+        <!-- Filtros -->
+        <div class="filters-section">
+            <div class="filters-title">Filtros</div>
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label>Nombre o Razón Social</label>
+                    <select id="filter-razonsocial">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Parque</label>
+                    <select id="filter-parque">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Propiedad</label>
+                    <select id="filter-propiedad">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Año</label>
+                    <select id="filter-anio">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Mes</label>
+                    <select id="filter-mes">
+                        <option value="">Todos</option>
+                        <option value="1">Enero</option>
+                        <option value="2">Febrero</option>
+                        <option value="3">Marzo</option>
+                        <option value="4">Abril</option>
+                        <option value="5">Mayo</option>
+                        <option value="6">Junio</option>
+                        <option value="7">Julio</option>
+                        <option value="8">Agosto</option>
+                        <option value="9">Septiembre</option>
+                        <option value="10">Octubre</option>
+                        <option value="11">Noviembre</option>
+                        <option value="12">Diciembre</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Tipo de Pago</label>
+                    <select id="filter-tipo-pago">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+            </div>
+            <div class="filter-actions">
+                <div class="filter-buttons">
+                    <button class="btn btn-primary" onclick="aplicarFiltros()">
+                        Aplicar Filtros
+                    </button>
+                    <button class="btn btn-secondary" onclick="limpiarFiltros()">
+                        Limpiar
+                    </button>
+                </div>
+                <div class="download-actions">
+                    <div class="download-icon csv" onclick="descargarCSV()" data-tooltip="Descargar como CSV">
+                        📋
+                    </div>
+                    <div class="download-icon json" onclick="descargarJSON()" data-tooltip="Descargar como JSON">
+                        📊
+                    </div>
+                    <div class="download-icon pdf" onclick="descargarPDF()" data-tooltip="Descargar como PDF">
+                        📄
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Cards de Totales -->
+        <div class="totals-grid">
+            <div class="total-card total-vencidos">
+                <div class="icon">⚠️</div>
+                <div class="label">Total Saldos Vencidos</div>
+                <div class="value" id="total-vencidos">$0</div>
+            </div>
+            <div class="total-card cantidad-registros">
+                <div class="icon">📊</div>
+                <div class="label">Registros Vencidos</div>
+                <div class="value" id="cantidad-registros">0</div>
+            </div>
+            <div class="total-card parques-afectados">
+                <div class="icon">🏭</div>
+                <div class="label">Parques Afectados</div>
+                <div class="value" id="parques-afectados">0</div>
+            </div>
+            <div class="total-card promedio-dias">
+                <div class="icon">⏰</div>
+                <div class="label">Promedio Días Venc.</div>
+                <div class="value" id="promedio-dias">0</div>
+            </div>
+        </div>
+        
+        <!-- Gráficos -->
+        <div class="charts-section">
+            <div class="chart-card">
+                <h3 class="chart-title">Resumen de Saldos por Parque</h3>
+                <div class="table-resumen-container">
+                    <table id="tabla-resumen-parques" class="tabla-resumen">
+                        <thead>
+                            <tr>
+                                <th>Parque</th>
+                                <th>Saldo Vencido</th>
+                                <th>Registros</th>
+                                <th>% del Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="4" class="loading-cell">Cargando datos...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3 class="chart-title">Evolución por Años</h3>
+                <div class="chart-bar-container">
+                    <canvas id="chartEvolucion"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tabla -->
+        <div class="table-section">
+            <div class="table-header">
+                <div class="table-title">Detalle de Saldos Vencidos</div>
+            </div>
+            <div id="tabla-saldos-vencidos"></div>
+        </div>
+    </div>
+
+    <script>
+        // Configuración de Supabase
+        const SUPABASE_URL = 'https://szjlkvakwljssdnysazp.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6amxrdmFrd2xqc3NkbnlzYXpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTY4MTkxOTEsImV4cCI6MjAxMjM5NTE5MX0.OvICpRi2IHrrzwQ6TDl_031QRU6qTy2gRWylMrGU8y8';
+        
+        // Variables globales
+        let supabaseClient;
+        let tabla;
+        let datosOriginales = [];
+        let datosFiltrados = [];
+        let chartEvolucion; // Solo mantenemos el gráfico de evolución
+        
+        // Inicializar cliente Supabase
+        function inicializarSupabase() {
+            if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                console.log('Cliente Supabase inicializado correctamente');
+                return true;
+            } else {
+                console.error('Supabase no está disponible');
+                return false;
+            }
+        }
+        
+        // Formateo de moneda
+        function formatearMoneda(value) {
+            if (!value && value !== 0) return '$0';
+            return new Intl.NumberFormat('es-MX', {
+                style: 'currency',
+                currency: 'MXN',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(value);
+        }
+        
+        // Formateo de fecha
+        function formatearFecha(value) {
+            if (!value) return '';
+            const fecha = new Date(value);
+            const dia = fecha.getDate().toString().padStart(2, '0');
+            const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
+            const anio = fecha.getFullYear();
+            return `${dia}/${mes}/${anio}`;
+        }
+        
+        // Configuración de columnas de Tabulator
+        const columnas = [
+            {title: "Tipo Pago", field: "tipoPago", width: 120},
+            {title: "Propiedad", field: "nompropiedad", width: 200, headerFilter: "input"},
+            {title: "Nombre o Razón Social", field: "razonsocial", width: 250, headerFilter: "input"},
+            {title: "# Pago", field: "numPago", width: 80, sorter: "number", hozAlign: "right"},
+            {title: "Fecha", field: "fecha", width: 120, formatter: function(cell) {
+                return formatearFecha(cell.getValue());
+            }, hozAlign: "center"},
+            {title: "Saldo", field: "saldo_vencido", width: 140, formatter: function(cell) {
+                return formatearMoneda(cell.getValue());
+            }, hozAlign: "right"},
+            {title: "Días Venc.", field: "dias_vencimiento", width: 100, sorter: "number", formatter: function(cell) {
+                const value = cell.getValue();
+                if (value > 30) {
+                    cell.getElement().style.color = "#dc2626";
+                    cell.getElement().style.fontWeight = "bold";
+                }
+                return value || 0;
+            }, hozAlign: "right"},
+            {title: "Parque", field: "nomParque", width: 150}
+        ];
+        
+        // Inicializar tabla
+        function inicializarTabla() {
+            tabla = new Tabulator("#tabla-saldos-vencidos", {
+                data: [],
+                layout: "fitColumns",
+                pagination: "local",
+                paginationSize: 50,
+                paginationSizeSelector: [25, 50, 100, 500],
+                movableColumns: true,
+                resizableRows: true,
+                selectable: true,
+                tooltipsHeader: true,
+                columns: columnas,
+                locale: "es-es",
+                langs: {
+                    "es-es": {
+                        "pagination": {
+                            "page_size": "Filas por página",
+                            "first": "Primera",
+                            "last": "Última",
+                            "prev": "Anterior",
+                            "next": "Siguiente"
+                        }
+                    }
+                },
+                rowFormatter: function(row) {
+                    const data = row.getData();
+                    if (data.dias_vencimiento > 0) {
+                        row.getElement().classList.add('vencido');
+                    }
+                },
+                placeholder: "Cargando datos de saldos vencidos..."
+            });
+        }
+        
+        // Inicializar gráficos
+        function inicializarGraficos() {
+            // Ya no necesitamos inicializar el gráfico de dona
+            // Solo inicializamos el gráfico de barras de evolución
+            const ctxEvolucion = document.getElementById('chartEvolucion').getContext('2d');
+            chartEvolucion = new Chart(ctxEvolucion, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            stacked: true,
+                            title: {
+                                display: true,
+                                text: 'Años'
+                            }
+                        },
+                        y: {
+                            stacked: true,
+                            title: {
+                                display: true,
+                                text: 'Saldo Vencido'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return formatearMoneda(value);
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: ${formatearMoneda(context.raw)}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Función para actualizar la tabla de resumen por parques
+        function actualizarTablaResumen(datosResumen) {
+            const tbody = document.querySelector('#tabla-resumen-parques tbody');
+            
+            if (!tbody) {
+                console.error('No se encontró el tbody de la tabla de resumen');
+                return;
+            }
+            
+            if (!datosResumen || datosResumen.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="loading-cell">No hay datos disponibles</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            datosResumen.forEach(item => {
+                const porcentaje = parseFloat(item.porcentaje_del_total) || 0;
+                html += `
+                    <tr>
+                        <td class="parque-cell">${item.parque || 'Sin Parque'}</td>
+                        <td class="saldo-cell">${formatearMoneda(item.total_saldo_vencido || 0)}</td>
+                        <td class="registros-cell">${item.cantidad_registros || 0}</td>
+                        <td class="porcentaje-cell">
+                            <div class="porcentaje-bar">
+                                <div class="porcentaje-bar-bg">
+                                    <div class="porcentaje-bar-fill" style="width: ${porcentaje}%"></div>
+                                </div>
+                                <span class="porcentaje-text">${porcentaje.toFixed(1)}%</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+        }
+        
+        // Cargar opciones de filtros y datos iniciales
+        async function cargarOpcionesFiltros() {
+            try {
+                if (!inicializarSupabase()) {
+                    alert('Error: No se pudo conectar a Supabase');
+                    return;
+                }
+                
+                // Cargar opciones usando las funciones que excluyen A3 (Tickets)
+                const queries = await Promise.all([
+                    supabaseClient.rpc('v_pdpdetalle_get_unique_values_sin_a3', { tipo_dato: 1 }), // razones sociales
+                    supabaseClient.rpc('v_pdpdetalle_get_unique_values_sin_a3', { tipo_dato: 2 }), // parques
+                    supabaseClient.rpc('v_pdpdetalle_get_unique_values_sin_a3', { tipo_dato: 3 }), // propiedades
+                    supabaseClient.rpc('v_pdpdetalle_get_unique_values_sin_a3', { tipo_dato: 4 }), // años
+                    supabaseClient.rpc('v_pdpdetalle_get_unique_values_sin_a3', { tipo_dato: 5 })  // tipos de pago
+                ]);
+                
+                const [razonesSociales, parques, propiedades, anios, tiposPago] = queries;
+                
+                if (razonesSociales.error || parques.error || propiedades.error || anios.error || tiposPago.error) {
+                    console.error('Error al cargar opciones de filtros');
+                    return;
+                }
+                
+                // Llenar los selectores
+                llenarSelect('filter-razonsocial', razonesSociales.data.map(d => d.valor));
+                llenarSelect('filter-parque', parques.data.map(d => d.valor));
+                llenarSelect('filter-propiedad', propiedades.data.map(d => d.valor));
+                llenarSelect('filter-anio', anios.data.map(d => d.valor));
+                llenarSelect('filter-tipo-pago', tiposPago.data.map(d => d.valor));
+                
+                // Cargar datos iniciales automáticamente
+                await cargarDatosIniciales();
+                
+            } catch (error) {
+                console.error('Error de conexión:', error);
+                alert('Error de conexión a Supabase: ' + error.message);
+            }
+        }
+        
+        // Cargar datos iniciales sin filtros
+        async function cargarDatosIniciales() {
+            try {
+                // Mostrar indicador de carga
+                document.getElementById('total-vencidos').textContent = 'Cargando...';
+                document.getElementById('cantidad-registros').textContent = 'Cargando...';
+                document.getElementById('parques-afectados').textContent = 'Cargando...';
+                document.getElementById('promedio-dias').textContent = 'Cargando...';
+                
+                // Ejecutar función para obtener todos los saldos vencidos (sin filtros)
+                const { data, error } = await supabaseClient.rpc('v_pdpdetalle_get_saldos_vencidos_por_parque', {
+                    p_anio: null,
+                    p_mes: null,
+                    p_razonsocial: null,
+                    p_parque: null,
+                    p_propiedad: null
+                });
+                
+                if (error) {
+                    console.error('Error al cargar datos iniciales:', error);
+                    // Mostrar valores por defecto en caso de error
+                    document.getElementById('total-vencidos').textContent = '$0';
+                    document.getElementById('cantidad-registros').textContent = '0';
+                    document.getElementById('parques-afectados').textContent = '0';
+                    document.getElementById('promedio-dias').textContent = '0';
+                    return;
+                }
+                
+                // Actualizar datos
+                datosFiltrados = data || [];
+                tabla.setData(datosFiltrados);
+                
+                // Actualizar totales y gráficos
+                await actualizarTotales(datosFiltrados);
+                await actualizarGraficos({
+                    p_anio: null,
+                    p_mes: null,
+                    p_razonsocial: null,
+                    p_parque: null,
+                    p_propiedad: null
+                });
+                
+            } catch (error) {
+                console.error('Error al cargar datos iniciales:', error);
+                // En caso de error, mostrar valores por defecto
+                document.getElementById('total-vencidos').textContent = '$0';
+                document.getElementById('cantidad-registros').textContent = '0';
+                document.getElementById('parques-afectados').textContent = '0';
+                document.getElementById('promedio-dias').textContent = '0';
+            }
+        }
+        
+        function llenarSelect(selectId, opciones) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            
+            const valorActual = select.value;
+            const primeraOpcion = select.firstElementChild;
+            select.innerHTML = '';
+            
+            if (primeraOpcion) {
+                select.appendChild(primeraOpcion);
+            }
+            
+            opciones.forEach(opcion => {
+                const option = document.createElement('option');
+                option.value = opcion;
+                option.textContent = opcion;
+                select.appendChild(option);
+            });
+            
+            if (valorActual && opciones.includes(valorActual)) {
+                select.value = valorActual;
+            }
+        }
+        
+        // Aplicar filtros
+        async function aplicarFiltros() {
+            try {
+                // Mostrar indicador de carga
+                tabla.setData([]);
+                document.getElementById('total-vencidos').textContent = 'Cargando...';
+                document.getElementById('cantidad-registros').textContent = 'Cargando...';
+                document.getElementById('parques-afectados').textContent = 'Cargando...';
+                document.getElementById('promedio-dias').textContent = 'Cargando...';
+                
+                const filtros = {
+                    razonsocial: document.getElementById('filter-razonsocial').value,
+                    parque: document.getElementById('filter-parque').value,
+                    propiedad: document.getElementById('filter-propiedad').value,
+                    anio: document.getElementById('filter-anio').value,
+                    mes: document.getElementById('filter-mes').value,
+                    tipoPago: document.getElementById('filter-tipo-pago').value
+                };
+                
+                const parametros = {
+                    p_anio: filtros.anio ? parseInt(filtros.anio) : null,
+                    p_mes: filtros.mes ? parseInt(filtros.mes) : null,
+                    p_razonsocial: filtros.razonsocial || null,
+                    p_parque: filtros.parque || null,
+                    p_propiedad: filtros.propiedad || null
+                };
+                
+                // Ejecutar función para saldos vencidos
+                const { data, error } = await supabaseClient.rpc('v_pdpdetalle_get_saldos_vencidos_por_parque', parametros);
+                
+                if (error) {
+                    console.error('Error al aplicar filtros:', error);
+                    alert('Error al aplicar filtros: ' + error.message);
+                    return;
+                }
+                
+                // Actualizar datos
+                datosFiltrados = data || [];
+                tabla.setData(datosFiltrados);
+                
+                // Actualizar totales y gráficos
+                await actualizarTotales(datosFiltrados);
+                await actualizarGraficos(parametros);
+                
+            } catch (error) {
+                console.error('Error al aplicar filtros:', error);
+                alert('Error al aplicar filtros: ' + error.message);
+            }
+        }
+        
+        // Actualizar totales
+        async function actualizarTotales(datos) {
+            const totalVencido = datos.reduce((sum, row) => sum + (row.saldo_vencido || 0), 0);
+            const cantidadRegistros = datos.length;
+            const parquesUnicos = [...new Set(datos.map(row => row.nomParque))].length;
+            const promedioDias = datos.length > 0 ? 
+                datos.reduce((sum, row) => sum + (row.dias_vencimiento || 0), 0) / datos.length : 0;
+            
+            document.getElementById('total-vencidos').textContent = formatearMoneda(totalVencido);
+            document.getElementById('cantidad-registros').textContent = cantidadRegistros;
+            document.getElementById('parques-afectados').textContent = parquesUnicos;
+            document.getElementById('promedio-dias').textContent = Math.round(promedioDias);
+        }
+        
+        // Actualizar gráficos y tabla de resumen
+        async function actualizarGraficos(parametros) {
+            try {
+                // Actualizar tabla de resumen por parques (reemplaza al gráfico de dona)
+                // IMPORTANTE: La función de resumen solo acepta p_anio, p_mes, p_razonsocial
+                const parametrosResumen = {
+                    p_anio: parametros.p_anio,
+                    p_mes: parametros.p_mes,
+                    p_razonsocial: parametros.p_razonsocial
+                    // NO incluir p_parque ni p_propiedad
+                };
+                
+                const { data: resumenParques, error: errorParques } = await supabaseClient.rpc('v_pdpdetalle_get_resumen_saldos_vencidos_parque', parametrosResumen);
+                
+                if (errorParques) {
+                    console.error('Error en función de resumen parques:', errorParques);
+                    actualizarTablaResumen([]);
+                    return;
+                }
+                
+                if (resumenParques && resumenParques.length > 0) {
+                    actualizarTablaResumen(resumenParques);
+                } else {
+                    actualizarTablaResumen([]);
+                }
+                
+                // Gráfico de evolución
+                const { data: evolucion, error: errorEvolucion } = await supabaseClient.rpc('v_pdpdetalle_get_evolucion_saldos_vencidos', {
+                    p_razonsocial: parametros.p_razonsocial,
+                    p_parque: parametros.p_parque
+                });
+                
+                if (evolucion && evolucion.length > 0) {
+                    const anios = [...new Set(evolucion.map(item => parseInt(item.anio)))].sort();
+                    const parques = [...new Set(evolucion.map(item => item.parque))];
+                    
+                    chartEvolucion.data.labels = anios;
+                    chartEvolucion.data.datasets = parques.map((parque, index) => ({
+                        label: parque,
+                        data: anios.map(anio => {
+                            const item = evolucion.find(e => parseInt(e.anio) === anio && e.parque === parque);
+                            return item ? item.total_saldo_vencido : 0;
+                        }),
+                        backgroundColor: [
+                            '#3b82f6', '#10b981', '#f59e0b', '#ef4444', 
+                            '#8b5cf6', '#f97316', '#06b6d4', '#84cc16'
+                        ][index % 8]
+                    }));
+                    chartEvolucion.update('active');
+                } else {
+                    chartEvolucion.data.labels = [];
+                    chartEvolucion.data.datasets = [];
+                    chartEvolucion.update('active');
+                }
+                
+            } catch (error) {
+                console.error('Error CRÍTICO en actualizarGraficos:', error);
+                
+                // Asegurar que la tabla muestre que hubo un error
+                const tbody = document.querySelector('#tabla-resumen-parques tbody');
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="loading-cell">Error al cargar datos</td></tr>';
+                }
+            }
+        }
+        
+        // Limpiar filtros
+        async function limpiarFiltros() {
+            document.querySelectorAll('.filter-group select').forEach(select => {
+                select.selectedIndex = 0;
+            });
+            
+            tabla.setData([]);
+            document.getElementById('total-vencidos').textContent = '$0';
+            document.getElementById('cantidad-registros').textContent = '0';
+            document.getElementById('parques-afectados').textContent = '0';
+            document.getElementById('promedio-dias').textContent = '0';
+            
+            // Limpiar tabla de resumen y gráfico
+            actualizarTablaResumen([]);
+            chartEvolucion.data.labels = [];
+            chartEvolucion.data.datasets = [];
+            chartEvolucion.update();
+            
+            await cargarOpcionesFiltros();
+        }
+        
+        // Función para descargar PDF
+        function descargarPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+            
+            // Título
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Saldos Vencidos por Parque - Grupo SPH', 20, 20);
+            
+            const fecha = new Date().toLocaleDateString('es-MX');
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Generado: ${fecha}`, 20, 30);
+            
+            // Obtener datos de la tabla
+            const datos = tabla.getData();
+            
+            const headers = [
+                'Tipo Pago', 'Propiedad', 'Razón Social', '# Pago', 
+                'Fecha', 'Saldo', 'Días Venc.', 'Parque'
+            ];
+            
+            const rows = datos.map(row => [
+                row.tipoPago || '',
+                row.nompropiedad || '',
+                row.razonsocial || '',
+                row.numPago || '',
+                formatearFecha(row.fecha),
+                formatearMoneda(row.saldo_vencido),
+                row.dias_vencimiento || 0,
+                row.nomParque || ''
+            ]);
+            
+            doc.autoTable({
+                head: [headers],
+                body: rows,
+                startY: 40,
+                styles: {
+                    fontSize: 8,
+                    cellPadding: 2
+                },
+                headStyles: {
+                    fillColor: [220, 38, 38],
+                    textColor: 255,
+                    fontStyle: 'bold'
+                }
+            });
+            
+            doc.save(`saldos-vencidos-parque-${fecha.replace(/\//g, '-')}.pdf`);
+        }
+        
+        // Función para descargar CSV
+        function descargarCSV() {
+            if (!tabla.getData() || tabla.getData().length === 0) {
+                alert('No hay datos para exportar. Por favor aplica algunos filtros primero.');
+                return;
+            }
+            
+            const fecha = new Date().toLocaleDateString('es-MX').replace(/\//g, '-');
+            const nombreArchivo = `saldos-vencidos-parque-${fecha}.csv`;
+            
+            try {
+                tabla.download("csv", nombreArchivo, {
+                    delimiter: ",",
+                    bom: true
+                });
+            } catch (error) {
+                console.error('Error al descargar CSV:', error);
+            }
+        }
+        
+        // Función para descargar JSON
+        function descargarJSON() {
+            if (!tabla.getData() || tabla.getData().length === 0) {
+                alert('No hay datos para exportar. Por favor aplica algunos filtros primero.');
+                return;
+            }
+            
+            const fecha = new Date().toLocaleDateString('es-MX').replace(/\//g, '-');
+            const nombreArchivo = `saldos-vencidos-parque-${fecha}.json`;
+            
+            try {
+                tabla.download("json", nombreArchivo);
+            } catch (error) {
+                console.error('Error al descargar JSON:', error);
+            }
+        }
+        
+        // Inicializar aplicación
+        document.addEventListener('DOMContentLoaded', function() {
+            inicializarTabla();
+            inicializarGraficos();
+            
+            const intervalId = setInterval(() => {
+                if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+                    clearInterval(intervalId);
+                    cargarOpcionesFiltros();
+                }
+            }, 500);
+            
+            setTimeout(() => {
+                if (typeof window.supabase === 'undefined' || !window.supabase.createClient) {
+                    clearInterval(intervalId);
+                    console.error('Timeout: Supabase no se cargó después de 10 segundos');
+                    alert('Error: No se pudo cargar la librería de Supabase. Verifica tu conexión a internet.');
+                }
+            }, 10000);
+        });
+    </script>
+</body>
+</html>

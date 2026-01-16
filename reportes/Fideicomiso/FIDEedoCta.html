@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte Kardex - Grupo SPH</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #1a365d;
+            --secondary-color: #2d5a87;
+            --accent-color: #3182ce;
+            --success-color: #38a169;
+            --warning-color: #d69e2e;
+            --danger-color: #e53e3e;
+            --light-bg: #f7fafc;
+            --white: #ffffff;
+            --text-primary: #2d3748;
+            --text-secondary: #4a5568;
+            --border-color: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--light-bg);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: var(--white);
+            padding: 40px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 200px;
+            height: 200px;
+            background: rgba(227, 227, 227, 0.1);
+            border-radius: 50%;
+            transform: translate(50%, -50%);
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .header p {
+            text-align: center;
+            font-size: 1.1rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+
+        .filters-section {
+            background: var(--white);
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .filters-section h3 {
+            color: var(--text-primary);
+            margin-bottom: 25px;
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .investor-selector {
+            max-width: 400px;
+        }
+
+        .investor-selector label {
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .investor-selector select {
+            padding: 15px 20px;
+            border: 2px solid var(--accent-color);
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: var(--white);
+            width: 100%;
+            font-weight: 500;
+        }
+
+        .investor-selector select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+        }
+
+        .investor-info-section {
+            background: var(--white);
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            display: none;
+        }
+
+        .investor-info-section.show {
+            display: block;
+        }
+
+        .investor-info-section h4 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .investor-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .info-item {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, var(--light-bg) 0%, #ffffff 100%);
+            border-radius: 10px;
+            border: 2px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .info-item:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+            border-color: var(--accent-color);
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-value {
+            font-size: 1.3rem;
+            color: var(--primary-color);
+            font-weight: 700;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card.chart-container {
+            padding: 20px;
+        }
+
+        .stat-card.chart-container .chart-title {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .stat-card {
+            background: var(--white);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--accent-color);
+        }
+
+        .stat-card.total::before { background: var(--accent-color); }
+        .stat-card.pagados::before { background: var(--success-color); }
+        .stat-card.pendientes::before { background: var(--danger-color); }
+        .stat-card.monto::before { background: var(--warning-color); }
+
+        .stat-icon {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            opacity: 0.8;
+        }
+
+        .stat-card.total .stat-icon { color: var(--accent-color); }
+        .stat-card.pagados .stat-icon { color: var(--success-color); }
+        .stat-card.pendientes .stat-icon { color: var(--danger-color); }
+        .stat-card.monto .stat-icon { color: var(--warning-color); }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .table-container {
+            background: var(--white);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .table-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: var(--white);
+            padding: 25px 30px;
+        }
+
+        .table-header h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        th {
+            background-color: var(--light-bg);
+            font-weight: 600;
+            color: var(--primary-color);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        tr:hover {
+            background-color: var(--light-bg);
+        }
+
+        .totals-row {
+            background-color: var(--primary-color) !important;
+            color: var(--white) !important;
+            font-weight: 700;
+        }
+
+        .totals-row td {
+            border-top: 2px solid var(--primary-color);
+            padding: 15px 8px;
+        }
+
+        .totals-row:hover {
+            background-color: var(--primary-color) !important;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-pagado {
+            background-color: rgba(56, 161, 105, 0.1);
+            color: var(--success-color);
+            border: 1px solid rgba(56, 161, 105, 0.2);
+        }
+
+        .status-pendiente {
+            background-color: rgba(214, 158, 46, 0.1);
+            color: var(--warning-color);
+            border: 1px solid rgba(214, 158, 46, 0.2);
+        }
+
+        .formula-text {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-style: italic;
+            max-width: 200px;
+            word-wrap: break-word;
+        }
+
+        .loading, .no-selection {
+            text-align: center;
+            padding: 60px 30px;
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .no-selection h3 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+
+        .error {
+            background-color: rgba(229, 62, 62, 0.1);
+            color: var(--danger-color);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid rgba(229, 62, 62, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            .investor-info-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            table {
+                font-size: 0.8rem;
+            }
+
+            th, td {
+                padding: 8px 4px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-chart-line"></i> Reporte Kardex</h1>
+                <p>Sistema Integral de Seguimiento de Pagos y Dispersiones</p>
+            </div>
+        </div>
+
+        <div class="filters-section">
+            <h3>Filtros</h3>
+            <div class="investor-selector">
+                <label for="inversionistaSelect">
+                    <i class="fas fa-user"></i> Seleccionar Inversionista:
+                </label>
+                <select id="inversionistaSelect">
+                    <option value="">-- Seleccione un inversionista --</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="investor-info-section" id="investorInfoSection">
+            <h4><i class="fas fa-user-circle"></i> Información del Inversionista</h4>
+            <div class="investor-info-grid">
+                <div class="info-item">
+                    <div class="info-label">Personalidad</div>
+                    <div class="info-value" id="investorPersonalidad">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Rendimiento Promedio</div>
+                    <div class="info-value" id="investorRendimiento">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">ID Propiedad</div>
+                    <div class="info-value" id="investorPropiedad">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="noSelectionMessage" class="no-selection">
+            <i class="fas fa-user-plus" style="font-size: 3rem; color: var(--accent-color); margin-bottom: 20px;"></i>
+            <h3>Seleccione un Inversionista</h3>
+            <p>Para generar el reporte kardex, seleccione un inversionista del filtro superior</p>
+        </div>
+
+        <div id="reportContent" style="display: none;">
+            <div class="stats-grid">
+                <div class="stat-card total">
+                    <div class="stat-icon"><i class="fas fa-list"></i></div>
+                    <div class="stat-value" id="totalRegistros">0</div>
+                    <div class="stat-label">Total Registros</div>
+                </div>
+                <div class="stat-card pagados">
+                    <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                    <div class="stat-value" id="totalPagados">0</div>
+                    <div class="stat-label">Pagos Realizados</div>
+                </div>
+                <div class="stat-card pendientes">
+                    <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                    <div class="stat-value" id="totalPendientes">0</div>
+                    <div class="stat-label">Pagos Pendientes</div>
+                </div>
+                <div class="stat-card chart-container">
+                    <div class="chart-title"><i class="fas fa-chart-pie"></i> Estado de Pagos</div>
+                    <canvas id="statusChart" style="max-height: 200px;"></canvas>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <div class="table-header">
+                    <h3><i class="fas fa-table"></i> Detalle de Pagos</h3>
+                </div>
+                <div class="table-wrapper">
+                    <table id="paymentsTable">
+                        <thead>
+                            <tr>
+                                <th><i class="fas fa-hashtag"></i> Mov</th>
+                                <th><i class="fas fa-money-bill"></i> Monto</th>
+                                <th><i class="fas fa-calendar-plus"></i> Fec Ini</th>
+                                <th><i class="fas fa-calendar"></i> Fecha</th>
+                                <th><i class="fas fa-clock"></i> Días</th>
+                                <th><i class="fas fa-calculator"></i> Cálculo</th>
+                                <th><i class="fas fa-percentage"></i> Com SPH</th>
+                                <th><i class="fas fa-minus-circle"></i> Retención</th>
+                                <th><i class="fas fa-share"></i> Dispersión</th>
+                                <th><i class="fas fa-info-circle"></i> Estado</th>
+                                <th><i class="fas fa-formula"></i> Fórmula</th>
+                            </tr>
+                        </thead>
+                        <tbody id="paymentsTableBody">
+                            <tr>
+                                <td colspan="11" class="loading">Seleccione un inversionista</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // Configuración de Supabase - MANTENER ESTAS CREDENCIALES
+    const SUPABASE_URL = 'https://szjlkvakwljssdnysazp.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6amxrdmFrd2xqc3NkbnlzYXpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTY4MTkxOTEsImV4cCI6MjAxMjM5NTE5MX0.OvICpRi2IHrrzwQ6TDl_031QRU6qTy2gRWylMrGU8y8';
+    
+    // Crear cliente de Supabase
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Variables globales
+    let allData = [];
+    let filteredData = [];
+    let statusChart = null;
+    let currentInvestor = null;
+
+    // Inicializar la aplicación
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Iniciando aplicación...');
+        cargarDatos();
+    });
+
+    // Cargar datos desde Supabase
+    async function cargarDatos() {
+        try {
+            console.log('Cargando datos de dispersión...');
+            
+            // Cargar datos de dispersión
+            const { data: dispersionData, error: dispersionError } = await supabaseClient
+                .from('fidePdpDispersion')
+                .select('*')
+                .order('fecfin', { ascending: true });
+
+            if (dispersionError) {
+                console.error('Error en dispersión:', dispersionError);
+                throw dispersionError;
+            }
+
+            console.log('Datos de dispersión cargados:', dispersionData.length, 'registros');
+
+            // Cargar todos los inversionistas
+            const { data: inversionistas, error: invError } = await supabaseClient
+                .from('inversionista')
+                .select('idInversionista, razonsocial, nombre, apellido1, apellido2, personalidad');
+
+            if (invError) {
+                console.error('Error en inversionistas:', invError);
+                throw invError;
+            }
+
+            console.log('Inversionistas cargados:', inversionistas.length, 'registros');
+
+            // Combinar datos
+            allData = dispersionData.map(item => {
+                const inversionista = inversionistas.find(inv => inv.idInversionista === item.nombreInversionista);
+                return {
+                    ...item,
+                    inversionistaInfo: inversionista
+                };
+            });
+
+            console.log('Datos combinados:', allData.length, 'registros');
+
+            poblarFiltros();
+            
+        } catch (error) {
+            console.error('Error cargando datos:', error);
+            mostrarError('Error al cargar los datos: ' + error.message);
+        }
+    }
+
+    // Poblar los filtros
+    function poblarFiltros() {
+        console.log('Poblando filtros...');
+        
+        const inversionistaSelect = document.getElementById('inversionistaSelect');
+        const inversionistasUnicos = new Map();
+        
+        allData.forEach(item => {
+            if (item.nombreInversionista && !inversionistasUnicos.has(item.nombreInversionista)) {
+                const nombre = item.inversionistaInfo?.razonsocial || 
+                             `${item.inversionistaInfo?.nombre || ''} ${item.inversionistaInfo?.apellido1 || ''}`.trim() ||
+                             item.nombreInversionista;
+                
+                inversionistasUnicos.set(item.nombreInversionista, {
+                    nombre: nombre,
+                    info: item.inversionistaInfo
+                });
+            }
+        });
+
+        inversionistaSelect.innerHTML = '<option value="">-- Seleccione un inversionista --</option>';
+        
+        inversionistasUnicos.forEach((data, id) => {
+            const option = document.createElement('option');
+            option.value = id;
+            option.textContent = data.nombre;
+            inversionistaSelect.appendChild(option);
+        });
+
+        console.log('Filtros poblados - Inversionistas:', inversionistasUnicos.size);
+    }
+
+    // Aplicar filtros
+    function aplicarFiltros() {
+        const inversionista = document.getElementById('inversionistaSelect').value;
+        
+        if (!inversionista) {
+            mostrarMensajeSeleccion();
+            ocultarInformacionInversionista();
+            return;
+        }
+
+        console.log('Aplicando filtros para inversionista:', inversionista);
+
+        filteredData = allData.filter(item => {
+            return item.nombreInversionista === inversionista;
+        });
+
+        filteredData.sort((a, b) => new Date(a.fecfin) - new Date(b.fecfin));
+        currentInvestor = filteredData[0]?.inversionistaInfo;
+
+        console.log('Datos filtrados:', filteredData.length, 'registros');
+        console.log('Current investor encontrado:', currentInvestor);
+        
+        mostrarInformacionInversionista();
+        mostrarReporte();
+        actualizarReporte();
+    }
+
+    function mostrarMensajeSeleccion() {
+        document.getElementById('noSelectionMessage').style.display = 'block';
+        document.getElementById('reportContent').style.display = 'none';
+    }
+
+    function mostrarReporte() {
+        document.getElementById('noSelectionMessage').style.display = 'none';
+        document.getElementById('reportContent').style.display = 'block';
+    }
+
+    function mostrarInformacionInversionista() {
+        console.log('=== MOSTRANDO INFORMACIÓN DEL INVERSIONISTA ===');
+        
+        if (!currentInvestor || filteredData.length === 0) {
+            console.log('❌ No hay datos del inversionista');
+            return;
+        }
+
+        // Calcular datos
+        const rendimientoPromedio = filteredData.reduce((sum, item) => sum + (item.rend || 0), 0) / filteredData.length;
+        const propiedadEjemplo = filteredData[0]?.idPropiedad || 'N/A';
+        const personalidad = currentInvestor.personalidad || 'No especificada';
+
+        console.log('📊 Datos calculados:');
+        console.log('- Personalidad:', personalidad);
+        console.log('- Rendimiento promedio:', rendimientoPromedio);
+        console.log('- Propiedad ejemplo:', propiedadEjemplo);
+
+        // Actualizar elementos
+        document.getElementById('investorPersonalidad').textContent = personalidad;
+        document.getElementById('investorRendimiento').textContent = `${rendimientoPromedio.toFixed(1)}%`;
+        document.getElementById('investorPropiedad').textContent = propiedadEjemplo;
+
+        // Mostrar la sección completa
+        document.getElementById('investorInfoSection').classList.add('show');
+        
+        console.log('✅ Información actualizada y sección mostrada');
+    }
+
+    function ocultarInformacionInversionista() {
+        document.getElementById('investorInfoSection').classList.remove('show');
+    }
+
+    function actualizarReporte() {
+        console.log('Actualizando reporte...');
+        actualizarEstadisticas();
+        actualizarGraficos();
+        actualizarTabla();
+    }
+
+    function actualizarEstadisticas() {
+        const totalRegistros = filteredData.length;
+        const fechaActual = new Date().toISOString().split('T')[0];
+        
+        const pagados = filteredData.filter(item => {
+            return item.status === true && item.fecfin && item.fecfin <= fechaActual;
+        }).length;
+        
+        const pendientes = filteredData.filter(item => {
+            return item.status !== true || !item.fecfin || item.fecfin > fechaActual;
+        }).length;
+
+        document.getElementById('totalRegistros').textContent = totalRegistros;
+        document.getElementById('totalPagados').textContent = pagados;
+        document.getElementById('totalPendientes').textContent = pendientes;
+    }
+
+    function actualizarGraficos() {
+        actualizarGraficoEstado();
+    }
+
+    function actualizarGraficoEstado() {
+        const ctx = document.getElementById('statusChart').getContext('2d');
+        
+        if (statusChart) {
+            statusChart.destroy();
+        }
+
+        const fechaActual = new Date().toISOString().split('T')[0];
+        
+        const pagados = filteredData.filter(item => {
+            return item.status === true && item.fecfin && item.fecfin <= fechaActual;
+        }).length;
+        
+        const pendientes = filteredData.filter(item => {
+            return item.status !== true || !item.fecfin || item.fecfin> fechaActual;
+        }).length;
+
+        statusChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Pagados', 'Pendientes'],
+                datasets: [{
+                    data: [pagados, pendientes],
+                    backgroundColor: ['#38a169', '#d69e2e'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+
+    function formatearMonedaSinSimbolo(valor) {
+        if (valor === null || valor === undefined) return '0.00';
+        return new Intl.NumberFormat('es-MX', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(valor);
+    }
+
+    function generarFormula(item) {
+        const monto = item.monto || 0;
+        const rendimiento = item.rend || 0;
+        const dias = item.dias || 0;
+        
+        return `(($${formatearMonedaSinSimbolo(monto)} × ${rendimiento.toFixed(2)}%) ÷ 365) × ${dias} días`;
+    }
+
+    function calcularTotales() {
+        const fechaActual = new Date().toISOString().split('T')[0];
+        
+        let totales = {
+            calculo: 0,
+            comision: 0,
+            retencion: 0,
+            dispersion: 0
+        };
+
+        filteredData.forEach(item => {
+            // Solo sumar cálculos de registros pagados
+            const esPagado = item.status === true && item.fecfin && item.fecfin <= fechaActual;
+            if (esPagado) {
+                totales.calculo += item.calculo || 0;
+                totales.comision += item.calculo_comsph || 0;
+                totales.retencion += item.retencion_isr || 0;
+                totales.dispersion += item.dispersion || 0;
+            }
+        });
+
+        return totales;
+    }
+
+    function actualizarTabla() {
+        const tbody = document.getElementById('paymentsTableBody');
+        
+        if (filteredData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="11" class="loading">No hay datos para mostrar</td></tr>';
+            return;
+        }
+
+        const fechaActual = new Date().toISOString().split('T')[0];
+        let tableHTML = '';
+
+        // Generar filas de datos
+        filteredData.forEach(item => {
+            let estadoReal = 'Pendiente';
+            let claseEstado = 'status-pendiente';
+            const esPagado = item.status === true && item.fecfin && item.fecfin <= fechaActual;
+
+            if (esPagado) {
+                estadoReal = 'Pagado';
+                claseEstado = 'status-pagado';
+            }
+
+            tableHTML += `
+                <tr>
+                    <td>${item.numMov || '-'}</td>
+                    <td>${formatearMoneda(item.monto)}</td>
+                    <td>${formatearFecha(item.fecini)}</td>
+                    <td>${formatearFecha(item.fecfin)}</td>
+                    <td>${item.dias || 0}</td>
+                    <td>${esPagado ? formatearMoneda(item.calculo) : '-'}</td>
+                    <td>${esPagado ? formatearMoneda(item.calculo_comsph) : '-'}</td>
+                    <td>${esPagado ? formatearMoneda(item.retencion_isr) : '-'}</td>
+                    <td>${esPagado ? formatearMoneda(item.dispersion) : '-'}</td>
+                    <td>
+                        <span class="status-badge ${claseEstado}">
+                            ${estadoReal}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="formula-text">
+                            ${esPagado ? generarFormula(item) : '-'}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+
+        // Agregar fila de totales (sin monto y días)
+        const totales = calcularTotales();
+        tableHTML += `
+            <tr class="totals-row">
+                <td><strong>TOTALES</strong></td>
+                <td><strong>-</strong></td>
+                <td><strong>-</strong></td>
+                <td><strong>-</strong></td>
+                <td><strong>-</strong></td>
+                <td><strong>${formatearMoneda(totales.calculo)}</strong></td>
+                <td><strong>${formatearMoneda(totales.comision)}</strong></td>
+                <td><strong>${formatearMoneda(totales.retencion)}</strong></td>
+                <td><strong>${formatearMoneda(totales.dispersion)}</strong></td>
+                <td><strong>-</strong></td>
+                <td><strong>-</strong></td>
+            </tr>
+        `;
+
+        tbody.innerHTML = tableHTML;
+    }
+
+    function formatearMoneda(valor) {
+        if (valor === null || valor === undefined) return '$0.00';
+        return new Intl.NumberFormat('es-MX', {
+            style: 'currency',
+            currency: 'MXN'
+        }).format(valor);
+    }
+
+    function formatearFecha(fecha) {
+        if (!fecha) return 'N/A';
+        return new Date(fecha).toLocaleDateString('es-MX');
+    }
+
+    function mostrarError(mensaje) {
+        const container = document.querySelector('.container');
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error';
+        errorDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${mensaje}`;
+        container.insertBefore(errorDiv, container.firstChild);
+    }
+
+    document.getElementById('inversionistaSelect').addEventListener('change', function() {
+        if (this.value) {
+            aplicarFiltros();
+        } else {
+            mostrarMensajeSeleccion();
+            ocultarInformacionInversionista();
+        }
+    });
+</script>
+</body>
+</html>
