@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import type { CatUser, QrEmpresa, DatosVisitante } from '../types/db'
+import type { CatUser } from '../types/db'
 import QRCode from 'react-qr-code'
 import html2canvas from 'html2canvas'
 import { QrCode, Share2, ArrowUpRight, ArrowDownLeft, X } from 'lucide-react'
@@ -17,6 +17,17 @@ interface LogItem {
   tipoQR: string
   entryTime?: string
   exitTime?: string
+}
+
+interface QrWithVisitor {
+  idQR: string
+  claveAcceso: string
+  fechaValidez: string
+  tipoQR: string
+  datosVisitantes?:
+    | { nomVisitante: string | null }[]
+    | { nomVisitante: string | null }
+    | null
 }
 
 export function Dashboard({ currentUser }: DashboardProps) {
@@ -115,16 +126,24 @@ export function Dashboard({ currentUser }: DashboardProps) {
     if (error) {
         console.error('Error fetching logs:', error)
     } else if (qrs) {
-        const mappedLogs: LogItem[] = qrs.map((item: any) => ({
-            idQR: item.idQR,
-            claveAcceso: item.claveAcceso,
-            visitorName: item.datosVisitantes?.nomVisitante || 'Desconocido',
-            fechaValidez: item.fechaValidez,
-            tipoQR: item.tipoQR,
-            // Mock entry/exit for now as DB doesn't have it
-            entryTime: undefined, 
-            exitTime: undefined
-        }))
+        const mappedLogs: LogItem[] = (qrs as QrWithVisitor[]).map((item) => {
+            let visitorName = 'Desconocido'
+            if (Array.isArray(item.datosVisitantes)) {
+                visitorName = item.datosVisitantes[0]?.nomVisitante || 'Desconocido'
+            } else if (item.datosVisitantes) {
+                visitorName = item.datosVisitantes.nomVisitante || 'Desconocido'
+            }
+
+            return {
+                idQR: item.idQR,
+                claveAcceso: item.claveAcceso,
+                visitorName,
+                fechaValidez: item.fechaValidez,
+                tipoQR: item.tipoQR,
+                entryTime: undefined,
+                exitTime: undefined,
+            }
+        })
         setLogs(mappedLogs)
     }
     setLoading(false)

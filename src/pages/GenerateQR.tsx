@@ -3,15 +3,14 @@ import { supabase } from '../lib/supabaseClient'
 import type { CatUser, QrEmpresa, DatosVisitante } from '../types/db'
 import QRCode from 'react-qr-code'
 import html2canvas from 'html2canvas'
-import { QrCode, Calendar, Plus, Save, Search, Share2, Download, Copy } from 'lucide-react'
+import { QrCode, Calendar, Plus, Save, Search, Share2 } from 'lucide-react'
 import { SearchableSelect } from '../components/SearchableSelect'
 
 interface GenerateQRProps {
   currentUser: CatUser | null
-  companyName: string
 }
 
-export function GenerateQR({ currentUser, companyName }: GenerateQRProps) {
+export function GenerateQR({ currentUser }: GenerateQRProps) {
   const [qrTypes, setQrTypes] = useState<QrEmpresa[]>([])
   const [uniqueQrTypes, setUniqueQrTypes] = useState<string[]>([])
   const [visitors, setVisitors] = useState<DatosVisitante[]>([])

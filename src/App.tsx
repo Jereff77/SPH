@@ -178,7 +178,7 @@ function App() {
         <main className="p-4">
           <Routes>
             <Route path="/" element={<Dashboard currentUser={currentUser} />} />
-            <Route path="/generate" element={<GenerateQR currentUser={currentUser} companyName={companyName} />} />
+            <Route path="/generate" element={<GenerateQR currentUser={currentUser} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
