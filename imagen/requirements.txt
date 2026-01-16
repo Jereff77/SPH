@@ -1,0 +1,14 @@
+# Dependencias para el generador de imágenes con CogView-4
+# Proyecto supaSPH-QR
+
+# [Fecha y Hora]: 19/10/2025 01:59:00
+# [Descripción]: Archivo de requisitos para el script generar_imagen_cogview4.py
+
+# Librería para realizar solicitudes HTTP a la API
+requests>=2.25.1
+
+# Librería para cargar variables de entorno desde archivo .env
+python-dotenv>=0.19.0
+
+# Nota: Para instalar estas dependencias, ejecutar:
+# pip install -r requirements.txt

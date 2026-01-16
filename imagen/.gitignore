@@ -1,0 +1,56 @@
+# Archivos de configuración con credenciales
+.env
+
+# Directorio de imágenes generadas
+imagenes_generadas/
+
+# Archivos de ejemplo
+ejemplos_prompts.txt
+
+# Archivos temporales
+*.tmp
+*.temp
+
+# Archivos de log
+*.log
+
+# Archivos de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Archivos de entorno virtual
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Archivos de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
