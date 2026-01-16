@@ -1,0 +1,285 @@
+{
+  "project": {
+    "name": "Procesador de Facturas XML",
+    "description": "Sistema automatizado para procesar correos electrónicos con archivos XML de facturas, extraer la información y almacenarla en una base de datos Supabase.",
+    "version": "1.0.0",
+    "author": "SPH Bines Raíces",
+    "repository": "https://github.com/sph-bines-raices/facturas-processor",
+    "license": "MIT",
+    "icon": "📧",
+    "category": "Procesamiento de Datos"
+  },
+  "docker": {
+    "image": "python:3.11-slim",
+    "build_context": ".",
+    "dockerfile": "Dockerfile",
+    "container_name": "sph-email-processor",
+    "restart_policy": "unless-stopped",
+    "network": "email-processor-network"
+  },
+  "environment": {
+    "variables": [
+      {
+        "name": "IMAP_SERVER",
+        "description": "Servidor IMAP para correo electrónico",
+        "default_value": "imap.hostinger.com",
+        "required": true,
+        "type": "string"
+      },
+      {
+        "name": "IMAP_PORT",
+        "description": "Puerto del servidor IMAP",
+        "default_value": "993",
+        "required": true,
+        "type": "number"
+      },
+      {
+        "name": "IMAP_USER",
+        "description": "Usuario completo del correo electrónico",
+        "example": "tu_correo@dominio.com",
+        "required": true,
+        "type": "string",
+        "sensitive": true
+      },
+      {
+        "name": "IMAP_PASSWORD",
+        "description": "Contraseña del correo electrónico",
+        "required": true,
+        "type": "password",
+        "sensitive": true
+      },
+      {
+        "name": "SUPABASE_URL",
+        "description": "URL del proyecto Supabase",
+        "example": "https://tu-proyecto.supabase.co",
+        "required": true,
+        "type": "string",
+        "sensitive": true
+      },
+      {
+        "name": "SUPABASE_KEY",
+        "description": "Clave API de Supabase",
+        "required": true,
+        "type": "password",
+        "sensitive": true
+      },
+      {
+        "name": "POLLING_INTERVAL",
+        "description": "Intervalo de sondeo en segundos para revisar correos",
+        "default_value": "60",
+        "required": false,
+        "type": "number"
+      },
+      {
+        "name": "POLLING_INTERVAL_IDLE",
+        "description": "Intervalo de sondeo en segundos cuando no hay actividad",
+        "default_value": "300",
+        "required": false,
+        "type": "number"
+      },
+      {
+        "name": "LOG_LEVEL",
+        "description": "Nivel de logging (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+        "default_value": "INFO",
+        "required": false,
+        "type": "string",
+        "options": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+      },
+      {
+        "name": "SCHEDULE_ENABLED",
+        "description": "Activar procesamiento por horarios (true/false)",
+        "default_value": "true",
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "name": "SCHEDULE_START_TIME",
+        "description": "Hora de inicio de procesamiento (formato HH:MM)",
+        "default_value": "09:00",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "name": "SCHEDULE_END_TIME",
+        "description": "Hora de fin de procesamiento (formato HH:MM)",
+        "default_value": "18:00",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "name": "SCHEDULE_DAYS",
+        "description": "Días de la semana para procesar (1=Lunes, 2=Martes, etc.)",
+        "default_value": "1,2,3,4,5",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "name": "SCHEDULE_TIMEZONE",
+        "description": "Zona horaria para el procesamiento",
+        "default_value": "America/Mexico_City",
+        "required": false,
+        "type": "string"
+      },
+      {
+        "name": "TABLE_NAME",
+        "description": "Nombre de la tabla en Supabase para almacenar facturas",
+        "default_value": "catFacturas",
+        "required": false,
+        "type": "string"
+      }
+    ]
+  },
+  "resources": {
+    "cpu": {
+      "limit": "1.0",
+      "reservation": "0.5",
+      "description": "CPU limitado a 1 núcleo con reserva de 0.5"
+    },
+    "memory": {
+      "limit": "512M",
+      "reservation": "256M",
+      "description": "Memoria RAM limitada a 512MB con reserva de 256MB"
+    },
+    "storage": {
+      "recommended": "1G",
+      "description": "Espacio recomendado para logs y sesiones"
+    }
+  },
+  "volumes": [
+    {
+      "name": "email-processor-logs",
+      "path": "/app/logs",
+      "description": "Almacenamiento persistente para logs del sistema",
+      "type": "local",
+      "size": "500M"
+    },
+    {
+      "name": "email-processor-sessions",
+      "path": "/app/.sessions",
+      "description": "Almacenamiento para sesiones y contexto del procesador",
+      "type": "local",
+      "size": "100M"
+    },
+    {
+      "name": "email-processor-config",
+      "path": "/app/config",
+      "description": "Almacenamiento para configuración adicional",
+      "type": "local",
+      "size": "50M"
+    }
+  ],
+  "health_check": {
+    "command": "python main.py --status",
+    "interval": "30s",
+    "timeout": "10s",
+    "retries": 3,
+    "start_period": "40s",
+    "description": "Verifica que el procesador esté funcionando correctamente"
+  },
+  "labels": [
+    {
+      "key": "traefik.enable",
+      "value": "true",
+      "description": "Habilitar para balanceador de carga si se usa"
+    },
+    {
+      "key": "app.email-processor",
+      "value": "true",
+      "description": "Etiqueta para identificación en EasyPanel"
+    }
+  ],
+  "deployment": {
+    "instructions": {
+      "preparation": [
+        "Asegúrate de tener acceso a un servidor con EasyPanel instalado",
+        "Verifica que Docker esté funcionando en el servidor",
+        "Prepara las credenciales de correo electrónico y Supabase"
+      ],
+      "steps": [
+        "En EasyPanel, crea un nuevo proyecto Docker Compose",
+        "Sube todos los archivos del proyecto al servidor",
+        "Configura las variables de entorno requeridas",
+        "Asegúrate de que los volúmenes se creen correctamente",
+        "Inicia el proyecto y verifica los logs",
+        "Confirma que el sistema se conecte correctamente al IMAP y Supabase"
+      ],
+      "verification": [
+        "Verifica que el contenedor esté en ejecución",
+        "Revisa los logs para confirmar conexiones exitosas",
+        "Ejecuta una prueba con: docker-compose exec email-processor python main.py --test",
+        "Verifica el estado con: docker-compose exec email-processor python main.py --status"
+      ],
+      "troubleshooting": [
+        "Si el contenedor no inicia, revisa las variables de entorno",
+        "Para errores de conexión IMAP, verifica credenciales y servidor",
+        "Para errores de Supabase, confirma URL y permisos de la API key",
+        "Si hay problemas con volúmenes, verifica: docker volume ls"
+      ]
+    },
+    "commands": {
+      "build": "docker-compose up -d --build",
+      "logs": "docker-compose logs -f email-processor",
+      "status": "docker-compose ps",
+      "restart": "docker-compose restart email-processor",
+      "stop": "docker-compose down",
+      "clean": "docker-compose down -v"
+    }
+  },
+  "monitoring": {
+    "metrics": [
+      {
+        "name": "Correos procesados",
+        "description": "Número total de correos procesados",
+        "source": "logs"
+      },
+      {
+        "name": "Facturas insertadas",
+        "description": "Número total de facturas guardadas en Supabase",
+        "source": "logs"
+      },
+      {
+        "name": "Estado del sistema",
+        "description": "Estado actual del procesador",
+        "command": "python main.py --status"
+      }
+    ],
+    "alerts": [
+      {
+        "condition": "container_not_running",
+        "message": "El contenedor del procesador de correos no está en ejecución",
+        "severity": "critical"
+      },
+      {
+        "condition": "imap_connection_failed",
+        "message": "Error de conexión al servidor IMAP",
+        "severity": "high"
+      },
+      {
+        "condition": "supabase_connection_failed",
+        "message": "Error de conexión a Supabase",
+        "severity": "high"
+      }
+    ]
+  },
+  "backup": {
+    "strategy": "Los logs y sesiones se guardan en volúmenes persistentes",
+    "commands": {
+      "logs": "docker cp $(docker-compose ps -q email-processor):/app/logs ./backup/logs",
+      "sessions": "docker cp $(docker-compose ps -q email-processor):/app/.sessions ./backup/sessions"
+    }
+  },
+  "security": {
+    "considerations": [
+      "Las credenciales se almacenan como variables de entorno",
+      "Conexión segura via SSL/TLS con servidor IMAP",
+      "Validación de datos antes de insertar en base de datos",
+      "Detección de duplicados para evitar inserciones múltiples"
+    ],
+    "recommendations": [
+      "Usar contraseñas seguras para el correo electrónico",
+      "Rotar periódicamente las API keys de Supabase",
+      "Limitar el acceso a los logs solo a personal autorizado",
+      "Monitorear actividad inusual en las conexiones"
+    ]
+  }
+}

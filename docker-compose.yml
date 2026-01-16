@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  email-processor:
+    build: .
+    container_name: sph-email-processor
+    restart: unless-stopped
+    
+    # Límites de recursos para EasyPanel
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'        # Limitar a 1 CPU
+          memory: 512M       # Limitar a 512MB RAM
+        reservations:
+          cpus: '0.5'        # Reservar 0.5 CPU
+          memory: 256M       # Reservar 256MB RAM
+    
+    # Health check mejorado para monitoreo en EasyPanel
+    healthcheck:
+      test: ["CMD", "python", "main.py", "--status"]
+      interval: 30s         # Verificar cada 30 segundos
+      timeout: 10s          # Timeout de 10 segundos
+      retries: 3            # Reintentar 3 veces antes de marcar como unhealthy
+      start_period: 40s     # Período de gracia al iniciar
+    
+    environment:
+      # Variables de entorno - estas deben configurarse en Easy Panel
+      # Configuración IMAP
+      - IMAP_SERVER=${IMAP_SERVER:-imap.hostinger.com}
+      - IMAP_PORT=${IMAP_PORT:-993}
+      - IMAP_USER=${IMAP_USER}
+      - IMAP_PASSWORD=${IMAP_PASSWORD}
+      
+      # Configuración Supabase
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - TABLE_NAME=${TABLE_NAME:-catFacturas}
+      
+      # Configuración del procesador
+      - POLLING_INTERVAL=${POLLING_INTERVAL:-60}
+      - POLLING_INTERVAL_IDLE=${POLLING_INTERVAL_IDLE:-300}  # Intervalo cuando no hay actividad (5 min)
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      
+      # Configuración de horarios (variables faltantes agregadas)
+      - SCHEDULE_ENABLED=${SCHEDULE_ENABLED:-true}
+      - SCHEDULE_START_TIME=${SCHEDULE_START_TIME:-09:00}    # Formato HH:MM
+      - SCHEDULE_END_TIME=${SCHEDULE_END_TIME:-18:00}        # Formato HH:MM
+      - SCHEDULE_DAYS=${SCHEDULE_DAYS:-1,2,3,4,5}           # 1=Lunes, 7=Domingo
+      - SCHEDULE_TIMEZONE=${SCHEDULE_TIMEZONE:-America/Mexico_City}
+    
+    volumes:
+      # Montar volumen persistente para logs (mejorado con etiquetas)
+      - email-processor-logs:/app/logs
+      # Montar volumen para sesiones/contexto (mejorado con etiquetas)
+      - email-processor-sessions:/app/.sessions
+      # Montar volumen para configuración adicional si es necesario
+      - email-processor-config:/app/config
+    
+    networks:
+      - email-processor-network
+    
+    # Mejoras para EasyPanel
+    labels:
+      - "traefik.enable=true"  # Habilitar para balanceador de carga si se usa
+      - "app.email-processor=true"  # Etiqueta para identificación en EasyPanel
+
+volumes:
+  # Volúmenes con etiquetas descriptivas para EasyPanel
+  email-processor-logs:
+    driver: local
+    labels:
+      - "app=email-processor"
+      - "type=logs"
+  
+  email-processor-sessions:
+    driver: local
+    labels:
+      - "app=email-processor"
+      - "type=sessions"
+  
+  email-processor-config:
+    driver: local
+    labels:
+      - "app=email-processor"
+      - "type=config"
+
+networks:
+  email-processor-network:
+    driver: bridge
+    labels:
+      - "app=email-processor"

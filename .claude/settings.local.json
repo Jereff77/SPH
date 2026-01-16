@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /B *.example 2)",
+      "Bash(nul)",
+      "Bash(dir:*)",
+      "Bash(python:*)",
+      "Bash(if not exist \"D:\\Clientes\\SPH Bines Raices\\Extraccion de facturas RA\\.sessions\" mkdir \"D:\\Clientes\\SPH Bines Raices\\Extraccion de facturas RA\\.sessions\")",
+      "Bash(if not exist \".sessions\" mkdir \".sessions\")",
+      "Bash(mkdir:*)",
+      "Bash(more:*)",
+      "Bash(powershell:*)",
+      "Bash(\"python main.py --mode once\")",
+      "Bash(pip install:*)",
+      "Bash(.venvScriptspython.exe:*)",
+      "Bash(powershell.exe:*)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
+}
