@@ -1,0 +1,56 @@
+{
+  "tech_stack": [
+    "TypeScript",
+    "React",
+    "Vite",
+    "Tailwind CSS",
+    "Supabase",
+    "Playwright"
+  ],
+  "features": [
+    {
+      "name": "Authentication",
+      "description": "User login and logout using Supabase Auth. Persists session state.",
+      "files": [
+        "src/App.tsx",
+        "src/lib/supabaseClient.ts"
+      ]
+    },
+    {
+      "name": "QR Generation",
+      "description": "Generates QR codes for visitors. Validates daily limits for 'Uso General' and inventory for 'Administrativo' types.",
+      "files": [
+        "src/App.tsx"
+      ]
+    },
+    {
+      "name": "Visitor Management",
+      "description": "Create new visitors with photo ID upload. List and select existing visitors using a searchable dropdown.",
+      "files": [
+        "src/App.tsx",
+        "src/components/SearchableSelect.tsx"
+      ]
+    },
+    {
+      "name": "Searchable Dropdown",
+      "description": "Reusable component for selecting options with a search filter. Replaces native select elements for better UX with large lists.",
+      "files": [
+        "src/components/SearchableSelect.tsx"
+      ]
+    },
+    {
+      "name": "Company Information",
+      "description": "Displays current user's company name and tracks daily QR usage against limits.",
+      "files": [
+        "src/App.tsx"
+      ]
+    },
+    {
+      "name": "Database Types",
+      "description": "TypeScript interfaces for Supabase tables (CatUser, Empresa, QrEmpresa, DatosVisitante, QrGenerado).",
+      "files": [
+        "src/types/db.ts"
+      ]
+    }
+  ]
+}

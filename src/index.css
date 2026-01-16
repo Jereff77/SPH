@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@theme {
+  --color-sph-light: #F2F2F2;
+  --color-sph-text: #6B6B6B;
+  --color-sph-primary: #1F2D4A;
+}
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+/* Mobile-first layout: constrain app to mobile width on larger screens */
+#root {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+}
+
+#root > * {
+  width: 100%;
+  max-width: 480px;
+}

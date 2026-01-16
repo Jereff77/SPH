@@ -1,0 +1,445 @@
+[
+  {
+    "id": "TC001",
+    "title": "Successful login with valid credentials",
+    "description": "Verify that a user can log in successfully using a valid email and password via Supabase authentication.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page"
+      },
+      {
+        "type": "action",
+        "description": "Input a valid email address in the email field"
+      },
+      {
+        "type": "action",
+        "description": "Input the corresponding valid password"
+      },
+      {
+        "type": "action",
+        "description": "Click the login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify user is authenticated and navigated to the main application interface"
+      },
+      {
+        "type": "assertion",
+        "description": "Ensure session state persists user email"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Login failure with invalid credentials",
+    "description": "Verify that login fails and appropriate error message is displayed when invalid email or password is entered.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page"
+      },
+      {
+        "type": "action",
+        "description": "Input an invalid email or password"
+      },
+      {
+        "type": "action",
+        "description": "Click the login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify login is denied"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that a clear error message about invalid credentials is shown"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Logout clears session and secures account",
+    "description": "Ensure that user logout successfully terminates session and clears persisted email from session state.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in with valid credentials"
+      },
+      {
+        "type": "action",
+        "description": "Click the logout button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user is redirected to the login page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify session state no longer contains user email"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Select existing visitor using searchable dropdown",
+    "description": "Verify that user can search and select an existing visitor from the searchable dropdown component.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in successfully"
+      },
+      {
+        "type": "action",
+        "description": "Open the visitor selection dropdown"
+      },
+      {
+        "type": "action",
+        "description": "Type a partial visitor name or identifier to filter results"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify dropdown filters results based on input"
+      },
+      {
+        "type": "action",
+        "description": "Select a visitor from the filtered list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify selected visitor details populate correctly"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Register new visitor with mandatory photo ID upload",
+    "description": "Verify that a new visitor can be registered including mandatory upload of a photo ID, blocking submission if missing.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in successfully"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to visitor registration form"
+      },
+      {
+        "type": "action",
+        "description": "Fill all required visitor fields except photo ID"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to submit the form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify form submission is blocked"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify error message indicating photo ID is required"
+      },
+      {
+        "type": "action",
+        "description": "Upload a valid photo ID image file"
+      },
+      {
+        "type": "action",
+        "description": "Submit the form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify visitor is registered and data is stored in Supabase including photo ID in storage"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Phone number input auto-format and validation",
+    "description": "Verify phone number input automatically formats to (###) ###-#### and validates only 10-digit numeric input.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to visitor registration form"
+      },
+      {
+        "type": "action",
+        "description": "Begin typing a phone number digits only"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify input automatically formats as (###) ###-####"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to input less than or more than 10 digits"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify validation error message is displayed for invalid phone number"
+      },
+      {
+        "type": "action",
+        "description": "Input exactly 10 digits"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify phone number is accepted without errors"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Select QR type and display real-time availability for 'Uso General'",
+    "description": "Verify user can select QR type and for 'Uso General' the system displays remaining daily availability from company limits; 'Administrativo' shows unlimited.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in successfully"
+      },
+      {
+        "type": "action",
+        "description": "Select 'Uso General' QR type"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify real-time daily availability number is displayed and accurate for user’s company"
+      },
+      {
+        "type": "action",
+        "description": "Select 'Administrativo' QR type"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify availability indicator states unlimited access"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "QR code generation successful within daily limit for 'Uso General'",
+    "description": "Verify that QR code is generated with a unique 15-character alphanumeric key when daily limit is not exceeded for 'Uso General' type.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login and select 'Uso General' QR type"
+      },
+      {
+        "type": "action",
+        "description": "Select an existing visitor or register a new one with valid photo ID"
+      },
+      {
+        "type": "action",
+        "description": "Select a visit date"
+      },
+      {
+        "type": "action",
+        "description": "Initiate QR generation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify generation succeeds and a unique 15-character alphanumeric access key is produced"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify generated QR code is displayed on screen with visitor details"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify generated QR data is stored correctly in database with company and visitor info"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Block QR generation exceeding 'Uso General' daily limit",
+    "description": "Verify the system blocks QR code generation when daily usage limit for 'Uso General' visitor type has been reached.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login and select 'Uso General' QR type"
+      },
+      {
+        "type": "action",
+        "description": "Ensure the daily limit for the company is already reached"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to generate another QR code"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the generation is blocked"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify clear error message indicating daily QR limit exceeded is displayed"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Unlimited QR generation for 'Administrativo' visitor type",
+    "description": "Verify that 'Administrativo' QR type ignores daily limits and allows unlimited QR code generation.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login and select 'Administrativo' QR type"
+      },
+      {
+        "type": "action",
+        "description": "Select visitor and date"
+      },
+      {
+        "type": "action",
+        "description": "Generate QR code multiple times successively"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify each QR code is generated successfully regardless of any limits"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify all QR codes are unique and saved correctly in the database"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Verify QR code sharing using Web Share API on supported mobile browsers",
+    "description": "Test that the generated QR code and details can be shared via WhatsApp using the native Web Share API on supported mobile devices.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Generate a valid QR code"
+      },
+      {
+        "type": "action",
+        "description": "Click on the share button on a supported mobile browser"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the Web Share API is invoked"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify WhatsApp is available as a sharing option and sharing completes successfully"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Verify QR code sharing fallback to clipboard copy and WhatsApp Web on desktop",
+    "description": "Verify that when Web Share API is not available (desktop), the application copies the QR code information to the clipboard and opens WhatsApp Web as fallback.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Generate a valid QR code on a desktop browser without Web Share API support"
+      },
+      {
+        "type": "action",
+        "description": "Click on the share button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the QR code details are copied to the clipboard"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify WhatsApp Web is opened or prompted for opening"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Verify QR code sharing fallback to image download when clipboard and WhatsApp Web unavailable",
+    "description": "When clipboard copy or WhatsApp Web fallback fail, verify that the QR code image is downloaded as a last resort for user sharing.",
+    "category": "error handling",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Simulate failure of Web Share API and clipboard copying on client"
+      },
+      {
+        "type": "action",
+        "description": "Generate a QR code"
+      },
+      {
+        "type": "action",
+        "description": "Click the share button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that a QR code image file is offered for download"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Verify unique 15-character alphanumeric access key format",
+    "description": "Verify that every generated QR code contains a unique 15-character alphanumeric string as access key and stored correctly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Generate multiple QR codes consecutively"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify each QR code contains a 15-character string composed only of letters and numbers"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no two QR codes share the same access key"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Database query URL chunking enforcement",
+    "description": "Verify that queries to the database are properly chunked to avoid errors due to length limits when handling large URL requests.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Perform operations that query database with large parameter lists or URL lengths (e.g., bulk visitor lookups)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify queries complete without errors related to URL length or request size"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify correct chunking strategy is applied in the database access layer"
+      }
+    ]
+  }
+]

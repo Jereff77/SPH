@@ -1,0 +1,99 @@
+{
+  "meta": {
+    "project": "SPH Control de Accesos",
+    "date": "2025-12-22",
+    "prepared_by": "SPH Bines Raíces"
+  },
+  "product_overview": "SPH Control de Accesos is a progressive web application built for SPH Bienes Raíces to manage and generate QR access codes for visitors in real estate developments. It facilitates visitor registration, daily QR limits enforcement, and QR sharing via WhatsApp, ensuring controlled and secure visitor access.",
+  "core_goals": [
+    "Allow operators to securely authenticate and manage visitor access.",
+    "Generate unique QR codes adhering to daily limits for visitor access control.",
+    "Enable visitor registration with mandatory photo ID upload for traceability.",
+    "Provide real-time availability feedback for QR generation based on company limits.",
+    "Facilitate easy sharing of generated QR codes via WhatsApp with fallback options.",
+    "Ensure data security using Supabase authentication, storage, and row-level security."
+  ],
+  "key_features": [
+    "User login and logout with Supabase authentication and session persistence.",
+    "QR code generation for 'Uso General' and 'Administrativo' visitor types with daily limit validation for 'Uso General'.",
+    "Visitor management including searchable dropdown to select existing visitors and registration of new visitors with ID upload.",
+    "Real-time visibility of daily QR availability per company for 'Uso General' type and unlimited access for 'Administrativo'.",
+    "Sharing of generated QR codes through WhatsApp using Web Share API or clipboard fallback methods, including QR image generation with visitor details.",
+    "Backend integration with Supabase for authentication, storage, and PostgreSQL database with type-safe TypeScript interfaces."
+  ],
+  "user_flow_summary": [
+    "User logs in via email and password validated against Supabase Auth.",
+    "User selects QR type ('Uso General' or 'Administrativo') with real-time availability display.",
+    "User chooses existing visitor from searchable dropdown or registers a new visitor with mandatory ID image.",
+    "User selects date of visit and initiates QR generation; system validates daily limits for 'Uso General'.",
+    "System generates a unique 15-character alphanumeric access key and renders the corresponding QR code.",
+    "User views QR on screen and optionally shares it via WhatsApp using Web Share API or clipboard fallback.",
+    "User logs out to terminate the session and secure their account."
+  ],
+  "validation_criteria": [
+    "Login requires valid credentials; errors are clearly displayed on failure.",
+    "QR generation for 'Uso General' blocks creation if daily limits are exceeded.",
+    "New visitor registration requires mandatory fields including a photo ID upload to Supabase Storage.",
+    "Phone numbers are auto-formatted to (###) ###-#### and validated for 10-digit numeric input.",
+    "Sharing via WhatsApp works with fallback strategies: native share on mobile, clipboard copy and WhatsApp web on desktop, or image download as last resort.",
+    "QR codes contain a unique 15-character alphanumeric access key and are stored in database with all relevant visitor and company info.",
+    "System enforces URL chunking in database queries to avoid errors due to URL length limits.",
+    "Session state persists user email and clears upon logout to maintain security."
+  ],
+  "code_summary": {
+    "tech_stack": [
+      "TypeScript",
+      "React",
+      "Vite",
+      "Tailwind CSS",
+      "Supabase",
+      "Playwright"
+    ],
+    "features": [
+      {
+        "name": "Authentication",
+        "description": "User login and logout using Supabase Auth. Persists session state.",
+        "files": [
+          "src/App.tsx",
+          "src/lib/supabaseClient.ts"
+        ]
+      },
+      {
+        "name": "QR Generation",
+        "description": "Generates QR codes for visitors. Validates daily limits for 'Uso General' and inventory for 'Administrativo' types.",
+        "files": [
+          "src/App.tsx"
+        ]
+      },
+      {
+        "name": "Visitor Management",
+        "description": "Create new visitors with photo ID upload. List and select existing visitors using a searchable dropdown.",
+        "files": [
+          "src/App.tsx",
+          "src/components/SearchableSelect.tsx"
+        ]
+      },
+      {
+        "name": "Searchable Dropdown",
+        "description": "Reusable component for selecting options with a search filter. Replaces native select elements for better UX with large lists.",
+        "files": [
+          "src/components/SearchableSelect.tsx"
+        ]
+      },
+      {
+        "name": "Company Information",
+        "description": "Displays current user's company name and tracks daily QR usage against limits.",
+        "files": [
+          "src/App.tsx"
+        ]
+      },
+      {
+        "name": "Database Types",
+        "description": "TypeScript interfaces for Supabase tables (CatUser, Empresa, QrEmpresa, DatosVisitante, QrGenerado).",
+        "files": [
+          "src/types/db.ts"
+        ]
+      }
+    ]
+  }
+}
