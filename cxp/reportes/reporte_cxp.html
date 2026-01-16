@@ -1,0 +1,1903 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte de Cuentas por Pagar - CXP</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Variables de color corporativo */
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #08121a;
+            --accent-color: #e74c3c;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --info-color: #3498db;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+            --gray-color: #95a5a6;
+            --border-color: #ddd;
+            --hover-color: #f8f9fa;
+            --shadow: 0 2px 4px rgba(0,0,0,0.1);
+            --shadow-lg: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        /* Reset y estilos base */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: var(--dark-color);
+            background-color: #e3e3e3;
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+            padding: 24px;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin: 0;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        /* Filtros */
+        .filters-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+
+        .filters-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--hover-color);
+        }
+
+        .filters-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin: 0;
+        }
+
+        .filters-content {
+            padding: 24px;
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-group label {
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--dark-color);
+            font-size: 13px;
+        }
+
+        .form-control {
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        .filter-search {
+            grid-column: span 2;
+        }
+
+        .search-input {
+            display: flex;
+            gap: 8px;
+        }
+
+        .search-input .form-control {
+            flex: 1;
+        }
+
+        /* Meses múltiples */
+        .meses-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        /* Estados múltiples */
+        .estados-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .checkbox-label:hover {
+            background: var(--hover-color);
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            margin-right: 4px;
+        }
+
+        .checkbox-label input[type="checkbox"]:checked + span {
+            font-weight: 500;
+        }
+
+        /* Rango de fechas */
+        .date-range {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .date-range span {
+            color: var(--gray-color);
+            font-size: 14px;
+        }
+
+        .date-range .form-control {
+            flex: 1;
+        }
+
+        /* Botones */
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+
+        .btn-secondary {
+            background: var(--gray-color);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--dark-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-outline:hover {
+            background: var(--hover-color);
+            border-color: var(--secondary-color);
+        }
+
+        .btn-link {
+            background: transparent;
+            color: var(--secondary-color);
+            padding: 8px;
+        }
+
+        .btn-icon {
+            background: transparent;
+            color: var(--gray-color);
+            padding: 8px;
+        }
+
+        .btn-icon:hover {
+            color: var(--secondary-color);
+            background: var(--hover-color);
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        /* Resumen */
+        .summary-section {
+            margin-bottom: 24px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .summary-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: transform 0.3s ease;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .summary-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+        }
+
+        .summary-card:nth-child(1) .summary-icon {
+            background: var(--info-color);
+        }
+
+        .summary-card:nth-child(2) .summary-icon {
+            background: var(--success-color);
+        }
+
+        .summary-card:nth-child(3) .summary-icon {
+            background: var(--warning-color);
+        }
+
+        .summary-card:nth-child(4) .summary-icon {
+            background: var(--accent-color);
+        }
+
+        .summary-content h3 {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray-color);
+            margin: 0 0 4px 0;
+        }
+
+        .summary-content p {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--dark-color);
+            margin: 0;
+        }
+
+        /* Tabla */
+        .table-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--hover-color);
+        }
+
+        .table-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin: 0;
+        }
+
+        .table-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .result-count {
+            font-size: 14px;
+            color: var(--gray-color);
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .data-table th {
+            background: var(--hover-color);
+            color: var(--dark-color);
+            font-weight: 600;
+            text-align: left;
+            padding: 12px 16px;
+            border-bottom: 2px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        .data-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+
+        .data-table tbody tr {
+            transition: background-color 0.2s ease;
+        }
+
+        .data-table tbody tr:hover {
+            background-color: var(--hover-color);
+        }
+
+        /* Estados */
+        .estado-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            text-align: center;
+            display: inline-block;
+            min-width: 80px;
+        }
+
+        .estado-guardado {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .estado-enviado {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .estado-rechazado {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+
+        .estado-aprobado {
+            background: #e8f5e8;
+            color: #388e3c;
+        }
+
+        .estado-reprogramado {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .estado-pagado {
+            background: #e0f2f1;
+            color: #00796b;
+        }
+
+        .estado-pago-bancaria {
+            background: #fce4ec;
+            color: #c2185b;
+        }
+
+        /* Urgente */
+        .urgente-badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .urgente-si {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .urgente-no {
+            background: var(--gray-color);
+            color: white;
+        }
+
+        /* Paginación */
+        .table-pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            border-top: 1px solid var(--border-color);
+            background: var(--hover-color);
+        }
+
+        .pagination-info {
+            font-size: 14px;
+            color: var(--gray-color);
+        }
+
+        .pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .pagination-controls span {
+            font-weight: 500;
+            color: var(--dark-color);
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            max-width: 600px;
+            max-height: 80vh;
+            margin: 50px auto;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin: 0;
+        }
+
+        .modal-close {
+            background: transparent;
+            border: none;
+            font-size: 18px;
+            color: var(--gray-color);
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        /* Loading */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            z-index: 2000;
+        }
+
+        .loading-spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .loading-spinner i {
+            font-size: 32px;
+            color: var(--secondary-color);
+            margin-bottom: 16px;
+        }
+
+        .loading-spinner p {
+            font-size: 16px;
+            color: var(--dark-color);
+            margin: 0;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 12px;
+            }
+            
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .filters-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .filter-search {
+                grid-column: span 1;
+            }
+            
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .table-pagination {
+                flex-direction: column;
+                gap: 12px;
+                text-align: center;
+            }
+            
+            .data-table {
+                font-size: 12px;
+            }
+            
+            .data-table th,
+            .data-table td {
+                padding: 8px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header-actions {
+                flex-direction: column;
+                width: 100%;
+            }
+            
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .filter-actions {
+                flex-direction: column;
+            }
+            
+            .date-range {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .date-range span {
+                text-align: center;
+            }
+        }
+
+        /* Animaciones */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">Reporte de Cuentas por Pagar</h1>
+                <div class="header-actions">
+                    <button id="exportExcel" class="btn btn-secondary">
+                        <i class="fas fa-file-excel"></i> Exportar Excel
+                    </button>
+                    <button id="exportPDF" class="btn btn-secondary">
+                        <i class="fas fa-file-pdf"></i> Exportar PDF
+                    </button>
+                </div>
+            </div>
+            <!-- Instrucciones de token -->
+            <div id="tokenInstructions" style="background: #f0c4c4; padding: 12px; margin: 0 24px 24px 24px; border-radius: 6px; border-left: 4px solid #1976d2; display: none;">
+                <h4 style="margin: 0 0 8px 0; color: #ee0c0c;">🔐 Acceso no permitido</h4>
+            </div>
+        </header>
+
+        <!-- Filtros -->
+        <section class="filters-section">
+            <div class="filters-header">
+                <h2>Filtros</h2>
+                <button id="toggleFilters" class="btn btn-link">
+                    <i class="fas fa-chevron-up"></i>
+                </button>
+            </div>
+            <div class="filters-content">
+                <div class="filters-grid">
+                    <!-- Filtros de Fecha -->
+                    <div class="filter-group">
+                        <label for="rangoFechas">Rango de Fechas</label>
+                        <div class="date-range">
+                            <input type="date" id="fechaInicio" class="form-control" placeholder="Fecha inicio">
+                            <span>a</span>
+                            <input type="date" id="fechaFin" class="form-control" placeholder="Fecha fin">
+                        </div>
+                    </div>
+
+                    <!-- Filtros de Proveedor -->
+                    <div class="filter-group">
+                        <label for="proveedor">Proveedor</label>
+                        <select id="proveedor" class="form-control">
+                            <option value="">Todos los proveedores</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="tipoProveedor">Tipo Proveedor</label>
+                        <select id="tipoProveedor" class="form-control">
+                            <option value="">Todos los tipos</option>
+                            <option value="1">Proveedor</option>
+                            <option value="2">Inversionista</option>
+                            <option value="3">Comisionista</option>
+                        </select>
+                    </div>
+
+                    <!-- Filtros de Categoría -->
+                    <div class="filter-group">
+                        <label for="categoria">Categoría</label>
+                        <select id="categoria" class="form-control">
+                            <option value="">Todas las categorías</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="seccion">Sección</label>
+                        <select id="seccion" class="form-control">
+                            <option value="">Todas las secciones</option>
+                        </select>
+                    </div>
+
+                    <!-- Filtros de Estado -->
+                    <div class="filter-group">
+                        <label for="estado">Estado</label>
+                        <div class="estados-container">
+                            <label class="checkbox-label">
+                                <input type="checkbox" class="estado-checkbox" value="Guardado">
+                                <span>Guardado</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" class="estado-checkbox" value="Enviado">
+                                <span>Enviado</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" class="estado-checkbox" value="Rechazado">
+                                <span>Rechazado</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" class="estado-checkbox" value="Aprobado">
+                                <span>Aprobado</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" class="estado-checkbox" value="Reprogramado">
+                                <span>Reprogramado</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" class="estado-checkbox" value="Pagado">
+                                <span>Pagado</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" class="estado-checkbox" value="Pago T. Bancaria">
+                                <span>Pago T. Bancaria</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" class="estado-checkbox" value="Aprobado sin pago aplicado">
+                                <span>Aprobado sin pago aplicado</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label for="urgente">Urgente</label>
+                        <select id="urgente" class="form-control">
+                            <option value="">Todos</option>
+                            <option value="true">Urgente</option>
+                            <option value="false">No urgente</option>
+                        </select>
+                    </div>
+
+                    <!-- Filtros de Usuarios -->
+                    <div class="filter-group">
+                        <label for="quienSolicito">Quién solicitó</label>
+                        <select id="quienSolicito" class="form-control">
+                            <option value="">Todos los usuarios</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="quienAutorizo">Quién autorizó</label>
+                        <select id="quienAutorizo" class="form-control">
+                            <option value="">Todos los usuarios</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="quienPago">Quién pagó</label>
+                        <select id="quienPago" class="form-control">
+                            <option value="">Todos los usuarios</option>
+                        </select>
+                    </div>
+
+                    <!-- Búsqueda -->
+                    <div class="filter-group filter-search">
+                        <label for="busqueda">Búsqueda</label>
+                        <div class="search-input">
+                            <input type="text" id="busqueda" class="form-control" placeholder="Folio, concepto...">
+                            <button id="searchBtn" class="btn btn-primary">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Acciones de filtros -->
+                <div class="filter-actions">
+                    <button id="applyFilters" class="btn btn-primary">
+                        <i class="fas fa-filter"></i> Aplicar Filtros
+                    </button>
+                    <button id="clearFilters" class="btn btn-outline">
+                        <i class="fas fa-times"></i> Limpiar Filtros
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Resumen -->
+        <section class="summary-section">
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="summary-icon">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                    </div>
+                    <div class="summary-content">
+                        <h3>Total Registros</h3>
+                        <p id="totalRegistros">0</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                    <div class="summary-content">
+                        <h3>Monto Total</h3>
+                        <p id="montoTotal">$0.00</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon">
+                        <i class="fas fa-credit-card"></i>
+                    </div>
+                    <div class="summary-content">
+                        <h3>Monto Aplicado</h3>
+                        <p id="montoAplicado">$0.00</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon">
+                        <i class="fas fa-balance-scale"></i>
+                    </div>
+                    <div class="summary-content">
+                        <h3>Balance</h3>
+                        <p id="balance">$0.00</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tabla de resultados -->
+        <section class="table-section">
+            <div class="table-header">
+                <h2>Resultados</h2>
+                <div class="table-actions">
+                    <span id="resultCount" class="result-count">0 registros</span>
+                    <button id="refreshTable" class="btn btn-icon">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table id="cxpTable" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Folio</th>
+                            <th>Proveedor</th>
+                            <th>Estado</th>
+                            <th>Categoría</th>
+                            <th>Sección</th>
+                            <th>Concepto</th>
+                            <th>F. Solicitud</th>
+                            <th>F. CFDI</th>
+                            <th>Subtotal</th>
+                            <th>Total</th>
+                            <th>Monto Aplicado</th>
+                            <th>Balance</th>
+                            <th>Urgente</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Los datos se cargarán dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="table-pagination">
+                <div class="pagination-info">
+                    <span id="paginationInfo">Mostrando 0 de 0 registros</span>
+                </div>
+                <div class="pagination-controls">
+                    <button id="prevPage" class="btn btn-outline" disabled>
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <span id="currentPage">1</span>
+                    <button id="nextPage" class="btn btn-outline" disabled>
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Modal de detalles -->
+        <div id="detailModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Detalles del Registro</h3>
+                    <button class="modal-close" id="closeModal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body" id="modalBody">
+                    <!-- Los detalles se cargarán dinámicamente -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading overlay -->
+        <div id="loadingOverlay" class="loading-overlay">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Cargando...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        // Esperar a que todas las librerías se carguen
+        window.addEventListener('load', async function() {
+            // Verificar que Supabase se cargó correctamente
+            if (typeof window.supabase === 'undefined') {
+                console.error('Error: La librería de Supabase no se cargó correctamente');
+                document.body.innerHTML += '<div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); color: white; display: flex; align-items: center; justify-content: center; z-index: 9999;">Error: No se pudo cargar la librería de Supabase. Verifique su conexión a internet.</div>';
+                return;
+            }
+            
+            console.log('Supabase cargado correctamente:', window.supabase);
+            
+            // Obtener token de los parámetros URL
+            function getUrlParameter(name) {
+                const urlParams = new URLSearchParams(window.location.search);
+                return urlParams.get(name);
+            }
+            
+            const accessToken = getUrlParameter('token');
+            
+            // Configuración de Supabase
+            const supabaseUrl = 'https://szjlkvakwljssdnysazp.supabase.co';
+            const supabaseKey = 'sb_publishable_5oZ5QkM8HQv_p7uJZ_EphA_Mf3ZGsR5';
+            
+            console.log('Configuración de Supabase:');
+            console.log('URL:', supabaseUrl);
+            console.log('Key (primeros 10 chars):', supabaseKey.substring(0, 10) + '...');
+            console.log('Token de acceso:', accessToken ? 'Presente' : 'No proporcionado');
+            
+            try {
+                const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+                
+                // Si hay token, establecer sesión
+                if (accessToken) {
+                    console.log('Estableciendo sesión con token proporcionado...');
+                    try {
+                        const { data, error } = await supabase.auth.setSession(accessToken);
+                        
+                        if (error) {
+                            console.error('Error al establecer sesión con token:', error);
+                            document.body.innerHTML += '<div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); color: white; display: flex; align-items: center; justify-content: center; z-index: 9999;">Error de autenticación: ' + error.message + '</div>';
+                            return;
+                        }
+                        
+                        console.log('Sesión establecida exitosamente:', data);
+                        
+                        // Verificar usuario actual
+                        const { data: userData, error: userError } = await supabase.auth.getUser();
+                        if (!userError && userData.user) {
+                            console.log('Usuario autenticado:', userData.user.email);
+                            // Mostrar información del usuario en el header
+                            const headerTitle = document.querySelector('.title');
+                            if (headerTitle) {
+                                headerTitle.innerHTML = `Reporte de Cuentas por Pagar - ${userData.user.email}`;
+                            }
+                            
+                            // Ocultar instrucciones de token
+                            const tokenInstructions = document.getElementById('tokenInstructions');
+                            if (tokenInstructions) {
+                                tokenInstructions.style.display = 'none';
+                            }
+                        }
+                    } catch (authError) {
+                        console.error('Error en proceso de autenticación:', authError);
+                        document.body.innerHTML += '<div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); color: white; display: flex; align-items: center; justify-content: center; z-index: 9999;">Error en autenticación: ' + authError.message + '</div>';
+                        return;
+                    }
+                } else {
+                    console.log('Accediendo como usuario anónimo');
+                    // Mostrar indicador de acceso anónimo
+                    const headerTitle = document.querySelector('.title');
+                    if (headerTitle) {
+                        headerTitle.innerHTML = 'Reporte de Cuentas por Pagar - Acceso Anónimo';
+                    }
+                    
+                    // Mostrar instrucciones de token para acceso anónimo
+                    const tokenInstructions = document.getElementById('tokenInstructions');
+                    if (tokenInstructions) {
+                        tokenInstructions.style.display = 'block';
+                    }
+                }
+                
+                // Hacer disponible globalmente
+                window.db = supabase;
+                
+                // Inicializar la aplicación después de configurar Supabase
+                initializeApp();
+                
+            } catch (error) {
+                console.error('Error al crear cliente de Supabase:', error);
+                document.body.innerHTML += '<div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); color: white; display: flex; align-items: center; justify-content: center; z-index: 9999;">Error al configurar la conexión con la base de datos: ' + error.message + '</div>';
+            }
+        });
+        
+        // Función de inicialización principal
+        function initializeApp() {
+            console.log('Iniciando aplicación...');
+
+            // Variables globales
+            window.currentPage = 1;
+            window.itemsPerPage = 20;
+            window.totalItems = 0;
+            window.allData = [];
+            window.filteredData = [];
+
+            // Inicialización cuando el DOM está listo
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    console.log('DOM cargado, inicializando reporte CXP...');
+                    initializeEventListeners();
+                    setDefaultFilters();
+                    loadInitialData();
+                });
+            } else {
+                console.log('DOM ya está listo, inicializando reporte CXP...');
+                initializeEventListeners();
+                setDefaultFilters();
+                loadInitialData();
+            }
+        }
+
+        // Inicializar event listeners
+        function initializeEventListeners() {
+            console.log('Inicializando event listeners...');
+            
+            // Toggle filtros
+            const toggleFiltersBtn = document.getElementById('toggleFilters');
+            if (toggleFiltersBtn) {
+                toggleFiltersBtn.addEventListener('click', toggleFilters);
+            }
+            
+            // Botones de acción
+            const applyFiltersBtn = document.getElementById('applyFilters');
+            if (applyFiltersBtn) {
+                applyFiltersBtn.addEventListener('click', applyFilters);
+            }
+            
+            const clearFiltersBtn = document.getElementById('clearFilters');
+            if (clearFiltersBtn) {
+                clearFiltersBtn.addEventListener('click', clearFilters);
+            }
+            
+            const searchBtn = document.getElementById('searchBtn');
+            if (searchBtn) {
+                searchBtn.addEventListener('click', applyFilters);
+            }
+            
+            const refreshTableBtn = document.getElementById('refreshTable');
+            if (refreshTableBtn) {
+                refreshTableBtn.addEventListener('click', loadInitialData);
+            }
+            
+            // Exportación
+            const exportExcelBtn = document.getElementById('exportExcel');
+            if (exportExcelBtn) {
+                exportExcelBtn.addEventListener('click', exportToExcel);
+            }
+            
+            const exportPDFBtn = document.getElementById('exportPDF');
+            if (exportPDFBtn) {
+                exportPDFBtn.addEventListener('click', exportToPDF);
+            }
+            
+            // Paginación
+            const prevPageBtn = document.getElementById('prevPage');
+            if (prevPageBtn) {
+                prevPageBtn.addEventListener('click', () => changePage(-1));
+            }
+            
+            const nextPageBtn = document.getElementById('nextPage');
+            if (nextPageBtn) {
+                nextPageBtn.addEventListener('click', () => changePage(1));
+            }
+            
+            // Modal
+            const closeModalBtn = document.getElementById('closeModal');
+            if (closeModalBtn) {
+                closeModalBtn.addEventListener('click', closeModal);
+            }
+            
+            // Búsqueda con Enter
+            const busquedaInput = document.getElementById('busqueda');
+            if (busquedaInput) {
+                busquedaInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        applyFilters();
+                    }
+                });
+            }
+            
+            // Dependencias de filtros
+            const proveedorSelect = document.getElementById('proveedor');
+            if (proveedorSelect) {
+                proveedorSelect.addEventListener('change', updateDependentFilters);
+            }
+            
+            const categoriaSelect = document.getElementById('categoria');
+            if (categoriaSelect) {
+                categoriaSelect.addEventListener('change', updateDependentFilters);
+            }
+            
+            console.log('Event listeners inicializados correctamente');
+        }
+
+        // Toggle filtros
+        function toggleFilters() {
+            const filtersContent = document.querySelector('.filters-content');
+            const icon = document.querySelector('#toggleFilters i');
+            
+            if (filtersContent.style.display === 'none') {
+                filtersContent.style.display = 'block';
+                icon.className = 'fas fa-chevron-up';
+            } else {
+                filtersContent.style.display = 'none';
+                icon.className = 'fas fa-chevron-down';
+            }
+        }
+
+        // Establecer filtros por defecto (rango de fechas del mes actual)
+        function setDefaultFilters() {
+            console.log('Estableciendo filtros por defecto...');
+            
+            // Obtener fecha actual
+            const fechaActual = new Date();
+            const primerDiaMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth(), 1);
+            const ultimoDiaMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth() + 1, 0);
+            
+            // Formatear fechas como YYYY-MM-DD
+            const fechaInicioFormat = primerDiaMes.toISOString().split('T')[0];
+            const fechaFinFormat = ultimoDiaMes.toISOString().split('T')[0];
+            
+            console.log(`Rango de fechas establecido: ${fechaInicioFormat} a ${fechaFinFormat}`);
+            
+            // Establecer rango de fechas del mes actual
+            setTimeout(() => {
+                const fechaInicioInput = document.getElementById('fechaInicio');
+                const fechaFinInput = document.getElementById('fechaFin');
+                
+                if (fechaInicioInput) {
+                    fechaInicioInput.value = fechaInicioFormat;
+                    console.log(`Fecha inicio establecida en: ${fechaInicioFormat}`);
+                }
+                
+                if (fechaFinInput) {
+                    fechaFinInput.value = fechaFinFormat;
+                    console.log(`Fecha fin establecida en: ${fechaFinFormat}`);
+                }
+            }, 1000); // Esperar 1 segundo para asegurar que los inputs estén cargados
+        }
+
+        // Verificar conexión con Supabase
+        async function testSupabaseConnection() {
+            try {
+                console.log('Verificando conexión con Supabase...');
+                // Verificar conexión usando una función RPC con SECURITY DEFINER
+                const { data, error } = await window.db.rpc('cxp_get_unique_values_v2', { tipo_dato: 4 });
+                
+                if (error) {
+                    console.error('Error de conexión con Supabase:', error);
+                    return false;
+                }
+                
+                console.log('Conexión con Supabase verificada exitosamente');
+                console.log('Proveedores obtenidos:', data);
+                return true;
+            } catch (error) {
+                console.error('Error al verificar conexión:', error);
+                return false;
+            }
+        }
+
+        // Cargar datos iniciales
+        async function loadInitialData() {
+            console.log('Iniciando carga de datos iniciales...');
+            showLoading();
+            try {
+                // Verificar conexión primero
+                const connectionOk = await testSupabaseConnection();
+                if (!connectionOk) {
+                    throw new Error('No se puede conectar con la base de datos. Verifique su conexión a internet y las credenciales.');
+                }
+                
+                // Cargar valores para filtros
+                console.log('Paso 1: Cargando valores para filtros...');
+                await loadFilterValues();
+                console.log('Paso 1 completado: Valores de filtros cargados');
+                
+                // Cargar datos principales
+                console.log('Paso 2: Cargando datos principales...');
+                await loadData();
+                console.log('Paso 2 completado: Datos principales cargados');
+                
+                // Actualizar resumen
+                console.log('Paso 3: Actualizando resumen...');
+                updateSummary();
+                console.log('Paso 3 completado: Resumen actualizado');
+                
+                console.log('Carga inicial completada exitosamente');
+                
+            } catch (error) {
+                console.error('Error al cargar datos iniciales:', error);
+                showError('Error al cargar los datos. Por favor, intente nuevamente. Detalles: ' + error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Cargar valores para filtros
+        async function loadFilterValues() {
+            try {
+                console.log('Cargando valores para filtros...');
+                
+                // Cargar valores usando las funciones RPC corregidas (omitimos años ya no se usa)
+                const { data: proveedores, error: errorProveedores } = await window.db.rpc('cxp_get_unique_values_v2', { tipo_dato: 1 });
+                if (errorProveedores) console.error('Error cargando proveedores:', errorProveedores);
+                console.log('Proveedores cargados:', proveedores);
+                populateSelect('proveedor', proveedores || [], 'valor');
+                
+                const { data: categorias, error: errorCategorias } = await window.db.rpc('cxp_get_unique_values_v2', { tipo_dato: 2 });
+                if (errorCategorias) console.error('Error cargando categorías:', errorCategorias);
+                console.log('Categorías cargadas:', categorias);
+                populateSelect('categoria', categorias || [], 'valor');
+                
+                const { data: secciones, error: errorSecciones } = await window.db.rpc('cxp_get_unique_values_v2', { tipo_dato: 3 });
+                if (errorSecciones) console.error('Error cargando secciones:', errorSecciones);
+                console.log('Secciones cargadas:', secciones);
+                populateSelect('seccion', secciones || [], 'valor');
+                
+                const { data: solicitantes, error: errorSolicitantes } = await window.db.rpc('cxp_get_unique_values_v2', { tipo_dato: 5 });
+                if (errorSolicitantes) console.error('Error cargando solicitantes:', errorSolicitantes);
+                console.log('Solicitantes cargados:', solicitantes);
+                populateSelect('quienSolicito', solicitantes || [], 'valor');
+                
+                const { data: autorizadores, error: errorAutorizadores } = await window.db.rpc('cxp_get_unique_values_v2', { tipo_dato: 6 });
+                if (errorAutorizadores) console.error('Error cargando autorizadores:', errorAutorizadores);
+                console.log('Autorizadores cargados:', autorizadores);
+                populateSelect('quienAutorizo', autorizadores || [], 'valor');
+                
+                const { data: pagadores, error: errorPagadores } = await window.db.rpc('cxp_get_unique_values_v2', { tipo_dato: 7 });
+                if (errorPagadores) console.error('Error cargando pagadores:', errorPagadores);
+                console.log('Pagadores cargados:', pagadores);
+                populateSelect('quienPago', pagadores || [], 'valor');
+                
+                console.log('Valores de filtros cargados exitosamente');
+                
+                // Establecer filtros por defecto después de cargar los valores
+                setDefaultFiltersAfterLoad();
+                
+            } catch (error) {
+                console.error('Error al cargar valores de filtros:', error);
+                showError('Error al cargar los valores de los filtros: ' + error.message);
+            }
+        }
+
+        // Establecer filtros por defecto después de cargar los valores
+        function setDefaultFiltersAfterLoad() {
+            console.log('Estableciendo filtros por defecto después de cargar valores...');
+            
+            // Obtener fecha actual
+            const fechaActual = new Date();
+            const primerDiaMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth(), 1);
+            const ultimoDiaMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth() + 1, 0);
+            
+            // Formatear fechas como YYYY-MM-DD
+            const fechaInicioFormat = primerDiaMes.toISOString().split('T')[0];
+            const fechaFinFormat = ultimoDiaMes.toISOString().split('T')[0];
+            
+            console.log(`Rango de fechas establecido: ${fechaInicioFormat} a ${fechaFinFormat}`);
+            
+            // Establecer rango de fechas del mes actual
+            const fechaInicioInput = document.getElementById('fechaInicio');
+            const fechaFinInput = document.getElementById('fechaFin');
+            
+            if (fechaInicioInput) {
+                fechaInicioInput.value = fechaInicioFormat;
+                console.log(`Fecha inicio establecida en: ${fechaInicioFormat}`);
+            }
+            
+            if (fechaFinInput) {
+                fechaFinInput.value = fechaFinFormat;
+                console.log(`Fecha fin establecida en: ${fechaFinFormat}`);
+            }
+        }
+
+        // Poblar select
+        function populateSelect(selectId, data, valueField, textField = valueField) {
+            const select = document.getElementById(selectId);
+            select.innerHTML = '<option value="">Todos</option>';
+            
+            console.log(`Poblando select ${selectId} con ${data ? data.length : 0} elementos`);
+            
+            if (!data || data.length === 0) {
+                console.warn(`No hay datos para el select ${selectId}`);
+                return;
+            }
+            
+            data.forEach(item => {
+                if (item && item[valueField]) {
+                    const option = document.createElement('option');
+                    option.value = item[valueField];
+                    option.textContent = item[textField] || item[valueField];
+                    select.appendChild(option);
+                }
+            });
+            
+            console.log(`Select ${selectId} poblado con ${select.options.length - 1} opciones`);
+        }
+
+        // Cargar datos principales
+        async function loadData() {
+            try {
+                console.log('Cargando datos principales...');
+                
+                // Obtener filtros
+                const fechaInicio = document.getElementById('fechaInicio').value;
+                const fechaFin = document.getElementById('fechaFin').value;
+                const estadosSeleccionados = Array.from(document.querySelectorAll('.estado-checkbox:checked'))
+                    .map(cb => cb.value);
+                
+                console.log('Filtros de fecha - Inicio:', fechaInicio, 'Fin:', fechaFin);
+                console.log('Estados seleccionados:', estadosSeleccionados);
+                
+                // Preparar filtros para la BD (sin filtro de fechas, lo haremos en cliente)
+                const filtersParaBD = {
+                    p_anio: null, // No filtramos por año/mes, usaremos rango de fechas
+                    p_mes: null,
+                    p_proveedor: document.getElementById('proveedor').value || null,
+                    p_categoria: document.getElementById('categoria').value || null,
+                    p_seccion: document.getElementById('seccion').value || null,
+                    p_estado: null, // Siempre null, filtraremos en cliente
+                    p_quien_solicito: document.getElementById('quienSolicito').value || null,
+                    p_quien_autorizo: document.getElementById('quienAutorizo').value || null,
+                    p_quien_pago: document.getElementById('quienPago').value || null,
+                    p_tipo_proveedor: document.getElementById('tipoProveedor').value ? parseInt(document.getElementById('tipoProveedor').value) : null,
+                    p_urgente: document.getElementById('urgente').value ? document.getElementById('urgente').value === 'true' : null
+                };
+                
+                console.log('Filtros para BD:', filtersParaBD);
+                
+                const { data, error } = await window.db.rpc('cxp_get_estado_cuenta_detalle_v2', filtersParaBD);
+                
+                if (error) {
+                    console.error('Error en la llamada a RPC:', error);
+                    throw error;
+                }
+                
+                console.log('Datos recibidos de BD:', data);
+                window.allData = data || [];
+                
+                // Aplicar filtros en el lado del cliente
+                window.filteredData = [...window.allData];
+                
+                // Filtrar por rango de fechas
+                if (fechaInicio || fechaFin) {
+                    window.filteredData = window.filteredData.filter(item => {
+                        const fecSolicitud = new Date(item.fecSolicitud);
+                        const inicio = fechaInicio ? new Date(fechaInicio) : null;
+                        const fin = fechaFin ? new Date(fechaFin + 'T23:59:59') : null; // Incluir todo el día final
+                        
+                        let cumpleFiltro = true;
+                        if (inicio && fecSolicitud < inicio) cumpleFiltro = false;
+                        if (fin && fecSolicitud > fin) cumpleFiltro = false;
+                        
+                        return cumpleFiltro;
+                    });
+                    console.log('Filtrado por rango de fechas:', window.filteredData.length, 'registros');
+                }
+                
+                // Filtrar por estados (múltiples o uno solo)
+                if (estadosSeleccionados.length > 0) {
+                    window.filteredData = window.filteredData.filter(item => {
+                        const coincideEstado = estadosSeleccionados.includes(item.estado);
+                        console.log(`Item estado: "${item.estado}" - Estados seleccionados: [${estadosSeleccionados.join(', ')}] - Coincide: ${coincideEstado}`);
+                        return coincideEstado;
+                    });
+                    console.log('Filtrado por estados:', estadosSeleccionados, 'Registros:', window.filteredData.length);
+                    
+                    // Mostrar detalles del filtrado para depuración
+                    const conteoEstados = {};
+                    estadosSeleccionados.forEach(estado => {
+                        conteoEstados[estado] = 0;
+                    });
+                    window.filteredData.forEach(item => {
+                        if (conteoEstados.hasOwnProperty(item.estado)) {
+                            conteoEstados[item.estado]++;
+                        }
+                    });
+                    console.log('Conteo por estado:', conteoEstados);
+                }
+                
+                // Filtrar por texto de búsqueda (folio, concepto, proveedor)
+                const busqueda = document.getElementById('busqueda').value;
+                if (busqueda) {
+                    const busquedaLower = busqueda.toLowerCase();
+                    window.filteredData = window.filteredData.filter(item => {
+                        return (item.folio && item.folio.toLowerCase().includes(busquedaLower)) ||
+                               (item.concepto && item.concepto.toLowerCase().includes(busquedaLower)) ||
+                               (item.proveedor && item.proveedor.toLowerCase().includes(busquedaLower));
+                    });
+                    console.log('Filtrado por búsqueda:', busqueda, 'Registros:', window.filteredData.length);
+                }
+                
+                window.totalItems = window.filteredData.length;
+                
+                console.log(`Total de registros finales: ${window.totalItems}`);
+                
+                renderTable();
+                updatePagination();
+                
+            } catch (error) {
+                console.error('Error al cargar datos:', error);
+                showError('Error al cargar los datos: ' + error.message);
+                throw error;
+            }
+        }
+
+        // Obtener filtros aplicados (para compatibilidad, el filtrado real está en loadData)
+        function getFilters() {
+            const filters = {
+                p_anio: null, // No usamos año/mes, filtramos por rango de fechas en cliente
+                p_mes: null,
+                p_proveedor: document.getElementById('proveedor').value || null,
+                p_categoria: document.getElementById('categoria').value || null,
+                p_seccion: document.getElementById('seccion').value || null,
+                p_estado: null, // Siempre null, filtramos estados en cliente
+                p_quien_solicito: document.getElementById('quienSolicito').value || null,
+                p_quien_autorizo: document.getElementById('quienAutorizo').value || null,
+                p_quien_pago: document.getElementById('quienPago').value || null,
+                p_tipo_proveedor: document.getElementById('tipoProveedor').value ? parseInt(document.getElementById('tipoProveedor').value) : null,
+                p_urgente: document.getElementById('urgente').value ? document.getElementById('urgente').value === 'true' : null
+            };
+            
+            console.log('Filtros base generados:', filters);
+            return filters;
+        }
+
+        // Aplicar filtros
+        async function applyFilters() {
+            console.log('Aplicando filtros...');
+            showLoading();
+            try {
+                await loadData();
+                updateSummary();
+                console.log('Filtros aplicados exitosamente');
+            } catch (error) {
+                console.error('Error al aplicar filtros:', error);
+                showError('Error al aplicar filtros: ' + error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Limpiar filtros
+        function clearFilters() {
+            document.getElementById('proveedor').value = '';
+            document.getElementById('tipoProveedor').value = '';
+            document.getElementById('categoria').value = '';
+            document.getElementById('seccion').value = '';
+            document.getElementById('urgente').value = '';
+            document.getElementById('quienSolicito').value = '';
+            document.getElementById('quienAutorizo').value = '';
+            document.getElementById('quienPago').value = '';
+            document.getElementById('busqueda').value = '';
+            document.getElementById('fechaInicio').value = '';
+            document.getElementById('fechaFin').value = '';
+            
+            // Limpiar checkboxes de estados
+            document.querySelectorAll('.estado-checkbox').forEach(cb => cb.checked = false);
+            
+            applyFilters();
+        }
+
+        // Renderizar tabla
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            const startIndex = (window.currentPage - 1) * window.itemsPerPage;
+            const endIndex = startIndex + window.itemsPerPage;
+            const pageData = window.filteredData.slice(startIndex, endIndex);
+            
+            console.log(`Renderizando tabla: ${window.filteredData.length} registros totales, mostrando ${pageData.length} en página ${window.currentPage}`);
+            
+            tbody.innerHTML = '';
+            
+            if (pageData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="14" class="text-center">No se encontraron registros</td></tr>';
+                return;
+            }
+            
+            pageData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.folio || ''}</td>
+                    <td>${row.proveedor || ''}</td>
+                    <td><span class="estado-badge estado-${getEstadoClass(row.estado)}">${row.estado || ''}</span></td>
+                    <td>${row.categoria || ''}</td>
+                    <td>${row.seccion || ''}</td>
+                    <td>${row.concepto || ''}</td>
+                    <td>${formatDate(row.fecSolicitud)}</td>
+                    <td>${formatDate(row.fecCFDI)}</td>
+                    <td class="text-right">${formatCurrency(row.subtotal)}</td>
+                    <td class="text-right">${formatCurrency(row.total)}</td>
+                    <td class="text-right">${formatCurrency(row.montoAplicado)}</td>
+                    <td class="text-right">${formatCurrency(row.balance)}</td>
+                    <td><span class="urgente-badge urgente-${row.esUrgente ? 'si' : 'no'}">${row.esUrgente ? 'Sí' : 'No'}</span></td>
+                    <td>
+                        <button class="btn btn-icon" onclick="showDetails('${row.idCxp}')" title="Ver detalles">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            document.getElementById('resultCount').textContent = `${window.filteredData.length} registros`;
+        }
+
+        // Obtener clase CSS para estado
+        function getEstadoClass(estado) {
+            const estadoMap = {
+                'Guardado': 'guardado',
+                'Enviado': 'enviado',
+                'Rechazado': 'rechazado',
+                'Aprobado': 'aprobado',
+                'Reprogramado': 'reprogramado',
+                'Pagado': 'pagado',
+                'Pago T. Bancaria': 'pago-bancaria'
+            };
+            return estadoMap[estado] || 'guardado';
+        }
+
+        // Formatear fecha
+        function formatDate(dateString) {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('es-MX');
+        }
+
+        // Formatear moneda
+        function formatCurrency(amount) {
+            if (amount === null || amount === undefined) return '$0.00';
+            return new Intl.NumberFormat('es-MX', {
+                style: 'currency',
+                currency: 'MXN'
+            }).format(amount);
+        }
+
+        // Actualizar resumen
+        function updateSummary() {
+            const totalRegistros = window.filteredData.length;
+            const montoTotal = window.filteredData.reduce((sum, item) => sum + (item.total || 0), 0);
+            const montoAplicado = window.filteredData.reduce((sum, item) => sum + (item.montoAplicado || 0), 0);
+            const balance = montoTotal - montoAplicado;
+            
+            document.getElementById('totalRegistros').textContent = totalRegistros.toLocaleString();
+            document.getElementById('montoTotal').textContent = formatCurrency(montoTotal);
+            document.getElementById('montoAplicado').textContent = formatCurrency(montoAplicado);
+            document.getElementById('balance').textContent = formatCurrency(balance);
+        }
+
+        // Actualizar paginación
+        function updatePagination() {
+            const totalPages = Math.ceil(window.totalItems / window.itemsPerPage);
+            const startItem = (window.currentPage - 1) * window.itemsPerPage + 1;
+            const endItem = Math.min(window.currentPage * window.itemsPerPage, window.totalItems);
+            
+            document.getElementById('paginationInfo').textContent =
+                `Mostrando ${startItem}-${endItem} de ${totalItems} registros`;
+            document.getElementById('currentPage').textContent = window.currentPage;
+            
+            document.getElementById('prevPage').disabled = window.currentPage === 1;
+            document.getElementById('nextPage').disabled = window.currentPage === totalPages || totalPages === 0;
+        }
+
+        // Cambiar página
+        function changePage(direction) {
+            const totalPages = Math.ceil(window.totalItems / window.itemsPerPage);
+            const newPage = window.currentPage + direction;
+            
+            if (newPage >= 1 && newPage <= totalPages) {
+                window.currentPage = newPage;
+                renderTable();
+                updatePagination();
+            }
+        }
+
+        // Mostrar detalles
+        async function showDetails(idCxp) {
+            const item = window.allData.find(row => row.idCxp === idCxp);
+            if (!item) return;
+            
+            const modalBody = document.getElementById('modalBody');
+            modalBody.innerHTML = `
+                <div class="detail-grid">
+                    <div class="detail-group">
+                        <label>Folio:</label>
+                        <p>${item.folio || ''}</p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Proveedor:</label>
+                        <p>${item.proveedor || ''}</p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Estado:</label>
+                        <p><span class="estado-badge estado-${getEstadoClass(item.estado)}">${item.estado || ''}</span></p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Categoría:</label>
+                        <p>${item.categoria || ''}</p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Sección:</label>
+                        <p>${item.seccion || ''}</p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Concepto:</label>
+                        <p>${item.concepto || ''}</p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Fecha Solicitud:</label>
+                        <p>${formatDate(item.fecSolicitud)}</p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Fecha CFDI:</label>
+                        <p>${formatDate(item.fecCFDI)}</p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Fecha Pago:</label>
+                        <p>${formatDate(item.fecPago)}</p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Subtotal:</label>
+                        <p class="text-right">${formatCurrency(item.subtotal)}</p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Total:</label>
+                        <p class="text-right">${formatCurrency(item.total)}</p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Monto Aplicado:</label>
+                        <p class="text-right">${formatCurrency(item.montoAplicado)}</p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Balance:</label>
+                        <p class="text-right">${formatCurrency(item.balance)}</p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Urgente:</label>
+                        <p><span class="urgente-badge urgente-${item.esUrgente ? 'si' : 'no'}">${item.esUrgente ? 'Sí' : 'No'}</span></p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Quién solicitó:</label>
+                        <p>${item.quienSolicito || ''}</p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Quién autorizó:</label>
+                        <p>${item.quienAutorizo || ''}</p>
+                    </div>
+                    <div class="detail-group">
+                        <label>Quién pagó:</label>
+                        <p>${item.quienPago || ''}</p>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('detailModal').style.display = 'block';
+        }
+
+        // Cerrar modal
+        function closeModal() {
+            document.getElementById('detailModal').style.display = 'none';
+        }
+
+        // Exportar a Excel
+        function exportToExcel() {
+            try {
+                const ws = XLSX.utils.json_to_sheet(window.filteredData.map(row => ({
+                    'Folio': row.folio,
+                    'Proveedor': row.proveedor,
+                    'Estado': row.estado,
+                    'Categoría': row.categoria,
+                    'Sección': row.seccion,
+                    'Concepto': row.concepto,
+                    'Fecha Solicitud': formatDate(row.fecSolicitud),
+                    'Fecha CFDI': formatDate(row.fecCFDI),
+                    'Fecha Pago': formatDate(row.fecPago),
+                    'Subtotal': row.subtotal,
+                    'Total': row.total,
+                    'Monto Aplicado': row.montoAplicado,
+                    'Balance': row.balance,
+                    'Urgente': row.esUrgente ? 'Sí' : 'No',
+                    'Quién solicitó': row.quienSolicito,
+                    'Quién autorizó': row.quienAutorizo,
+                    'Quién pagó': row.quienPago
+                })));
+                
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'CXP');
+                
+                const fileName = `Reporte_CXP_${new Date().toISOString().split('T')[0]}.xlsx`;
+                XLSX.writeFile(wb, fileName);
+                
+            } catch (error) {
+                console.error('Error al exportar a Excel:', error);
+                showError('Error al exportar a Excel');
+            }
+        }
+
+        // Exportar a PDF
+        function exportToPDF() {
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                // Título
+                doc.setFontSize(16);
+                doc.text('Reporte de Cuentas por Pagar', 14, 15);
+                
+                // Fecha de generación
+                doc.setFontSize(10);
+                doc.text(`Fecha: ${new Date().toLocaleDateString('es-MX')}`, 14, 25);
+                
+                // Preparar datos para la tabla
+                const tableData = window.filteredData.map(row => [
+                    row.folio || '',
+                    row.proveedor || '',
+                    row.estado || '',
+                    formatDate(row.fecSolicitud),
+                    formatCurrency(row.total),
+                    formatCurrency(row.montoAplicado),
+                    formatCurrency(row.balance)
+                ]);
+                
+                // Configurar tabla
+                doc.autoTable({
+                    head: [['Folio', 'Proveedor', 'Estado', 'F. Solicitud', 'Total', 'Monto Aplicado', 'Balance']],
+                    body: tableData,
+                    startY: 35,
+                    fontSize: 8,
+                    styles: {
+                        cellPadding: 2,
+                        fontSize: 8,
+                        overflow: 'linebreak'
+                    },
+                    headStyles: {
+                        fillColor: [44, 62, 80],
+                        textColor: 255
+                    }
+                });
+                
+                // Resumen
+                const finalY = doc.lastAutoTable.finalY + 10;
+                doc.setFontSize(10);
+                doc.text(`Total Registros: ${window.filteredData.length}`, 14, finalY);
+                doc.text(`Monto Total: ${formatCurrency(window.filteredData.reduce((sum, item) => sum + (item.total || 0), 0))}`, 14, finalY + 7);
+                doc.text(`Balance Total: ${formatCurrency(window.filteredData.reduce((sum, item) => sum + (item.balance || 0), 0))}`, 14, finalY + 14);
+                
+                // Guardar PDF
+                const fileName = `Reporte_CXP_${new Date().toISOString().split('T')[0]}.pdf`;
+                doc.save(fileName);
+                
+            } catch (error) {
+                console.error('Error al exportar a PDF:', error);
+                showError('Error al exportar a PDF');
+            }
+        }
+
+        // Actualizar filtros dependientes
+        async function updateDependentFilters() {
+            try {
+                const proveedor = document.getElementById('proveedor').value;
+                const categoria = document.getElementById('categoria').value;
+                
+                const { data } = await window.db.rpc('cxp_get_filtros_dependientes_v2', {
+                    p_proveedor: proveedor || null,
+                    p_categoria: categoria || null,
+                    p_seccion: null
+                });
+                
+                if (data) {
+                    // Actualizar secciones basado en la categoría seleccionada
+                    if (categoria) {
+                        const seccionesUnicas = [...new Set(data.filter(item => item.categoria === categoria).map(item => item.seccion))];
+                        populateSelect('seccion', seccionesUnicas.map(seccion => ({ valor: seccion })), 'valor');
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error al actualizar filtros dependientes:', error);
+            }
+        }
+
+        // Mostrar loading
+        function showLoading() {
+            document.getElementById('loadingOverlay').style.display = 'block';
+        }
+
+        // Ocultar loading
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
+        // Mostrar error
+        function showError(message) {
+            alert(message); // En un entorno real, usarías un componente de notificación más elegante
+        }
+
+        // Cerrar modal al hacer clic fuera
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('detailModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        });
+    </script>
+    <style>
+        /* Estilos adicionales para el modal de detalles */
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+        
+        .detail-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .detail-group label {
+            font-weight: 600;
+            color: var(--gray-color);
+            margin-bottom:4px;
+            font-size: 12px;
+        }
+        
+        .detail-group p {
+            margin: 0;
+            font-size: 14px;
+        }
+        
+        @media (max-width: 768px) {
+            .detail-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</body>
+</html>

@@ -1,0 +1,36 @@
+--[Resultado de prueba EXITOSO]
+--[Fecha]: 08/01/2026
+--[Fideicomiso]: jsRw4C6FswY20O
+--[Consulta]: SELECT * FROM resumen_fideicomiso_completo('jsRw4C6FswY20O', 2025, 10);
+
+--[RESULTADO]: Funciona correctamente
+-- La función retornó 84 registros con todos los campos esperados:
+-- - id_fide_resultado
+-- - no_adhesion_resultado
+-- - razon_social_resultado
+-- - personalidad_resultado
+-- - promocion_resultado
+-- - cantidad_propiedades_resultado
+-- - suma_pagos_realizados_resultado
+-- - c_rendimiento_resultado
+-- - c_disp_resultado
+-- - c_rend_sph_resultado
+-- - total_dispersiones_resultado
+
+--[NOTA IMPORTANTE]:
+-- Los períodos de dispersión en este fideicomiso son TRIMESTRALES:
+-- - Enero (mes 1)
+-- - Abril (mes 4)
+-- - Julio (mes 7)
+-- - Octubre (mes 10)
+--
+-- NO existe un período en diciembre (mes 12), por eso la consulta original
+-- con parámetros (2025, 12) retornaba vacío.
+
+--[Ejemplos de consultas válidas]:
+-- SELECT * FROM resumen_fideicomiso_completo('jsRw4C6FswY20O', 2025, 10);
+-- SELECT * FROM resumen_fideicomiso_completo('jsRw4C6FswY20O', 2025, 7);
+-- SELECT * FROM resumen_fideicomiso_completo('jsRw4C6FswY20O', 2025, 4);
+-- SELECT * FROM resumen_fideicomiso_completo('jsRw4C6FswY20O', 2025, 1);
+-- SELECT * FROM resumen_fideicomiso_completo('jsRw4C6FswY20O', 2025);  -- Todo el año 2025
+-- SELECT * FROM resumen_fideicomiso_completo('jsRw4C6FswY20O');       -- Todo el histórico

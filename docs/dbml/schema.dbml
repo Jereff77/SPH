@@ -1,0 +1,1440 @@
+// Modelo lógico de la base de datos
+// Generado el: 02/01/2026
+// Última actualización: 02/01/2026
+// Fuente: PostgreSQL (Supabase)
+// Diagrama: https://dbdiagram.io/d/... (pegar enlace cuando esté listo)
+
+// Enums personalizados
+Enum "public"."Area" {
+  "Modulo"
+  "Opcion"
+}
+
+Enum "public"."Modulos" {
+  "Arrendatarios"
+  "Comisiones"
+  "Configuraciones"
+  "CRM"
+  "Cuentas por Pagar"
+  "Fideicomiso"
+  "Inversionistas"
+  "Parques"
+}
+
+Enum "public"."mesGratis" {
+  "No"
+  "Si"
+  "Medio"
+}
+
+Enum "public"."arrePdpVigente" {
+  "Si"
+  "3 Meses"
+  "2 Meses"
+  "1 Mes"
+  "No"
+}
+
+Enum "public"."statusTicket" {
+  "Abierto"
+  "En Proceso"
+  "Cerrado"
+}
+
+// Tablas principales
+
+Table "public"."SPHConfiguraciones" {
+  "idConfig" uuid [pk, not null, default: `gen_random_uuid()`]
+  "created_at" timestamp [not null, default: `now()`]
+  "parametro" text
+  "valor" text
+  "tipo" smallint [default: 0]
+  "status" boolean [default: true]
+  "detalle" text
+}
+
+Table "public"."actividad" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamp [not null, default: `now()`]
+  "uid" text
+  "correo" text
+  "entorno" smallint
+  "logeado" boolean
+  "resolucion" text
+  "pantalla" text
+  "widget" text
+  "nomwidget" text
+  "comentario" text
+  "p" text
+  "version" text
+}
+
+Table "public"."activity_history" {
+  "id" uuid [pk, not null, default: `gen_random_uuid()`]
+  "created_at" timestamptz [not null, default: `now()`]
+  "lead_id" uuid [ref: < "public"."leads"."id"]
+  "name" text
+  "activity_date" timestamp
+  "message" text
+  "heat_level" smallint
+  "user_id" uuid [ref: < "public"."catUsers"."uid"]
+  "type" text
+  "fechaAgenda" timestamptz
+  "docs" jsonb
+}
+
+Table "public"."agenda" {
+  "created_at" timestamptz [not null, default: `now()`]
+  "user_ref" uuid [ref: < "public"."catUsers"."uid"]
+  "name" text
+  "description" text
+  "lead_name" text
+  "date" timestamp
+  "duration" smallint
+  "ref" text
+  "id" uuid [default: `gen_random_uuid()`]
+}
+
+Table "public"."arreConceptos" {
+  "fc" timestamp [not null, default: `now()`]
+  "uid" text
+  "idArreConcepto" text [pk]
+  "status" boolean [default: true]
+  "idArrendador" text
+  "idArrePdp" text [ref: < "public"."arrePdp"."idArrePdp"]
+  "concepto" text
+  "mInicio" integer
+  "periodo" integer
+  "monto" double
+}
+
+Table "public"."arrePdp" {
+  "idArrePdp" text [pk, not null]
+  "uid" uuid [ref: < "public"."catUsers"."uid"]
+  "fc" timestamptz [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idArrendador" text [not null, ref: < "public"."inversionista"."idInversionista">]
+  "idNavArrend" text [not null, ref: < "public"."arrenPropiedades"."idNavArrend">]
+  "fecInicio" date
+  "plazo" smallint
+  "deposito" double
+  "precioM2" real
+  "construccionM2" real
+  "rtaBase" double
+  "INPC" double [not null, default: 0]
+  "INPCPlus" double [not null, default: 0]
+  "pm2Admin" double [not null, default: 0]
+  "pm2Mtto" double [not null, default: 0]
+  "pm2Vig" double [not null, default: 0]
+  "fecFin" date // Generada: ("fecInicio" + ((plazo)::double precision * '1 mon'::interval))
+  "vigente" boolean [default: true]
+  "Moneda" text [not null, default: 'MXN']
+  "mesGracia" jsonb [not null, default: '{"renta": 0.0, "vigilancia": 0.0, "mantenimiento": 0.0, "administracion": 0.0}'] // meses de gracia
+  "arrePdpVigente" "arrePdpVigente" [not null, default: 'Si']
+}
+
+Table "public"."arrePdpDetalle" {
+  "idArrePdpDet" text [pk]
+  "fc" timestamptz [not null, default: `now()`]
+  "status" boolean [default: true]
+  "uidc" uuid [ref: < "public"."catUsers"."uid"] // usuario creo registro
+  "idArrePdp" text [ref: < "public"."arrePdp"."idArrePdp"]
+  "tipoOperacion" bigint [ref: < "public"."catTipoOperacion"."id"]
+  "numPartida" integer
+  "concepto" text
+  "fecha" timestamp
+  "pm2" numeric [default: 0]
+  "constM2" numeric [default: 0]
+  "comprobantePago" text [default: '']
+  "INPC" numeric [default: 0]
+  "ptsINPC" numeric [default: 0]
+  "anio" smallint [default: 0]
+  "montoDividido" boolean [default: false] // True cuendo el monto se dividio entre los meses del periodo
+  "UltimoPago" boolean [default: false]
+  "ciclo" integer // el ciclo se marca con el año del inicio del periodo
+  "inc_x_inpc" double [default: 0]
+  "cantidadAplicada" double [default: 0] // pago recibido por el arrendador
+  "uidPago" uuid // usuario registro el pago
+  "fecPago" date // fecha en que se realizo el pago
+  "cantidad2" real [default: 0]
+  "inpcTotal" numeric // Generada: ("INPC" + "ptsINPC")
+  "cantidad" numeric // Generada: (pm2 * "constM2")
+  "moneda" text [default: 'MXN']
+  "tieneMesGratis" "mesGratis" [default: 'No'] // Indica si en el pago lo tiene gratis o medio mes gratis
+  "idRtaA" text
+  "comSPH" real [default: 0]
+}
+
+Table "public"."arrenPropiedades" {
+  "idNavArrend" text [pk]
+  "fc" timestamptz [not null, default: `now()`]
+  "status" boolean [default: true]
+  "uid" text
+  "idArrendador" text [ref: < "public"."inversionista"."idInversionista"]
+  "idParque" text [ref: < "public"."parques"."idParque"]
+  "idNave" text [ref: < "public"."naves"."idNave"]
+  "tienePdp" boolean [default: false]
+  "pdpActivo" boolean [default: false]
+  "idArrePdp" text
+  "pdpVigente" boolean [default: true]
+}
+
+Table "public"."autorizaciones" {
+  "idAutorizaciones" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "nivelAutorizacion" smallint
+  "pantalla" text
+  "idReferencia" text
+  "uidSolicito" text
+  "justificacion" text
+  "uidAutorizo" text
+  "autorizacion" text
+  "statusAutorizacion" smallint [default: 0] // 0.- Pendiente | 1.- Autorizado | 2.- No Autorizado | 3.- Pospuesto
+  "fAutorizacion" timestamp
+}
+
+Table "public"."catBancos" {
+  "id" integer [pk, default: `nextval('bancos_id_seq'::regclass)`]
+  "nombre" varchar
+  "codigo" varchar
+  "tipo" varchar
+  "created_at" timestamptz
+}
+
+Table "public"."catEmpresas" {
+  "idEmpresa" text [pk]
+  "fc" timestamp [not null, default: `now()`]
+  "uidc" text
+  "status" boolean [default: true]
+  "personalidad" smallint [default: 0]
+  "razonSocial" text
+  "rfc" text [unique]
+  "correo" text
+  "web" text
+  "giro" text
+  "regimen" bigint [ref: < "public"."catRegimenFiscal"."clave"]
+  "usoCFDI" text [ref: < "public"."catUsoCFDI"."clave"]
+  "idInversionista" text
+}
+
+Table "public"."catEstadosRG" {
+  "id" integer [pk] // Auto-generado (IDENTITY)
+  "descripcion" text
+}
+
+Table "public"."catFacturas" {
+  "idFactura" text [pk]
+  "status" boolean [default: true]
+  "fc" timestamp [not null, default: `now()`]
+  "folioCFDI" text
+  "fecCFDI" timestamp
+  "totalCFDI" double
+  "subtotalCFDI" double
+  "moneda" text
+  "rfcEmisor" text
+  "nombreEmisor" text
+  "regimenFiscal" integer
+  "descripcion" text
+  "idInversionista" text
+  "nomDescriptivo" text
+  "idRGdet" text
+  "uidr" text // Usuario que registro
+  "fum" timestamp
+  "aplicada" boolean [default: false]
+  "anio" integer [default: 2024]
+  "idRAdet" text
+  "uuidCFDI" text [default: ''] // id factura
+  "selloSAT" text
+  "noCertificadoSAT" text
+  "mesFactura" smallint
+  "anioCFDI" smallint
+  "concepto" text [default: '']
+  "manual" boolean [default: false] // True = La factura fue cargada por un usuario | False = La factura fue cargada por el bot
+}
+
+Table "public"."catGirosComerciales" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "descripcion" text
+}
+
+Table "public"."catParametros" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "uidr" text
+  "concepto" text
+  "valor" double
+  "fechaIni" date
+  "fechaFin" date
+  "idCorto" text // Descripcion del concepto corto
+}
+
+Table "public"."catProveedores" {
+  "idProveedor" text [pk]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "nombre" text
+  "apellidos" text
+  "rfc" text [unique]
+  "razonSocial" text
+  "email" text
+  "telefono" text
+  "noCuenta" text
+  "tipoIdentificacion" smallint // 1 = INE | 2 = Pasaporte
+  "numIdentificacion" text [default: '']
+  "nombreBanco" text
+  "tipoCuenta" text
+  "personalidad" text
+  "claveRegimen" bigint [ref: < "public"."catRegimenFiscal"."clave"]
+}
+
+Table "public"."catProveedores_docs" {
+  "idUser" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idDocumento" text [pk]
+  "idProveedor" text [ref: < "public"."catProveedores"."idProveedor"]
+  "titulo" text
+  "descripcion" text
+  "urldoc" text
+}
+
+Table "public"."catRegimenFiscal" {
+  "clave" bigint [pk, identity]
+  "personalidad" text
+  "descripcion" text
+}
+
+Table "public"."catTipoMovimientos" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "descripcion" text
+}
+
+Table "public"."catTipoOperacion" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "concepto" text
+}
+
+Table "public"."catUsers" {
+  "uid" uuid [pk, default: `gen_random_uuid()`]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: false]
+  "nombre" text
+  "apellidos" text
+  "email" text
+  "telefono" text
+  "idPerfil" smallint [ref: < "public"."perfil"."nivel"]
+  "isSupport" boolean [default: false]
+  "img" text
+  "uidSupervisor" text [default: '']
+  "nomCompleto" text // nombre completo
+  "prueba" text
+  "rol" text
+  "fechaBanneo" timestamp // Fecha y hora en que se aplicó el banneo al usuario. NULL si el usuario no está baneado.
+  "infoBanneo" jsonb // Información completa del historial de banneos en formato JSON. Incluye todos los movimientos, fechas, admins, motivos, etc. NULL significa que nunca ha sido baneado.
+}
+
+Table "public"."catUsoCFDI" {
+  "clave" text [pk]
+  "fisica" boolean
+  "moral" boolean
+  "descripcion" text
+}
+
+Table "public"."clasificaciones" {
+  "idClasificacion" bigint [pk] // Auto-generado (IDENTITY)
+  "nombre" text
+  "descripcion" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+}
+
+Table "public"."comentarios" {
+  "idComents" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamptz [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idPago" text
+  "idPdpDet" text // id usado para identificar dependeiendo del origen del comentario
+  "comentario" text
+  "uid" text
+  "origen" text [default: 'Ventas'] // origen del comentario (ventas, RG, RA)
+}
+
+Table "public"."comprobantesPago" {
+  "idCxp" text [ref: < "public"."cxp"."idCxp"]
+  "idComprobante" text [pk]
+  "fecha_subida" timestamp [not null, default: `now()`]
+  "urldoc" text
+  "nombredoc" text
+  "descripcion" text
+  "tipo" integer // 1 = PDF | 2 = XML
+}
+
+Table "public"."conciliacion" {
+  "razonsocial" text
+  "idpropiedad" text
+  "pdpactivo" boolean
+  "nomdecriptivo" text
+  "cantpagos" integer
+  "montoterreno" numeric
+  "montoobra" numeric
+  "monto" numeric
+  "montopagos" numeric
+  "balance" numeric
+}
+
+Table "public"."cxp" {
+  "idCxp" text [pk]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "uidr" uuid [ref: < "public"."catUsers"."uid"]
+  "estado" text
+  "idProveedor" text [ref: < "public"."catProveedores"."idProveedor"]
+  "tipoProveedor" integer // 1 = Proveedor, 2 = Inversionista, 3 = Comisionista
+  "nombreProveedor" text
+  "fecCFDI" date
+  "fecSolicitud" date
+  "folio" text [unique]
+  "idCategoria" text
+  "parque" text
+  "nave" text
+  "concepto" text
+  "subtotal" double [default: 0]
+  "total" double
+  "autorizo" uuid [ref: < "public"."catUsers"."uid"]
+  "fecAutorizacion" timestamp
+  "pagador" uuid
+  "fecPago" timestamp
+  "montoAplicado" double [default: 0]
+  "urlXLM" text
+  "urlCFDI" text
+  "numSem" integer // Generada: EXTRACT(week FROM "fecSolicitud")
+  "numAnio" integer // Generada: EXTRACT(year FROM fc)
+  "numMes" integer // Generada: EXTRACT(month FROM fc)
+  "rangoSemana" text
+  "ultimoComentario" text [default: '']
+  "nomCFDI" text [default: '']
+  "idEstado" smallint [default: 1] // 1. Guardado | 2. Enviado | 3. Rechazado | 4. Aprobado | 5. Reprogramado | 6. Pagado | 7. Pago T. Bancaria | 99. Aprobado sin pago aplicado
+  "uidGerente" text // Gerente aprobador
+  "idMovBancarios" text
+  "idCxpPPD" text [ref: < "public"."cxp_ppd"."idCxpPPD"]
+  "lineaCaptura" text [unique]
+  "referencia" text
+  "fechaLimite" date
+  "pagoInmediato" boolean
+  "esUrgente" boolean [default: false]
+  "completada" boolean [default: true]
+  "tdc" boolean [default: false] // Pago con tarjeta de SPH
+  "moneda" text [default: 'MXN']
+  "tipoOperacion" smallint [default: 1] // 1. Solicitud de Pago | 2. Solicitud Urgente |3. Pago TdC | 4. Linea de Captura | 5. Devolución | 6. Factura sin XML
+  "nomGerente" text // agrega el nombre del gerente a quien se asigno el pago
+  "autorizadoFP" boolean [default: false] // Se solicito Autorizado fuera de Presupuesto
+}
+
+Table "public"."cxpComentarios" {
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "uidr" text
+  "idCxpComentarios" text [pk]
+  "tipo" integer // 1 = Justificacion, 2 = Comentario, 3 = Razon de rechazo
+  "comentario" text
+  "idCxP" text [ref: < "public"."cxp"."idCxp"]
+}
+
+Table "public"."facturasProveedor" {
+  "idFacturaProveedor" text [pk]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "uidr" text
+  "estado" text
+  "idProveedor" text
+  "fecCFDI" date
+  "folio" text
+  "idCategoria" integer
+  "idClasificacion" integer
+  "concepto" text
+  "justiificacion" text
+}
+
+Table "public"."fideCondiciones" {
+  "idfideCond" text [pk]
+  "fc" timestamptz [not null, default: `now()`]
+  "idPropiedad" text [ref: < "public"."propiedades"."idPropiedad", unique]
+  "noAdhesion" text
+  "Medio" text
+  "Apartado" double
+  "rendimiento" real
+  "PM" text
+  "comentarios" text [default: '']
+  "uid" uuid [ref: < "public"."catUsers"."uid"]
+  "idFide" text [ref: < "public"."fideicomiso"."idFide"]
+  "Prom9%" boolean [default: false] // Promocion del 9% el primer año
+}
+
+Table "public"."fideMesDispersion" {
+  "idfideMesDisp" text [pk]
+  "status" boolean [default: true]
+  "uidr" uuid [ref: < "public"."catUsers"."uid"] // usuario que creo el registro
+  "idFide" text [ref: < "public"."fideicomiso"."idFide"]
+  "mes" integer
+  "dia" integer
+}
+
+Table "public"."fidePdpDispersion" {
+  "idFidePdpD" text [pk]
+  "status" boolean
+  "idFideCond" text [ref: < "public"."fideCondiciones"."idfideCond"]
+  "monto" double
+  "numMov" integer
+  "fecfin" date // Fecha de Dispersion
+  "dias" integer // Dias de calculo para dispersion
+  "rend" double
+  "fecini" date
+  "comsph" double
+  "nombreInversionista" text
+  "idPropiedad" text
+  "personalidad" text
+  "idPdp" text
+  "fc" timestamp [not null, default: `now()`]
+  "calculo_comsph" double // Generada: CASE WHEN ((monto IS NULL) OR (comsph IS NULL) OR (dias IS NULL)) THEN NULL::double precision ELSE (((monto * (comsph / (100)::double precision)) / (365)::double precision) * (dias)::double precision) END
+  "calculo" double // Generada: CASE WHEN ((monto IS NULL) OR (rend IS NULL) OR (dias IS NULL)) THEN NULL::double precision ELSE (((monto * (rend / (100)::double precision)) / (365)::double precision) * (dias)::double precision) END
+  "retencion_isr" double // Generada: CASE WHEN ((personalidad = 'Fisica'::text) AND (monto IS NOT NULL) AND (rend IS NOT NULL) AND (dias IS NOT NULL)) THEN ((((monto * (rend / (100)::double precision)) / (365)::double precision) * (dias)::double precision) * (0.10)::double precision) ELSE (0)::double precision END
+  "dispersion" double // Generada: CASE WHEN ((personalidad = 'Fisica'::text) AND (monto IS NOT NULL) AND (rend IS NOT NULL) AND (dias IS NOT NULL)) THEN ((((monto * (rend / (100)::double precision)) / (365)::double precision) * (dias)::double precision) * (0.90)::double precision) WHEN ((monto IS NOT NULL) AND (rend IS NOT NULL) AND (dias IS NOT NULL)) THEN (((monto * (rend / (100)::double precision)) / (365)::double precision) * (dias)::double precision) ELSE (0)::double precision END
+}
+
+Table "public"."fideicomiso" {
+  "idFide" text [pk]
+  "status" boolean [default: true]
+  "uidr" uuid [ref: < "public"."catUsers"."uid"]
+  "titulo" text
+  "Status" boolean
+  "fecinicio" date
+  "fecfin" date
+  "cantdispersiones" integer [default: 4] // Cantidad de dispersiones en el año
+  "DxA" integer [default: 365] // Dias por Año
+  "rendimiento" smallint [default: 9] // rendimiento maximo del fideicomiso
+}
+
+Table "public"."inversionista" {
+  "idUser" uuid [ref: < "public"."catUsers"."uid"]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idInversionista" text [pk]
+  "nombre" text [default: '']
+  "apellido1" text [default: '']
+  "apellido2" text [default: '']
+  "fecNacimiento" date
+  "telefono" text [default: '']
+  "correo" text
+  "RFC" text [default: '']
+  "CURP" text [default: '']
+  "razonsocial" text
+  "personalidad" text
+  "idContpac" text [default: '']
+  "NomComercial" text [default: '']
+  "tipoCliente" text [default: '1000'] // Tipo de cliente: Inversionista | Arrendatario | Ticket | Prueba
+  "inversionista" boolean [default: false]
+  "arrendatario" boolean [default: false]
+  "ticket" boolean [default: false]
+  "pruebas" boolean [default: false]
+  "idEmpresa" text [default: '']
+  "idRegFiscal" bigint [default: 0]
+  "idusoCFDI" text [default: '']
+  "usuarioFinal" boolean [default: false]
+}
+
+Table "public"."inversionista_docs" {
+  "idUser" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idDocumento" text [pk]
+  "idInversionista" text [ref: < "public"."inversionista"."idInversionista"]
+  "titulo" text
+  "descripcion" text
+  "urldoc" text
+}
+
+Table "public"."leads" {
+  "id" uuid [pk, default: `gen_random_uuid()`]
+  "uidr" uuid [ref: < "public"."catUsers"."uid", default: '896f01e5-283f-4bdb-b3f3-11381adedb30']
+  "status" boolean [default: true]
+  "fc" timestamp [not null, default: `now()`]
+  "nombreLead" text
+  "telefono" text
+  "correo" text
+  "idInmobiliaria" uuid [ref: < "public"."catInmobiliarias"."idInmobiliaria"]
+  "fechaContacto" timestamp [default: `now()`]
+  "fechaRegistro" timestamp [default: `now()`]
+  "mensaje" text
+  "uidRC" uuid [ref: < "public"."catUsers"."uid"] // Responsable comercial
+  "idEtapa" bigint [ref: < "public"."crm_Etapas"."id"]
+  "idOrigen" bigint [ref: < "public"."crm_Origen"."id", default: 0]
+  "idTipoCliente" bigint [ref: < "public"."crm_tipoCliente"."id", default: 0]
+  "idTipoOperacion" bigint [ref: < "public"."crm_tipoOperaciones"."id", default: 0]
+  "idTipoVenta" bigint [ref: < "public"."crm_tipoVenta"."id"]
+  "Etapa" text
+  "Origen" text
+  "tipoCliente" text
+  "tipoOperacion" text
+  "tipoVenta" text
+  "nomRC" text [default: 'Sin asignar']
+  "valor" double [default: 0]
+  "Aprobado" boolean [default: false] // marca los leads que son aprobados para estar con los asesores
+  "idAsesorInm" uuid [ref: < "public"."catAsesoresInm"."id"]
+}
+
+Table "public"."messages" {
+  "id" uuid [pk, default: `extensions.uuid_generate_v4()`]
+  "user_message" text
+  "assistant_message" text
+  "timestamp" timestamptz [not null, default: `now()`]
+}
+
+Table "public"."movbancarios" {
+  "idmov" text [pk]
+  "fc" timestamptz [not null, default: `now()`]
+  "asunto" text
+  "genero" text
+  "fecOperacion" date
+  "horaOperacion" time
+  "ordenante" text
+  "ctaDestino" text
+  "bcoDestino" text
+  "beneficiario" text
+  "aplicar" text
+  "importe" double
+  "cancepto" text
+  "referencia" text
+  "autorizacion" text
+  "rastreo" text [unique]
+  "uidAsignado" text
+  "tipo" text [default: 'Transferencias']
+  "bancoEmisor" text
+  "aplicado" boolean [default: false]
+  "folioCFDI" text // UUID de la factura a la que se le aplico el pago
+  "numAnio" integer // Generada: EXTRACT(year FROM "fecOperacion")
+  "numMes" integer // Generada: EXTRACT(month FROM "fecOperacion")
+  "idArrePdp" text // El id del arrendamiento separado por un - y el numero de la partida
+  "idtipo" integer // Generada: CASE WHEN (tipo = 'Transferencia'::text) THEN 1 WHEN (tipo = 'Transferencias'::text) THEN 1 ELSE 2 END
+  "imgComp" text
+  "manual" boolean [default: false]
+  "Operacion" text [default: 'Transferencia Interbancaria SPEI']
+  "moneda" text [default: 'MNX']
+  "idUnico" text // Generada: ((((COALESCE(referencia, ''::text) || '-'::text) || COALESCE(autorizacion, ''::text)) || '-'::text) || COALESCE(rastreo, ''::text))
+}
+
+Table "public"."pagos" {
+  "idPago" text [pk]
+  "uid" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idPdpDet" text [ref: < "public"."pdpDetalle"."idPdpDet"]
+  "tipomovimiento" integer // 1. Terreno | 2. Construccion | 3. ticket
+  "numPago" smallint
+  "fecha" date
+  "monto" double
+  "comprobante" text
+  "iva" double
+  "montosiniva" double
+  "idPdp" text [ref: < "public"."pdp"."idPdp"]
+  "idTicket" bigint
+  "tipoOperacion" smallint [default: 2] // 0. Monto | 1. Pago | 2. Descuento
+  "idPropiedad" text [ref: < "public"."propiedades"."idPropiedad"]
+}
+
+Table "public"."parametros" {
+  "id" text [pk]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "nombre" text
+  "idShort" text
+}
+
+Table "public"."pdp" {
+  "uid" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idPdp" text [pk]
+  "idPropiedad" text [ref: < "public"."propiedades"."idPropiedad"]
+  "pdpactivo" boolean [default: true]
+  "montoterreno" double
+  "montoobra" double
+  "monto" double
+  "frecuencia" text
+  "cantpagos" integer
+  "idvendedor" text
+  "Editable" boolean [default: false]
+  "esTicket" boolean [default: false]
+  "montoPagado" double [default: 0]
+  "MontoCompleto" boolean // Generada: CASE WHEN (monto IS NULL) THEN NULL::boolean WHEN ("montoPagado" >= monto) THEN true ELSE false END
+}
+
+Table "public"."pdpDetalle" {
+  "uid" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idPdpDet" text [pk]
+  "idPdp" text [ref: < "public"."pdp"."idPdp"]
+  "numPago" integer
+  "fecha" date
+  "monto" double
+  "pago_fecha" date
+  "pago_monto" double
+  "validado_fecha" date
+  "validado_monto" double
+  "idPropiedad" text [ref: < "public"."propiedades"."idPropiedad"]
+  "idNave" text
+  "idInversionista" text
+  "idVendedor" text
+  "ultimoPago" boolean [default: false]
+  "tipoPago" text [default: 'Parcialidad']
+}
+
+Table "public"."perfil" {
+  "idUser" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "nivel" smallint [pk]
+  "nomPerfil" text
+}
+
+Table "public"."propiedades" {
+  "idUser" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idPropiedad" text [pk]
+  "idInversionista" text [ref: < "public"."inversionista"."idInversionista", default: 'tbd']
+  "idNave" text
+  "tienenPdp" boolean
+  "idPdp" text
+  "pdpActivo" boolean
+  "nomDescriptivo" text
+  "idParque" text
+  "PActual" boolean [default: true] // Propietario actual de la nave
+  "esTicket" boolean [default: false]
+  "tieneRgPdp" boolean [default: false]
+  "tieneRaPdp" boolean [default: false]
+  "rgPdpActivo" boolean [default: false]
+  "raPdpActivo" boolean [default: false]
+}
+
+Table "public"."proveedoresDocsCFDI" {
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "titulo" text
+  "descripcion" text
+  "urldoc" text
+  "idCxp" text [ref: < "public"."cxp"."idCxp"]
+  "idArchivo" text [pk]
+  "tipo" integer // 1 = PDF | 2 = XML
+}
+
+Table "public"."raConceptos" {
+  "idRaConceptos" text [pk]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idRtaA" text
+  "concepto" text
+  "monto" double
+  "mesInicio" integer
+  "meses" integer
+  "IVA" double
+  "total" double
+  "uid" text
+}
+
+Table "public"."raPdp" {
+  "idRtaA" text [pk]
+  "uid" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idPropiedad" text [ref: < "public"."propiedades"."idPropiedad"]
+  "fecInicio" date
+  "fecFin" date
+  "duracionRenta" integer
+  "comSPH" real
+  "m2Construccion" real
+  "precioM2" real
+  "rtaAdministrada" double
+  "rentaActiva" boolean
+}
+
+Table "public"."raPdpDetalle" {
+  "idRAdet" text [pk]
+  "uid" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idRtaA" text [ref: < "public"."raPdp"."idRtaA"]
+  "numPago" integer
+  "fecha" date
+  "monto" double
+  "statusPago" boolean
+  "razonRetencion" text
+  "compCFDI" text
+  "idMovBancario" text // id del del movimiento por el cual se realizo la transferencia
+  "subtotal" double
+  "IVA" double
+  "total" double
+  "concepto" text
+  "comentarios" text
+  "subtotalFactura" double [default: 0]
+  "subtotalComprobante" double
+  "comentarioPago" text
+  "fechaPago" date
+  "comentariosFactura" text
+  "fechaFactura" date
+  "fum" timestamp // Fecha ultimo movimiento
+  "uidum" uuid // uid ultimo movimiento
+  "uuidCFDI" text
+}
+
+Table "public"."rgConceptos" {
+  "idRgConceptos" text [pk]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idRtaG" text
+  "concepto" text
+  "monto" double
+  "mesInicio" integer
+  "meses" integer
+  "IVA" double
+  "total" double
+  "uid" text
+}
+
+Table "public"."rgPdp" {
+  "idRtaG" text [pk]
+  "uid" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idPropiedad" text [ref: < "public"."propiedades"."idPropiedad"]
+  "rentaActiva" boolean
+  "precioM2" double
+  "tasaIVA" double
+  "fechaInicio" date
+  "duracionRenta" integer
+  "estadoRenta" integer [ref: < "public"."catEstadosRG"."id"] // 1. Borrador | 2.- No Aprobada | 3. Aprobado | 4. Activo
+  "observaciones" text
+  "fechaFin" date
+  "subtotal" double
+  "m2Construccion" double [default: 0] // Metros de construccion
+  "iva" double [default: 0]
+  "total" double [default: 0]
+  "tieneRg" boolean [default: true]
+  "cumpMin" double
+  "proporcional" boolean [default: true]
+  "incrementoAnual" double
+}
+
+Table "public"."rgPdpDetalle" {
+  "idRGdet" text [pk]
+  "uid" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idRtaG" text [ref: < "public"."rgPdp"."idRtaG"]
+  "numPago" integer
+  "concepto" text
+  "fecha" date
+  "subtotal" double
+  "statusPago" boolean
+  "razonRetencion" text
+  "comentarios" text
+  "fechaFactura" timestamp
+  "subtotalFactura" double [default: 0]
+  "compCFDI" text
+  "comentariosFactura" text
+  "fechaPago" date
+  "subtotalComprobante" double
+  "idMovBancario" text // id del movimiento bancario de la transferencia
+  "comentariosPago" text
+  "fum" timestamp // fecha ultimo movimiento
+  "uidum" uuid // usuario ultimo movimiento
+  "uuidCFDI" text
+}
+
+Table "public"."segModulos" {
+  "idsegModulos" uuid [pk, default: `gen_random_uuid()`]
+  "fc" timestamptz [not null, default: `now()`]
+  "modulo" "Modulos"
+  "seccion" text
+  "area" text
+  "clave" smallint [default: 0, unique]
+}
+
+Table "public"."segModulosUsuarios" {
+  "idsegModulos" uuid [pk, default: `gen_random_uuid()`]
+  "fc" timestamptz [not null, default: `now()`]
+  "modulo" text
+  "seccion" text
+  "area" text
+  "uid" uuid [ref: < "public"."catUsers"."uid"] // Usuario
+  "acceso" boolean [default: false] // determina si tiene acceso o no a la seccion
+  "clave" smallint
+}
+
+Table "public"."seguimientoComentarios" {
+  "idComentario" text [pk]
+  "uidr" text
+  "status" boolean
+  "fc" timestamp [not null, default: `now()`]
+  "idCliente" text
+  "idLead" text
+  "comentario" text
+  "fechaComentario" date
+}
+
+Table "public"."soportes" {
+  "id" uuid [pk, unique, default: `gen_random_uuid()`]
+  "fc" timestamptz [not null, default: `now()`]
+  "status" text [default: 'Abierto'] // Abierto | En Proceso | Cerrado
+  "uid" uuid
+  "fechaRecepcion" timestamp
+  "parque" text
+  "nave" text
+  "reporto" text
+  "telefono" text
+  "propietario" boolean
+  "descripcion" text
+  "insidencia" text [unique]
+  "correo" text // cuenta de correo de donde se recibe
+  "mensaje" text
+  "asunto" text
+  "finalizado" boolean // Generada: CASE WHEN (status = 'Cerrado'::text) THEN true ELSE false END
+}
+
+Table "public"."tareas_Notas" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamp [not null, default: `now()`]
+  "uid" text
+  "idTarea" bigint [ref: < "public"."tareas"."id"]
+  "comentarios" text
+}
+
+Table "public"."tareas" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamptz [not null, default: `now()`]
+  "uid" text
+  "status" boolean [default: true]
+  "titulo" text
+  "Descripcion" text
+  "fechaEntrega" date
+  "uidAsignado" text
+  "statusTarea" smallint
+  "publica" boolean [default: true]
+  "prioridad" smallint
+  "uidSolicito" text
+}
+
+Table "public"."tickets" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamp [not null, default: `now()`]
+  "uid" text
+  "status" boolean [default: true]
+  "parque" text [default: 'A3']
+  "nave" text
+  "idPropietario" text
+  "fecha" date // fecha compromiso de pago
+  "monto" double // monto estipulado
+}
+
+Table "public"."versiones" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "version" text
+  "actualizaciones" text
+}
+
+Table "public"."catFacturasDocs" {
+  "idFacturasDocs" text [pk]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "urlPDF" text
+  "urlXML" text
+  "aplicado" boolean [default: false]
+}
+
+Table "public"."inpc" {
+  "id" text [pk]
+  "fc" timestamptz [not null, default: `now()`]
+  "anio" smallint
+  "mes" smallint
+  "inpc" real
+  "nota" text [default: '']
+  "consecutivo" bigint [unique] // Auto-generado (IDENTITY)
+  "uidUM" uuid // uid de ultima modificacion
+  "fum" timestamptz // fecha de ultima modificacion
+  "uidr" uuid // uisorio que registro
+}
+
+Table "public"."PresCategorias" {
+  "idCategoria" text [pk]
+  "fc" timestamptz [not null, default: `now()`]
+  "status" boolean [default: true]
+  "uidr" uuid // usuario que creo el registro
+  "cuenta" text
+  "seccion" text
+  "descripcion" text
+  "uidResponsable" uuid [ref: < "public"."catUsers"."uid"]
+  "Presupuesto" double [default: 0]
+  "UAP" uuid [ref: < "public"."catUsers"."uid"] // Usuario actualizo presupuesto
+  "FAP" timestamptz // Fecha de actualizacion de Presupuesto
+  "presupuestable" boolean [default: true]
+}
+
+Table "public"."cxp_ppd" {
+  "idCxpPPD" text [pk]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "uidr" uuid [ref: < "public"."catUsers"."uid"]
+  "idProveedor" text [ref: < "public"."catProveedores"."idProveedor"]
+  "tipoProveedor" integer // 1 = Proveedor, 2 = Inversionista, 3 = Comisionista
+  "nombreProveedor" text
+  "fecCFDI" date
+  "fecSolicitud" date
+  "folio" text [unique]
+  "idCategoria" text
+  "concepto" text
+  "subtotal" double
+  "total" double
+  "autorizo" uuid
+  "fecAutorizacion" timestamp
+  "montoAplicado" double [default: 0]
+  "urlXLM" text
+  "urlCFDI" text
+  "nomCFDI" text [default: '']
+  "numPagos" smallint [default: 1] // meses en los que se divide el pago de la factura
+  "fecInicio" date // Fecha de inicio del primer pago
+}
+
+Table "public"."manuales" {
+  "idManual" text [pk]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "titulo" text
+  "descripcion" text
+  "urlManual" text
+}
+
+Table "public"."PresDetalle" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamptz [not null, default: `now()`]
+  "uidc" uuid [ref: < "public"."catUsers"."uid"] // usuario que crea el registro
+  "idCategoria" text [ref: < "public"."PresCategorias"."idCategoria"]
+  "anio" smallint
+  "mes" smallint
+  "monto" double [default: 0]
+  "fua" timestamptz // fecha ultima modificacion
+  "uidm" uuid [ref: < "public"."catUsers"."uid"] // usuario que modifico el registro
+  "idPresupuesto" uuid [ref: < "public"."Presupuestos"."idPresupuesto"]
+}
+
+Table "public"."crm_Etapas" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamptz [not null, default: `now()`]
+  "uidr" uuid [ref: < "public"."catUsers"."uid"]
+  "titulo" text
+  "bkColor" text [default: '#39d2c0']
+  "txtColor" text [default: '#ffffff']
+  "orden" smallint
+  "status" boolean [default: true]
+  "Posicion" text [default: 'medio']
+}
+
+Table "public"."crm_Origen" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamptz [not null, default: `now()`]
+  "uidc" uuid
+  "titulo" text
+  "status" boolean [default: true]
+  "bkColor" text [default: '#ffffff']
+  "txtColor" text [default: '#000000']
+}
+
+Table "public"."crm_tipoOperaciones" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamptz [not null, default: `now()`]
+  "uidc" uuid
+  "titulo" text
+  "status" boolean [default: true]
+}
+
+Table "public"."crm_tipoCliente" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamptz [not null, default: `now()`]
+  "uidc" uuid
+  "titulo" text
+  "status" boolean [default: true]
+  "bkColor" text [default: '#ffffff']
+  "txtColor" text [default: '#000000']
+}
+
+Table "public"."crm_tipoVenta" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamptz [not null, default: `now()`]
+  "uidc" uuid
+  "idTipoOperacion" bigint [ref: < "public"."crm_tipoOperaciones"."id"]
+  "titulo" text
+  "status" boolean [default: true]
+}
+
+Table "public"."crm_campania" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamptz [not null, default: `now()`]
+  "uidc" uuid [ref: < "public"."catUsers"."uid"]
+  "titulo" text
+  "status" boolean [default: true]
+  "bkColor" text [default: '#ffffff']
+  "txtColor" text [default: '#000000']
+}
+
+Table "public"."crm_Recepcion" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamptz [not null, default: `now()`]
+  "uidc" uuid
+  "titulo" text
+  "status" boolean [default: true]
+  "bkColor" text [default: '#FFFFFF']
+  "txtColor" text [default: '#000000']
+}
+
+Table "public"."crm_Encuestas" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamptz [not null, default: `now()`]
+  "uidc" uuid
+  "titulo" text
+  "status" boolean [default: true]
+  "bkColor" text [default: '#FFFFFF']
+  "txtColor" text [default: '#000000']
+}
+
+Table "public"."naves" {
+  "idUser" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idNave" text [pk]
+  "idParque" text [ref: < "public"."parques"."idParque"]
+  "situacion" text
+  "lote" integer [default: 0]
+  "mza" integer [default: 0]
+  "terreno" double [default: 0]
+  "construccion" double [default: 0]
+  "precio" double [default: 0]
+  "fecEntrega" date
+  "numNave" integer
+  "fum" timestamp
+  "fumUser" text
+  "numNaveNAME" text
+  "Arrendada" boolean [default: false]
+  "esTicket" boolean [default: false]
+}
+
+Table "public"."parques" {
+  "idUser" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idParque" text [pk]
+  "nomParque" text
+  "naves" bigint
+  "direccion" text
+  "esTicket" boolean [default: false]
+  "kvasAlta" integer [default: 0]
+  "kvasMedia" integer [default: 0]
+  "kvasAltaDisponibles" integer [default: 0]
+  "kvasMediaDisponibles" integer [default: 0]
+  "kvasAltaUtilizados" integer // Generada: ("kvasAlta" - "kvasAltaDisponibles")
+  "kvasMediaUtilizados" integer // Generada: ("kvasMedia" - "kvasMediaDisponibles")
+}
+
+// Tablas nuevas agregadas
+
+Table "public"."catFacturas_NoCargadas" {
+  "idFactura" bigint [pk] // Auto-generado (IDENTITY)
+  "status" boolean [default: true]
+  "fc" timestamp [not null, default: `now()`]
+  "folioCFDI" text
+  "fecCFDI" timestamp
+  "totalCFDI" double
+  "subtotalCFDI" double
+  "moneda" text
+  "rfcEmisor" text
+  "nombreEmisor" text
+  "regimenFiscal" integer
+  "descripcion" text
+  "idInversionista" text
+  "nomDescriptivo" text
+  "idRGdet" text
+  "uidr" text // Usuario que registro
+  "fum" timestamp
+  "aplicada" boolean [default: false]
+  "anio" integer [default: 2024]
+  "idRAdet" text
+  "uuidCFDI" text [default: ''] // id factura
+  "selloSAT" text
+  "noCertificadoSAT" text
+  "mesFactura" smallint
+  "anioCFDI" smallint
+  "error" text
+}
+
+Table "public"."catCategorias_duplicate" {
+  "idCategoria" bigint [pk] // Auto-generado (IDENTITY)
+  "nombre" text
+  "clasificacion" text
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+}
+
+Table "public"."catFacturas_05112025" {
+  "idFactura" text [pk]
+  "status" boolean [default: true]
+  "fc" timestamp [not null, default: `now()`]
+  "folioCFDI" text
+  "fecCFDI" timestamp
+  "totalCFDI" double
+  "subtotalCFDI" double
+  "moneda" text
+  "rfcEmisor" text
+  "nombreEmisor" text
+  "regimenFiscal" integer
+  "descripcion" text
+  "idInversionista" text
+  "nomDescriptivo" text
+  "idRGdet" text
+  "uidr" text // Usuario que registro
+  "fum" timestamp
+  "aplicada" boolean [default: false]
+  "anio" integer [default: 2024]
+  "idRAdet" text
+  "uuidCFDI" text [default: ''] // id factura
+  "selloSAT" text
+  "noCertificadoSAT" text
+  "mesFactura" smallint
+  "anioCFDI" smallint
+  "concepto" text [default: '']
+  "manual" boolean [default: false] // True = La factura fue cargada por un usuario | False = La factura fue cargada por el bot
+}
+
+Table "public"."emails" {
+  "id" integer [pk, default: `nextval('emails_id_seq'::regclass)`]
+  "uid" varchar [unique]
+  "from_email" text
+  "subject" text
+  "body" text
+  "date" timestamptz
+  "created_at" timestamptz
+  "conversation_id" varchar
+  "to_email" text
+  "email_type" varchar [default: 'received']
+  "folder" varchar [default: 'INBOX']
+  "agrupar" text // Generada: upper(TRIM(BOTH FROM CASE WHEN (subject ~~* 'Re: %'::text) THEN SUBSTRING(subject FROM 5) ELSE subject END))
+  "statusTicket" "statusTicket" [default: 'Abierto']
+  "noReporte" text
+}
+
+Table "public"."email_attachments" {
+  "id" integer [pk, default: `nextval('email_attachments_id_seq'::regclass)`]
+  "email_id" integer [ref: < "public"."emails"."id"]
+  "filename" text
+  "url" text
+  "content_type" text
+  "created_at" timestamptz [not null, default: `now()`]
+}
+
+Table "public"."crm_incidencias" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamptz [not null, default: `now()`]
+  "status" boolean [default: true]
+  "idMensaje" text
+  "fecha" text
+  "date" timestamp
+  "messageid" text
+  "from" text
+  "to" text
+  "subject" text
+  "cuerpoPlano" text
+  "textasHtml" text
+  "reference" text
+  "cadena" boolean [default: true]
+  "fum" timestamp
+}
+
+Table "public"."segPlantillasPermisos" {
+  "idPlantilla" uuid [pk, default: `gen_random_uuid()`]
+  "fc" timestamptz
+  "status" boolean [default: true]
+  "nombrePlantilla" text [unique]
+  "descripcion" text
+  "uidCreador" uuid [ref: < "public"."catUsers"."uid"]
+  "fechaCreacion" timestamptz
+  "fechaUltimaModificacion" timestamptz
+  "uidModificador" uuid [ref: < "public"."catUsers"."uid"]
+  "esPublica" boolean [default: false]
+  "categoria" text [default: 'General']
+}
+
+Table "public"."segDetallesPlantilla" {
+  "idDetalle" uuid [pk, default: `gen_random_uuid()`]
+  "fc" timestamptz
+  "status" boolean [default: true]
+  "idPlantilla" uuid [ref: < "public"."segPlantillasPermisos"."idPlantilla"]
+  "modulo" text
+  "seccion" text
+  "area" text
+  "acceso" boolean [default: false]
+  "clave" smallint
+}
+
+Table "public"."soporte_seguimiento" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "incidencia" text [ref: < "public"."soportes"."insidencia"]
+  "fc" timestamptz [not null, default: `now()`]
+  "uidc" uuid [ref: < "public"."catUsers"."uid"]
+  "comentario" text
+}
+
+Table "public"."soporte_imagenes" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamptz [not null, default: `now()`]
+  "incidencia" text
+  "url" text
+  "nomArchivo" text
+  "ext" text
+}
+
+Table "public"."crm_responsableComercial" {
+  "uid" uuid [pk]
+  "id" integer [unique]
+}
+
+Table "public"."leads_porAprobar" {
+  "id" uuid [pk, default: `gen_random_uuid()`]
+  "uidr" uuid [ref: < "public"."catUsers"."uid"]
+  "status" boolean [default: true]
+  "fc" timestamp [not null, default: `now()`]
+  "nombreLead" text
+  "telefono" text
+  "correo" text
+  "idInmobiliaria" uuid [ref: < "public"."catInmobiliarias"."idInmobiliaria"]
+  "fechaContacto" timestamp [default: `now()`]
+  "fechaRegistro" timestamptz
+  "mensaje" text
+  "uidRC" uuid [ref: < "public"."catUsers"."uid"] // Responsable comercial
+  "idEtapa" bigint [ref: < "public"."crm_Etapas"."id"]
+  "idOrigen" bigint [ref: < "public"."crm_Origen"."id"]
+  "idTipoCliente" bigint [ref: < "public"."crm_tipoCliente"."id"]
+  "idTipoOperacion" bigint [ref: < "public"."crm_tipoOperaciones"."id"]
+  "idTipoVenta" bigint [ref: < "public"."crm_tipoVenta"."id"]
+  "Etapa" text
+  "Origen" text
+  "tipoCliente" text
+  "tipoOperacion" text
+  "tipoVenta" text
+  "nomRC" text [default: 'Sin asignar']
+  "valor" double [default: 0]
+  "aprobado" boolean
+  "idAsesorInm" uuid [ref: < "public"."catAsesoresInm"."id"]
+  "superficie" text
+  "KVAs" text
+  "ubicacion" text [default: 'Indistinto']
+  "personaFisica" boolean
+}
+
+Table "public"."catInmobiliarias" {
+  "idInmobiliaria" uuid [pk, default: `gen_random_uuid()`]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "uidr" uuid [ref: < "public"."catUsers"."uid"]
+  "nombre" text
+  "uidRC" uuid [ref: < "public"."catUsers"."uid"]
+  "descripcion" text
+  "paginaWeb" text
+  "telefono" text
+  "correo" text
+  "nombreRepresentante" text
+  "telRepresentante" text
+  "correoRepresentante" text
+  "puestoRepresentante" text
+}
+
+Table "public"."catAsesoresInm" {
+  "id" uuid [pk, default: `gen_random_uuid()`]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "uidr" uuid [ref: < "public"."catUsers"."uid"]
+  "idInmobiliaria" uuid [ref: < "public"."catInmobiliarias"."idInmobiliaria"]
+  "nombre" text
+  "telefono" text [unique]
+  "a" text [unique] // Iniciales del asesor
+  "correo" text
+}
+
+Table "public"."kvasAsignados" {
+  "idKvas" uuid [pk, default: `gen_random_uuid()`]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "uidr" uuid [ref: < "public"."catUsers"."uid"]
+  "idNave" text [ref: < "public"."naves"."idNave"]
+  "cantKvas" integer [default: 0]
+  "tipoTension" smallint
+  "tipoContrato" smallint
+  "idParque" text [ref: < "public"."parques"."idParque"]
+}
+
+Table "public"."Presupuestos" {
+  "uidr" uuid [ref: < "public"."catUsers"."uid", default: `auth.uid()`]
+  "fc" timestamptz [not null, default: `now()`]
+  "status" boolean [default: true]
+  "titulo" text
+  "anio" integer
+  "idPresupuesto" uuid [pk, default: `gen_random_uuid()`]
+}
+
+Table "public"."catReportes" {
+  "id" bigint [pk] // Auto-generado (IDENTITY)
+  "fc" timestamptz [not null, default: `now()`]
+  "status" boolean [default: true]
+  "titulo" text [unique]
+  "parametros" json
+}
+
+Table "public"."cxp_fechas_habilitadas" {
+  "fecha" date [pk]
+  "created_by" uuid [default: '00000000-0000-0000-0000-000000000000']
+  "created_at" timestamp [not null, default: `now()`]
+  "cfdi" boolean [default: false]
+  "autorizar" boolean [default: true]
+  "dia_semana" text
+  "mes_anio" text // Generada: ((lpad((EXTRACT(month FROM fecha))::text, 2, '0'::text) || '-'::text) || (EXTRACT(year FROM fecha))::text)
+}
+
+Table "public"."leads_duplicate" {
+  "id" uuid [pk, default: `gen_random_uuid()`]
+  "uidr" uuid [ref: < "public"."catUsers"."uid", default: '896f01e5-283f-4bdb-b3f3-11381adedb30']
+  "status" boolean [default: true]
+  "fc" timestamp [not null, default: `now()`]
+  "nombreLead" text
+  "telefono" text
+  "correo" text
+  "idInmobiliaria" uuid [ref: < "public"."catInmobiliarias"."idInmobiliaria"]
+  "fechaContacto" timestamp [default: `now()`]
+  "fechaRegistro" timestamp [default: `now()`]
+  "mensaje" text
+  "uidRC" uuid [ref: < "public"."catUsers"."uid"] // Responsable comercial
+  "idEtapa" bigint [ref: < "public"."crm_Etapas"."id"]
+  "idOrigen" bigint [ref: < "public"."crm_Origen"."id", default: 0]
+  "idTipoCliente" bigint [ref: < "public"."crm_tipoCliente"."id", default: 0]
+  "idTipoOperacion" bigint [ref: < "public"."crm_tipoOperaciones"."id", default: 0]
+  "idTipoVenta" bigint [ref: < "public"."crm_tipoVenta"."id"]
+  "Etapa" text
+  "Origen" text
+  "tipoCliente" text
+  "tipoOperacion" text
+  "tipoVenta" text
+  "nomRC" text [default: 'Sin asignar']
+  "valor" double [default: 0]
+  "Aprobado" boolean [default: false] // marca los leads que son aprobados para estar con los asesores
+  "idAsesorInm" uuid [ref: < "public"."catAsesoresInm"."id"]
+}
+
