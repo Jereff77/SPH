@@ -1,0 +1,84 @@
+# Dockerfile Multi-Stage para Sistema Completo con Frontend
+# EasyPanel - Procesador de Correos + API FastAPI + Frontend React
+
+# ============================================================================
+# STAGE 1: Build del Frontend React
+# ============================================================================
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /frontend
+
+# Copiar package files para aprovechar caché de Docker
+COPY frontend/package*.json ./
+
+# Instalar dependencias
+RUN npm ci
+
+# Copiar código fuente del frontend
+COPY frontend/ ./
+
+# Build de producción del frontend
+RUN npm run build
+
+# ============================================================================
+# STAGE 2: Imagen Final con Python + API + Frontend
+# ============================================================================
+FROM python:3.11-slim
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Configurar variables de entorno para Python
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
+
+# Instalar dependencias del sistema necesarias
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libxml2-dev \
+    libxslt-dev \
+    libffi-dev \
+    curl \
+    nginx \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar e instalar dependencias de Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copiar código de la aplicación Python
+COPY src/ ./src/
+COPY main.py .
+COPY api_server.py .
+
+# Copiar frontend build desde stage anterior
+COPY --from=frontend-builder /frontend/dist /var/www/html
+
+# Configurar nginx para servir el frontend
+COPY docker/nginx.conf /etc/nginx/nginx.conf
+
+# Crear directorios necesarios con permisos
+RUN mkdir -p logs .sessions && \
+    chmod 755 logs .sessions && \
+    chown -R www-data:www-data /var/www/html
+
+# Crear usuario no-root para seguridad
+RUN useradd -m -u 1000 appuser && \
+    usermod -aG www-data appuser && \
+    chown -R appuser:appuser /app
+
+# Exponer puertos
+EXPOSE 8000 80
+
+# Health check para EasyPanel
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Script de inicio que corre ambos servicios
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Comando por defecto
+CMD ["/entrypoint.sh"]

@@ -836,3 +836,121 @@ while self.running:
 | SCHEDULE_END_TIME | 19:00 | 7:00 PM |
 | SCHEDULE_DAYS | 1,2,3,4,5 | Lunes a Viernes |
 | SCHEDULE_TIMEZONE | America/Mexico_City | Hora México |
+
+---
+
+### GLM-4.6 (Claude Code) - Sesión 2025-12-28 (Parte 4 - Planificación Frontend de Monitoreo)
+
+#### Rol: Orquestador IA
+- **Solicitud del usuario**: Solicitó crear una aplicación frontend web moderna para monitorear y gestionar la ejecución de procesos Python con capacidades de configuración dinámica
+- **Análisis realizado**: Revisión completa del proyecto Python existente, análisis del flujo de procesamiento, y determinación de arquitectura frontend-backend adecuada
+- **Decisión de agentes**: Usar **flutter-developer** para desarrollo de la interfaz web (Flutter Web)
+
+#### Tareas Realizadas:
+
+1. **Análisis del sistema Python existente** (Herramientas: Read, Bash)
+   - Revisado `main.py`: Script principal con modos (continuous, once, test, status)
+   - Revisado `processor.py`: Flujo de procesamiento con horarios configurables
+   - Sistema actual: Procesa correos de forma automática con `main.py` en modo continuo
+   - Configuración: Variables de entorno en `.env` (horarios, intervalos, credenciales)
+
+2. **Diseño de arquitectura frontend-backend** (Herramientas: Análisis)
+   - **Backend API**: Necesario crear API REST en Python (FastAPI/Flask) para:
+     - Exponer estado del procesador (running, stats, config)
+     - Permitir modificación de configuración en tiempo real
+     - Proporcionar logs en streaming
+     - Controlar start/stop del procesador
+   - **Frontend**: Flutter Web para interfaz moderna y responsive
+     - Panel de estado en tiempo real
+     - Configuración dinámica de horarios e intervalos
+     - Visor de logs con streaming
+     - Control de procesos (start/stop/restart)
+
+3. **Planificación de componentes** (Herramientas: Documentación)
+   - **Backend API (FastAPI)**:
+     - `GET /api/status` - Estado actual del procesador
+     - `POST /api/control/start` - Iniciar procesador
+     - `POST /api/control/stop` - Detener procesador
+     - `GET/PUT /api/config` - Leer/actualizar configuración
+     - `GET /api/logs/stream` - Streaming de logs vía SSE
+     - `WebSocket /ws` - Conexión WebSocket para actualizaciones en tiempo real
+
+   - **Frontend Flutter Web**:
+     - Dashboard principal con cards de estado
+     - Panel de configuración con formularios
+     - Visor de logs en tiempo real
+     - Controles de start/stop/restart
+     - Gráficas de estadísticas
+
+#### Agentes Especializados Utilizados:
+- **Decisión**: Se recomienda usar **flutter-developer** para crear la interfaz web moderna y responsive
+- **Backend**: Se recomienda usar **FastAPI** por su soporte nativo de WebSocket, SSE, y type hints
+- **Comunicación**: WebSocket para actualizaciones en tiempo real + REST API para operaciones CRUD
+
+#### Estado Actual:
+- ✅ Completado: API REST en Python (FastAPI)
+- ✅ Completado: Frontend React + Vite + TypeScript
+- ✅ Completado: Integración frontend con backend
+- ✅ Completado: Sistema de logs en tiempo real
+- ✅ Completado: Docker multi-stage para EasyPanel
+
+#### Archivos Creados:
+
+**Backend API:**
+- `api_server.py` - Servidor FastAPI completo con autenticación, control, logs, WebSocket
+- `src/config.py` - Agregado método `load_config()` para recarga de configuración
+
+**Frontend React:**
+- `frontend/` - Proyecto completo React + Vite + TypeScript
+  - `src/components/` - Componentes de UI (Auth, Dashboard, Config, Logs)
+  - `src/hooks/` - Custom hooks (useAuth, useApi, useWebSocket)
+  - `src/services/` - Cliente API y WebSocket
+  - `src/types/` - Tipos TypeScript
+  - `package.json` - Dependencias y scripts
+  - `vite.config.ts` - Configuración con proxy
+
+**Docker:**
+- `Dockerfile.fullstack` - Multi-stage build (frontend + backend)
+- `docker/nginx.conf` - Configuración nginx para servir frontend y proxy API
+- `docker/entrypoint.sh` - Script de inicio de servicios
+- `docker-compose.fullstack.yml` - Compose para EasyPanel
+
+**Documentación:**
+- `README_DEPLOY.md` - Guía completa de despliegue
+
+#### Dependencias Agregadas (requirements.txt):
+```
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+websockets==13.1
+pydantic==2.9.2
+```
+
+#### Recomendaciones:
+1. **Backend FastAPI**: `api_server.py` creado junto a `main.py` ✅
+2. **Frontend React**: Proyecto creado en `frontend/` ✅
+3. **Integración**: Frontend comunica con API FastAPI ✅
+4. **Despliegue**: Docker multi-stage listo para EasyPanel ✅
+
+#### Pasos para Ejecutar:
+
+**Desarrollo local:**
+```bash
+# Terminal 1: Backend API
+python api_server.py
+
+# Terminal 2: Frontend
+cd frontend
+npm install
+npm run dev
+```
+
+**Producción (Docker):**
+```bash
+docker-compose -f docker-compose.fullstack.yml up -d
+```
+
+#### Configuración de Usuarios:
+1. Crear usuario en Supabase Auth
+2. Asignar `role: "admin"` en user_metadata
+3. Login con ese email/password en el dashboard

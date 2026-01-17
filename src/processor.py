@@ -71,7 +71,21 @@ class FacturaProcessor:
         self.running = False
 
         logger.info("Procesador de facturas, depósitos, transferencias SPEI y correos bancarios inicializado")
-    
+
+    def _wait_with_countdown(self, seconds: int, reason: str | None = None):
+        if seconds is None or seconds <= 0:
+            return
+        if reason:
+            logger.info(f"Próxima revisión en {seconds} segundos ({reason})")
+        else:
+            logger.info(f"Próxima revisión en {seconds} segundos")
+        try:
+            for remaining in range(seconds, 0, -1):
+                print(f"\rPróxima revisión en {remaining} segundos...", end="", flush=True)
+                time.sleep(1)
+        finally:
+            print("\r" + " " * 50 + "\r", end="", flush=True)
+
     def start_processing(self):
         """Inicia el procesamiento continuo de correos"""
         logger.info("Iniciando procesamiento continuo de facturas")
@@ -105,8 +119,9 @@ class FacturaProcessor:
                 return
 
             # Bucle principal de procesamiento
-            last_activity_count = 0  # Contador de correos procesados
-            idle_cycles = 0  # Contador de ciclos sin actividad
+            last_activity_count = 0
+            idle_cycles = 0
+            cycle_number = 0
 
             while self.running:
                 try:
@@ -118,8 +133,16 @@ class FacturaProcessor:
                         # Esperar hasta el siguiente ciclo (usar intervalo idle)
                         sleep_time = Config.POLLING_INTERVAL_IDLE
                         logger.debug(f"Esperando {sleep_time} segundos para verificar horario nuevamente")
-                        time.sleep(sleep_time)
+                        self._wait_with_countdown(sleep_time, "fuera de horario")
                         continue
+
+                    cycle_number += 1
+                    separator = "=" * 60
+                    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    print(f"\n{separator}")
+                    print(f" CICLO DE REVISIÓN #{cycle_number} - {current_time}")
+                    print(f"{separator}")
+                    logger.info(f"🔁 Inicio ciclo de revisión #{cycle_number} - {current_time}")
 
                     # Procesar correos
                     stats = self._process_emails()
@@ -147,14 +170,14 @@ class FacturaProcessor:
                             logger.debug(f"Sin actividad ({idle_cycles} ciclos). Próximo ciclo en {interval}s")
 
                     # Esperar antes del siguiente ciclo
-                    time.sleep(interval)
+                    self._wait_with_countdown(interval, "siguiente ciclo de revisión")
 
                 except KeyboardInterrupt:
                     logger.info("Interrupción del usuario detectada. Deteniendo procesador.")
                     break
                 except Exception as e:
                     logger.error(f"Error en el ciclo de procesamiento: {str(e)}")
-                    time.sleep(30)  # Esperar 30 segundos antes de reintentar
+                    self._wait_with_countdown(30, "reintento después de error")
 
         except Exception as e:
             logger.critical(f"Error crítico en el procesador: {str(e)}")

@@ -124,3 +124,33 @@ class Config:
             'days': day_list,
             'timezone': cls.SCHEDULE_TIMEZONE
         }
+
+    @classmethod
+    def load_config(cls):
+        """
+        Recarga las variables de entorno desde el archivo .env
+
+        Este método permite recargar la configuración sin reiniciar la aplicación.
+        """
+        load_dotenv(override=True)
+
+        # Recargar todas las variables de clase
+        cls.IMAP_SERVER = os.getenv('IMAP_SERVER', 'imap.hostinger.com')
+        cls.IMAP_PORT = int(os.getenv('IMAP_PORT', '993'))
+        cls.IMAP_USER = os.getenv('IMAP_USER')
+        cls.IMAP_PASSWORD = os.getenv('IMAP_PASSWORD')
+
+        cls.SUPABASE_URL = os.getenv('SUPABASE_URL')
+        cls.SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+
+        cls.POLLING_INTERVAL = int(os.getenv('POLLING_INTERVAL', '60'))
+        cls.POLLING_INTERVAL_IDLE = int(os.getenv('POLLING_INTERVAL_IDLE', '300'))
+        cls.LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+
+        cls.SCHEDULE_ENABLED = os.getenv('SCHEDULE_ENABLED', 'true').lower() == 'true'
+        cls.SCHEDULE_START_TIME = os.getenv('SCHEDULE_START_TIME', '09:00')
+        cls.SCHEDULE_END_TIME = os.getenv('SCHEDULE_END_TIME', '18:00')
+        cls.SCHEDULE_DAYS = os.getenv('SCHEDULE_DAYS', '1,2,3,4,5')
+        cls.SCHEDULE_TIMEZONE = os.getenv('SCHEDULE_TIMEZONE', 'America/Mexico_City')
+
+        cls.TABLE_NAME = os.getenv('TABLE_NAME', 'catFacturas')

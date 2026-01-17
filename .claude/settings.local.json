@@ -13,7 +13,19 @@
       "Bash(\"python main.py --mode once\")",
       "Bash(pip install:*)",
       "Bash(.venvScriptspython.exe:*)",
-      "Bash(powershell.exe:*)"
+      "Bash(powershell.exe:*)",
+      "Bash(npm create vite:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tailwindcss init:*)",
+      "Bash(./node_modules/.bin/tailwindcss:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(test:*)",
+      "Bash(cat:*)",
+      "Bash(tree:*)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(\".venv/Scripts/pip.exe\" install fastapi uvicorn websockets pydantic)",
+      "Bash(\".venv/Scripts/pip.exe\" install -r requirements.txt)"
     ],
     "deny": [],
     "ask": []

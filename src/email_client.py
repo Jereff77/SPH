@@ -88,26 +88,26 @@ class EmailClient:
     
     def get_unread_emails(self) -> List[Tuple[bytes, email.message.Message]]:
         """
-        Obtiene correos no leídos de la bandeja de entrada
-        
+        Obtiene todos los correos de la bandeja de entrada (leídos y no leídos)
+
         Returns:
-            List de tuplas (uid, message) con los correos no leídos
+            List de tuplas (uid, message) con los correos
         """
         try:
             if not self.connected:
                 if not self.connect():
                     return []
-            
+
             if not self.select_inbox():
                 return []
-            
-            # Buscar correos no leídos
-            status, email_ids = self.imap_server.search(None, 'UNSEEN')
-            
+
+            # Buscar todos los correos de la bandeja de entrada (sin filtro UNSEEN)
+            status, email_ids = self.imap_server.search(None, 'ALL')
+
             if status != 'OK':
-                logger.error("Error al buscar correos no leídos")
+                logger.error("Error al buscar correos")
                 return []
-            
+
             email_list = []
             email_id_list = email_ids[0].split()
 
@@ -118,22 +118,22 @@ class EmailClient:
                 try:
                     # Obtener el correo sin marcar como leído (usando PEEK)
                     status, msg_data = self.imap_server.fetch(email_id, '(BODY.PEEK[])')
-                    
+
                     if status == 'OK':
                         # Parsear el correo
                         raw_email = msg_data[0][1]
                         msg = email.message_from_bytes(raw_email)
                         email_list.append((email_id, msg))
-                        
+
                 except Exception as e:
                     logger.error(f"Error al procesar correo {email_id}: {str(e)}")
                     continue
-            
-            logger.info(f"Se encontraron {len(email_list)} correos no leídos")
+
+            logger.info(f"Se encontraron {len(email_list)} correos en la bandeja de entrada")
             return email_list
-            
+
         except Exception as e:
-            logger.error(f"Error al obtener correos no leídos: {str(e)}")
+            logger.error(f"Error al obtener correos: {str(e)}")
             return []
     
     def get_xml_attachments(self, msg: 'email.message.Message') -> List[bytes]:
