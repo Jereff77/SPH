@@ -18,25 +18,25 @@ Cuando vayas a trabajar en un proyecto, clona directamente la rama correspondien
 ### app-qr
 
 ```bash
-git clone --single-branch --branch app-qr <URL-DEL-REPO>
+git clone --single-branch --branch app-qr https://github.com/Jereff77/SPH
 ```
 
 ### cfdis
 
 ```bash
-git clone --single-branch --branch cfdis <URL-DEL-REPO>
+git clone --single-branch --branch cfdis https://github.com/Jereff77/SPH
 ```
 
 ### ERP-RLS
 
 ```bash
-git clone --single-branch --branch ERP-RLS <URL-DEL-REPO>
+git clone --single-branch --branch ERP-RLS https://github.com/Jereff77/SPH
 ```
 
 ### QR-RLS
 
 ```bash
-git clone --single-branch --branch QR-RLS <URL-DEL-REPO>
+git clone --single-branch --branch QR-RLS https://github.com/Jereff77/SPH
 ```
 
 Sustituye `<URL-DEL-REPO>` por la URL HTTPS o SSH del repositorio en GitHub.
