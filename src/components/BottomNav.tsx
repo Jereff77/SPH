@@ -1,9 +1,14 @@
 import { NavLink } from 'react-router-dom'
 import { LayoutDashboard, QrCode } from 'lucide-react'
+import { useDetectKeyboard } from '../hooks/useDetectKeyboard'
 
 export function BottomNav() {
+  const isKeyboardOpen = useDetectKeyboard()
+
+  if (isKeyboardOpen) return null
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50">
+    <div className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 animate-in slide-in-from-bottom-2 duration-300">
       <div className="flex justify-around items-center h-20 pb-2">
         <NavLink
           to="/"
