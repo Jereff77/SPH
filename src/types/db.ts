@@ -52,4 +52,5 @@ export interface QrGenerado {
   estado?: number;
   limiteUsos?: number;
   usos?: number;
+  fc: string;
 }

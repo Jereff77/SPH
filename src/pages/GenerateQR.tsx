@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import type { CatUser, QrEmpresa, DatosVisitante } from '../types/db'
 import QRCode from 'react-qr-code'
-import html2canvas from 'html2canvas'
-import { QrCode, Calendar, Plus, Save, Search, Share2 } from 'lucide-react'
+import { generateQRBlob, shareNative, downloadQR } from '../utils/shareQR'
+import { QrCode, Calendar, Plus, Save, Search, Share2, Download } from 'lucide-react'
 import { SearchableSelect } from '../components/SearchableSelect'
 
 interface GenerateQRProps {
@@ -18,6 +18,11 @@ export function GenerateQR({ currentUser }: GenerateQRProps) {
   const qrRef = useRef<HTMLDivElement>(null)
   const [generatedQR, setGeneratedQR] = useState<{ code: string, type: string, visitor: string, date: string } | null>(null)
   
+  // Share State
+  const [isSharing, setIsSharing] = useState(false)
+  const [showShareOptions, setShowShareOptions] = useState(false)
+  const [shareBlob, setShareBlob] = useState<Blob | null>(null)
+
   // Limits State
   const [companyDailyLimit, setCompanyDailyLimit] = useState(0)
   const [companyDailyUsage, setCompanyDailyUsage] = useState(0)
@@ -355,63 +360,35 @@ export function GenerateQR({ currentUser }: GenerateQRProps) {
     setLoading(false)
   }
 
-  const handleShareWhatsApp = async () => {
+  const handleShareClick = async () => {
     if (!qrRef.current || !generatedQR) return
     
-    try {
-        const canvas = await html2canvas(qrRef.current, {
-            backgroundColor: '#ffffff',
-            scale: 2
-        })
-        
-        canvas.toBlob(async (blob) => {
-            if (!blob) return
+    setIsSharing(true)
+    setShowShareOptions(false)
+    setShareBlob(null)
 
-            const file = new File([blob], `access-${generatedQR.code}.png`, { type: 'image/png' })
-            const text = `Hola ${generatedQR.visitor}, aquí tienes tu código de acceso QR para el día ${generatedQR.date}.`
-
-            if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                try {
-                    await navigator.share({
-                        files: [file],
-                        title: 'Código de Acceso',
-                        text: text
-                    })
-                } catch (error) {
-                    if (error instanceof Error && error.name !== 'AbortError') {
-                         console.error('Error sharing:', error)
-                         alert('No se pudo compartir la imagen directamente.')
-                    }
-                }
-            } else {
-                try {
-                    await navigator.clipboard.write([
-                        new ClipboardItem({
-                            [blob.type]: blob
-                        })
-                    ])
-                    alert('Imagen copiada al portapapeles. Por favor presiona Ctrl+V para pegarla en WhatsApp.')
-                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
-                } catch (clipboardError) {
-                    console.warn('Clipboard write failed, falling back to download', clipboardError)
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = `access-${generatedQR.code}.png`
-                    document.body.appendChild(a)
-                    a.click()
-                    document.body.removeChild(a)
-                    URL.revokeObjectURL(url)
-                    
-                    alert('La imagen se ha descargado. Por favor envíala por WhatsApp.')
-                    window.open(`https://wa.me/?text=${encodeURIComponent(text + " (Te envío la imagen del QR adjunta)")}`, '_blank')
-                }
-            }
-        })
-    } catch (error) {
-        console.error('Error generating image:', error)
+    const blob = await generateQRBlob(qrRef.current)
+    if (!blob) {
         alert('Error al generar la imagen del QR.')
+        setIsSharing(false)
+        return
     }
+
+    const file = new File([blob], `access-${generatedQR.code}.png`, { type: 'image/png' })
+    // Only share file to ensure image visibility on WhatsApp/Mobile
+    const shared = await shareNative(file)
+    
+    if (!shared) {
+        // If native share fails, we show fallback to download
+        setShareBlob(blob)
+        setShowShareOptions(true)
+    }
+    setIsSharing(false)
+  }
+
+  const handleOptionDownload = () => {
+    if (!shareBlob || !generatedQR) return
+    downloadQR(shareBlob, `access-${generatedQR.code}.png`)
   }
 
   if (generatedQR) {
@@ -437,13 +414,32 @@ export function GenerateQR({ currentUser }: GenerateQRProps) {
              </div>
 
              <div className="mt-6 space-y-3">
-               <button
-                 onClick={handleShareWhatsApp}
-                 className="w-full flex items-center justify-center gap-2 bg-[#25D366] text-white py-3 rounded-lg font-bold hover:opacity-90 transition"
-               >
-                 <Share2 className="w-5 h-5" />
-                 Compartir por WhatsApp
-               </button>
+               {!showShareOptions ? (
+                   <button
+                     onClick={handleShareClick}
+                     disabled={isSharing}
+                     className="w-full flex items-center justify-center gap-2 bg-sph-primary text-white py-3 rounded-lg font-bold hover:opacity-90 transition disabled:opacity-50"
+                   >
+                     {isSharing ? (
+                         <span className="flex items-center gap-2">Generando...</span>
+                     ) : (
+                         <>
+                             <Share2 className="w-5 h-5" />
+                             Compartir
+                         </>
+                     )}
+                   </button>
+               ) : (
+                   <div className="w-full animate-in fade-in slide-in-from-bottom-2">
+                        <div className="bg-yellow-50 p-3 rounded-lg mb-3 text-xs text-yellow-800 border border-yellow-200 text-center">
+                            Tu dispositivo no soporta compartir imagen directo. <br/> Descárgala y envíala manualmente.
+                        </div>
+                        <button onClick={handleOptionDownload} className="w-full flex items-center justify-center gap-2 bg-sph-primary text-white py-3 rounded-lg font-bold hover:opacity-90 transition">
+                            <Download className="w-5 h-5" />
+                            Descargar Imagen
+                        </button>
+                   </div>
+               )}
                
                <button
                  onClick={() => setGeneratedQR(null)}

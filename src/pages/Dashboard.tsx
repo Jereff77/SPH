@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import type { CatUser } from '../types/db'
 import QRCode from 'react-qr-code'
-import html2canvas from 'html2canvas'
-import { QrCode, Share2, ArrowUpRight, ArrowDownLeft, X } from 'lucide-react'
+import { generateQRBlob, shareNative, downloadQR } from '../utils/shareQR'
+import { QrCode, Share2, ArrowUpRight, ArrowDownLeft, X, CheckCircle, AlertCircle, Calendar, Download } from 'lucide-react'
 
 interface DashboardProps {
   currentUser: CatUser | null
@@ -17,6 +17,7 @@ interface LogItem {
   tipoQR: string
   entryTime?: string
   exitTime?: string
+  fc: string
 }
 
 interface QrWithVisitor {
@@ -24,6 +25,7 @@ interface QrWithVisitor {
   claveAcceso: string
   fechaValidez: string
   tipoQR: string
+  fc: string
   datosVisitantes?:
     | { nomVisitante: string | null }[]
     | { nomVisitante: string | null }
@@ -38,6 +40,11 @@ export function Dashboard({ currentUser }: DashboardProps) {
   // Resend Modal State
   const [selectedLog, setSelectedLog] = useState<LogItem | null>(null)
   const qrRef = useRef<HTMLDivElement>(null)
+  
+  // Share State
+  const [isSharing, setIsSharing] = useState(false)
+  const [showShareOptions, setShowShareOptions] = useState(false)
+  const [shareBlob, setShareBlob] = useState<Blob | null>(null)
 
   const fetchStats = useCallback(async () => {
     if (!currentUser?.idEmpresa) return
@@ -69,7 +76,7 @@ export function Dashboard({ currentUser }: DashboardProps) {
             const chunk = packIds.slice(i, i + chunkSize)
             const { count } = await supabase
             .from('qrGenerados')
-            .select('*', { count: 'exact', head: true })
+            .select('idQR', { count: 'exact', head: true })
             .in('idQrEmpresas', chunk)
             .eq('tipoQR', 'Uso General')
             .gte('fc', `${today}T00:00:00`)
@@ -142,6 +149,7 @@ export function Dashboard({ currentUser }: DashboardProps) {
                 tipoQR: item.tipoQR,
                 entryTime: undefined,
                 exitTime: undefined,
+                fc: item.fc,
             }
         })
         setLogs(mappedLogs)
@@ -156,48 +164,35 @@ export function Dashboard({ currentUser }: DashboardProps) {
     }
   }, [currentUser, fetchStats, fetchLogs])
 
-  const handleShareWhatsApp = async () => {
+  const handleShareClick = async () => {
     if (!qrRef.current || !selectedLog) return
     
-    try {
-        const canvas = await html2canvas(qrRef.current, {
-            backgroundColor: '#ffffff',
-            scale: 2
-        })
-        
-        canvas.toBlob(async (blob) => {
-            if (!blob) return
+    setIsSharing(true)
+    setShowShareOptions(false)
+    setShareBlob(null)
 
-            const file = new File([blob], `access-${selectedLog.claveAcceso}.png`, { type: 'image/png' })
-            const text = `Hola ${selectedLog.visitorName}, aquí tienes tu código de acceso QR para el día ${selectedLog.fechaValidez}.`
-
-            if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                try {
-                    await navigator.share({
-                        files: [file],
-                        title: 'Código de Acceso',
-                        text: text
-                    })
-                } catch (error) {
-                     console.error('Error sharing:', error)
-                }
-            } else {
-                 // Fallback
-                 const url = URL.createObjectURL(blob)
-                 const a = document.createElement('a')
-                 a.href = url
-                 a.download = `access-${selectedLog.claveAcceso}.png`
-                 document.body.appendChild(a)
-                 a.click()
-                 document.body.removeChild(a)
-                 URL.revokeObjectURL(url)
-                 window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
-            }
-        })
-    } catch (error) {
-        console.error('Error generating image:', error)
+    const blob = await generateQRBlob(qrRef.current)
+    if (!blob) {
         alert('Error al generar la imagen del QR.')
+        setIsSharing(false)
+        return
     }
+
+    const file = new File([blob], `access-${selectedLog.claveAcceso}.png`, { type: 'image/png' })
+    // Only share file to ensure image visibility on WhatsApp/Mobile
+    const shared = await shareNative(file)
+    
+    if (!shared) {
+        // If native share fails, we show fallback to download
+        setShareBlob(blob)
+        setShowShareOptions(true)
+    }
+    setIsSharing(false)
+  }
+
+  const handleOptionDownload = () => {
+    if (!shareBlob || !selectedLog) return
+    downloadQR(shareBlob, `access-${selectedLog.claveAcceso}.png`)
   }
 
   return (
@@ -229,31 +224,54 @@ export function Dashboard({ currentUser }: DashboardProps) {
              ) : logs.length === 0 ? (
                  <div className="p-8 text-center text-gray-400">No hay registros recientes</div>
              ) : (
-                 logs.map(log => (
-                     <div key={log.idQR} className="p-4 flex items-center justify-between hover:bg-gray-50 transition">
-                         <div className="flex-1">
-                             <div className="font-semibold text-sph-text text-sm">{log.visitorName}</div>
-                             <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                                 <span className="flex items-center gap-1">
-                                     <ArrowDownLeft className="w-3 h-3 text-green-500" /> 
-                                     {log.entryTime || '--:--'}
-                                 </span>
-                                 <span className="flex items-center gap-1">
-                                     <ArrowUpRight className="w-3 h-3 text-red-500" /> 
-                                     {log.exitTime || '--:--'}
-                                 </span>
-                             </div>
-                         </div>
-                         <button 
-                           onClick={() => setSelectedLog(log)}
-                           className="p-2 text-sph-primary hover:bg-blue-50 rounded-full transition"
-                           title="Reenviar QR"
-                         >
-                             <Share2 className="w-5 h-5" />
-                         </button>
-                     </div>
-                 ))
-             )}
+                 logs.map(log => {
+                    const todayStr = new Date().toISOString().split('T')[0]
+                    const isValid = log.fechaValidez >= todayStr
+                    
+                    return (
+                    <div key={log.idQR} className="p-4 flex items-center justify-between hover:bg-gray-50 transition">
+                        <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                                <div className="font-semibold text-sph-text text-sm">{log.visitorName}</div>
+                                {isValid ? (
+                                    <div title="Vigente">
+                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                    </div>
+                                ) : (
+                                    <div title="Expirado">
+                                        <AlertCircle className="w-4 h-4 text-red-300" />
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                <Calendar className="w-3 h-3" />
+                                <span>{new Date(log.fc).toLocaleDateString()}</span>
+                            </div>
+
+                            <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                                <span className="flex items-center gap-1">
+                                    <ArrowDownLeft className="w-3 h-3 text-green-500" /> 
+                                    {log.entryTime || '--:--'}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <ArrowUpRight className="w-3 h-3 text-red-500" /> 
+                                    {log.exitTime || '--:--'}
+                                </span>
+                            </div>
+                        </div>
+                        {isValid && (
+                            <button 
+                                onClick={() => setSelectedLog(log)}
+                                className="p-2 text-sph-primary hover:bg-blue-50 rounded-full transition"
+                                title="Reenviar QR"
+                            >
+                                <Share2 className="w-5 h-5" />
+                            </button>
+                        )}
+                    </div>
+                )})
+            )}
          </div>
       </div>
 
@@ -286,13 +304,32 @@ export function Dashboard({ currentUser }: DashboardProps) {
                         </div>
                    </div>
 
-                   <button
-                        onClick={handleShareWhatsApp}
-                        className="w-full flex items-center justify-center gap-2 bg-[#25D366] text-white py-3 rounded-lg font-bold hover:opacity-90 transition"
-                    >
-                        <Share2 className="w-5 h-5" />
-                        Compartir por WhatsApp
-                    </button>
+                   {!showShareOptions ? (
+                        <button
+                            onClick={handleShareClick}
+                            disabled={isSharing}
+                            className="w-full flex items-center justify-center gap-2 bg-sph-primary text-white py-3 rounded-lg font-bold hover:opacity-90 transition disabled:opacity-50"
+                        >
+                            {isSharing ? (
+                                <span className="flex items-center gap-2">Generando...</span>
+                            ) : (
+                                <>
+                                    <Share2 className="w-5 h-5" />
+                                    Compartir
+                                </>
+                            )}
+                        </button>
+                   ) : (
+                       <div className="w-full animate-in fade-in slide-in-from-bottom-2">
+                            <div className="bg-yellow-50 p-3 rounded-lg mb-3 text-xs text-yellow-800 border border-yellow-200 text-center">
+                                Tu dispositivo no soporta compartir imagen directo. <br/> Descárgala y envíala manualmente.
+                            </div>
+                            <button onClick={handleOptionDownload} className="w-full flex items-center justify-center gap-2 bg-sph-primary text-white py-3 rounded-lg font-bold hover:opacity-90 transition">
+                                <Download className="w-5 h-5" />
+                                Descargar Imagen
+                            </button>
+                       </div>
+                   )}
                </div>
            </div>
         </div>
