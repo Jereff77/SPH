@@ -1,3 +1,0 @@
-com.aceleremos.sphqr.test
-style WhiteBackgroundDialogTheme
-style WhiteBackgroundTheme

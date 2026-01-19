@@ -1,6 +1,0 @@
-com.aceleremos.sphqr.test.app-tracing-1.2.0-0 C:\Users\Jereff\.gradle\caches\8.14.3\transforms\15781af38740379edacf8688b1a9ca95\transformed\tracing-1.2.0\res
-com.aceleremos.sphqr.test.app-core-1.7.0-1 C:\Users\Jereff\.gradle\caches\8.14.3\transforms\2dadc86f10199b5d60c8b51300dc7f57\transformed\core-1.7.0\res
-com.aceleremos.sphqr.test.app-androidTest-2 D:\Clientes\SPH Bines Raices\codigo\repoSPH\app-qr\SPH\android\app\build\generated\res\resValues\androidTest\debug
-com.aceleremos.sphqr.test.app-mergeDebugAndroidTestResources-3 D:\Clientes\SPH Bines Raices\codigo\repoSPH\app-qr\SPH\android\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\merged.dir
-com.aceleremos.sphqr.test.app-mergeDebugAndroidTestResources-4 D:\Clientes\SPH Bines Raices\codigo\repoSPH\app-qr\SPH\android\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\stripped.dir
-com.aceleremos.sphqr.test.app-debugAndroidTest-5 D:\Clientes\SPH Bines Raices\codigo\repoSPH\app-qr\SPH\android\app\build\intermediates\merged_res\debugAndroidTest\mergeDebugAndroidTestResources
