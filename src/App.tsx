@@ -169,8 +169,9 @@ function App() {
             </button>
           </div>
           {currentUser && (
-            <div className="text-xs text-gray-300 mt-1">
-              Operando como: {currentUser.nombre} {currentUser.apellidos} {profileName && `(${profileName})`} {companyName && ` - ${companyName}`}
+            <div className="text-xs text-gray-300 mt-1 flex flex-col">
+              <span>Operando como: {currentUser.nombre} {currentUser.apellidos} {profileName && `(${profileName})`}</span>
+              {companyName && <span className="font-medium">{companyName}</span>}
             </div>
           )}
         </header>
