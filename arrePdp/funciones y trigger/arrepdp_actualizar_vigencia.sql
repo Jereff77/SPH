@@ -1,7 +1,9 @@
---[Fecha y Hora]: 02/01/2026 15:22:00
+--[Fecha y Hora]: 20/01/2026 18:22:00
 --[Descripción]: Función para actualizar la columna 'arrePdpVigente' en la tabla 'arrePdp'
 --                que determina el estado de vigencia de cada contrato basado en la fecha
---                actual y la fecha de fin (fecFin).
+--                actual y la fecha de fin (fecFin). Además, actualiza los campos
+--                'pdpVigente', 'tienePdp', 'pdpActivo' e 'idArrePdp' en la tabla
+--                'arrenPropiedades' cuando un contrato se marca como no vigente.
 --
 --[Parámetros]:
 --   - No requiere parámetros, procesa todos los registros de la tabla
@@ -15,20 +17,24 @@
 --
 --[Ejemplo]: SELECT * FROM arrepdp_actualizar_vigencia();
 --
---[Relaciones]: 
+--[Relaciones]:
 --   - Tabla principal: public."arrePdp"
 --   - Campo actualizado: "arrePdpVigente" (tipo enumerado)
+--   - Tabla relacionada: public."arrenPropiedades"
+--   - Campos actualizados en tabla relacionada: "pdpVigente", "tienePdp", "pdpActivo", "idArrePdp"
 --
 --[Validaciones]:
 --   - Maneja valores nulos en fecFin (deja el valor actual sin modificar)
 --   - Considera la zona horaria del sistema (America/Mexico_City)
 --   - Optimizada para rendimiento en tablas con miles de registros
 --   - Incluye transacción para asegurar atomicidad
+--   - Actualiza completamente propiedades relacionadas cuando los contratos se marcan como vencidos
 --
 --[Consideraciones de seguridad]:
 --   - SECURITY INVOKER: Ejecuta con permisos del usuario que la invoca
 --   - No modifica registros con fecFin nulo
 --   - Registra advertencias para fechas inválidas
+--   - Mantiene consistencia completa entre tablas arrePdp y arrenPropiedades
 
 CREATE OR REPLACE FUNCTION public.arrepdp_actualizar_vigencia()
  RETURNS json
@@ -44,6 +50,7 @@ DECLARE
     v_registros_1_mes integer := 0;
     v_registros_si integer := 0;
     v_registros_nulos integer := 0;
+    v_propiedades_actualizadas integer := 0;
     v_total_procesados integer := 0;
     v_resultado json;
 BEGIN
@@ -58,6 +65,22 @@ BEGIN
       AND "arrePdpVigente" IS DISTINCT FROM 'No'::"arrePdpVigente";
     
     GET DIAGNOSTICS v_registros_no = ROW_COUNT;
+    
+    -- Actualizar propiedades relacionadas cuando los contratos se marcan como vencidos
+    UPDATE public."arrenPropiedades"
+    SET "pdpVigente" = false,
+        "tienePdp" = false,
+        "pdpActivo" = false,
+        "idArrePdp" = NULL
+    WHERE "idNavArrend" IN (
+        SELECT "idNavArrend"
+        FROM public."arrePdp"
+        WHERE "fecFin" IS NOT NULL
+          AND v_fecha_actual > "fecFin"
+          AND "arrePdpVigente" = 'No'::"arrePdpVigente"
+    );
+    
+    GET DIAGNOSTICS v_propiedades_actualizadas = ROW_COUNT;
     
     -- Actualizar contratos con vigencia de 3 meses (entre 1 y 3 meses antes de fecFin)
     UPDATE public."arrePdp"
@@ -124,7 +147,8 @@ BEGIN
                 '3_meses', v_registros_3_meses,
                 '2_meses', v_registros_2_meses,
                 '1_mes', v_registros_1_mes,
-                'si', v_registros_si
+                'si', v_registros_si,
+                'propiedades_actualizadas', v_propiedades_actualizadas
             ),
             'registros_no_procesados', json_build_object(
                 'fecFin_nulo', v_registros_nulos,
@@ -149,6 +173,7 @@ BEGIN
     RAISE NOTICE '  - Contratos por vencer en 1 mes: %', v_registros_1_mes;
     RAISE NOTICE '  - Contratos vigentes (Si): %', v_registros_si;
     RAISE NOTICE '  - Registros con fecFin nulo: %', v_registros_nulos;
+    RAISE NOTICE '  - Propiedades actualizadas a pdpVigente=false: %', v_propiedades_actualizadas;
     RAISE NOTICE '  - Total procesados: %', v_total_procesados;
     
     RETURN v_resultado;
@@ -174,4 +199,4 @@ END;
 $BODY$;
 
 -- Comentario adicional para documentación
-COMMENT ON FUNCTION public.arrepdp_actualizar_vigencia() IS 'Actualiza el estado de vigencia de los contratos en arrePdp basado en la fecha actual y fecFin. Considera las siguientes reglas: 1) Si fecha actual > fecFin: "No" (vencido), 2) Si está entre 1-3 meses antes de fecFin: "3 Meses", 3) Si está entre 0-2 meses antes de fecFin: "2 Meses", 4) Si está entre 0-1 mes antes de fecFin: "1 Mes", 5) Si es >3 meses antes de fecFin: "Si" (vigente). Maneja valores nulos y optimizada para rendimiento.';
+COMMENT ON FUNCTION public.arrepdp_actualizar_vigencia() IS 'Actualiza el estado de vigencia de los contratos en arrePdp basado en la fecha actual y fecFin. Considera las siguientes reglas: 1) Si fecha actual > fecFin: "No" (vencido), 2) Si está entre 1-3 meses antes de fecFin: "3 Meses", 3) Si está entre 0-2 meses antes de fecFin: "2 Meses", 4) Si está entre 0-1 mes antes de fecFin: "1 Mes", 5) Si es >3 meses antes de fecFin: "Si" (vigente). Además, cuando un contrato se marca como "No" (vencido), actualiza los campos "pdpVigente", "tienePdp", "pdpActivo" a false y "idArrePdp" a null en la tabla arrenPropiedades relacionada. Maneja valores nulos y optimizada para rendimiento.';

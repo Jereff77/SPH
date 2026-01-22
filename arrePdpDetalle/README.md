@@ -56,18 +56,21 @@ La tabla `arrePdpDetalle` almacena el detalle de los planes de pago de arrendami
 
 ```
 arrePdpDetalle/
-├── funciones y trigger/          # Funciones y triggers asociados
-│   ├── README.md               # Documentación detallada de componentes
-│   ├── instalar_todo.sql       # Script de instalación completa
-│   ├── arrepdpdetalle_actualizar_campo_manual.sql
-│   ├── arrepdpdetalle_actualizar_inpc.sql
-│   ├── arrepdpdetalle_actualizar_inpc_desde_anio.sql
-│   ├── arrepdpdetalle_calcular_anio_por_plan.sql
-│   ├── arrepdpdetalle_calcular_cantidad.sql
-│   ├── arrepdpdetalle_recalcular_anos_contrato.sql
-│   ├── arrepdpdetalle_recalcular_todas_cantidades.sql
-│   └── trigger_arrepdpdetalle_calcular_cantidad.sql
-└── vistas/                     # Vistas asociadas (vacío - no hay vistas)
+ ├── funciones y trigger/          # Funciones y triggers asociados
+ │   ├── README.md               # Documentación detallada de componentes
+ │   ├── instalar_todo.sql       # Script de instalación completa
+ │   ├── arrepdpdetalle_actualizar_campo_manual.sql
+ │   ├── arrepdpdetalle_actualizar_inpc.sql
+ │   ├── arrepdpdetalle_actualizar_inpc_desde_anio.sql
+ │   ├── arrepdpdetalle_aplicar_meses_gracia.sql
+ │   ├── arrepdpdetalle_calcular_anio_por_plan.sql
+ │   ├── arrepdpdetalle_calcular_cantidad.sql
+ │   ├── arrepdpdetalle_generar_plan_completo.sql
+ │   ├── arrepdpdetalle_obtener_resumen_por_plan.sql
+ │   ├── arrepdpdetalle_recalcular_anos_contrato.sql
+ │   ├── arrepdpdetalle_recalcular_todas_cantidades.sql
+ │   └── trigger_arrepdpdetalle_calcular_cantidad.sql
+ └── vistas/                     # Vistas asociadas (vacío - no hay vistas)
 ```
 
 ## 🔄 Flujo de Procesamiento
@@ -95,7 +98,7 @@ graph TD
 
 ## 🔧 Componentes Disponibles
 
-### Funciones (9)
+### Funciones (11)
 
 #### 1. Funciones de Generación
 - **`arrepdpdetalle_generar_plan_completo()`** - Generación completa de planes (NUEVA)
@@ -109,8 +112,12 @@ graph TD
 - **`arrepdpdetalle_actualizar_campo_manual()`** - Actualización manual segura
 - **`arrepdpdetalle_actualizar_inpc()`** - Actualización INPC completa
 - **`arrepdpdetalle_actualizar_inpc_desde_anio()`** - Actualización INPC parcial
+- **`arrepdpdetalle_aplicar_meses_gracia()`** - Aplica descuentos de cortesía basados en configuración JSON
 
-#### 4. Funciones de Recálculo
+#### 4. Funciones de Consulta y Reportes
+- **`arrepdpdetalle_obtener_resumen_por_plan()`** - Obtiene resumen agrupado por partida con validación opcional de pdpActivo (CORREGIDA)
+
+#### 5. Funciones de Recálculo
 - **`arrepdpdetalle_recalcular_anos_contrato()`** - Recálculo completo de años
 - **`arrepdpdetalle_recalcular_todas_cantidades()`** - Recálculo masivo total
 
@@ -120,7 +127,7 @@ graph TD
 
 ## 📊 Estado Actual
 
-- **Total funciones**: 9 ✅
+- **Total funciones**: 11 ✅
 - **Total triggers**: 1 ✅
 - **Total vistas**: 0 ❌
 - **Documentación**: Completa ✅
@@ -146,6 +153,7 @@ graph TD
 \i arrepdpdetalle_recalcular_todas_cantidades.sql
 \i actualizar_ciclo_plan_pago.sql
 \i arrepdpdetalle_generar_plan_completo.sql
+\i arrepdpdetalle_obtener_resumen_por_plan.sql
 
 -- Instalar trigger al final
 \i trigger_arrepdpdetalle_calcular_cantidad.sql
@@ -198,7 +206,19 @@ SELECT * FROM arrepdpdetalle_actualizar_inpc_desde_anio('ID_CONTRATO', 3);
 SELECT actualizar_ciclo_plan_pago();
 ```
 
-### 6. Generación de Plan Completo
+### 6. Aplicar Meses de Gracia
+```sql
+-- Aplicar meses de gracia según configuración JSON del plan
+SELECT arrePdpDetalle_aplicar_meses_gracia('ID_CONTRATO');
+
+-- Ejemplo con JSON {"renta": 1, "vigilancia": 6, "mantenimiento": 5.5, "administracion": 0}:
+-- - Renta: Mes 1 → pm2 = 0, tieneMesGratis = 'Si'
+-- - Vigilancia: Meses 1-6 → pm2 = 0, tieneMesGratis = 'Si'
+-- - Mantenimiento: Meses 1-5 → pm2 = 0, tieneMesGratis = 'Si'; Mes 6 → pm2 = pm2/2, tieneMesGratis = 'Medio'
+-- - Administración: Sin descuentos aplicados
+```
+
+### 7. Generación de Plan Completo
 ```sql
 -- Generar plan completo con todos los conceptos
 SELECT * FROM arrepdpdetalle_generar_plan_completo(
@@ -207,6 +227,26 @@ SELECT * FROM arrepdpdetalle_generar_plan_completo(
     110.5, 2.0, 25.0, 15.0, 10.0,
     0, 1, 2, 0
 );
+
+### 8. Obtener Resumen de Plan
+```sql
+-- Obtener resumen agrupado por partida de un plan específico (con validación por defecto)
+SELECT * FROM arrepdpdetalle_obtener_resumen_por_plan('ID_CONTRATO');
+
+-- Obtener resumen SIN validación de pdpActivo
+SELECT * FROM arrepdpdetalle_obtener_resumen_por_plan('ID_CONTRATO', false);
+
+-- Resultado esperado: tabla con:
+-- - numPartida: número de partida agrupado
+-- - anio: año máximo de la partida
+-- - fecha: fecha mínima de la partida
+-- - pm2, constM2, INPC, ptsINPC, totalINPC: valores del concepto 'Renta'
+-- - ciclo: ciclo máximo de la partida
+-- - total_cantidad: suma de cantidades de todos los conceptos
+-- - idArrePdp: ID del plan
+
+-- Nota: Si p_validar = true (default) y pdpActivo != true en arrenPropiedades,
+--       la función devuelve un conjunto vacío
 ```
 
 ## ⚠️ Consideraciones Importantes
@@ -223,6 +263,9 @@ La tabla tiene Row Level Security (RLS) habilitado. Las funciones heredan los pe
 
 ## 📝 Historial de Cambios
 
+- **20/01/2026 15:35**: Corrección CRÍTICA en `arrepdpdetalle_obtener_resumen_por_plan()` - Corregida referencia a columna pdpActivo: ahora selecciona de arrenPropiedades (arp) en lugar de arrePdp (ap). Resuelve error "column ap.pdpActivo does not exist". Función ahora valida correctamente que pdpActivo = true en arrenPropiedades.
+- **20/01/2026 15:15**: Mejora en `arrepdpdetalle_obtener_resumen_por_plan()` - Agregado parámetro p_validar con valor por defecto true para validar pdpActivo en arrenPropiedades. Si p_validar = true, valida que pdpActivo = true; si la validación falla, devuelve conjunto vacío. Si p_validar = false, muestra la consulta sin validación.
+- **20/01/2026**: Creación de `arrepdpdetalle_obtener_resumen_por_plan()` - Función para obtener resumen agrupado por partida de un plan específico
 - **21/10/2025**: Creación completa de documentación y estructura de carpetas
 - **25/09/2025**: Fecha de referencia de las funciones originales
 - **Documentación estándar**: Aplicación completa de guía de documentación
@@ -235,6 +278,6 @@ La tabla tiene Row Level Security (RLS) habilitado. Las funciones heredan los pe
 
 ---
 
-**Última actualización**: 22/10/2025 05:24:00
+**Última actualización**: 20/01/2026 15:35:00
 **Estado**: Documentación completa ✅
-**Componentes listos para instalación**: 10/10 ✅
+**Componentes listos para instalación**: 11/11 ✅

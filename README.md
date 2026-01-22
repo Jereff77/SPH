@@ -100,8 +100,13 @@ Gestiona los planes de pago principales de arrendamiento con una función RPC qu
 - `arrepdp_crear_plan_completo_rpc` - Función RPC que reemplaza ~300 líneas de código Flutter
 - `arrepdp_crear_plan_simple_rpc` - Función RPC para planes simples con parámetros pm2 e inpcPlus
 - `arrepdp_agregar_concepto_financiado` - Función para agregar conceptos financiados a planes existentes (documentada)
+- `arrepdp_desvincular_propiedades` - Función para desvincular propiedades de planes vencidos
 - `rapdp_obtener_datos_propiedad` - Función para obtener datos de propiedad (idNavArrend, comSPH, idRtaA)
 - `rapdp_Actualizar` - Función para actualizar campos comSPH e idRtaA en arrePdpDetalle (solo registros con concepto='Renta')
+
+**Triggers programados:**
+- `trigger_arrepdp_actualizar_vigencia_diaria` - Trigger programado para actualización automática diaria de vigencia (1:00 AM hora de México)
+- `trigger_arrepdp_desvincular_propiedades_diaria` - Trigger programado para desvinculación automática diaria (1:30 AM hora de México)
 
 ### 3. arrePdpDetalle
 Gestiona los detalles de los planes de pago de arrendamiento, incluyendo cálculos de cantidades, actualización de INPC y generación de planes completos.
@@ -285,11 +290,11 @@ Todos los componentes del sistema siguen la guía de documentación estándar de
 ## Estado Actual del Sistema
 
 ### Resumen de Componentes
-- **Total de funciones**: 31+
-- **Total de triggers**: 5+
+- **Total de funciones**: 32+
+- **Total de triggers**: 6+
 - **Total de vistas**: 2+
 - **Total de módulos**: 11
-- **Última actualización**: 31/12/2025 11:06:00
+- **Última actualización**: 21/01/2026 21:17:00
 
 ### Cambios Recientes
 
@@ -606,6 +611,39 @@ Para reportar issues o solicitar cambios, seguir el protocolo establecido en el 
   - README.md general del proyecto actualizado con la corrección realizada
 - **Impacto**: La función ahora actualiza correctamente solo los registros con concepto='Renta' y previene errores por datos nulos
 
+### 2026-01-20 21:48:36
+- **Mejora en arrepdpdetalle_obtener_resumen_por_plan**: Se agregó la columna pdpActivo al retorno de la función
+- **Cambios realizados**:
+  - Agregada columna `pdpActivo` (boolean) en la cláusula RETURNS TABLE
+  - Modificado el SELECT para hacer JOIN con las tablas `arrePdp` y `arrenPropiedades`
+  - Agregada selección de `arp."pdpActivo"` en la consulta principal
+  - Actualizada documentación del encabezado con fecha y hora actual
+  - Actualizada sección [Salida] del encabezado para incluir pdpActivo
+  - Actualizado README.md del módulo arrePdpDetalle con la nueva funcionalidad
+  - Actualizado script de instalación del módulo arrePdpDetalle
+  - Actualizado README.md general del proyecto con la mejora realizada
+- **Impacto**: La función ahora retorna el estado activo del plan (pdpActivo) junto con el resumen por partida, obtenido mediante JOIN con arrenPropiedades
+- **Componentes actualizados**:
+  - Función `arrepdpdetalle_obtener_resumen_por_plan.sql` mejorada
+  - README.md del módulo arrePdpDetalle actualizado con documentación de la mejora
+  - Script de instalación del módulo arrePdpDetalle actualizado
+  - README.md general actualizado con la mejora realizada
+
+### 2026-01-20 15:35:00
+- **Corrección CRÍTICA en arrepdpdetalle_obtener_resumen_por_plan**: Se corrigió la referencia incorrecta a la columna pdpActivo
+- **Problema resuelto**: La función estaba intentando seleccionar `ap."pdpActivo"` de la tabla `arrePdp` (ap), pero la columna `pdpActivo` está en la tabla `arrenPropiedades` (arp)
+- **Solución implementada**:
+  - Corregida la línea 95: ahora selecciona `arp."pdpActivo"` en lugar de `ap."pdpActivo"`
+  - Actualizada documentación de la función con fecha y hora actual
+  - Actualizado script de instalación con nota sobre la corrección
+  - Actualizados README.md del módulo y general con la corrección realizada
+- **Impacto**: Función ahora valida correctamente que pdpActivo = true en arrenPropiedades, resolviendo el error "column ap.pdpActivo does not exist"
+- **Componentes actualizados**:
+  - Función `arrepdpdetalle_obtener_resumen_por_plan.sql` corregida
+  - README.md del módulo arrePdpDetalle actualizado con la corrección
+  - Script de instalación del módulo arrePdpDetalle actualizado
+  - README.md general actualizado con la corrección realizada
+
 ### 2025-12-31 11:06:00
 - **Documentación completa del módulo fideicomiso**: Se documentó completamente la tabla de fideicomiso y todos sus componentes asociados
 - **Nuevos componentes documentados**:
@@ -631,3 +669,19 @@ Para reportar issues o solicitar cambios, seguir el protocolo establecido en el 
   - Instrucciones de instalación actualizadas
   - Contador de componentes actualizado (31+ funciones, 2+ vistas, 11 módulos)
 - **Impacto**: Sistema ahora incluye documentación completa del módulo de fideicomisos con todas sus funciones y vistas
+
+### 2026-01-21 21:17:00
+- **NUEVO TRIGGER**: Implementación de `trigger_arrepdp_desvincular_propiedades_diaria` para desvinculación automática diaria
+- **Nuevos componentes**:
+  - `trigger_arrepdp_desvincular_propiedades_diaria` - Trigger programado que ejecuta automáticamente la función arrepdp_desvincular_propiedades() todos los días a las 1:30 AM hora de México (7:30 AM UTC)
+  - Incluye manejo robusto de errores y verificación de dependencias
+  - Considera zona horaria America/Mexico_City para logging
+  - Job pg_cron configurado con horario '30 7 * * *' (diariamente a las 7:30 AM UTC)
+- **Funciones documentadas**:
+  - `arrepdp_desvincular_propiedades` - Función para desvincular propiedades de planes vencidos
+- **Componentes actualizados**:
+  - `arrePdp/funciones y trigger/trigger_arrepdp_desvincular_propiedades_diaria.sql` - Nuevo archivo creado
+  - `arrePdp/funciones y trigger/README.md` - Actualizado con documentación del nuevo trigger
+  - `arrePdp/funciones y trigger/instalar_todo.sql` - Actualizado para incluir instalación del nuevo trigger
+  - `README.md` general del proyecto actualizado con el nuevo trigger
+- **Impacto**: Sistema ahora incluye automatización completa de la desvinculación de propiedades de planes vencidos, ejecutándose diariamente a las 1:30 AM hora de México

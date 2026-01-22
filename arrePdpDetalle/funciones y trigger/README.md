@@ -6,17 +6,18 @@ Este módulo contiene todas las funciones y triggers asociados a la tabla `arreP
 
 ## 📁 Estructura de Componentes
 
-### Funciones (10)
+### Funciones (11)
 1. `arrepdpdetalle_actualizar_campo_manual.sql` - Actualización manual de campos específicos
 2. `arrepdpdetalle_actualizar_inpc.sql` - Actualización automática de INPC con lógica acumulativa
 3. `arrepdpdetalle_actualizar_inpc_desde_anio.sql` - Actualización de INPC desde año específico
 4. `arrepdpdetalle_aplicar_meses_gracia.sql` - Aplica descuentos de cortesía basados en configuración JSON (NUEVA)
 5. `arrepdpdetalle_calcular_anio_por_plan.sql` - Cálculo masivo de años por plan
 6. `arrepdpdetalle_calcular_cantidad.sql` - Función trigger para cálculo de cantidades
-7. `arrepdpdetalle_recalcular_anos_contrato.sql` - Recálculo completo de años de contrato
-8. `arrepdpdetalle_recalcular_todas_cantidades.sql` - Recálculo masivo de todas las cantidades
-9. `actualizar_ciclo_plan_pago.sql` - Cálculo y actualización del campo ciclo para todos los planes
-10. `arrepdpdetalle_generar_plan_completo.sql` - Generación completa de planes de pago
+7. `arrepdpdetalle_generar_plan_completo.sql` - Generación completa de planes de pago
+8. `arrepdpdetalle_obtener_resumen_por_plan.sql` - Obtiene resumen agrupado por partida de un plan (NUEVA)
+9. `arrepdpdetalle_recalcular_anos_contrato.sql` - Recálculo completo de años de contrato
+10. `arrepdpdetalle_recalcular_todas_cantidades.sql` - Recálculo masivo de todas las cantidades
+11. `actualizar_ciclo_plan_pago.sql` - Cálculo y actualización del campo ciclo para todos los planes
 
 ### Triggers (1)
 1. `trigger_arrepdpdetalle_calcular_cantidad.sql` - Trigger automático para cálculo de cantidades
@@ -176,7 +177,25 @@ SELECT arrepdpdetalle_actualizar_campo_manual('Plan123', 2::smallint, 'Renta', '
 - `anio_desde::smallint`
 - `valor::real`
 
-### 8. Sistema de Recálculo Masivo
+### 8. Sistema de Consultas y Reportes
+
+#### `arrepdpdetalle_obtener_resumen_por_plan()`
+- **Propósito**: Obtener un resumen agrupado por número de partida de un plan específico con validación opcional de pdpActivo
+- **Características**:
+  - Devuelve valores máximos, mínimos y sumas agrupados por partida
+  - Extrae valores del concepto 'Renta' para pm2, constM2, INPC, ptsINPC, totalINPC
+  - Suma cantidades de todos los conceptos
+  - Filtra por status = true y idArrePdp específico
+  - **NUEVO**: Parámetro p_validar (boolean, default true) para validar pdpActivo en arrenPropiedades
+  - **NUEVO**: Si p_validar = true, valida que pdpActivo = true en arrenPropiedades antes de mostrar resultados
+  - **NUEVO**: Si la validación falla, devuelve conjunto vacío
+  - **NUEVO**: Si p_validar = false, muestra la consulta sin validación
+  - **ACTUALIZACIÓN**: Ahora incluye la columna pdpActivo en el retorno, obtenida mediante JOIN con arrenPropiedades
+- **Retorno**: TABLE con estructura detallada de resumen por partida incluyendo pdpActivo
+- **Activación**: Manual (función de consulta)
+- **Uso**: Ideal para reportes y visualizaciones resumidas de planes de pago con seguridad adicional
+
+### 9. Sistema de Recálculo Masivo
 
 #### `arrepdpdetalle_recalcular_todas_cantidades()`
 - **Propósito**: Recálculo masivo de todas las cantidades
@@ -196,8 +215,9 @@ SELECT arrepdpdetalle_actualizar_campo_manual('Plan123', 2::smallint, 'Renta', '
    \i arrepdpdetalle_actualizar_inpc.sql
    \i arrepdpdetalle_actualizar_inpc_desde_anio.sql
    \i arrepdpdetalle_aplicar_meses_gracia.sql
-   \i actualizar_ciclo_plan_pago.sql
    \i arrepdpdetalle_generar_plan_completo.sql
+   \i arrepdpdetalle_obtener_resumen_por_plan.sql
+   \i actualizar_ciclo_plan_pago.sql
    
    -- Finalmente el trigger
    \i trigger_arrepdpdetalle_calcular_cantidad.sql
@@ -214,7 +234,7 @@ SELECT arrepdpdetalle_actualizar_campo_manual('Plan123', 2::smallint, 'Renta', '
 
 ## 📈 Estado Actual de Componentes
 
-- **Total funciones**: 10
+- **Total funciones**: 11
 - **Total triggers**: 1
 - **Total vistas**: 0
 - **Estado documentación**: Completa ✅
@@ -296,6 +316,28 @@ SELECT arrePdpDetalle_aplicar_meses_gracia('ID_CONTRATO');
 -- - Administración: Sin descuentos aplicados
 ```
 
+### Escenario 5: Obtener Resumen de Plan
+```sql
+-- Obtener resumen agrupado por partida de un plan específico (con validación por defecto)
+SELECT * FROM arrepdpdetalle_obtener_resumen_por_plan('ID_CONTRATO');
+
+-- Obtener resumen SIN validación de pdpActivo
+SELECT * FROM arrepdpdetalle_obtener_resumen_por_plan('ID_CONTRATO', false);
+
+-- Resultado esperado: tabla con:
+-- - numPartida: número de partida agrupado
+-- - anio: año máximo de la partida
+-- - fecha: fecha mínima de la partida
+-- - pm2, constM2, INPC, ptsINPC, totalINPC: valores del concepto 'Renta'
+-- - ciclo: ciclo máximo de la partida
+-- - total_cantidad: suma de cantidades de todos los conceptos
+-- - idArrePdp: ID del plan
+-- - pdpActivo: estado activo del plan en arrenPropiedades
+
+-- Nota: Si p_validar = true (default) y pdpActivo != true en arrenPropiedades,
+--       la función devuelve un conjunto vacío
+```
+
 ## ⚠️ Notas Importantes
 
 1. **Orden de instalación**: El trigger debe instalarse después de su función asociada
@@ -311,6 +353,10 @@ SELECT arrePdpDetalle_aplicar_meses_gracia('ID_CONTRATO');
 
 ## 📝 Historial de Cambios
 
+- **20/01/2026 21:48**: Mejora en `arrepdpdetalle_obtener_resumen_por_plan()` - Agregada columna pdpActivo al retorno de la función. La función ahora hace JOIN con las tablas arrePdp y arrenPropiedades para obtener el valor de pdpActivo y retornarlo en la consulta. Actualizada documentación del encabezado y README.md.
+- **20/01/2026 15:35**: Corrección CRÍTICA en `arrepdpdetalle_obtener_resumen_por_plan()` - Corregida referencia a columna pdpActivo: ahora selecciona de arrenPropiedades (arp) en lugar de arrePdp (ap). Resuelve error "column ap.pdpActivo does not exist". Función ahora valida correctamente que pdpActivo = true en arrenPropiedades.
+- **20/01/2026 15:15**: Mejora en `arrepdpdetalle_obtener_resumen_por_plan()` - Agregado parámetro p_validar con valor por defecto true para validar pdpActivo en arrenPropiedades. Si p_validar = true, valida que pdpActivo = true; si la validación falla, devuelve conjunto vacío. Si p_validar = false, muestra la consulta sin validación.
+- **20/01/2026**: Creación de `arrepdpdetalle_obtener_resumen_por_plan()` - Función para obtener resumen agrupado por partida de un plan específico, extrayendo valores del concepto 'Renta' y sumando cantidades de todos los conceptos
 - **12/12/2025 10:19**: Corrección CRÍTICA de `arrepdpdetalle_aplicar_meses_gracia()` - Se implementó mapeo explícito de conceptos JSON a conceptos de BD para resolver problema con acentos. El concepto "administracion" (sin acento) ahora se mapea correctamente a "Administración" (con acento) en la base de datos, resolviendo el problema donde no se aplicaban los meses de gracia para administración.
 - **12/12/2025 09:51**: Corrección de `arrepdpdetalle_aplicar_meses_gracia()` - Se eliminó el control explícito de transacciones (BEGIN/COMMIT/ROLLBACK) que causaba error "invalid transaction termination" y se corrigió el casteo del tipo ENUM "mesGratis" para el campo "tieneMesGratis"
 - **12/12/2025 09:32**: Creación de `arrepdpdetalle_aplicar_meses_gracia()` - Función para aplicar descuentos de cortesía basados en configuración JSON

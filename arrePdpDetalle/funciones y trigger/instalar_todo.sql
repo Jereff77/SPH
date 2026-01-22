@@ -1,4 +1,4 @@
---[Fecha y Hora]: 12/12/2025 09:51:00
+--[Fecha y Hora]: 20/01/2026 21:48:36
 --[Descripción]: Script de instalación completa para todas las funciones y triggers
 --                de la tabla arrePdpDetalle. Ejecuta los componentes en el orden
 --                correcto para evitar dependencias circulares.
@@ -25,6 +25,24 @@
 --   FROM information_schema.triggers
 --   WHERE trigger_name LIKE '%arrepdpdetalle%' AND trigger_schema = 'public';
 --
+--[Actualización]: 20/01/2026 21:48:36 - Mejora en arrepdpdetalle_obtener_resumen_por_plan:
+--               * Agregada columna pdpActivo (boolean) en la cláusula RETURNS TABLE
+--               * Modificado el SELECT para hacer JOIN con arrePdp y arrenPropiedades
+--               * Agregada selección de arp."pdpActivo" en la consulta principal
+--               * La función ahora retorna el estado activo del plan junto con el resumen por partida
+--
+--[Actualización]: 20/01/2026 15:35:00 - Corrección CRÍTICA en arrepdpdetalle_obtener_resumen_por_plan:
+--               * Corregida referencia a columna pdpActivo: ahora selecciona de arrenPropiedades (arp) en lugar de arrePdp (ap)
+--               * Resuelve error: "column ap.pdpActivo does not exist"
+--               * Función ahora valida correctamente que pdpActivo = true en arrenPropiedades
+--
+--[Actualización]: 20/01/2026 15:15:00 - Mejora en arrepdpdetalle_obtener_resumen_por_plan:
+--               * Agregado parámetro p_validar con valor por defecto true
+--               * Si p_validar = true, valida que pdpActivo = true en arrenPropiedades
+--               * Si la validación falla, devuelve conjunto vacío
+--               * Si p_validar = false, muestra la consulta sin validación
+--               * Proporciona seguridad adicional para planes activos
+--
 --[Actualización]: 12/12/2025 10:19 - Corrección CRÍTICA de arrepdpdetalle_aplicar_meses_gracia:
 --               * Se implementó mapeo explícito de conceptos JSON a conceptos de BD
 --               * "administracion" (JSON) → "Administración" (BD) para manejar acentos
@@ -43,7 +61,7 @@
 
 -- Mensaje de inicio
 \echo 'Iniciando instalación de funciones y triggers para arrePdpDetalle...'
-\echo 'Fecha y hora: 12/12/2025 09:51:00'
+\echo 'Fecha y hora: 20/01/2026 21:48:36'
 
 -- =========================================================================
 -- 1. FUNCIONES DE CÁLCULO (Independientes)
@@ -97,6 +115,9 @@
 -- Función para generación completa de planes de pago
 \i arrepdpdetalle_generar_plan_completo.sql
 
+-- Función para obtener resumen agrupado por partida de un plan
+\i arrepdpdetalle_obtener_resumen_por_plan.sql
+
 \echo '✓ Funciones masivas instaladas'
 
 -- =========================================================================
@@ -138,10 +159,10 @@ BEGIN
     RAISE NOTICE '📁 Ubicación: arrePdpDetalle/funciones y trigger/';
     RAISE NOTICE '📋 Documentación: README.md';
     
-    IF funciones_count = 10 AND triggers_count = 1 THEN
+    IF funciones_count = 11 AND triggers_count = 1 THEN
         RAISE NOTICE '🎉 Todos los componentes instalados correctamente';
     ELSE
-        RAISE NOTICE '⚠️  Verificar: se esperaban 10 funciones y 1 trigger';
+        RAISE NOTICE '⚠️  Verificar: se esperaban 11 funciones y 1 trigger';
     END IF;
 END $$;
 
@@ -158,10 +179,11 @@ END $$;
 \echo '  • arrepdpdetalle_actualizar_campo_manual()'
 \echo '  • arrepdpdetalle_actualizar_inpc()'
 \echo '  • arrepdpdetalle_actualizar_inpc_desde_anio()'
-\echo '  • arrepdpdetalle_aplicar_meses_gracia() (NUEVA)'
+\echo '  • arrepdpdetalle_aplicar_meses_gracia()'
+\echo '  • arrepdpdetalle_generar_plan_completo()'
+\echo '  • arrepdpdetalle_obtener_resumen_por_plan() (ACTUALIZADA - incluye pdpActivo)'
 \echo '  • arrepdpdetalle_recalcular_todas_cantidades()'
 \echo '  • actualizar_ciclo_plan_pago()'
-\echo '  • arrepdpdetalle_generar_plan_completo()'
 \echo ''
 \echo 'Triggers instalados:'
 \echo '  • trigger_arrepdpdetalle_calcular_cantidad'

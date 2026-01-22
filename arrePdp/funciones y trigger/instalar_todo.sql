@@ -1,4 +1,4 @@
---[Fecha y Hora]: 03/01/2026 01:52:00
+--[Fecha y Hora]: 21/01/2026 21:17:00
 --[Descripción]: Script de instalación para todas las funciones y triggers del módulo arrePdp
 --                Este script instala los componentes en el orden correcto para evitar
 --                errores de dependencia.
@@ -10,9 +10,10 @@
 --   4. Función de generación de corrida desde plan simple
 --   5. Función de generación de detalles desde plan existente
 --   6. Función de agregación de conceptos financiados
---   7. Función de actualización de vigencia
---   8. Trigger programado para ejecución automática diaria (NUEVO)
---   9. Función de eliminación de plan y actualización de estados
+--   7. Función de actualización de vigencia (ACTUALIZADA COMPLETA)
+--   8. Función de desvinculación de propiedades (NUEVA)
+--   9. Trigger programado para ejecución automática diaria de vigencia
+--   10. Trigger programado para ejecución automática diaria de desvinculación (NUEVO)
 --
 --[Verificación]: Al finalizar, muestra un resumen de componentes instalados
 --
@@ -25,7 +26,29 @@
 --   - Nueva función para generar corrida completa desde planes simples (INPC adicional opcional)
 --   - Función para generar detalles desde planes existentes sin requerir parámetros adicionales
 --   - Función para eliminar planes y actualizar automáticamente estados de propiedad y nave
---   - NUEVO: Trigger programado para ejecución automática diaria de actualización de vigencia
+--   - ACTUALIZADO COMPLETO: Función arrepdp_actualizar_vigencia() ahora actualiza todos los campos necesarios en arrenPropiedades
+--   - NUEVO: Función arrepdp_desvincular_propiedades() para desvincular propiedades de planes vencidos
+--   - NUEVO: Trigger trigger_arrepdp_desvincular_propiedades_diaria() para ejecución automática diaria de desvinculación
+--
+--[Actualización]: 21/01/2026 21:17:00 - Creación del trigger programado para desvinculación automática de propiedades:
+--               * Creada función trigger_arrepdp_desvincular_propiedades_diaria() con logging completo
+--               * Configurado job pg_cron para ejecución diaria a las 1:30 AM hora de México (7:30 AM UTC)
+--               * Incluye manejo robusto de errores y verificación de dependencias
+--               * Considera zona horaria America/Mexico_City para logging
+--               * Actualizada documentación completa del módulo con nuevo trigger
+--               * Impacto: Automatización completa de la desvinculación de propiedades de planes vencidos
+--
+--[Actualización]: 20/01/2026 18:22:00 - Mejora completa en función arrepdp_actualizar_vigencia() para mantener consistencia total entre tablas:
+--               * Agregada actualización automática completa de campos en arrenPropiedades cuando un contrato se marca como vencido:
+--                 - pdpVigente = false
+--                 - tienePdp = false
+--                 - pdpActivo = false
+--                 - idArrePdp = NULL
+--               * Agregada variable v_propiedades_actualizadas para contar propiedades modificadas
+--               * Actualizado JSON de resultado para incluir conteo de propiedades actualizadas
+--               * Mejorado logging para mostrar cuántas propiedades se actualizaron completamente
+--               * Actualizada documentación completa para reflejar todas las nuevas funcionalidades
+--               * Impacto: Mantiene consistencia automática y completa entre tablas arrePdp y arrenPropiedades
 --
 --[Actualización]: 03/01/2026 01:52:00 - Agregado trigger programado para actualización automática:
 --               * Creada función trigger_arrepdp_actualizar_vigencia_diaria() con logging completo
@@ -186,7 +209,7 @@ BEGIN
     END IF;
 END $$;
 -- 5. Instalar función de actualización de vigencia
-RAISE NOTICE 'Instalando función: arrepdp_actualizar_vigencia (actualización de estado de vigencia)';
+RAISE NOTICE 'Instalando función: arrepdp_actualizar_vigencia (actualización completa de estado de vigencia y propiedades relacionadas)';
 
 \i arrepdp_actualizar_vigencia.sql
 
@@ -207,7 +230,29 @@ BEGIN
     END IF;
 END $$;
 
--- 6. Instalar trigger programado para actualización automática diaria
+-- 7. Instalar función de desvinculación de propiedades
+RAISE NOTICE 'Instalando función: arrepdp_desvincular_propiedades (desvincula propiedades de planes vencidos)';
+
+\i arrepdp_desvincular_propiedades.sql
+
+-- Verificar instalación de la función de desvinculación
+DO $$
+DECLARE
+    v_func_count integer;
+BEGIN
+    SELECT COUNT(*) INTO v_func_count
+    FROM information_schema.routines
+    WHERE routine_schema = 'public'
+    AND routine_name = 'arrepdp_desvincular_propiedades';
+    
+    IF v_func_count > 0 THEN
+        RAISE NOTICE '✅ Función arrepdp_desvincular_propiedades instalada correctamente';
+    ELSE
+        RAISE EXCEPTION '❌ Error: Función arrepdp_desvincular_propiedades no se instaló';
+    END IF;
+END $$;
+
+-- 8. Instalar trigger programado para actualización automática diaria
 RAISE NOTICE 'Instalando trigger programado: trigger_arrepdp_actualizar_vigencia_diaria';
 
 \i trigger_arrepdp_actualizar_vigencia_diaria.sql
@@ -229,7 +274,29 @@ BEGIN
     END IF;
 END $$;
 
--- 7. Instalar función de eliminación de plan y actualización de estados
+-- 9. Instalar trigger programado para desvinculación automática diaria
+RAISE NOTICE 'Instalando trigger programado: trigger_arrepdp_desvincular_propiedades_diaria';
+
+\i trigger_arrepdp_desvincular_propiedades_diaria.sql
+
+-- Verificar instalación del trigger programado de desvinculación
+DO $$
+DECLARE
+    v_func_count integer;
+BEGIN
+    SELECT COUNT(*) INTO v_func_count
+    FROM information_schema.routines
+    WHERE routine_schema = 'public'
+    AND routine_name = 'trigger_arrepdp_desvincular_propiedades_diaria';
+    
+    IF v_func_count > 0 THEN
+        RAISE NOTICE '✅ Función trigger_arrepdp_desvincular_propiedades_diaria instalada correctamente';
+    ELSE
+        RAISE EXCEPTION '❌ Error: Función trigger_arrepdp_desvincular_propiedades_diaria no se instaló';
+    END IF;
+END $$;
+
+-- 10. Instalar función de eliminación de plan y actualización de estados
 RAISE NOTICE 'Verificando dependencias requeridas...';
 
 DO $$
@@ -312,17 +379,25 @@ BEGIN
                 END IF;
             WHEN 6 THEN
                 IF EXISTS (SELECT 1 FROM information_schema.routines WHERE routine_schema = 'public' AND routine_name = 'arrepdp_actualizar_vigencia') THEN
-                    RAISE NOTICE '  ✅ arrepdp_actualizar_vigencia (actualiza estado de vigencia de contratos)';
+                    RAISE NOTICE '  ✅ arrepdp_actualizar_vigencia (actualiza estado de vigencia de contratos y propiedades relacionadas completamente)';
                 END IF;
             WHEN 7 THEN
+                IF EXISTS (SELECT 1 FROM information_schema.routines WHERE routine_schema = 'public' AND routine_name = 'arrepdp_desvincular_propiedades') THEN
+                    RAISE NOTICE '  ✅ arrepdp_desvincular_propiedades (desvincula propiedades de planes vencidos)';
+                END IF;
+            WHEN 8 THEN
                 IF EXISTS (SELECT 1 FROM information_schema.routines WHERE routine_schema = 'public' AND routine_name = 'trigger_arrepdp_actualizar_vigencia_diaria') THEN
                     RAISE NOTICE '  ✅ trigger_arrepdp_actualizar_vigencia_diaria (trigger programado diario a las 1 AM)';
                 END IF;
-            WHEN 8 THEN
+            WHEN 9 THEN
+                IF EXISTS (SELECT 1 FROM information_schema.routines WHERE routine_schema = 'public' AND routine_name = 'trigger_arrepdp_desvincular_propiedades_diaria') THEN
+                    RAISE NOTICE '  ✅ trigger_arrepdp_desvincular_propiedades_diaria (trigger programado diario a las 1:30 AM)';
+                END IF;
+            WHEN 10 THEN
                 IF EXISTS (SELECT 1 FROM information_schema.routines WHERE routine_schema = 'public' AND routine_name = 'arrepdpdetalle_generar_plan_completo') THEN
                     RAISE NOTICE '  ✅ arrepdpdetalle_generar_plan_completo (dependencia)';
                 END IF;
-            WHEN 9 THEN
+            WHEN 11 THEN
                 IF EXISTS (SELECT 1 FROM information_schema.routines WHERE routine_schema = 'public' AND routine_name = 'arrepdpdetalle_recalcular_anos_contrato') THEN
                     RAISE NOTICE '  ✅ arrepdpdetalle_recalcular_anos_contrato (dependencia)';
                 END IF;
@@ -373,16 +448,30 @@ RAISE NOTICE 'SELECT * FROM arrepdp_agregar_concepto_financiado(';
 RAISE NOTICE '    ''PDP_241201010530_abc12345'', ''Seguro Anual'', 5000.0, 5, 3, false';
 RAISE NOTICE ');';
 RAISE NOTICE '';
-RAISE NOTICE '7. Actualizar vigencia de contratos:';
+RAISE NOTICE '7. Actualizar vigencia de contratos y propiedades relacionadas (completo):';
 RAISE NOTICE 'SELECT * FROM arrepdp_actualizar_vigencia();';
+RAISE NOTICE '-- Actualiza todos los campos de la propiedad cuando un contrato se vence:';
+RAISE NOTICE '--   - pdpVigente = false';
+RAISE NOTICE '--   - tienePdp = false';
+RAISE NOTICE '--   - pdpActivo = false';
+RAISE NOTICE '--   - idArrePdp = NULL';
 RAISE NOTICE '';
-RAISE NOTICE '8. Trigger programado (se ejecuta automáticamente):';
+RAISE NOTICE '8. Desvincular propiedades de planes vencidos:';
+RAISE NOTICE 'SELECT * FROM arrepdp_desvincular_propiedades();';
+RAISE NOTICE '';
+RAISE NOTICE '9. Trigger programado de actualización de vigencia (se ejecuta automáticamente):';
 RAISE NOTICE 'SELECT * FROM trigger_arrepdp_actualizar_vigencia_diaria();';
 RAISE NOTICE '';
 RAISE NOTICE '   Job programado: arrepdp-actualizar-vigencia (diario a las 1:00 AM)';
 RAISE NOTICE '   Verificar jobs: SELECT * FROM cron.job WHERE jobname = ''arrepdp-actualizar-vigencia''';
 RAISE NOTICE '';
-RAISE NOTICE '9. Eliminar plan y actualizar estados:';
+RAISE NOTICE '10. Trigger programado de desvinculación (se ejecuta automáticamente):';
+RAISE NOTICE 'SELECT * FROM trigger_arrepdp_desvincular_propiedades_diaria();';
+RAISE NOTICE '';
+RAISE NOTICE '   Job programado: arrepdp-desvincular-propiedades (diario a las 1:30 AM hora de México)';
+RAISE NOTICE '   Verificar jobs: SELECT * FROM cron.job WHERE jobname = ''arrepdp-desvincular-propiedades''';
+RAISE NOTICE '';
+RAISE NOTICE '11. Eliminar plan y actualizar estados:';
 RAISE NOTICE '';
 RAISE NOTICE '   Ejemplo:';
 RAISE NOTICE '   SELECT * FROM arrepdp_eliminar_plan_y_actualizar_estados(';

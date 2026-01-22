@@ -6,14 +6,16 @@ Esta carpeta contiene todas las funciones y triggers asociados a la tabla `arreP
 
 ## 📁 Estructura de Componentes
 
-### Funciones (7)
+### Funciones (8)
 1. `arrepdp_crear_plan_completo_rpc.sql` - Función RPC principal para crear planes completos
 2. `arrepdp_crear_plan_simple_rpc.sql` - Función RPC simplificada con validación de superposición
 3. `arrepdp_generar_detalle_desde_plan.sql` - Función para generar detalles desde un plan existente
 4. `arrepdp_agregar_concepto_financiado.sql` - Función para agregar conceptos financiados a planes existentes
 5. `arrepdp_actualizar_vigencia.sql` - Función para actualizar el estado de vigencia de contratos
 6. `arrepdp_eliminar_plan_con_restricciones.sql` - Función para eliminar planes con restricciones de seguridad
-7. `trigger_arrepdp_actualizar_vigencia_diaria.sql` - Trigger programado para ejecución automática diaria
+7. `arrepdp_desvincular_propiedades.sql` - Función para desvincular propiedades de planes vencidos
+8. `trigger_arrepdp_actualizar_vigencia_diaria.sql` - Trigger programado para ejecución automática diaria
+9. `trigger_arrepdp_desvincular_propiedades_diaria.sql` - Trigger programado para desvinculación automática diaria
 
 ### Scripts de Prueba (3)
 1. `test_arrepdp_crear_plan_completo_rpc.sql` - Script de prueba para validar la función RPC
@@ -23,8 +25,9 @@ Esta carpeta contiene todas las funciones y triggers asociados a la tabla `arreP
 ### Scripts de Mantenimiento (1)
 1. `eliminar_funciones_complejas.sql` - Script para eliminar funciones complejas si es necesario
 
-### Triggers (1)
-1. `trigger_arrepdp_actualizar_vigencia_diaria.sql` - Trigger programado para ejecución automática diaria
+### Triggers (2)
+1. `trigger_arrepdp_actualizar_vigencia_diaria.sql` - Trigger programado para ejecución automática diaria de vigencia
+2. `trigger_arrepdp_desvincular_propiedades_diaria.sql` - Trigger programado para ejecución automática diaria de desvinculación
 
 ## 🔄 Flujo de Procesamiento
 
@@ -86,7 +89,7 @@ graph TD
     P --> Q[Retorna JSON con error detallado]
 ```
 
-### Trigger Programado (NUEVO)
+### Trigger Programado - Actualización de Vigencia (NUEVO)
 ```mermaid
 graph TD
     A[Job pg_cron] --> B[trigger_arrepdp_actualizar_vigencia_diaria]
@@ -94,6 +97,17 @@ graph TD
     C --> D[Actualiza campo "arrePdpVigente"]
     D --> E[Registra logs en base de datos]
     E --> F[Genera resumen de ejecución]
+```
+
+### Trigger Programado - Desvinculación de Propiedades (NUEVO)
+```mermaid
+graph TD
+    A[Job pg_cron] --> B[trigger_arrepdp_desvincular_propiedades_diaria]
+    B --> C[Ejecuta función arrepdp_desvincular_propiedades()]
+    C --> D[Desvincula propiedades de planes vencidos]
+    D --> E[Actualiza campos en arrenPropiedades]
+    E --> F[Registra logs en base de datos]
+    F --> G[Genera resumen de ejecución]
 ```
 
 ## 📊 Comportamiento Detallado por Componente
@@ -215,10 +229,15 @@ graph TD
 - **Ajustes contractuales**: Modificar montos por acuerdos especiales
 - **Cargos únicos**: Aplicar cargos especiales en meses específicos
 
-#### `arrepdp_actualizar_vigencia()` (NUEVA)
-- **Propósito**: Función que actualiza el estado de vigencia de todos los contratos en `arrePdp`
+#### `arrepdp_actualizar_vigencia()` (ACTUALIZADA)
+- **Propósito**: Función que actualiza el estado de vigencia de todos los contratos en `arrePdp` y mantiene la consistencia completa con la tabla `arrenPropiedades`
 - **Características**:
   - Actualización masiva del campo `arrePdpVigente` basado en la fecha actual y `fecFin`
+  - **NUEVO**: Actualización automática completa de campos en `arrenPropiedades` cuando un contrato se marca como vencido:
+    - `pdpVigente` = false
+    - `tienePdp` = false
+    - `pdpActivo` = false
+    - `idArrePdp` = NULL
   - Implementación de las 5 reglas de vigencia según especificaciones
   - Manejo optimizado con UPDATEs condicionales para miles de registros
   - Control transaccional para asegurar atomicidad
@@ -226,23 +245,29 @@ graph TD
   - Consideración de zona horaria del sistema (America/Mexico_City)
   - Logging detallado de resultados y advertencias
   - Devuelve JSON completo con estadísticas de la operación
+  - **NUEVO**: Incluye conteo de propiedades actualizadas en el resultado
 - **Parámetros**: No requiere parámetros (procesa todos los registros)
-- **Retorno**: JSON con conteo de registros actualizados por categoría
+- **Retorno**: JSON con conteo de registros actualizados por categoría y propiedades actualizadas
 - **Activación**: Llamada directa o mediante job programado
-- **Fecha de documentación**: 02/01/2026 15:22:00
+- **Fecha de documentación**: 20/01/2026 18:22:00
 
 **Proceso Interno:**
 1. **Obtención de fecha actual**: Usa `CURRENT_DATE` considerando zona horaria
 2. **Actualización por categorías**:
    - **Contratos vencidos**: `fecha_actual > fecFin` → "No"
+   - **NUEVO**: Actualización completa de propiedades relacionadas cuando los contratos se marcan como vencidos:
+     - `pdpVigente` = false
+     - `tienePdp` = false
+     - `pdpActivo` = false
+     - `idArrePdp` = NULL
    - **Vigencia 3 meses**: Entre 1-3 meses antes de fecFin → "3 Meses"
    - **Vigencia 2 meses**: Entre 0-2 meses antes de fecFin → "2 Meses"
    - **Vigencia 1 mes**: Entre 0-1 mes antes de fecFin → "1 Mes"
    - **Contratos vigentes**: Más de 3 meses antes de fecFin → "Si"
 3. **Manejo de nulos**: Cuenta pero no modifica registros con `fecFin` nulo
 4. **Estadísticas**: Calcula totales por categoría y general
-5. **Logging**: Emite NOTICE con resumen completo de la operación
-6. **Retorno**: JSON detallado con todos los conteos y timestamp
+5. **Logging**: Emite NOTICE con resumen completo de la operación y propiedades actualizadas
+6. **Retorno**: JSON detallado con todos los conteos, timestamp y propiedades actualizadas
 
 **Códigos de Error:**
 - `EXITO`: Operación completada exitosamente
@@ -341,46 +366,89 @@ graph TD
 - **No expone datos sensibles**: Los logs solo contienen información de ejecución
 - **Manejo robusto de errores**: Evita interrupciones del job en caso de error
 
+#### `trigger_arrepdp_desvincular_propiedades_diaria()` (NUEVA)
+- **Propósito**: Trigger que ejecuta automáticamente la función `arrepdp_desvincular_propiedades()` todos los días a las 1:30 AM hora de México (America/Mexico_City).
+- **Características**:
+  - Ejecutarse diariamente a las 1:30 AM hora de México (7:30 AM UTC)
+  - Llamar a la función `arrepdp_desvincular_propiedades()` que ya existe
+  - Estar programado para ejecución automática
+  - Manejar errores apropiadamente
+  - Incluir logging de la ejecución
+- **Parámetros**: No requiere parámetros, se ejecuta automáticamente mediante pg_cron
+- **Retorno**: void - No devuelve valor, solo ejecuta la desvinculación y registra logs
+- **Activación**: Llamada programada por pg_cron con horario `30 7 * * *` (diariamente a las 7:30 AM UTC, que equivale a 1:30 AM hora de México)
+- **Fecha de documentación**: 21/01/2026 21:10:00
+
+**Proceso Interno:**
+1. **Verificación de dependencias**: Confirma que la función `arrepdp_desvincular_propiedades()` existe antes de ejecutar
+2. **Ejecución de la función**: Llama a `arrepdp_desvincular_propiedades()` para desvincular propiedades de planes vencidos
+3. **Logging de ejecución**: Registra timestamp de inicio y fin de la ejecución
+4. **Manejo de errores**: Captura y registra cualquier error que ocurra durante la ejecución
+5. **Registro de resultados**: Genera resumen de la ejecución con conteo de registros desvinculados
+
+**Códigos de Error:**
+- `ERROR_CRITICO`: Error crítico si la función principal no existe
+- `ERROR_DURANTE_EJECUCION`: Error durante la ejecución de `arrepdp_desvincular_propiedades()`
+
+**Casos de Uso Típicos:**
+- **Procesamiento diario**: Mantener actualizadas las relaciones entre planes y propiedades
+- **Auditoría**: Verificar que la desvinculación se ejecuta correctamente
+- **Configuración**: Configuración inicial del job pg_cron para ejecución diaria
+
+**Consideraciones de Seguridad:**
+- **Seguridad de ejecución**: Ejecuta con permisos del usuario que la invoca (pg_cron)
+- **No expone datos sensibles**: Los logs solo contienen información de ejecución
+- **Manejo robusto de errores**: Evita interrupciones del job en caso de error
+
 ## 🔧 Instrucciones de Instalación
 1. **Instalar funciones en orden específico**:
-   ```sql
-   -- Primero instalar las funciones dependientes
-   \i ../arrePdpDetalle/funciones y trigger/arrepdpdetalle_generar_plan_completo.sql
-   \i ../arrePdpDetalle/funciones y trigger/arrepdpdetalle_recalcular_anos_contrato.sql
-   
-   -- Luego las funciones principales
-   \i arrepdp_crear_plan_simple_rpc.sql
-   \i arrepdp_crear_plan_completo_rpc.sql
-   \i arrepdp_generar_detalle_desde_plan.sql
-   
-   -- Opcional: Ejecutar script de prueba
-   \i test_arrepdp_crear_plan_completo_rpc.sql
-   ```
+    ```sql
+    -- Primero instalar las funciones dependientes
+    \i ../arrePdpDetalle/funciones y trigger/arrepdpdetalle_generar_plan_completo.sql
+    \i ../arrePdpDetalle/funciones y trigger/arrepdpdetalle_recalcular_anos_contrato.sql
+    
+    -- Luego las funciones principales
+    \i arrepdp_crear_plan_simple_rpc.sql
+    \i arrepdp_crear_plan_completo_rpc.sql
+    \i arrepdp_generar_detalle_desde_plan.sql
+    \i arrepdp_desvincular_propiedades.sql
+    
+    -- Opcional: Ejecutar script de prueba
+    \i test_arrepdp_crear_plan_completo_rpc.sql
+    ```
 
-2. **Instalar trigger programado**:
-   ```sql
-   -- Instalar la función del trigger
-   \i trigger_arrepdp_actualizar_vigencia_diaria.sql
-   
-   -- Verificar instalación
-   SELECT * FROM information_schema.routines WHERE routine_schema = 'public' AND routine_name = 'trigger_arrepdp_actualizar_vigencia_diaria';
-   
-   -- Configurar job pg_cron (si no existe)
-   SELECT cron.schedule('arrepdp-actualizar-vigencia', '0 1 * * *', 'SELECT public.trigger_arrepdp_actualizar_vigencia_diaria()');
-   ```
+2. **Instalar triggers programados**:
+    ```sql
+    -- Instalar trigger de actualización de vigencia
+    \i trigger_arrepdp_actualizar_vigencia_diaria.sql
+    
+    -- Instalar trigger de desvinculación de propiedades
+    \i trigger_arrepdp_desvincular_propiedades_diaria.sql
+    
+    -- Verificar instalación
+    SELECT * FROM information_schema.routines WHERE routine_schema = 'public' AND routine_name = 'trigger_arrepdp_actualizar_vigencia_diaria';
+    SELECT * FROM information_schema.routines WHERE routine_schema = 'public' AND routine_name = 'trigger_arrepdp_desvincular_propiedades_diaria';
+    
+    -- Configurar jobs pg_cron (si no existen)
+    SELECT cron.schedule('arrepdp-actualizar-vigencia', '0 1 * * *', 'SELECT public.trigger_arrepdp_actualizar_vigencia_diaria()');
+    SELECT cron.schedule('arrepdp-desvincular-propiedades', '30 7 * * *', 'SELECT public.trigger_arrepdp_desvincular_propiedades_diaria()');
+    ```
 
 3. **Verificar instalación**:
-   ```sql
-   SELECT * FROM information_schema.routines 
-   WHERE routine_schema = 'public'
-   AND routine_name LIKE 'arrepdp%';
-   ```
+    ```sql
+    SELECT * FROM information_schema.routines
+    WHERE routine_schema = 'public'
+    AND routine_name LIKE 'arrepdp%';
+    
+    -- Verificar jobs pg_cron
+    SELECT * FROM cron.job;
+    ```
 
 ## 📈 Estado Actual de Componentes
-- **Total funciones**: 7
+- **Total funciones**: 8
 - **Total scripts de prueba**: 3
 - **Total scripts de mantenimiento**: 1
-- **Total triggers**: 1
+- **Total triggers**: 2
 - **Total vistas**: 0
 - **Estado documentación**: Completa ✅
 - **Estado implementación**: Lista para instalación ✅
@@ -434,7 +502,8 @@ SELECT * FROM arrepdp_agregar_concepto_financiado(
 
 ### Escenario 6: Actualizar Vigencia de Contratos
 ```sql
--- Actualizar el estado de vigencia de todos los contratos
+-- Actualizar el estado de vigencia de todos los contratos y propiedades relacionadas
+-- Actualiza completamente los campos de la propiedad cuando un contrato se vence
 SELECT * FROM arrepdp_actualizar_vigencia();
 ```
 
@@ -462,14 +531,17 @@ SELECT * FROM trigger_arrepdp_actualizar_vigencia_diaria();
 
 ## 🔗 Relaciones con Otros Módulos
 - **Tabla principal**: `public."arrePdp"`
-- **Tablas relacionadas**: 
+- **Tablas relacionadas**:
   - `public."arrenPropiedades"` (actualización de estado)
   - `public."arrePdpDetalle"` (generación de partidas)
   - `public."arreConceptos"` (inserción de conceptos)
-- **Funciones dependientes**: 
+- **Funciones dependientes**:
   - `public.arrepdpdetalle_generar_plan_completo()`
   - `public.arrepdpdetalle_recalcular_anos_contrato()`
-- **Job programado**: `arrepdp-actualizar-vigencia` (diario a las 1:00 AM)
+  - `public.arrepdp_desvincular_propiedades()`
+- **Jobs programados**:
+  - `arrepdp-actualizar-vigencia` (diario a las 1:00 AM hora de México)
+  - `arrepdp-desvincular-propiedades` (diario a las 1:30 AM hora de México)
 
 ## 📝 Historial de Cambios
 - **12/12/2025 01:25**: Agregado soporte completo para mesGracia en `arrepdp_crear_plan_simple_rpc`
@@ -559,6 +631,26 @@ SELECT * FROM trigger_arrepdp_actualizar_vigencia_diaria();
   - **Incluye manejo robusto de errores y verificación de dependencias**
   - **Considera zona horaria America/Mexico_City para logging**
   - **Impacto**: Automatización completa de la actualización de vigencia de contratos
+
+- **20/01/2026 18:22:00**: Mejora completa en función arrepdp_actualizar_vigencia() para mantener consistencia total entre tablas
+  - **Agregada actualización automática completa de campos en arrenPropiedades cuando un contrato se marca como vencido**:
+    - `pdpVigente` = false
+    - `tienePdp` = false
+    - `pdpActivo` = false
+    - `idArrePdp` = NULL
+  - **Agregada variable v_propiedades_actualizadas para contar propiedades modificadas**
+  - **Actualizado JSON de resultado para incluir conteo de propiedades actualizadas**
+  - **Mejorado logging para mostrar cuántas propiedades se actualizaron completamente**
+  - **Actualizada documentación completa para reflejar todas las nuevas funcionalidades**
+  - **Impacto**: Mantiene consistencia automática y completa entre tablas arrePdp y arrenPropiedades
+
+- **21/01/2026 21:10:00**: Creación del trigger programado para desvinculación automática de propiedades
+  - **Creada función trigger_arrepdp_desvincular_propiedades_diaria() con logging completo**
+  - **Configurado job pg_cron para ejecución diaria a las 1:30 AM hora de México (7:30 AM UTC)**
+  - **Incluye manejo robusto de errores y verificación de dependencias**
+  - **Considera zona horaria America/Mexico_City para logging**
+  - **Actualizada documentación completa del módulo con nuevo trigger**
+  - **Impacto**: Automatización completa de la desvinculación de propiedades de planes vencidos
 
 ## 🔄 Impacto en el Sistema
 ### Antes (Código Flutter)
