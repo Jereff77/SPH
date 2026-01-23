@@ -423,7 +423,7 @@ class _GenerateQrPageState extends State<GenerateQrPage> {
         'estado': 1,
         'limiteUsos': 3,
         'usos': 0,
-        'fc': DateTime.now().toIso8601String(),
+        'fc': DateTime.now().toUtc().toIso8601String(),
       };
 
       await Supabase.instance.client.from('qrGenerados').insert(newQR);
