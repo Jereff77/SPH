@@ -12,17 +12,18 @@ import 'package:intl/intl.dart';
 import 'package:gal/gal.dart';
 import 'package:sph_control_accesos/constants.dart';
 import 'package:sph_control_accesos/models/db.dart';
+import 'package:sph_control_accesos/services/activity_logger.dart';
 
-class GenerateQRPage extends StatefulWidget {
+class GenerateQrPage extends StatefulWidget {
   final CatUser? currentUser;
 
-  const GenerateQRPage({super.key, this.currentUser});
+  const GenerateQrPage({super.key, this.currentUser});
 
   @override
-  State<GenerateQRPage> createState() => _GenerateQRPageState();
+  State<GenerateQrPage> createState() => _GenerateQrPageState();
 }
 
-class _GenerateQRPageState extends State<GenerateQRPage> {
+class _GenerateQrPageState extends State<GenerateQrPage> {
   // Data State
   List<QrEmpresa> _qrTypes = [];
   List<String> _uniqueQrTypes = [];
@@ -62,7 +63,7 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
   }
 
   @override
-  void didUpdateWidget(GenerateQRPage oldWidget) {
+  void didUpdateWidget(GenerateQrPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.currentUser != widget.currentUser &&
         widget.currentUser != null) {
@@ -288,6 +289,14 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
 
       final createdVisitor = DatosVisitante.fromJson(response);
 
+      // Log visitor creation
+      await ActivityLogger().log(
+        'create_visitor',
+        description:
+            'Nuevo visitante registrado: ${createdVisitor.nomVisitante}',
+        metadata: {'placa': createdVisitor.placasVehiculo},
+      );
+
       if (mounted) {
         setState(() {
           _visitors.add(createdVisitor);
@@ -418,6 +427,13 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
       };
 
       await Supabase.instance.client.from('qrGenerados').insert(newQR);
+
+      // Log QR generation
+      await ActivityLogger().log(
+        'generate_qr',
+        description: 'QR generado para: ${visitorObj.nomVisitante}',
+        metadata: {'tipoQR': _selectedQrType, 'claveAcceso': accessKey},
+      );
 
       await Future.wait([_fetchQrTypes(), _fetchCompanyUsage()]);
 
@@ -831,9 +847,9 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
                         ),
                         const SizedBox(height: 12),
                         if (widget.currentUser?.nivel != 3.2) ...[
-                              Row(
-                                children: [
-                                  Expanded(
+                          Row(
+                            children: [
+                              Expanded(
                                 child: DropdownButtonFormField<String>(
                                   value: _newVisitorVehicleType,
                                   hint: const Text('Vehículo'),
@@ -921,15 +937,16 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
                                       }
                                       if (widget.currentUser?.nivel != 3.2 &&
                                           _newVisitorIdImage == null) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  'La identificación del visitante es obligatoria',
-                                                ),
-                                                backgroundColor: Colors.red,
-                                              ),
-                                            );
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'La identificación del visitante es obligatoria',
+                                            ),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
                                         return;
                                       }
 
@@ -939,15 +956,16 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
                                       if (mounted) {
                                         setState(() => _loading = false);
                                         if (result != null) {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                                const SnackBar(
-                                                  content: Text(
-                                                    'Visitante registrado con éxito',
-                                                  ),
-                                                  backgroundColor: Colors.green,
-                                                ),
-                                              );
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Visitante registrado con éxito',
+                                              ),
+                                              backgroundColor: Colors.green,
+                                            ),
+                                          );
                                         }
                                       }
                                     },

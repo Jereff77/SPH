@@ -163,7 +163,7 @@ class _MainScaffoldState extends State<MainScaffold> {
         index: _currentIndex,
         children: [
           DashboardPage(currentUser: _currentUser),
-          GenerateQRPage(currentUser: _currentUser),
+          GenerateQrPage(currentUser: _currentUser),
           ProfilePage(
             currentUser: _currentUser,
             companyName: _companyName,
