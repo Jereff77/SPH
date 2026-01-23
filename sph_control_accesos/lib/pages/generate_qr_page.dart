@@ -931,15 +931,16 @@ class _GenerateQrPageState extends State<GenerateQrPage> {
                                 _loading
                                     ? null
                                     : () async {
+                                      final messenger = ScaffoldMessenger.of(
+                                        context,
+                                      );
                                       if (!_newVisitorFormKey.currentState!
                                           .validate()) {
                                         return;
                                       }
                                       if (widget.currentUser?.nivel != 3.2 &&
                                           _newVisitorIdImage == null) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
+                                        messenger.showSnackBar(
                                           const SnackBar(
                                             content: Text(
                                               'La identificación del visitante es obligatoria',
@@ -953,20 +954,18 @@ class _GenerateQrPageState extends State<GenerateQrPage> {
                                       setState(() => _loading = true);
                                       final result =
                                           await _handleCreateVisitor();
-                                      if (mounted) {
-                                        setState(() => _loading = false);
-                                        if (result != null) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Visitante registrado con éxito',
-                                              ),
-                                              backgroundColor: Colors.green,
+                                      if (!mounted) return;
+
+                                      setState(() => _loading = false);
+                                      if (result != null) {
+                                        messenger.showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Visitante registrado con éxito',
                                             ),
-                                          );
-                                        }
+                                            backgroundColor: Colors.green,
+                                          ),
+                                        );
                                       }
                                     },
                             style: ElevatedButton.styleFrom(
