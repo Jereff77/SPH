@@ -711,10 +711,8 @@
         function inicializarSupabase() {
             if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
                 supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                console.log('Cliente Supabase inicializado correctamente');
                 return true;
             } else {
-                console.error('Supabase no está disponible');
                 return false;
             }
         }
@@ -854,7 +852,6 @@
             const tbody = document.querySelector('#tabla-resumen-parques tbody');
             
             if (!tbody) {
-                console.error('No se encontró el tbody de la tabla de resumen');
                 return;
             }
             
@@ -906,7 +903,6 @@
                 const [razonesSociales, parques, propiedades, anios, tiposPago] = queries;
                 
                 if (razonesSociales.error || parques.error || propiedades.error || anios.error || tiposPago.error) {
-                    console.error('Error al cargar opciones de filtros');
                     return;
                 }
                 
@@ -921,7 +917,6 @@
                 await cargarDatosIniciales();
                 
             } catch (error) {
-                console.error('Error de conexión:', error);
                 alert('Error de conexión a Supabase: ' + error.message);
             }
         }
@@ -945,7 +940,6 @@
                 });
                 
                 if (error) {
-                    console.error('Error al cargar datos iniciales:', error);
                     // Mostrar valores por defecto en caso de error
                     document.getElementById('total-vencidos').textContent = '$0';
                     document.getElementById('cantidad-registros').textContent = '0';
@@ -969,7 +963,6 @@
                 });
                 
             } catch (error) {
-                console.error('Error al cargar datos iniciales:', error);
                 // En caso de error, mostrar valores por defecto
                 document.getElementById('total-vencidos').textContent = '$0';
                 document.getElementById('cantidad-registros').textContent = '0';
@@ -1033,7 +1026,6 @@
                 const { data, error } = await supabaseClient.rpc('v_pdpdetalle_get_saldos_vencidos_por_parque', parametros);
                 
                 if (error) {
-                    console.error('Error al aplicar filtros:', error);
                     alert('Error al aplicar filtros: ' + error.message);
                     return;
                 }
@@ -1047,7 +1039,6 @@
                 await actualizarGraficos(parametros);
                 
             } catch (error) {
-                console.error('Error al aplicar filtros:', error);
                 alert('Error al aplicar filtros: ' + error.message);
             }
         }
@@ -1081,7 +1072,6 @@
                 const { data: resumenParques, error: errorParques } = await supabaseClient.rpc('v_pdpdetalle_get_resumen_saldos_vencidos_parque', parametrosResumen);
                 
                 if (errorParques) {
-                    console.error('Error en función de resumen parques:', errorParques);
                     actualizarTablaResumen([]);
                     return;
                 }
@@ -1122,7 +1112,6 @@
                 }
                 
             } catch (error) {
-                console.error('Error CRÍTICO en actualizarGraficos:', error);
                 
                 // Asegurar que la tabla muestre que hubo un error
                 const tbody = document.querySelector('#tabla-resumen-parques tbody');
@@ -1221,7 +1210,6 @@
                     bom: true
                 });
             } catch (error) {
-                console.error('Error al descargar CSV:', error);
             }
         }
         
@@ -1238,7 +1226,6 @@
             try {
                 tabla.download("json", nombreArchivo);
             } catch (error) {
-                console.error('Error al descargar JSON:', error);
             }
         }
         
@@ -1257,7 +1244,6 @@
             setTimeout(() => {
                 if (typeof window.supabase === 'undefined' || !window.supabase.createClient) {
                     clearInterval(intervalId);
-                    console.error('Timeout: Supabase no se cargó después de 10 segundos');
                     alert('Error: No se pudo cargar la librería de Supabase. Verifica tu conexión a internet.');
                 }
             }, 10000);

@@ -23,7 +23,7 @@ BEGIN;
 -- Mensaje de inicio
 RAISE NOTICE '=================================================================';
 RAISE NOTICE 'Instalación General - Sistema supaSPH-QR';
-RAISE NOTICE 'Fecha y Hora: 27/10/2025 18:17:00';
+RAISE NOTICE 'Fecha y Hora: 28/01/2026 04:06:00';
 RAISE NOTICE '=================================================================';
 
 -- Instalar funciones generales (NUEVO)
@@ -50,6 +50,11 @@ RAISE NOTICE 'Instalando componentes de catAsesoresInm...';
 RAISE NOTICE '';
 RAISE NOTICE 'Instalando componentes de Leads...';
 \i Leads/funciones y trigger/instalar_todo.sql
+
+-- Instalar componentes de rentaGarantizada (NUEVO)
+RAISE NOTICE '';
+RAISE NOTICE 'Instalando componentes de rentaGarantizada...';
+\i rentaGarantizada/funciones y trigger/instalar_todo.sql
 
 -- Instalar componentes de propiedades (NUEVO)
 RAISE NOTICE '';
@@ -108,6 +113,14 @@ BEGIN
     v_total_functions := v_total_functions + v_count;
     RAISE NOTICE 'Funciones de Leads instaladas: %', v_count;
     
+    -- Verificar funciones de rentaGarantizada
+    SELECT COUNT(*) INTO v_count
+    FROM pg_proc
+    WHERE proname LIKE 'rgpdp_%' OR proname LIKE 'rgconceptos_%' OR proname LIKE 'rgpdpdetalle_%';
+    
+    v_total_functions := v_total_functions + v_count;
+    RAISE NOTICE 'Funciones de rentaGarantizada instaladas: %', v_count;
+    
     -- Verificar funciones de propiedades
     SELECT COUNT(*) INTO v_count
     FROM pg_proc
@@ -141,5 +154,5 @@ RAISE NOTICE '';
 RAISE NOTICE '=================================================================';
 RAISE NOTICE '¡INSTALACIÓN COMPLETADA CON ÉXITO!';
 RAISE NOTICE 'Todos los componentes del sistema supaSPH-QR han sido instalados';
-RAISE NOTICE 'Fecha y Hora: 27/10/2025 18:17:00';
+RAISE NOTICE 'Fecha y Hora: 28/01/2026 04:06:00';
 RAISE NOTICE '=================================================================';

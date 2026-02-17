@@ -745,7 +745,6 @@
                 supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                 return true;
             } else {
-                console.error('Supabase no está disponible o no tiene createClient');
                 return false;
             }
         }
@@ -862,7 +861,6 @@
             try {
                 // Verificar si Supabase está inicializado
                 if (!inicializarSupabase()) {
-                    console.error('No se pudo inicializar Supabase');
                     alert('Error: No se pudo conectar a Supabase. Verifica que la librería se haya cargado correctamente.');
                     return;
                 }
@@ -886,7 +884,6 @@
                 const [razonesSociales, parques, propiedades, anios, tiposPago] = queries;
                 
                 if (razonesSociales.error || parques.error || propiedades.error || anios.error || tiposPago.error) {
-                    console.error('Error al cargar opciones de filtros');
                     return;
                 }
                 
@@ -910,7 +907,6 @@
                 configurarEventosFiltros();
                 
             } catch (error) {
-                console.error('Error de conexión:', error);
                 alert('Error de conexión a Supabase: ' + error.message);
             }
         }
@@ -983,7 +979,6 @@
                 const { data, error } = await supabaseClient.rpc('v_pdpdetalle_get_filtros_dependientes', parametros);
                 
                 if (error) {
-                    console.error('Error al cargar datos dependientes:', error);
                     return;
                 }
                 
@@ -1002,7 +997,6 @@
                 }
                 
             } catch (error) {
-                console.error('Error en filtros dependientes:', error);
             }
         }
         
@@ -1010,7 +1004,6 @@
             const select = document.getElementById(selectId);
             
             if (!select) {
-                console.error(`Elemento select con ID ${selectId} no encontrado`);
                 return;
             }
             
@@ -1041,7 +1034,6 @@
         function llenarSearchableSelect(selectType, opciones) {
             const optionsList = document.getElementById(`options-${selectType}`);
             if (!optionsList) {
-                console.error(`Elemento options-${selectType} no encontrado`);
                 return;
             }
             
@@ -1177,7 +1169,6 @@
                 const { data, error } = await supabaseClient.rpc('v_pdpdetalle_get_filtros_dependientes', parametros);
                 
                 if (error) {
-                    console.error('Error al cargar datos dependientes:', error);
                     return;
                 }
                 
@@ -1221,7 +1212,6 @@
                 }
                 
             } catch (error) {
-                console.error('Error en actualización de filtros dependientes:', error);
             }
         }
         
@@ -1293,7 +1283,6 @@
                 const { data, error } = await supabaseClient.rpc('v_pdpdetalle_get_estado_cuenta_detalle', parametros);
                 
                 if (error) {
-                    console.error('Error al aplicar filtros:', error);
                     alert('Error al aplicar filtros: ' + error.message);
                     return;
                 }
@@ -1304,7 +1293,6 @@
                 actualizarTotales(datosFiltrados);
                 
             } catch (error) {
-                console.error('Error al aplicar filtros:', error);
                 alert('Error al aplicar filtros: ' + error.message);
             }
         }
@@ -1639,7 +1627,6 @@
                     bom: true // Para acentos en Excel
                 });
             } catch (error) {
-                console.error('Error al descargar CSV:', error);
                 alert('Error al descargar CSV. Intentando método alternativo...');
                 descargarCSVAlternativo();
             }
@@ -1692,7 +1679,6 @@
             try {
                 tabla.download("json", nombreArchivo);
             } catch (error) {
-                console.error('Error al descargar JSON:', error);
                 alert('Error al descargar JSON: ' + error.message);
             }
         }
@@ -1713,7 +1699,6 @@
             setTimeout(() => {
                 if (typeof window.supabase === 'undefined' || !window.supabase.createClient) {
                     clearInterval(intervalId);
-                    console.error('Timeout: Supabase no se cargó después de 10 segundos');
                     alert('Error: No se pudo cargar la librería de Supabase. Verifica tu conexión a internet.');
                 }
             }, 10000);
