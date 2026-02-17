@@ -1,0 +1,354 @@
+// Modelo lógico de la base de datos del CRM - SPH Bines Raices
+// Generado el: 13/02/2026
+// Última actualización: 13/02/2026
+// Fuente: PostgreSQL (Supabase)
+// Diagrama: https://dbdiagram.io/d/ (pegar enlace cuando esté listo)
+
+// ============================================================================
+// TABLAS PRINCIPALES DEL CRM
+// ============================================================================
+
+Table "public"."leads" {
+  "id" uuid [pk, not null, default: `gen_random_uuid()`]
+  "uidr" uuid [ref: > "public"."catUsers"."uid"]
+  "status" boolean [default: true]
+  "fc" timestamp [not null, default: `now()`]
+  "nombreLead" text
+  "telefono" text
+  "correo" text
+  "idInmobiliaria" uuid [ref: > "public"."catInmobiliarias"."idInmobiliaria"]
+  "fechaContacto" timestamp [default: `now()`]
+  "fechaRegistro" timestamp [default: `now()`]
+  "mensaje" text
+  "uidRC" uuid [ref: > "public"."catUsers"."uid"]
+  "idEtapa" bigint [ref: > "public"."crm_Etapas"."id"]
+  "idOrigen" bigint [default: 0, ref: > "public"."crm_Origen"."id"]
+  "idTipoCliente" bigint [default: 0, ref: > "public"."crm_tipoCliente"."id"]
+  "idTipoOperacion" bigint [default: 0, ref: > "public"."crm_tipoOperaciones"."id"]
+  "idTipoVenta" bigint [ref: > "public"."crm_tipoVenta"."id"]
+  "Etapa" text
+  "Origen" text
+  "tipoCliente" text
+  "tipoOperacion" text
+  "tipoVenta" text
+  "nomRC" text [default: 'Sin asignar']
+  "valor" double [default: 0]
+  "Aprobado" boolean [default: false]
+  "idAsesorInm" uuid [ref: > "public"."catAsesoresInm"."id"]
+}
+
+Table "public"."leads_porAprobar" {
+  "id" uuid [pk, not null, default: `gen_random_uuid()`]
+  "uidr" uuid [ref: > "public"."catUsers"."uid"]
+  "status" boolean [default: true]
+  "fc" timestamp [not null, default: `now()`]
+  "nombreLead" text
+  "telefono" text
+  "correo" text
+  "idInmobiliaria" uuid [ref: > "public"."catInmobiliarias"."idInmobiliaria"]
+  "fechaContacto" timestamp [default: `now()`]
+  "fechaRegistro" timestamptz [default: `now()`]
+  "mensaje" text
+  "uidRC" uuid [ref: > "public"."catUsers"."uid"]
+  "idEtapa" bigint [ref: > "public"."crm_Etapas"."id"]
+  "idOrigen" bigint [ref: > "public"."crm_Origen"."id"]
+  "idTipoCliente" bigint [ref: > "public"."crm_tipoCliente"."id"]
+  "idTipoOperacion" bigint [ref: > "public"."crm_tipoOperaciones"."id"]
+  "idTipoVenta" bigint [ref: > "public"."crm_tipoVenta"."id"]
+  "Etapa" text
+  "Origen" text
+  "tipoCliente" text
+  "tipoOperacion" text
+  "tipoVenta" text
+  "nomRC" text [default: 'Sin asignar']
+  "valor" double [default: 0]
+  "aprobado" boolean
+  "idAsesorInm" uuid [ref: > "public"."catAsesoresInm"."id"]
+  "superficie" text
+  "KVAs" text
+  "ubicacion" text [default: 'Indistinto']
+  "personaFisica" boolean [default: true]
+}
+
+Table "public"."leads_duplicate" {
+  "id" uuid [pk, not null, default: `gen_random_uuid()`]
+  "uidr" uuid [ref: > "public"."catUsers"."uid"]
+  "status" boolean [default: true]
+  "fc" timestamp [not null, default: `now()`]
+  "nombreLead" text
+  "telefono" text
+  "correo" text
+  "idInmobiliaria" uuid [ref: > "public"."catInmobiliarias"."idInmobiliaria"]
+  "fechaContacto" timestamp [default: `now()`]
+  "fechaRegistro" timestamp [default: `now()`]
+  "mensaje" text
+  "uidRC" uuid [ref: > "public"."catUsers"."uid"]
+  "idEtapa" bigint [ref: > "public"."crm_Etapas"."id"]
+  "idOrigen" bigint [ref: > "public"."crm_Origen"."id"]
+  "idTipoCliente" bigint [ref: > "public"."crm_tipoCliente"."id"]
+  "idTipoOperacion" bigint [ref: > "public"."crm_tipoOperaciones"."id"]
+  "idTipoVenta" bigint [ref: > "public"."crm_tipoVenta"."id"]
+  "Etapa" text
+  "Origen" text
+  "tipoCliente" text
+  "tipoOperacion" text
+  "tipoVenta" text
+  "nomRC" text [default: 'Sin asignar']
+  "valor" double [default: 0]
+  "Aprobado" boolean [default: false]
+  "idAsesorInm" uuid [ref: > "public"."catAsesoresInm"."id"]
+}
+
+// ============================================================================
+// TABLAS DE CATÁLOGOS CRM
+// ============================================================================
+
+Table "public"."crm_Etapas" {
+  "id" bigint [pk]
+  "fc" timestamptz [default: `now()`]
+  "uidr" uuid [ref: > "public"."catUsers"."uid"]
+  "titulo" text
+  "bkColor" text [default: '#39d2c0']
+  "txtColor" text [default: '#ffffff']
+  "orden" smallint
+  "status" boolean [default: true]
+  "Posicion" text [default: 'medio']
+}
+
+Table "public"."crm_Origen" {
+  "id" bigint [pk]
+  "fc" timestamptz [default: `now()`]
+  "uidc" uuid
+  "titulo" text
+  "status" boolean [default: true]
+  "bkColor" text [default: '#ffffff']
+  "txtColor" text [default: '#000000']
+}
+
+Table "public"."crm_tipoCliente" {
+  "id" bigint [pk]
+  "fc" timestamptz [default: `now()`]
+  "uidc" uuid
+  "titulo" text
+  "status" boolean [default: true]
+  "bkColor" text [default: '#ffffff']
+  "txtColor" text [default: '#000000']
+}
+
+Table "public"."crm_tipoOperaciones" {
+  "id" bigint [pk]
+  "fc" timestamptz [default: `now()`]
+  "uidc" uuid
+  "titulo" text
+  "status" boolean [default: true]
+}
+
+Table "public"."crm_tipoVenta" {
+  "id" bigint [pk]
+  "fc" timestamptz [default: `now()`]
+  "uidc" uuid
+  "idTipoOperacion" bigint [ref: > "public"."crm_tipoOperaciones"."id"]
+  "titulo" text
+  "status" boolean [default: true]
+}
+
+Table "public"."crm_campania" {
+  "id" bigint [pk]
+  "fc" timestamptz [default: `now()`]
+  "uidc" uuid [ref: > "public"."catUsers"."uid"]
+  "titulo" text
+  "status" boolean [default: true]
+  "bkColor" text [default: '#ffffff']
+  "txtColor" text [default: '#000000']
+}
+
+Table "public"."crm_Recepcion" {
+  "id" bigint [pk]
+  "fc" timestamptz [default: `now()`]
+  "uidc" uuid
+  "titulo" text
+  "status" boolean [default: true]
+  "bkColor" text [default: '#FFFFFF']
+  "txtColor" text [default: '#000000']
+}
+
+Table "public"."crm_Encuestas" {
+  "id" bigint [pk]
+  "fc" timestamptz [default: `now()`]
+  "uidc" uuid
+  "titulo" text
+  "status" boolean [default: true]
+  "bkColor" text [default: '#FFFFFF']
+  "txtColor" text [default: '#000000']
+}
+
+Table "public"."crm_responsableComercial" {
+  "uid" uuid [pk, ref: > "public"."catUsers"."uid"]
+  "id" integer [unique]
+}
+
+// ============================================================================
+// TABLAS DE RELACIÓN
+// ============================================================================
+
+Table "public"."catInmobiliarias" {
+  "idInmobiliaria" uuid [pk, not null, default: `gen_random_uuid()`]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "uidr" uuid [ref: > "public"."catUsers"."uid"]
+  "nombre" text
+  "uidRC" uuid [ref: > "public"."catUsers"."uid"]
+  "descripcion" text
+  "paginaWeb" text
+  "telefono" text
+  "correo" text
+  "nombreRepresentante" text
+  "telRepresentante" text
+  "correoRepresentante" text
+  "puestoRepresentante" text
+}
+
+Table "public"."catAsesoresInm" {
+  "id" uuid [pk, not null, default: `gen_random_uuid()`]
+  "fc" timestamp [not null, default: `now()`]
+  "status" boolean [default: true]
+  "uidr" uuid [ref: > "public"."catUsers"."uid"]
+  "idInmobiliaria" uuid [ref: > "public"."catInmobiliarias"."idInmobiliaria"]
+  "nombre" text
+  "telefono" text [unique]
+  "a" text [unique]
+  "correo" text
+}
+
+// ============================================================================
+// TABLAS DE ACTIVIDADES Y SEGUIMIENTO
+// ============================================================================
+
+Table "public"."activity_history" {
+  "id" uuid [pk, not null, default: `gen_random_uuid()`]
+  "created_at" timestamptz [default: `now()`]
+  "lead_id" uuid [ref: > "public"."leads"."id"]
+  "name" text
+  "activity_date" timestamp
+  "message" text
+  "heat_level" smallint
+  "user_id" uuid [ref: > "public"."catUsers"."uid"]
+  "type" text
+  "fechaAgenda" timestamptz
+  "docs" jsonb
+}
+
+Table "public"."agenda" {
+  "created_at" timestamptz [default: `now()`]
+  "user_ref" uuid [ref: > "public"."catUsers"."uid"]
+  "name" text
+  "description" text
+  "lead_name" text
+  "date" timestamp
+  "duration" smallint
+  "ref" text
+  "id" uuid [pk, not null, default: `gen_random_uuid()`]
+}
+
+Table "public"."crm_incidencias" {
+  "id" bigint [pk]
+  "fc" timestamptz [default: `now()`]
+  "status" boolean [default: true]
+  "idMensaje" text
+  "fecha" text
+  "date" timestamp
+  "messageid" text
+  "from" text
+  "to" text
+  "subject" text
+  "cuerpoPlano" text
+  "textasHtml" text
+  "reference" text
+  "cadena" boolean [default: true]
+  "fum" timestamp
+}
+
+Table "public"."seguimientoComentarios" {
+  "idComentario" text [pk]
+  "uidr" text
+  "status" boolean
+  "fc" timestamp [default: `now()`]
+  "idCliente" text
+  "idLead" text
+  "comentario" text
+  "fechaComentario" date
+}
+
+// ============================================================================
+// RELACIONES ENTRE TABLAS
+// ============================================================================
+
+// Relaciones de leads con catálogos
+Ref: "public"."leads"."idEtapa" > "public"."crm_Etapas"."id"
+Ref: "public"."leads"."idOrigen" > "public"."crm_Origen"."id"
+Ref: "public"."leads"."idTipoCliente" > "public"."crm_tipoCliente"."id"
+Ref: "public"."leads"."idTipoOperacion" > "public"."crm_tipoOperaciones"."id"
+Ref: "public"."leads"."idTipoVenta" > "public"."crm_tipoVenta"."id"
+
+// Relaciones de leads_porAprobar con catálogos
+Ref: "public"."leads_porAprobar"."idEtapa" > "public"."crm_Etapas"."id"
+Ref: "public"."leads_porAprobar"."idOrigen" > "public"."crm_Origen"."id"
+Ref: "public"."leads_porAprobar"."idTipoCliente" > "public"."crm_tipoCliente"."id"
+Ref: "public"."leads_porAprobar"."idTipoOperacion" > "public"."crm_tipoOperaciones"."id"
+Ref: "public"."leads_porAprobar"."idTipoVenta" > "public"."crm_tipoVenta"."id"
+
+// Relaciones de leads_duplicate con catálogos
+Ref: "public"."leads_duplicate"."idEtapa" > "public"."crm_Etapas"."id"
+Ref: "public"."leads_duplicate"."idOrigen" > "public"."crm_Origen"."id"
+Ref: "public"."leads_duplicate"."idTipoCliente" > "public"."crm_tipoCliente"."id"
+Ref: "public"."leads_duplicate"."idTipoOperacion" > "public"."crm_tipoOperaciones"."id"
+Ref: "public"."leads_duplicate"."idTipoVenta" > "public"."crm_tipoVenta"."id"
+
+// Relaciones de crm_tipoVenta con crm_tipoOperaciones
+Ref: "public"."crm_tipoVenta"."idTipoOperacion" > "public"."crm_tipoOperaciones"."id"
+
+// Relaciones de leads con catUsers
+Ref: "public"."leads"."uidr" > "public"."catUsers"."uid"
+Ref: "public"."leads"."uidRC" > "public"."catUsers"."uid"
+
+// Relaciones de leads_porAprobar con catUsers
+Ref: "public"."leads_porAprobar"."uidr" > "public"."catUsers"."uid"
+Ref: "public"."leads_porAprobar"."uidRC" > "public"."catUsers"."uid"
+
+// Relaciones de leads_duplicate con catUsers
+Ref: "public"."leads_duplicate"."uidr" > "public"."catUsers"."uid"
+Ref: "public"."leads_duplicate"."uidRC" > "public"."catUsers"."uid"
+
+// Relaciones de leads con catInmobiliarias
+Ref: "public"."leads"."idInmobiliaria" > "public"."catInmobiliarias"."idInmobiliaria"
+Ref: "public"."leads_porAprobar"."idInmobiliaria" > "public"."catInmobiliarias"."idInmobiliaria"
+Ref: "public"."leads_duplicate"."idInmobiliaria" > "public"."catInmobiliarias"."idInmobiliaria"
+
+// Relaciones de leads con catAsesoresInm
+Ref: "public"."leads"."idAsesorInm" > "public"."catAsesoresInm"."id"
+Ref: "public"."leads_porAprobar"."idAsesorInm" > "public"."catAsesoresInm"."id"
+Ref: "public"."leads_duplicate"."idAsesorInm" > "public"."catAsesoresInm"."id"
+
+// Relaciones de catInmobiliarias con catUsers
+Ref: "public"."catInmobiliarias"."uidr" > "public"."catUsers"."uid"
+Ref: "public"."catInmobiliarias"."uidRC" > "public"."catUsers"."uid"
+
+// Relaciones de catAsesoresInm con catInmobiliarias
+Ref: "public"."catAsesoresInm"."idInmobiliaria" > "public"."catInmobiliarias"."idInmobiliaria"
+Ref: "public"."catAsesoresInm"."uidr" > "public"."catUsers"."uid"
+
+// Relaciones de activity_history con leads y catUsers
+Ref: "public"."activity_history"."lead_id" > "public"."leads"."id"
+Ref: "public"."activity_history"."user_id" > "public"."catUsers"."uid"
+
+// Relaciones de agenda con catUsers
+Ref: "public"."agenda"."user_ref" > "public"."catUsers"."uid"
+
+// Relaciones de crm_campania con catUsers
+Ref: "public"."crm_campania"."uidc" > "public"."catUsers"."uid"
+
+// Relaciones de crm_Etapas con catUsers
+Ref: "public"."crm_Etapas"."uidr" > "public"."catUsers"."uid"
+
+// Relaciones de crm_responsableComercial con catUsers
+Ref: "public"."crm_responsableComercial"."uid" > "public"."catUsers"."uid"

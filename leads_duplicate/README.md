@@ -1,4 +1,4 @@
-# Tabla: leads
+# Tabla: leads_duplicate
 
 **Última actualización**: 13/02/2026  
 **Versión**: 1.0
@@ -7,13 +7,13 @@
 
 ## 📋 Descripción
 
-La tabla [`leads`](leads/README.md) es la tabla principal del sistema CRM de SPH Bines Raices. Almacena todos los leads/prospectos que han sido aprobados y están activos en el sistema. Esta tabla contiene información detallada sobre cada lead, incluyendo datos personales, información de contacto, detalles de la operación de interés, asignación de responsable comercial, estado actual en el proceso de ventas, y seguimiento de interacciones.
+La tabla [`leads_duplicate`](leads_duplicate/README.md) es una tabla de respaldo que contiene una copia de los leads de la tabla principal [`leads`](leads/README.md). Esta tabla se utiliza para mantener un historial de seguridad de los leads y no debe modificarse directamente. Los registros en esta tabla son duplicados de los leads activos y se mantienen para propósitos de auditoría y recuperación.
 
 ---
 
 ## 📊 Estadísticas
 
-- **Total de registros**: 5,226
+- **Total de registros**: 5,225
 - **Estado**: Activa
 - **RLS**: Habilitado
 
@@ -23,7 +23,7 @@ La tabla [`leads`](leads/README.md) es la tabla principal del sistema CRM de SPH
 
 | Columna | Tipo | Nulable | Default | Descripción |
 |---------|------|---------|---------|-------------|
-| `uid` | `uuid` | No | `gen_random_uuid()` | Identificador único del lead |
+| `uid` | `uuid` | No | `gen_random_uuid()` | Identificador único del lead duplicado |
 | `fc` | `timestamp` | No | `now()` | Fecha y hora de creación del registro |
 | `status` | `boolean` | No | `true` | Estado del registro (activo/inactivo) |
 | `nombreLead` | `text` | No | | Nombre completo del lead |
@@ -73,87 +73,63 @@ La tabla [`leads`](leads/README.md) es la tabla principal del sistema CRM de SPH
 
 ## 🔄 Relaciones con Otras Tablas
 
-### Tablas que Referencian a `leads`
-
-1. **[`activity_history`](activity_history/README.md)**
-   - Relación: Un lead puede tener múltiples actividades de seguimiento
-   - Campo: `lead_id` → `uid`
-
-2. **[`agenda`](agenda/README.md)**
-   - Relación: Un lead puede tener múltiples actividades agendadas
-   - Campo: `lead_id` → `uid`
-
-3. **[`seguimientoComentarios`](seguimientoComentarios/README.md)**
-   - Relación: Un lead puede tener múltiples comentarios de seguimiento
-   - Campo: `lead_id` → `uid`
-
-### Tablas Referenciadas por `leads`
+### Tablas Referenciadas por `leads_duplicate`
 
 1. **[`crm_Etapas`](crm_Etapas/README.md)**
-   - Relación: Cada lead está en una etapa del proceso de ventas
+   - Relación: Cada lead duplicado está en una etapa del proceso de ventas
    - Campo: `idEtapa` → `id`
 
 2. **[`crm_Origen`](crm_Origen/README.md)**
-   - Relación: Cada lead tiene un origen específico
+   - Relación: Cada lead duplicado tiene un origen específico
    - Campo: `idOrigen` → `id`
 
 3. **[`crm_tipoCliente`](crm_tipoCliente/README.md)**
-   - Relación: Cada lead puede tener un tipo de cliente
+   - Relación: Cada lead duplicado puede tener un tipo de cliente
    - Campo: `idTipoCliente` → `id`
 
 4. **[`crm_tipoOperaciones`](crm_tipoOperaciones/README.md)**
-   - Relación: Cada lead está interesado en un tipo de operación
+   - Relación: Cada lead duplicado está interesado en un tipo de operación
    - Campo: `idTipoOperacion` → `id`
 
 5. **[`crm_tipoVenta`](crm_tipoVenta/README.md)**
-   - Relación: Cada lead está interesado en un tipo de venta específico
+   - Relación: Cada lead duplicado está interesado en un tipo de venta específico
    - Campo: `idTipoVenta` → `id`
 
 6. **[`crm_campania`](crm_campania/README.md)**
-   - Relación: Cada lead puede provenir de una campaña
+   - Relación: Cada lead duplicado puede provenir de una campaña
    - Campo: `idCampania` → `id`
 
 7. **[`crm_Recepcion`](crm_Recepcion/README.md)**
-   - Relación: Cada lead fue recibido por un medio específico
+   - Relación: Cada lead duplicado fue recibido por un medio específico
    - Campo: `idRecepcion` → `id`
 
 8. **[`crm_Encuestas`](crm_Encuestas/README.md)**
-   - Relación: Cada lead puede tener una encuesta asignada
+   - Relación: Cada lead duplicado puede tener una encuesta asignada
    - Campo: `idEncuesta` → `id`
 
 9. **[`catInmobiliarias`](catInmobiliarias/README.md)**
-   - Relación: Cada lead puede estar asociado a una inmobiliaria
+   - Relación: Cada lead duplicado puede estar asociado a una inmobiliaria
    - Campo: `idInmobiliaria` → `id`
 
 10. **[`catAsesoresInm`](catAsesoresInm/README.md)**
-    - Relación: Cada lead puede estar asociado a un asesor inmobiliario
+    - Relación: Cada lead duplicado puede estar asociado a un asesor inmobiliario
     - Campo: `idAsesorInm` → `id`
 
 11. **[`catUsers`](catUsers/README.md)**
-    - Relación: Cada lead puede tener un responsable comercial asignado
+    - Relación: Cada lead duplicado puede tener un responsable comercial asignado
     - Campo: `uidRC` → `uid`
+
+### Tabla Origen
+
+1. **[`leads`](leads/README.md)**
+   - Relación: Esta tabla es una copia de respaldo de la tabla principal
+   - Propósito: Mantener un historial de seguridad de los leads
 
 ---
 
 ## ⚙️ Funciones Asociadas
 
-### Funciones que Operan sobre `leads`
-
-1. **[`leads_eliminar_lead`](funciones y trigger/leads_eliminar_lead.sql)**
-   - **Descripción**: Elimina un lead con validación de permisos
-   - **Parámetros**: `p_id_lead` (uuid)
-   - **Retorno**: JSON con resultado de la operación
-   - **Validaciones**:
-     - Usuario autenticado
-     - Permiso 327 activo (CRM > Leads > Eliminar Leads)
-     - Lead existe en la tabla
-
-### Funciones que Migran a `leads`
-
-1. **[`leads_poraprobar_migrar_a_leads`](Leads/funciones y trigger/leads_poraprobar_migrar_a_leads.sql)**
-   - **Descripción**: Migra automáticamente leads aprobados desde `leads_porAprobar` a `leads`
-   - **Trigger**: Se ejecuta cuando `aprobado = true` en `leads_porAprobar`
-   - **Retorno**: JSON con resultado de la operación
+No hay funciones específicas que operen directamente sobre la tabla [`leads_duplicate`](leads_duplicate/README.md). Esta tabla es una tabla de respaldo y no debe modificarse directamente.
 
 ---
 
@@ -161,32 +137,27 @@ La tabla [`leads`](leads/README.md) es la tabla principal del sistema CRM de SPH
 
 ### Row Level Security (RLS)
 
-La tabla [`leads`](leads/README.md) tiene RLS habilitado. Las políticas de RLS controlan el acceso a los registros basándose en los permisos del usuario.
-
-### Permisos Requeridos
-
-- **Permiso 327**: CRM > Leads > Eliminar Leads
-  - Necesario para eliminar registros de la tabla
+La tabla [`leads_duplicate`](leads_duplicate/README.md) tiene RLS habilitado. Las políticas de RLS controlan el acceso a los registros basándose en los permisos del usuario.
 
 ---
 
 ## 📝 Notas Importantes
 
-1. **Campos Denormalizados**: La tabla mantiene campos denormalizados como `nomRC`, `Etapa`, y `Origen` para optimizar consultas. Estos campos se actualizan automáticamente mediante triggers.
+1. **Tabla de Respaldo**: Esta tabla es una copia de respaldo de la tabla principal [`leads`](leads/README.md) y no debe modificarse directamente.
 
-2. **Aprobación de Leads**: Los leads se migran desde `leads_porAprobar` cuando son aprobados. El campo `aprobado` indica si el lead ha pasado por el proceso de aprobación.
+2. **Propósito de Auditoría**: Los registros en esta tabla se mantienen para propósitos de auditoría y recuperación de datos.
 
-3. **Responsable Comercial**: El campo `uidRC` asigna un responsable comercial al lead. El campo `nomRC` mantiene el nombre del RC denormalizado.
+3. **Sincronización**: La tabla se mantiene sincronizada con la tabla principal [`leads`](leads/README.md) mediante procesos automáticos.
 
-4. **Encuestas**: Los leads pueden tener encuestas asignadas. Los campos `idEncuesta`, `encuestaEnviada`, y `fechaEncuesta` controlan el proceso de encuestas.
+4. **Campos Denormalizados**: La tabla mantiene campos denormalizados como `nomRC`, `Etapa`, y `Origen` para optimizar consultas.
 
-5. **Inmobiliarias y Asesores**: Los leads pueden estar asociados a inmobiliarias y asesores inmobiliarios externos.
+5. **No Modificar Directamente**: Esta tabla no debe modificarse directamente. Cualquier modificación debe hacerse a través de la tabla principal [`leads`](leads/README.md).
 
 ---
 
 ## 📞 Soporte
 
-Para más información sobre la tabla [`leads`](leads/README.md), consulte:
+Para más información sobre la tabla [`leads_duplicate`](leads_duplicate/README.md), consulte:
 - Documentación del módulo Leads: [`Leads/README.md`](Leads/README.md)
 - Documentación de funciones CRM: [`docs/CRM/Documentacion_Funciones_CRM.md`](docs/CRM/Documentacion_Funciones_CRM.md)
 - Diagrama de relaciones CRM: [`docs/CRM/schema_crm.dbml`](docs/CRM/schema_crm.dbml)

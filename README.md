@@ -106,6 +106,12 @@ Este proyecto implementa un sistema de gestión para la empresa SPH Bines Raíce
 - **RentaGarantizada**: Documentación completa en `rentaGarantizada/README.md` (NUEVO)
 - **SegModulosUsuarios**: Documentación completa en `segModulosUsuarios/README.md`
 
+### Documentación del CRM (NUEVO)
+- **Documentación de Tablas CRM**: `docs/CRM/Documentacion_Tablas_CRM.md` - Descripción completa de todas las tablas del CRM
+- **Documentación de Funciones CRM**: `docs/CRM/Documentacion_Funciones_CRM.md` - Descripción completa de todas las funciones del CRM
+- **Diagrama de Relaciones CRM**: `docs/CRM/schema_crm.dbml` - Diagrama DBML de relaciones entre tablas del CRM
+- **README del CRM**: `docs/CRM/README.md` - Guía general del sistema CRM
+
 ### Guías de Documentación
 - **Guía de Documentación Estándar**: [`/.kilocode/rules/GUIA_DE_DOCUMENTACION.md`](../.kilocode/rules/GUIA_DE_DOCUMENTACION.md)
 - **Instrucción de Documentación**: [`/.kilocode/rules/INSTRUCCION_DOCUMENTACION.md`](../.kilocode/rules/INSTRUCCION_DOCUMENTACION.md)

@@ -102,12 +102,69 @@ SELECT * FROM presdetalle_crear_registros_completos('ID-INEXISTENTE');
 - Maneja casos donde `auth.uid()` retorna null
 - Valida todos los datos antes de realizar inserciones
 
+### 2. prescategorias_obtener_con_presupuesto(p_id_categoria text DEFAULT NULL, p_cuenta text DEFAULT NULL, p_seccion text DEFAULT NULL)
+
+**Propósito**: Obtiene un listado de categorías de presupuesto con su presupuesto anual calculado, junto con información del responsable y el presupuesto asociado. Permite filtrar opcionalmente por idCategoria, cuenta o sección.
+
+**Parámetros**:
+- `p_id_categoria` (text, opcional): ID de la categoría para filtrar (búsqueda parcial, default: NULL)
+- `p_cuenta` (text, opcional): Número de cuenta para filtrar (búsqueda parcial, default: NULL)
+- `p_seccion` (text, opcional): Sección para filtrar (búsqueda parcial, default: NULL)
+
+**Salida**:
+- `idCategoria` (text): ID de la categoría
+- `status` (boolean): Estado de la categoría
+- `presupuestable` (boolean): Indica si es presupuestable
+- `cuenta` (text): Número de cuenta
+- `seccion` (text): Sección
+- `descripcion` (text): Descripción de la categoría
+- `presupuesto_anual` (double precision): Suma de montos de presupuesto anual
+- `uidResponsable` (uuid): UID del usuario responsable
+- `nomCompleto` (text): Nombre completo del responsable
+- `idPresupuesto` (uuid): ID del presupuesto
+- `statusPres` (boolean): Estado del presupuesto
+
+**Uso típico**:
+```sql
+-- Obtener todas las categorías
+SELECT * FROM prescategorias_obtener_con_presupuesto();
+
+-- Filtrar por idCategoria
+SELECT * FROM prescategorias_obtener_con_presupuesto('52-471-0', NULL, NULL);
+
+-- Filtrar por cuenta
+SELECT * FROM prescategorias_obtener_con_presupuesto(NULL, '100', NULL);
+
+-- Filtrar por sección
+SELECT * FROM prescategorias_obtener_con_presupuesto(NULL, NULL, 'INGRESOS');
+```
+
+**Validaciones realizadas**:
+1. Solo retorna categorías asociadas a presupuestos con status = true
+2. Aplica filtros opcionales por idCategoria, cuenta o sección usando búsqueda parcial (ILIKE)
+3. La búsqueda es insensible a mayúsculas/minúsculas y permite coincidencias parciales
+4. Calcula el presupuesto anual sumando los montos de PresDetalle
+5. Maneja valores nulos en descripción usando COALESCE
+
+**Comportamiento**:
+- Retorna todas las categorías si no se proporcionan parámetros de filtro
+- Aplica filtros combinados si se proporcionan múltiples parámetros
+- La búsqueda por texto usa ILIKE con comodines '%' para permitir coincidencias parciales
+- Ordena los resultados por cuenta y sección en orden ascendente
+- Agrupa por los campos necesarios para el cálculo del presupuesto anual
+
+**Relaciones con otras tablas**:
+- `PresCategorias`: Tabla principal de categorías
+- `PresDetalle`: Detalles de presupuesto para calcular montos
+- `Presupuestos`: Información del presupuesto activo
+- `catUsers`: Información del usuario responsable
+
 ## Estado Actual
 
-- **Componentes**: 1 función
+- **Componentes**: 2 funciones
 - **Tablas documentadas**: 1 (PresDetalle)
 - **Estado**: Activo y funcional
-- **Última actualización**: 30/10/2025 04:44:00
+- **Última actualización**: 05/02/2026 03:45:00
 
 ## Notas Importantes
 

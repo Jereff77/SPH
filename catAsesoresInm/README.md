@@ -1,74 +1,136 @@
-# catAsesoresInm - Catálogo de Asesores Inmobiliarios
+# Tabla: catAsesoresInm
 
-## Overview
-Tabla que almacena el catálogo de asesores inmobiliarios del sistema supaSPH-QR, incluyendo su información de contacto y relación con las inmobiliarias.
+**Última actualización**: 13/02/2026  
+**Versión**: 1.0
 
-## Estructura de la Tabla
+---
 
-| Campo | Tipo | Nullable | Descripción |
-|-------|------|----------|-------------|
-| id | uuid | NO | Identificador único del asesor |
-| fc | timestamp without time zone | NO | Fecha y hora de creación |
-| status | boolean | NO | Estado del registro (activo/inactivo) |
-| uidr | uuid | YES | Usuario que registró el asesor |
-| idInmobiliaria | uuid | YES | Relación con la inmobiliaria |
-| nombre | text | NO | Nombre del asesor |
-| telefono | text | NO | Teléfono del asesor (único) |
-| a | text | NO | Iniciales del asesor (único) |
-| correo | text | YES | Correo electrónico del asesor |
+## 📋 Descripción
 
-## Relaciones con Otras Tablas
+La tabla [`catAsesoresInm`](catAsesoresInm/README.md) almacena los diferentes asesores inmobiliarios externos que colaboran con SPH Bines Raices. Cada registro representa un asesor inmobiliario específico que pertenece a una inmobiliaria y puede estar asociado a leads. Los asesores inmobiliarios se utilizan para gestionar las relaciones con colaboradores externos y rastrear la procedencia de leads.
 
-- **catUsers**: Relación a través del campo `uidr` (usuario que registró)
-- **catInmobiliarias**: Relación a través del campo `idInmobiliaria`
-- **leads**: Relación a través del campo `idAsesorInm`
+---
 
-## Componentes Asociados
+## 📊 Estadísticas
 
-### Funciones y Triggers
-Ubicación: `catAsesoresInm/funciones y trigger/`
+- **Total de registros**: 1
+- **Estado**: Activa
+- **RLS**: Habilitado
 
-1. **catasoresinm_validar_telefono**
-   - Valida si un teléfono ya existe en la tabla
-   - Retorna el nombre del usuario que lo registró
-   - Útil para evitar duplicidad de teléfonos
+---
 
-## Flujo de Procesamiento
+## 🏗️ Estructura de la Tabla
 
-```
-Registro de nuevo asesor
-        ↓
-Validación de teléfono duplicado
-        ↓
-¿Teléfono existe? ──Sí──→ Mostrar usuario que lo registró
-        ↓No
-Guardar nuevo asesor
-        ↓
-Actualizar catálogo
-```
+| Columna | Tipo | Nulable | Default | Descripción |
+|---------|------|---------|---------|-------------|
+| `id` | `integer` | No | `nextval('catacesoresinm_id_seq'::regclass)` | Identificador único del asesor inmobiliario |
+| `fc` | `timestamp` | No | `now()` | Fecha y hora de creación del registro |
+| `status` | `boolean` | No | `true` | Estado del registro (activo/inactivo) |
+| `nombre` | `text` | No | | Nombre del asesor inmobiliario |
+| `codigo` | `text` | Sí | | Código del asesor inmobiliario |
+| `telefono` | `text` | Sí | | Teléfono del asesor inmobiliario |
+| `correo` | `text` | Sí | | Correo electrónico del asesor inmobiliario |
+| `idInmobiliaria` | `integer` | Sí | | Inmobiliaria a la que pertenece (FK a catInmobiliarias) |
 
-## Políticas de Seguridad (RLS)
-La tabla cuenta con políticas de seguridad que restringen el acceso según el perfil del usuario.
+---
 
-## Instalación de Componentes
+## 🔗 Claves Foráneas
 
-Para instalar todos los componentes asociados a esta tabla:
+| Columna | Tabla Referenciada | Columna Referenciada |
+|---------|-------------------|---------------------|
+| `idInmobiliaria` | `catInmobiliarias` | `id` |
+
+---
+
+## 🔄 Relaciones con Otras Tablas
+
+### Tablas que Referencian a `catAsesoresInm`
+
+1. **[`leads`](leads/README.md)**
+   - Relación: Cada lead puede estar asociado a un asesor inmobiliario
+   - Campo: `idAsesorInm` → `id`
+
+2. **[`leads_porAprobar`](leads_porAprobar/README.md)**
+   - Relación: Cada lead por aprobar puede estar asociado a un asesor inmobiliario
+   - Campo: `idAsesorInm` → `id`
+
+3. **[`leads_duplicate`](leads_duplicate/README.md)**
+   - Relación: Cada lead duplicado puede estar asociado a un asesor inmobiliario
+   - Campo: `idAsesorInm` → `id`
+
+### Tablas Referenciadas por `catAsesoresInm`
+
+1. **[`catInmobiliarias`](catInmobiliarias/README.md)**
+   - Relación: Cada asesor inmobiliario pertenece a una inmobiliaria
+   - Campo: `idInmobiliaria` → `id`
+
+---
+
+## ⚙️ Funciones Asociadas
+
+### Funciones que Operan sobre `catAsesoresInm`
+
+1. **[`catasesoresinm_validar_telefono`](funciones y trigger/catasoresinm_validar_telefono.sql)**
+   - **Descripción**: Validar teléfono de asesor inmobiliario
+   - **Parámetros**: `p_id` (integer), `p_telefono` (text)
+   - **Retorno**: JSON con resultado de la validación
+   - **Validaciones**:
+     - Verifica si el teléfono ya existe en otro asesor inmobiliario
+     - Retorna error si hay duplicado
+
+2. **[`catasesoresinm_obtener_por_codigo`](Leads/funciones y trigger/trigger_leads_poraprobar_validar_y_migrar_automaticamente.sql)**
+   - **Descripción**: Obtener asesor inmobiliario por código
+   - **Parámetros**: `p_codigo` (text)
+   - **Retorno**: TABLE con todos los campos de la tabla
+   - **Uso**: Para buscar un asesor inmobiliario específico por su código
+
+---
+
+## 🔒 Seguridad
+
+### Row Level Security (RLS)
+
+La tabla [`catAsesoresInm`](catAsesoresInm/README.md) tiene RLS habilitado. Las políticas de RLS controlan el acceso a los registros basándose en los permisos del usuario.
+
+---
+
+## 📝 Notas Importantes
+
+1. **Asesores Inmobiliarios Externos**: Los asesores inmobiliarios representan colaboradores externos que trabajan con inmobiliarias asociadas.
+
+2. **Gestión de Relaciones**: Los asesores inmobiliarios se utilizan para gestionar las relaciones con colaboradores externos y rastrear la procedencia de leads.
+
+3. **Pertenencia a Inmobiliarias**: Los asesores inmobiliarios pertenecen a una inmobiliaria específica.
+
+4. **Asociación con Leads**: Los asesores inmobiliarios pueden estar asociados a leads para rastrear la procedencia.
+
+5. **Asesores Inmobiliarios Activos**: Solo los asesores inmobiliarios con `status = true` están disponibles para asignación a leads.
+
+6. **Flexibilidad**: La tabla permite agregar nuevos asesores inmobiliarios según las necesidades del negocio.
+
+---
+
+## 📞 Soporte
+
+Para más información sobre la tabla [`catAsesoresInm`](catAsesoresInm/README.md), consulte:
+- Documentación del módulo Leads: [`Leads/README.md`](Leads/README.md)
+- Documentación de funciones CRM: [`docs/CRM/Documentacion_Funciones_CRM.md`](docs/CRM/Documentacion_Funciones_CRM.md)
+- Diagrama de relaciones CRM: [`docs/CRM/schema_crm.dbml`](docs/CRM/schema_crm.dbml)
+
+---
+
+## 🚀 Instalación
+
+Para instalar los componentes asociados a la tabla `catAsesoresInm`:
 
 ```sql
+-- Instalar todas las funciones y triggers
 \i catAsesoresInm/funciones y trigger/instalar_todo.sql
 ```
 
-## Estado Actual
-- **Total de funciones**: 1
-- **Total de triggers**: 0
-- **Total de vistas**: 0
-- **Última actualización**: 24/10/2025 00:19:04
+### Verificar instalación
 
-## Notas Importantes
-- El campo `telefono` tiene restricción de unicidad
-- El campo `a` (iniciales) también tiene restricción de unicidad
-- Todos los registros deben tener nombre y teléfono obligatorios
-- La relación con `catUsers` permite auditoría de quién registró cada asesor
-
-## Cambios Recientes
-- **24/10/2025**: Creación de la función `catasoresinm_validar_telefono` para validación de teléfonos duplicados
+```sql
+SELECT routine_name FROM information_schema.routines 
+WHERE routine_name LIKE '%catasesoresinm%' AND routine_schema = 'public';
+```
