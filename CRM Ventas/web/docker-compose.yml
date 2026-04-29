@@ -1,0 +1,85 @@
+version: '3.8'
+
+# -----------------------------------------------------------------------------
+# Docker Compose para CRM Ventas - SPH Bines Raíces
+# Despliegue en EasyPanel con Docker Compose
+# -----------------------------------------------------------------------------
+
+services:
+  crm-ventas:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: crm-ventas:latest
+    container_name: sph-crm-ventas
+    restart: unless-stopped
+
+    # Límites de recursos para EasyPanel
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Health check para monitoreo
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # Variables de entorno
+    environment:
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - NODE_ENV=production
+
+    # Puertos
+    ports:
+      - "3000:3000"
+
+    # Volúmenes para persistencia
+    volumes:
+      - crm-ventas-cache:/app/.next/cache
+      - crm-ventas-logs:/app/logs
+
+    # Redes
+    networks:
+      - crm-network
+
+    # Labels para Traefik/EasyPanel (preparado para dominio futuro)
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.crm.rule=Host(`crm.sph-binesraices.com`)"
+      - "traefik.http.routers.crm.entrypoints=websecure"
+      - "traefik.http.routers.crm.tls.certresolver=letsencrypt"
+      - "app.crm-ventas=true"
+      - "com.centurylinklabs.watchtower.enable=false" # No actualizar automáticamente
+
+# Volúmenes para persistencia de datos
+volumes:
+  crm-ventas-cache:
+    driver: local
+    labels:
+      - "app=crm-ventas"
+      - "type=cache"
+      - "description=Cache de Next.js para optimización"
+
+  crm-ventas-logs:
+    driver: local
+    labels:
+      - "app=crm-ventas"
+      - "type=logs"
+      - "description=Almacenamiento persistente para logs"
+
+# Redes
+networks:
+  crm-network:
+    driver: bridge
+    labels:
+      - "app=crm-ventas"
+      - "description=Red aislada para CRM Ventas"

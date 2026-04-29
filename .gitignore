@@ -1,3 +1,12 @@
-*
-!*.md
-!.gitignore
+# Permitir proyectos del mono-repo
+!CRM Ventas/
+
+# Ignorar archivos generados y dependencias
+node_modules/
+.next/
+out/
+dist/
+build/
+*.log
+.env*.local
+.DS_Store
