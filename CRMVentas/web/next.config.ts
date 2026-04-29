@@ -6,7 +6,6 @@ const nextConfig: NextConfig = {
 
   // Optimizaciones
   reactStrictMode: true,
-  swcMinify: true,
 
   // Configuración de imágenes para Docker
   images: {

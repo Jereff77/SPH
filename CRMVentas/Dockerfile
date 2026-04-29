@@ -17,8 +17,8 @@ WORKDIR /app
 # Copiar solo archivos de dependencias para mejor cache
 COPY web/package.json web/package-lock.json* ./
 
-# Instalar dependencias de producción
-RUN npm ci --only=production && \
+# Instalar todas las dependencias (incluyendo devDependencies para build)
+RUN npm ci && \
     npm cache clean --force
 
 # -----------------------------------------------------------------------------
