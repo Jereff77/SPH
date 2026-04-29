@@ -72,3 +72,14 @@ CLAUDE.md
 # Logs
 logs
 *.log
+
+# EasyPanel deployment: Solo incluir web/ y archivos Docker
+# Excluir carpetas raíz que no se necesitan en el contenedor
+.claude
+.sessions
+.specs
+*.md
+!web/**/*.md
+
+# Solo incluir la carpeta web y los archivos Docker necesarios
+# Todo lo demás en la raíz será excluido por defecto por el Dockerfile
