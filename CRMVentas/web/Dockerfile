@@ -15,7 +15,7 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Copiar solo archivos de dependencias para mejor cache
-COPY web/package.json web/package-lock.json* ./
+COPY package.json package-lock.json* ./
 
 # Instalar todas las dependencias (incluyendo devDependencies para build)
 RUN npm ci && \
@@ -33,7 +33,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 
 # Copiar el resto del código fuente
-COPY web/ .
+COPY . .
 
 # Deshabilitar telemetría de Next.js
 ENV NEXT_TELEMETRY_DISABLED=1
