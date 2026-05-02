@@ -2,8 +2,8 @@
 
 **Proyecto**: CRM Ventas - SPH Bienes Raíces  
 **Módulo**: Report Studio - Constructor de reportes y dashboards  
-**Fecha**: 2026-05-01  
-**Fase Actual**: Fase 2 completada + Mejoras de canvas  
+**Fecha**: 01/05/2026  
+**Fase Actual**: Fase 3 completada  
 **Stack**: Next.js 16, Supabase, React, Zustand, Recharts, react-rnd
 
 ---
@@ -186,19 +186,110 @@ ALTER TABLE crm_reports
 
 ---
 
-### 🔄 Fase 3: Pendiente
+### ✅ Fase 3: Completada
 
-**Objetivo**: Eliminación de widgets, filtros globales interactivos, permissions
-
-**Por implementar**:
-- Eliminar widgets (botón en panel derecho + hotkey Delete)
-- Sistema de filtros globales interactivos
-- Permissions (RLS policies para crm_reports)
-- Exportación básica (imagen del canvas)
+**Objetivo**: Eliminación de widgets, panel de propiedades visual, permissions
 
 ---
 
-### 🔄 Fase 4: Pendiente
+#### 3.1. Eliminación de Widgets
+
+**Implementado**:
+- ✅ AlertDialog de shadcn/ui para confirmación de eliminación
+- ✅ Hotkey Delete/Backspace en canvas (con guards para inputs de texto)
+- ✅ Botón "Eliminar widget" en properties-panel
+- ✅ Estado `isDeleteDialogOpen` centralizado en store
+- ✅ Handler `handleEliminarWidget()` con manejo robusto de errores
+- ✅ Server Action `deleteWidget()` ya existente
+
+**Archivos modificados**:
+- `web/lib/reportes/studio-store.ts` - Agregado `isDeleteDialogOpen`, `setDeleteDialogOpen()`
+- `web/components/reportes/studio/panels/properties-panel.tsx` - Botón con `variant="destructive"`
+- `web/components/reportes/studio/canvas/report-canvas.tsx` - Hotkey Delete/Backspace
+- `web/components/reportes/studio/report-studio.tsx` - AlertDialog + handler de eliminación
+
+**Características**:
+- Eliminación solo si hay widget seleccionado
+- Guards previenen activación accidental en inputs de texto
+- Manejo de errores: si Supabase falla, widget no se elimina visualmente
+- Estado visual siempre sincronizado con base de datos
+
+---
+
+#### 3.2. RLS Policies (Row Level Security)
+
+**Implementado**:
+- ✅ Tabla `crm_reporte_permisos` creada con estructura correcta
+- ✅ Función SECURITY DEFINER `usuario_tiene_permiso_reporte()` para romper recursión
+- ✅ 12 políticas RLS implementadas:
+  - 6 políticas para `crm_reports` (SELECT/UPDATE/DELETE × 3 visibilidades)
+  - 6 políticas para `crm_widgets` (SELECT/UPDATE/DELETE × propietario)
+
+**Política de recursión resuelta**:
+- **Problema**: Políticas originales creaban ciclo infinito entre `crm_reports` y `crm_reporte_permisos`
+- **Solución**: Función `usuario_tiene_permiso_reporte()` con `SECURITY DEFINER` que bypassea RLS
+- **Resultado**: Funcionalidad de negocio preservada (usuarios con permiso ven reportes restringidos)
+
+**Archivos SQL**:
+- Migración aplicada con `apply_migration` en Supabase
+- Función marca: `--[2026-05-01]`
+
+**Validación**:
+- ✅ Usuarios ven sus propios reportes privados
+- ✅ Todos ven reportes públicos
+- ✅ Solo usuarios con permiso explícito ven reportes restringidos
+- ✅ Solo dueño puede modificar/eliminar sus reportes
+- ✅ Widgets heredan permisos del reporte padre
+
+---
+
+#### 3.3. Panel de Propiedades + Renderers Conectados
+
+**Implementado**:
+
+**Properties Panel** (ya existente, funcional):
+- ✅ Selector de color principal (6 colores predefinidos SPH)
+- ✅ Slider de padding (0-32px)
+- ✅ Slider de border radius (0-16px)
+- ✅ Slider de opacidad (50-100%)
+- ✅ Botón "Eliminar widget" con estilo destructive
+
+**Renderers conectados a Properties Panel**:
+
+1. **kpi-renderer.tsx** ✅ Ya estaba conectado
+   - Usa `widget.config?.estilo?.color_principal`
+   - Aplica color con opacidad en background del icono
+   - Formatea valores según métrica (monto, número compacto)
+
+2. **chart-renderer.tsx** ✅ Ahora conectado
+   - `BarChartWidget`: Color principal en fill, padding como margin en BarChart, wrapper con opacidad
+   - `BarHorizontalWidget`: Paleta personalizada con color_principal como primer color
+   - `LineChartWidget`: Color principal en stroke y dot, padding dinámico
+   - `AreaChartWidget`: Color principal en stroke y fill, padding dinámico
+   - `PieChartWidget`: Paleta personalizada con color_principal
+   - Wrapper con opacidad en todos los componentes
+   - **Corrección técnica**: `margin` va en componentes de chart (BarChart, LineChart, AreaChart), NO en ResponsiveContainer
+
+3. **table-renderer.tsx** ✅ Ahora conectado
+   - Header con color_principal (opacidad fija 12)
+   - Wrapper principal con opacidad dinámica
+   - Filas de datos con padding dinámico
+   - Botones de paginación con color_principal para botones activos
+
+**Bug de título corregido**:
+- **Problema**: Título del widget no se mostraba aunque `mostrar_titulo` estuviera activado
+- **Causa**: `widget-wrapper.tsx` no renderizaba header de título
+- **Solución**: Agregado wrapper flex column con header de 28px
+- **Corrección secundaria**: `chart-renderer.tsx` linea 44 eliminada resta de 32px → `innerHeight = height`
+
+**Archivos modificados**:
+- `web/components/reportes/studio/renderers/chart-renderer.tsx` - Conexión a `widget.config?.estilo`
+- `web/components/reportes/studio/renderers/table-renderer.tsx` - Conexión a `widget.config?.estilo`
+- `web/components/reportes/studio/canvas/widget-wrapper.tsx` - Header de título con wrapper flex
+
+---
+
+### 🔄 Fase 4: Pendiente (Próxima Fase)
 
 **Objetivo**: Sistema de filtros interactivos avanzado
 
@@ -219,6 +310,20 @@ ALTER TABLE crm_reports
 - Estilos finales y pulido de UI
 - Documentación de usuario
 - Testing completo E2E
+
+---
+
+### 📋 Radar: Fase 3.5 - Configuración Avanzada por Tipo de Widget (Futura)
+
+**Objetivo**: Propiedades específicas según tipo de widget
+
+**Por implementar**:
+- **Gráficos**: Ángulo de etiquetas en ejes (0°, 45°, 90°), mostrar/ocultar grid, mostrar/ocultar leyenda
+- **Tablas**: Selector de columnas visibles, orden de columnas, paginación configurable (10/25/50 filas)
+- **KPIs**: Formato numérico (decimal, moneda, porcentaje), subtítulo personalizable, icono personalizable
+- **Todos**: Borde superior/inferior (no solo radius), sombra, fondo gradiente
+
+**Nota**: Esta fase surge de necesidad natural de personalización más granular. Se implementará después de Fase 4.
 
 ---
 
@@ -247,9 +352,9 @@ web/
 │   │   ├── report-canvas.tsx              # Canvas con scroll ~80 líneas
 │   │   └── widget-wrapper.tsx             # Wrapper de cada widget ~300 líneas
 │   └── renderers/
-│       ├── chart-renderer.tsx             # Renderiza Recharts (bar, line, pie) ~200 líneas
-│       ├── kpi-renderer.tsx               # Renderiza KPIs ~80 líneas
-│       ├── table-renderer.tsx             # Renderiza tablas ~60 líneas
+│       ├── chart-renderer.tsx             # Renderiza Recharts (bar, line, pie) ~280 líneas
+│       ├── kpi-renderer.tsx               # Renderiza KPIs ~170 líneas
+│       ├── table-renderer.tsx             # Renderiza tablas ~200 líneas
 │       └── filter-renderer.tsx            # Renderiza filtros ~40 líneas
 │
 ├── lib/reportes/
@@ -259,32 +364,7 @@ web/
 │   └── types.ts                           # Interfaces TypeScript ~180 líneas
 ```
 
-**Total aproximado**: ~3,200 líneas de código TypeScript/TSX
-
-### Responsabilidades por archivo
-
-**Capa de Presentación (Client Components)**:
-- `report-studio.tsx`: Layout principal, conecta paneles y canvas
-- `studio-toolbar.tsx`: Header con nombre, zoom, tamaño página, toggle modo
-- `library-panel.tsx`: Paleta de widgets click-to-add
-- `data-panel.tsx`: Configuración de datos (dimensión, métrica, agregación)
-- `properties-panel.tsx`: Configuración visual (colores, padding, borde)
-- `report-canvas.tsx`: Canvas scrollable con transform scale
-- `widget-wrapper.tsx`: Wrapper individual de cada widget con drag/resize
-- `renderers/`: Componentes visuales para cada tipo de widget
-
-**Capa de Lógica (Store + Actions)**:
-- `studio-store.ts`: Estado global con Zustand, persist UI en localStorage
-- `actions.ts`: Server Actions para CRUD + funciones auxiliares
-- `query-builder.ts`: Construye params tipados para RPC
-- `types.ts`: Interfaces TypeScript del dominio
-
-**Capa de Datos (Supabase)**:
-- `v_leads_completo`: Vista materializada de leads
-- `v_actividades_completo`: Vista materializada de actividades
-- `crm_reports`: Metadatos de reportes
-- `crm_widgets`: Configuración de widgets
-- `get_widget_grouped`: RPC segura para datos agrupados
+**Total aproximado**: ~3,400 líneas de código TypeScript/TSX
 
 ---
 
@@ -517,15 +597,47 @@ export async function POST(req: NextRequest) {
 // Server Actions para otras operaciones
 export async function updateReporte(id, cambios) {
   const supabase = await getSupabaseClient();
-  await supabase.from('crm_reports').update(cambios).eq('id', id);
+  await supabase.from('crm_reports').update(cambios).eq('id, id);
 }
 ```
 
 ---
 
+### 8. Properties Panel y Renderers con Estilos Conectados
+
+**Decisión**: Conectar renderers (chart, table, kpi) a `widget.config?.estilo` definido en Properties Panel.
+
+**Razonamiento**:
+- ✅ Personalización visual sin necesidad de código
+- ✅ Consistencia de diseño usando paleta SPH predefinida
+- ✅ Los cambios en Properties Panel se reflejan inmediatamente en canvas
+- ✅ Fallback a valores por defecto si estilo no está completo
+
+**Implementación**:
+```typescript
+// En cada renderer:
+const estilo = widget.config?.estilo || {};
+const color = estilo.color_principal || '#7dc244';  // fallback
+const padding = estilo.padding ?? 12;
+const opacidad = estilo.opacidad ?? 1;
+
+// Aplicar estilos
+<div style={{ opacity: opacidad }}>
+  <ResponsiveContainer margin={{ top: padding, right: padding, bottom: padding, left: padding }}>
+    <BarChart data={datos}>
+      <Bar fill={color} />
+    </BarChart>
+  </ResponsiveContainer>
+</div>
+```
+
+**Patrón de fallback**: Siempre usar `||` o `??` con valores por defecto. Nunca asumir que `estilo` está completo.
+
+---
+
 ## 5. Bugs Conocidos Pendientes
 
-### ✅ Bugs Corregidos (Fase 2 + Mejoras Canvas)
+### ✅ Bugs Corregidos (Fase 2 + Mejoras Canvas + Fase 3)
 
 1. **✅ Dropdown de zoom muestra porcentaje incorrecto** - CORREGIDO
    - Cambiado de `value={zoomMode === 'fixed' ? zoom : zoomMode}` a `value={zoomMode === 'fixed' ? String(zoom) : zoomMode}`
@@ -556,6 +668,14 @@ export async function updateReporte(id, cambios) {
 
 10. **✅ Zoom no recalcuza al cambiar modo** - CORREGIDO (Mejoras Canvas)
     - `setMode`, `togglePalette`, `toggleRightPanel` recalculan zoom automáticamente
+
+11. **✅ Título del widget no se muestra** - CORREGIDO (Fase 3.3)
+    - Agregado wrapper flex column en `widget-wrapper.tsx` con header de 28px
+    - Eliminada resta innecesaria de 32px en `chart-renderer.tsx`
+
+12. **✅ chart-renderer.tsx restaba 32px innecesariamente** - CORREGIDO (Fase 3.3)
+    - Cambiado `innerHeight = height - (widget.mostrar_titulo ? 32 : 0)` a `innerHeight = height`
+    - Wrapper flex con `flex: 1` maneja automáticamente el espacio del título
 
 ---
 
@@ -662,7 +782,7 @@ CREATE INDEX idx_crm_widgets_tipo ON crm_widgets(tipo);
 - `z_index`: Orden de apilamiento (widgets con mayor z_index van arriba)
 - `titulo`: Título del widget (ej: "Ventas por Asesor")
 - `mostrar_titulo`: Si `false`, oculta el título en el renderizado
-- `config`: Configuración de datos (fuente, dimensión, métrica, agregación, etc.)
+- `config`: Configuración de datos (fuente, dimensión, métrica, agregación, estilo, etc.)
 - `filter_config`: Configuración de filtros (solo para widgets tipo 'filter')
 
 **Estructura de `config`**:
@@ -693,7 +813,7 @@ CREATE INDEX idx_crm_widgets_tipo ON crm_widgets(tipo);
 
 ---
 
-### Tabla: `crm_reporte_permisos` (Fase 3)
+### Tabla: `crm_reporte_permisos`
 
 Permisos para compartir reportes con otros usuarios cuando `visibilidad='restringido'`.
 
@@ -790,622 +910,7 @@ responsable_comercial TEXT
 
 ---
 
-## 7. PRD COMPLETO - Report Studio
-
-### Contexto y Motivación
-
-**Problema**: El equipo de ventas de SPH Bienes Raíces necesita generar reportes personalizados para analizar métricas de ventas (leads por asesor, conversión por etapa, seguimiento de actividades) sin depender del equipo de desarrollo para cada reporte nuevo.
-
-**Solución**: Report Studio — un constructor visual de reportes self-service que permite a usuarios no técnicos crear dashboards interactivos arrastrando y soltando widgets, similar a Google Data Studio o Power BI, pero integrado completamente con el CRM existente.
-
-**Usuario target**: Gerentes de ventas, analistas, usuarios del CRM con conocimiento del negocio pero sin habilidades técnicas de programación.
-
----
-
-### Visión del Producto
-
-Un editor WYSIWYG ("lo que ves es lo que obtienes") donde:
-1. El usuario selecciona un tipo de gráfica de una paleta (KPI, barras, líneas, pastel, tabla)
-2. Lo arrastra al canvas
-3. Lo configura seleccionando dimensiones (ej: "asesor"), métricas (ej: "valor") y funciones de agregación (ej: "suma")
-4. El widget se conecta automáticamente a los datos reales del CRM
-5. Puede añadir filtros interactivos para permitir exploración (ej: rango de fechas, selector de etapa)
-6. Exporta a PDF para compartir por email
-
-**Diferenciadores**:
-- Integrado 100% con datos existentes de Supabase (no ingesta datos externos)
-- Configuración 100% visual, sin SQL ni código
-- Filtros interactivos que afectan múltiples widgets simultáneamente
-- Responsive (se adapta a pantallas de diferentes usuarios)
-
----
-
-### Layout General
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Toolbar (altura fija 52px)                                      │
-│  [Nombre editable] [Página ▼] [Zoom ▼] [Diseño | Vista previa] [@]│
-├──────┬──────────────────────────────────────────────────────────┬─────┤
-│      │                                                          │     │
-│ Pa-  │  Canvas (scrollable, zoom escalable)                    │De-  │
-│ nel  │  ┌──────┐  ┌──────┐  ┌──────┐                          │re-  │
-│ Iz-  │  │KPI  │  │Bar  │  │Pie  │                          │cho  │
-│ qui-  │  └──────┘  └──────┘  └──────┘                          │     │
-│ erdo │  ┌─────────────────┐                                   │     │
-│(col- │  │   Bar Chart     │                                   │     │
-│aps.) │  │   (x: Asesor,    │                                   │     │
-│200px │  │    y: Valor)     │                                   │     │
-│|40px │  └─────────────────┘                                   │     │
-│      │                                                          │     │
-│      │  (página configurable: 816×1056 por defecto)            │     │
-└──────┴──────────────────────────────────────────────────────────┴─────┘
-```
-
-**Dimensiones**:
-- Toolbar: 52px alto
-- Panel izquierdo: 200px ancho (expandido) | 40px (colapsado)
-- Canvas: Flex restante (scrollable)
-- Panel derecho: 264px ancho (expandido) | 40px (colapsado)
-- Altura total: 100vh (sin scroll en body, solo en canvas)
-
----
-
-### Toolbar
-
-**Componentes**:
-1. **Breadcrumb + nombre editable**: "Reporteador / [Nuevo Reporte]" → "Reporteador / Dashboard Ventas"
-2. **Selector de tamaño de página**: Dropdown con 4 opciones predefinidas + personalizado
-3. **Selector de zoom**: 2 grupos:
-   - Porcentaje fijo: 50%, 75%, 100%, 125%, 150%
-   - Ajustar a: Ajustar al ancho | Ajustar a la altura
-4. **Toggle modo**: Diseño | Vista previa
-5. **Avatar usuario**: Inicial del usuario
-
-**Comportamiento**:
-- Nombre: Auto-save con debounce 800ms al escribir
-- Zoom: Auto-save con debounce 500ms al cambiar
-- Tamaño página: Auto-save con debounce 500ms al cambiar
-- Indicador "Guardando..." aparece inmediatamente al hacer cualquier cambio
-
----
-
-### Panel Izquierdo - Paleta de Widgets
-
-**Secciones**:
-1. **Gráficas** (6 tipos):
-   - ▣ KPI
-   - ▨ Barras vertical
-   - ▤ Barras horizontal
-   - ∿ Línea
-   - ◔ Pastel
-   - ⊞ Tabla
-
-2. **Filtros** (4 tipos, Fase 3-4):
-   - 📅 Rango fechas
-   - ☰ Multiselect
-   - ⇔ Rango numérico
-   - ⊙ Toggle
-
-**Comportamiento**:
-- Click en widget → se agrega al canvas en posición aleatoria sin solapamiento
-- Posición aleatoria: `x = Math.random() * (pageWidth - 400)`, `y = Math.random() * (pageHeight - 300)`
-- Colapsable con botón ▶ / ◀
-- Persistencia en localStorage
-
----
-
-### Canvas
-
-**Características**:
-- Scrollable (overflow: auto)
-- Transform scale aplicado a hoja interna
-- Widgets arrastrables con `react-rnd`
-- Z-index automático (último widget agregado va arriba)
-- Background blanco con sombra
-
-**Tamaños de página configurables**:
-- Carta vertical: 816 × 1056px (default)
-- Carta horizontal: 1056 × 816px
-- A4 vertical: 794 × 1123px
-- A4 horizontal: 1123 × 794px
-- Personalizado: 200-2000px
-
-**Zoom**:
-- Rango: 40% - 150%
-- Modo fijo: Usuario selecciona porcentaje
-- Modo fit_width: Ajusta automáticamente para ver todo el ancho
-- Modo fit_height: Ajusta automáticamente para ver todo el alto
-- Recálculo automático al cambiar modo diseño ↔ vista previa
-
----
-
-### Panel de Datos (Tab "Datos")
-
-**Campos según tipo de widget**:
-
-**KPIs (2 dropdowns)**:
-- Campo a contar: Cualquier campo de la vista (dimensiones o métricas)
-- Acción: Contar (COUNT) | Sumar (SUM) | Promedio (AVG) | Mínimo (MIN) | Máximo (MAX)
-
-**Gráficas (3 dropdowns)**:
-- Eje X (Dimensión): Campo categórico (ej: etapa, asesor, origen)
-- Eje Y (Campo): Campo numérico o categórico (ej: valor, nombre)
-- Acción: Contar (COUNT) | Sumar (SUM) | Promedio (AVG) | Mínimo (MIN) | Máximo (MAX)
-
-**Tablas (1 dropdown)**:
-- Campo: Campo a mostrar en tabla
-
-**Otros campos**:
-- Título editable
-- Mostrar título (toggle)
-- Fuente de datos (v_leads_completo | v_actividades_completo)
-
----
-
-### Panel de Propiedades (Tab "Propiedades")
-
-**Configuración visual** (Fase 3):
-- Color principal: Selector de 6 colores predefinidos
-- Padding: Slider 0-32px
-- Borde redondeado: Slider 0-16px
-- Opacidad: Slider 50-100%
-
----
-
-### Sistema de Filtros (Fase 4)
-
-**4 tipos de filtros**:
-1. **Rango de fechas**: Two date pickers (desde - hasta)
-2. **Multiselect**: Dropdown con checkboxes (múltiples valores)
-3. **Rango numérico**: Two inputs numéricos (min - max)
-4. **Toggle**: Switch booleano (verdadero/falso)
-
-**Configuración**:
-- Campo vinculado: Campo de la vista que filtra (ej: etapa, origen, responsable_comercial)
-- Valor defecto: Valor inicial del filtro
-- Widgets vinculados: Lista de IDs de widgets afectados por el filtro
-
-**Comportamiento**:
-- Filtros se agregan al canvas como widgets
-- Al cambiar filtro, se re-ejecuta query de todos los widgets vinculados
-- Estado de filtros persiste en Supabase
-
----
-
-### Exportación PDF (Fase 5)
-
-**Características**:
-- Genera PDF del canvas actual (todos los widgets)
-- Incluye título del reporte
-- Respetar tamaño de página configurado
-- Fondo blanco, gráficos en color
-- Download automático al hacer click en "Exportar PDF"
-
-**Librería propuesta**: `jsPDF` o `react-pdf`
-
----
-
-## 8. Plan Detallado - Fase 3
-
-**Objetivo**: Eliminación de widgets, filtros globales básicos, permissions, exportación básica
-
-### 8.1. Eliminación de Widgets
-
-**Archivos a modificar**:
-- `web/components/reportes/studio/panels/properties-panel.tsx`
-- `web/lib/reportes/actions.ts`
-
-**Implementación**:
-1. ✅ Botón "Eliminar widget" ya existe en `properties-panel.tsx`
-2. ✅ Handler `handleEliminar()` ya existe (muestra alert)
-3. 🔲 Implementar lógica real:
-   - Llamar `deleteWidget(widgetId)` Server Action
-   - Remover del store local
-   - Confirmar con usuario: `confirm('¿Eliminar este widget? Esta acción no se puede deshacer.')`
-
-**Server Action** (ya existe en `actions.ts`):
-```typescript
-export async function deleteWidget(widgetId: string): Promise<void> {
-  const supabase = await getSupabaseClient();
-  const { error } = await supabase
-    .from('crm_widgets')
-    .delete()
-    .eq('id', widgetId);
-  
-  if (error) {
-    throw new Error(`Error eliminando widget: ${error.message}`);
-  }
-}
-```
-
-**Hotkey** (opcional):
-- Agregar `onDelete` key en canvas: presionar Delete → eliminar widget seleccionado
-
----
-
-### 8.2. Permissions (RLS Policies)
-
-**Archivos a modificar**:
-- `web/lib/reportes/actions.ts`
-- Supabase SQL migrations
-
-**Politicas RLS a implementar**:
-
-```sql
--- Policy: Solo dueño puede ver sus reportes privados
-CREATE POLICY "Solo dueño puede ver reportes privados"
-ON crm_reports FOR SELECT
-USING (
-  auth.uid() = creado_por 
-  AND visibilidad = 'privado'
-);
-
--- Policy: Todos pueden ver reportes públicos
-CREATE POLICY "Todos pueden ver reportes públicos"
-ON crm_reports FOR SELECT
-USING (visibilidad = 'publico');
-
--- Policy: Solo dueño puede actualizar sus reportes
-CREATE POLICY "Solo dueño puede actualizar reportes"
-ON crm_reports FOR UPDATE
-USING (auth.uid() = creado_por);
-
--- Policy: Solo dueño puede eliminar sus reportes
-CREATE POLICY "Solo dueño puede eliminar reportes"
-ON crm_reports FOR DELETE
-USING (auth.uid() = creado_por);
-
--- Policy: Solo dueño puede ver widgets de sus reportes
-CREATE POLICY "Solo dueño puede ver widgets"
-ON crm_widgets FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM crm_reports 
-    WHERE crm_reports.id = crm_widgets.reporte_id 
-      AND crm_reports.creado_por = auth.uid()
-  )
-);
-
--- Policy: Solo dueño puede actualizar widgets
-ON crm_widgets FOR UPDATE
-USING (
-  EXISTS (
-    SELECT 1 FROM crm_reports 
-    WHERE crm_reports.id = crm_widgets.reporte_id 
-      AND crm_reports.creado_por = auth.uid()
-  )
-);
-
--- Policy: Solo dueño puede eliminar widgets
-ON crm_widgets FOR DELETE
-USING (
-  EXISTS (
-    SELECT 1 FROM crm_reports 
-    WHERE crm_reports.id = crm_widgets.reporte_id 
-      AND crm_reports.creado_por = auth.uid()
-  )
-);
-```
-
-**Validación en `actions.ts`**:
-- ✅ Ya existe en `getReporteById()`: verifica `auth.uid() === reporte.creado_por`
-- 🔲 Agregar misma validación en `updateReporte()` y `deleteReporte()` (Fase 3)
-
----
-
-### 8.3. Exportación Básica
-
-**Archivos a crear**:
-- `web/lib/reportes/export-pdf.ts`
-
-**Implementación**:
-1. Usar `html2canvas` + `jsPDF` (librerías probadas para React)
-2. Función `exportCanvasToPDF(ref, reportName)`:
-   - Captura screenshot del canvas con `html2canvas`
-   - Crea PDF con `jsPDF`
-   - Download automático
-3. Botón en toolbar: "Exportar PDF"
-
-**Instalación**:
-```bash
-npm install html2canvas jspdf
-npm install @types/html2canvas --save-dev
-```
-
-**Ejemplo de implementación**:
-```typescript
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-
-export async function exportCanvasToPDF(
-  canvasRef: HTMLDivElement,
-  reportName: string
-): Promise<void> {
-  // Capturar canvas
-  const canvas = await html2canvas(canvasRef, {
-    scale: 2,  // mejor calidad
-    useCORS: true,
-    logging: false
-  });
-  
-  // Crear PDF
-  const pdf = new jsPDF({
-    orientation: pageWidth > pageHeight ? 'landscape' : 'portrait',
-    unit: 'px',
-    format: [pageWidth, pageHeight]
-  });
-  
-  const imgData = canvas.toDataURL('image/png');
-  pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
-  pdf.save(`${reportName}.pdf`);
-}
-```
-
----
-
-## 9. Plan Detallado - Fase 4
-
-**Objetivo**: Sistema de filtros globales interactivos avanzado
-
-### 9.1. Widgets de Filtro (UI)
-
-**Archivos a crear**:
-- `web/components/reportes/studio/renderers/filter-renderer.tsx` (ya existe placeholder)
-- `web/lib/reportes/filter-types.ts` - Definir tipos de filtros
-
-**4 tipos de filtros**:
-
-1. **Rango de fechas** (`filter_daterange`):
-   - Dos date pickers: Desde | Hasta
-   - Config: campo_vinculado, valor_defecto (rango inicial)
-   - Operador: `between`
-
-2. **Multiselect** (`filter_multiselect`):
-   - Dropdown con checkboxes (múltiples valores)
-   - Config: campo_vinculado, opciones_disponibles, valor_defecto (array)
-   - Operador: `in`
-
-3. **Rango numérico** (`filter_numericrange`):
-   - Dos inputs numéricos: Mín | Máx
-   - Config: campo_vinculado, valor_defecto (rango inicial)
-   - Operador: `between`
-
-4. **Toggle** (`filter_toggle`):
-   - Switch booleano: Verdadero | Falso
-   - Config: campo_vinculado, valor_defecto (boolean)
-   - Operador: `eq`
-
-**Implementación**:
-```typescript
-// Ejemplo filter-renderer.tsx
-export function FilterRenderer({ widget, width, height }) {
-  const { filter_config } = widget;
-  const [valor, setValor] = useState(filter_config.valor_defecto);
-  
-  const handleChange = (nuevoValor) => {
-    setValor(nuevoValor);
-    // Disparar recálculo de widgets vinculados
-    updateLinkedWidgets(widget.id, nuevoValor);
-  };
-  
-  switch (widget.tipo) {
-    case 'filter_daterange':
-      return <DateRangeFilter value={valor} onChange={handleChange} />;
-    case 'filter_multiselect':
-      return <MultiselectFilter value={valor} onChange={handleChange} />;
-    // ...
-  }
-}
-```
-
----
-
-### 9.2. Lógica de Filtrado
-
-**Archivos a modificar**:
-- `web/lib/reportes/query-builder.ts` - Agregar lógica de filtros
-- `web/lib/reportes/actions.ts` - Modificar `getWidgetData()`
-
-**Implementación**:
-
-1. **Store de filtros globales** (ya existe en `studio-store.ts`):
-```typescript
-interface FiltroActivo {
-  campo: string;
-  operador: 'eq' | 'neq' | 'contains' | 'in' | 'gt' | 'gte' | 'lt' | 'lte' | 'between';
-  valor: any;
-  valor2?: any;  // Para between
-}
-
-activeFilters: FiltroActivo[];
-```
-
-2. **Modificar `buildQueryParams()` para incluir filtros**:
-```typescript
-export function buildQueryParams(
-  widget: Widget,
-  activeFilters: FiltroActivo[] = []
-): QueryParams {
-  // ... código existente
-  
-  // Filtrar activeFilters que aplican a este widget
-  const applicableFilters = activeFilters.filter(f => 
-    widget.filter_config?.widgets_vinculados?.includes(widget.id)
-  );
-  
-  // Mapear filtros a parámetros WHERE
-  applicableFilters.forEach(filtro => {
-    switch (filtro.campo) {
-      case 'fecCreacion':
-        if (filtro.operador === 'between') {
-          params.p_fecha_desde = filtro.valor;
-          params.p_fecha_hasta = filtro.valor2;
-        }
-        break;
-      case 'etapa':
-        if (filtro.operador === 'in') {
-          params.p_etapa_in = filtro.valor;  // array
-        }
-        break;
-      // ... otros campos
-    }
-  });
-  
-  return params;
-}
-```
-
-3. **RPC `get_widget_grouped` debe soportar filtros dinámicos**:
-```sql
-CREATE OR REPLACE FUNCTION get_widget_grouped(
-  p_fuente TEXT,
-  p_dimension TEXT,
-  p_metrica TEXT,
-  p_agregacion TEXT DEFAULT 'sum',
-  p_fecha_desde DATE DEFAULT NULL,
-  p_fecha_hasta DATE DEFAULT NULL,
-  p_etapa_in TEXT[] DEFAULT NULL,  -- Nuevo: array de etapas
-  p_asesor TEXT DEFAULT NULL,
-  p_origen TEXT DEFAULT NULL,
-  p_limit INTEGER DEFAULT 25
-) RETURNS TABLE(...) ...
-```
-
----
-
-### 9.3. Panel de Configuración de Filtros
-
-**Archivos a modificar**:
-- `web/components/reportes/studio/panels/data-panel.tsx` - Agregar caso `widget_category === 'filter'`
-
-**Implementación**:
-```typescript
-const isFilter = selectedWidget.widget_category === 'filter';
-
-if (isFilter) {
-  return <FilterConfigPanel widget={selectedWidget} onChange={handleUpdateWidget} />;
-}
-
-// FilterConfigPanel:
-function FilterConfigPanel({ widget, onChange }) {
-  const { filter_config } = widget;
-  
-  return (
-    <>
-      <Field label="Título">
-        <input value={widget.titulo} onChange={(e) => onChange({ titulo: e.target.value })} />
-      </Field>
-      
-      <Field label="Mostrar título">
-        <Toggle value={widget.mostrar_titulo} onChange={(val) => onChange({ mostrar_titulo: val })} />
-      </Field>
-      
-      <Field label="Campo vinculado">
-        <select value={filter_config?.campo_vinculado || ''} 
-                onChange={(e) => onChange({ filter_config: { ...filter_config, campo_vinculado: e.target.value } })}>
-          <option value="">Seleccionar campo...</option>
-          {availableFields.map(campo => (
-            <option value={campo.nombre}>{campo.etiqueta}</option>
-          ))}
-        </select>
-      </Field>
-      
-      <Field label="Widgets vinculados">
-        <Multiselect
-          options={widgets}
-          value={filter_config?.widgets_vinculados || []}
-          onChange={(val) => onChange({ filter_config: { ...filter_config, widgets_vinculados: val })} />
-      </Field>
-    </>
-  );
-}
-```
-
----
-
-## 10. Plan Detallado - Fase 5
-
-**Objetivo**: Exportación PDF robusta y pulido final
-
-### 10.1. Exportación PDF Mejorada
-
-**Mejoras sobre Fase 3**:
-- ✅ Capturar solo hoja interna (no paneles laterales)
-- ✅ Respetar orientación (portrait/landscape) según tamaño página
-- ✅ Agregar header al PDF con título del reporte + fecha
-- ✅ Multi-página si widgets exceden altura de página
-- ✅ Opción de descargar como imagen (PNG) además de PDF
-
-**Librería recomendada**: `@react-pdf/renderer` (más integrado con React que `jsPDF` plano)
-
-**Ejemplo con @react-pdf/renderer**:
-```typescript
-import { Document, Page, Text, View, Image } from '@react-pdf/renderer';
-import { pdf } from '@react-pdf/renderer';
-
-const MyDocument = ({ widgets, reporte }) => (
-  <Document>
-    <Page size="LETTER" orientation="portrait">
-      <Text style={{ fontSize: 24, fontWeight: 'bold' }}>
-        {reporte.nombre}
-      </Text>
-      <Text style={{ fontSize: 10, color: 'gray' }}>
-        Generado: {new Date().toLocaleDateString()}
-      </Text>
-      {widgets.map(widget => (
-        <WidgetToPDF key={widget.id} widget={widget} />
-      ))}
-    </Page>
-  </Document>
-);
-
-// Exportar
-await pdf(<MyDocument widgets={widgets} reporte={reporte} />)
-  .toBlob()
-  .then(blob => download(blob, `${reporte.nombre}.pdf`));
-```
-
----
-
-### 10.2. Pulido de UI
-
-**Mejoras visuales**:
-- ✅ Animaciones suaves en colapso de paneles (transition: 0.2s)
-- ✅ Hover effects en botones y widgets
-- ✅ Loading skeleton mientras cargan datos
-- ✅ Empty states cuando no hay widgets
-- ✅ Tooltips explicativos en iconos
-- ✅ Breadcrumbs de navegación
-
-**Accesibilidad**:
-- ✅ Navegación por teclado (Tab, Enter, Delete)
-- ✅ ARIA labels en botones y formularios
-- ✅ Contraste de colores suficiente (WCAG AA)
-
----
-
-### 10.3. Testing E2E
-
-**Herramientas**:
-- Playwright (ya configurado en proyecto)
-- Jest + React Testing Library (unit tests)
-
-**Casos de prueba**:
-1. Crear reporte nuevo
-2. Agregar 3 widgets (KPI, barras, tabla)
-3. Configurar widget (cambiar dimensión, métrica)
-4. Arrastrar widget a nueva posición
-5. Redimensionar widget
-6. Cambiar zoom (fijo, fit_width, fit_height)
-7. Cambiar tamaño de página
-8. Exportar PDF
-9. Eliminar widget
-10. Guardar y recargar página (verificar persistencia)
-
----
-
-## 11. Instrucciones de Arranque para Sesión Nueva
+## 7. Instrucciones de Arranque para Sesión Nueva
 
 Cuando inicies una nueva sesión de Claude Code en este proyecto, sigue estos pasos:
 
@@ -1470,22 +975,26 @@ npx playwright test
 5. ✅ `zoom_mode: 'fit_width'` es default para reportes nuevos (responsive)
 6. ✅ Server Components para carga inicial, Client Components para interactividad
 7. ✅ `requestAnimationFrame` doble para calcular zoom (garantiza layout completo)
+8. ✅ Properties Panel conectado a renderers via `widget.config?.estilo`
+9. ✅ RLS Policies con función SECURITY DEFINER para evitar recursión
 
 **Bugs corregidos** (no reintroducir):
 1. ✅ Dropdowns de config no guardaban → Usar `onChange({ config: { ...config, campo: value } })`
 2. ✅ Flash visual al arrastrar → `onDrag` actualiza store local inmediatamente
 3. ✅ Panel derecho ancho variable → `width: '100%'` en hijos, padre controla ancho fijo
 4. ✅ Zoom no recalcula → `requestAnimationFrame` doble en todas las funciones de recálculo
+5. ✅ Título no se muestra → Wrapper flex column en widget-wrapper.tsx
+6. ✅ chart-renderer resta 32px innecesarios → `innerHeight = height`
 
 **Estado actual**:
 - Fase 1: ✅ Completada
 - Fase 2: ✅ Completada (incluyendo todos los bugs)
 - Mejoras Canvas: ✅ Completadas
-- Fase 3: 🔄 Próxima (eliminación, filtros, permissions)
-- Fase 4: ⏳ Pendiente
-- Fase 5: ⏳ Pendiente
+- Fase 3: ✅ Completada (eliminación, RLS, properties panel + renderers)
+- Fase 4: 🔄 Próxima (filtros interactivos)
+- Fase 5: ⏳ Pendiente (exportación PDF, pulido)
 
 ---
 
-**Última actualización**: 2026-05-01  
-**Estado**: Fase 2 cerrada con mejoras de canvas. Listo para iniciar Fase 3.
+**Última actualización**: 01/05/2026  
+**Estado**: Fase 3 cerrada. Listo para iniciar Fase 4 (Sistema de Filtros Interactivos).

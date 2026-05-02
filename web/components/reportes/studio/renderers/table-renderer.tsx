@@ -17,6 +17,11 @@ interface TableData {
 }
 
 export function TableRenderer({ widget, data, width, height }: TableRendererProps) {
+  const estilo = widget.config?.estilo || {};
+  const colorPrincipal = estilo.color_principal || '#1b2d5e';
+  const padding = estilo.padding ?? 12;
+  const opacidad = estilo.opacidad ?? 1;
+
   const [pagina, setPagina] = useState(1);
   const filasPorPagina = 10;
 
@@ -80,7 +85,8 @@ export function TableRenderer({ widget, data, width, height }: TableRendererProp
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        fontSize: 11
+        fontSize: 11,
+        opacity: opacidad
       }}
     >
       {/* Header de tabla */}
@@ -88,8 +94,8 @@ export function TableRenderer({ widget, data, width, height }: TableRendererProp
         style={{
           display: 'grid',
           gridTemplateColumns: `repeat(${columnas.length}, 1fr)`,
-          background: '#f2f4f8',
-          padding: '4px 8px',
+          background: `${colorPrincipal}12`,
+          padding: `${padding * 0.3}px ${padding * 0.6}px`,
           borderBottom: '1px solid #e2e6ef',
           color: '#7a84a0',
           fontWeight: 600,
@@ -117,7 +123,7 @@ export function TableRenderer({ widget, data, width, height }: TableRendererProp
             style={{
               display: 'grid',
               gridTemplateColumns: `repeat(${columnas.length}, 1fr)`,
-              padding: '6px 8px',
+              padding: `${padding * 0.5}px ${padding * 0.7}px`,
               borderBottom: '1px solid #e2e6ef',
               alignItems: 'center',
               background: index % 2 === 0 ? '#ffffff' : '#fafbfd'
@@ -162,11 +168,11 @@ export function TableRenderer({ widget, data, width, height }: TableRendererProp
               onClick={() => setPagina(Math.max(1, pagina - 1))}
               disabled={pagina === 1}
               style={{
-                padding: '4px 8px',
+                padding: `${padding * 0.3}px ${padding * 0.5}px`,
                 borderRadius: 4,
                 border: '1px solid #e2e6ef',
                 background: pagina === 1 ? '#f2f4f8' : '#ffffff',
-                color: pagina === 1 ? '#7a84a0' : '#1b2d5e',
+                color: pagina === 1 ? '#7a84a0' : colorPrincipal,
                 fontSize: 10,
                 cursor: pagina === 1 ? 'not-allowed' : 'pointer',
             }}
@@ -178,11 +184,11 @@ export function TableRenderer({ widget, data, width, height }: TableRendererProp
               onClick={() => setPagina(Math.min(totalPaginas, pagina + 1))}
               disabled={pagina === totalPaginas}
               style={{
-                padding: '4px 8px',
+                padding: `${padding * 0.3}px ${padding * 0.5}px`,
                 borderRadius: 4,
                 border: '1px solid #e2e6ef',
                 background: pagina === totalPaginas ? '#f2f4f8' : '#ffffff',
-                color: pagina === totalPaginas ? '#7a84a0' : '#1b2d5e',
+                color: pagina === totalPaginas ? '#7a84a0' : colorPrincipal,
                 fontSize: 10,
                 cursor: pagina === totalPaginas ? 'not-allowed' : 'pointer'
               }}

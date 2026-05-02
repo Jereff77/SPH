@@ -202,7 +202,47 @@ export function WidgetWrapper({ widget, selected, onSelect, zoom, mode = 'design
         onSelect();
       }}
     >
-      {getRenderer()}
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        {/* Header del título */}
+        {widget.mostrar_titulo && (
+          <div
+            style={{
+              height: 28,
+              background: '#ffffff',
+              borderBottom: '1px solid #e2e6ef',
+              padding: '0 8px',
+              display: 'flex',
+              alignItems: 'center',
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#1b2d5e',
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis',
+              flexShrink: 0
+            }}
+          >
+            {widget.titulo || 'Sin título'}
+          </div>
+        )}
+
+        {/* Contenido del widget */}
+        <div
+          style={{
+            flex: 1,
+            overflow: 'hidden'
+          }}
+        >
+          {getRenderer()}
+        </div>
+      </div>
     </Rnd>
   );
 }

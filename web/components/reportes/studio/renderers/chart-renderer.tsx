@@ -41,7 +41,7 @@ interface ChartRendererProps {
 }
 
 export function ChartRenderer({ widget, data, width, height }: ChartRendererProps) {
-  const innerHeight = height - (widget.mostrar_titulo ? 32 : 0);
+  const innerHeight = height;
   const innerWidth = width - 16;
 
   // Fase 2: Si no hay datos, mostrar placeholder
@@ -67,15 +67,15 @@ export function ChartRenderer({ widget, data, width, height }: ChartRendererProp
 
   switch (widget.tipo) {
     case 'bar':
-      return <BarChartWidget datos={datos} width={innerWidth} height={innerHeight} />;
+      return <BarChartWidget widget={widget} datos={datos} width={innerWidth} height={innerHeight} />;
     case 'bar_horizontal':
-      return <BarHorizontalWidget datos={datos} width={innerWidth} height={innerHeight} />;
+      return <BarHorizontalWidget widget={widget} datos={datos} width={innerWidth} height={innerHeight} />;
     case 'line':
-      return <LineChartWidget datos={datos} width={innerWidth} height={innerHeight} />;
+      return <LineChartWidget widget={widget} datos={datos} width={innerWidth} height={innerHeight} />;
     case 'area':
-      return <AreaChartWidget datos={datos} width={innerWidth} height={innerHeight} />;
+      return <AreaChartWidget widget={widget} datos={datos} width={innerWidth} height={innerHeight} />;
     case 'pie':
-      return <PieChartWidget datos={datos} width={innerWidth} height={innerHeight} />;
+      return <PieChartWidget widget={widget} datos={datos} width={innerWidth} height={innerHeight} />;
     default:
       return (
         <div style={{ color: '#e85d4a', fontSize: 11 }}>
@@ -87,180 +87,216 @@ export function ChartRenderer({ widget, data, width, height }: ChartRendererProp
 
 // ========== GRÁFICOS INDIVIDUALES ==========
 
-function BarChartWidget({ datos, width, height }: { datos: any[]; width: number; height: number }) {
+function BarChartWidget({ widget, datos, width, height }: { widget: any; datos: any[]; width: number; height: number }) {
+  const estilo = widget.config?.estilo || {};
+  const color = estilo.color_principal || '#7dc244';
+  const padding = estilo.padding ?? 12;
+  const opacidad = estilo.opacidad ?? 1;
+
   return (
-    <ResponsiveContainer width={width} height={height}>
-      <BarChart data={datos}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e6ef" />
-        <XAxis
-          dataKey="label"
-          tick={{ fill: '#7a84a0', fontSize: 10 }}
-          stroke="#e2e6ef"
-          axisLine={false}
-        />
-        <YAxis
-          tick={{ fill: '#7a84a0', fontSize: 10 }}
-          stroke="#e2e6ef"
-          axisLine={false}
-        />
-        <Tooltip
-          contentStyle={{
-            background: '#1b2d5e',
-            border: 'none',
-            borderRadius: 4,
-            color: '#ffffff'
-          }}
-        />
-        <Bar dataKey="value" fill="#7dc244" radius={[4, 0, 0, 4]} />
-      </BarChart>
-    </ResponsiveContainer>
+    <div style={{ opacity: opacidad }}>
+      <ResponsiveContainer width={width} height={height}>
+        <BarChart data={datos} margin={{ top: padding, right: padding, bottom: padding, left: padding }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e6ef" />
+          <XAxis
+            dataKey="label"
+            tick={{ fill: '#7a84a0', fontSize: 10 }}
+            stroke="#e2e6ef"
+            axisLine={false}
+          />
+          <YAxis
+            tick={{ fill: '#7a84a0', fontSize: 10 }}
+            stroke="#e2e6ef"
+            axisLine={false}
+          />
+          <Tooltip
+            contentStyle={{
+              background: '#1b2d5e',
+              border: 'none',
+              borderRadius: 4,
+              color: '#ffffff'
+            }}
+          />
+          <Bar dataKey="value" fill={color} radius={[4, 0, 0, 4]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
-function BarHorizontalWidget({ datos, width, height }: { datos: any[]; width: number; height: number }) {
-  return (
-    <ResponsiveContainer width={width} height={height}>
-      <BarChart
-        data={datos}
-        layout="horizontal"
-        margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
-      >
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e6ef" />
-        <XAxis
-          type="number"
-          tick={{ fill: '#7a84a0', fontSize: 10 }}
-          stroke="#e2e6ef"
-          axisLine={false}
-        />
-        <YAxis
-          type="category"
-          dataKey="label"
-          tick={{ fill: '#7a84a0', fontSize: 10 }}
-          stroke="#e2e6ef"
-          axisLine={false}
-          width={60}
-        />
-        <Tooltip
-          contentStyle={{
-            background: '#1b2d5e',
-            border: 'none',
-            borderRadius: 4,
-            color: '#ffffff'
-          }}
-        />
-        <Bar dataKey="value" fill="#7dc244" radius={[0, 4, 4, 0]}>
-          {datos.map((entry, index) => (
-            <Cell
-              key={`cell-${index}`}
-              fill={CHART_COLORS[index % CHART_COLORS.length]}
-            />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
+function BarHorizontalWidget({ widget, datos, width, height }: { widget: any; datos: any[]; width: number; height: number }) {
+  const estilo = widget.config?.estilo || {};
+  const colorPrincipal = estilo.color_principal || '#7dc244';
+  const padding = estilo.padding ?? 12;
+  const opacidad = estilo.opacidad ?? 1;
+  const paletaPersonalizada = [colorPrincipal, ...CHART_COLORS.slice(1)];
 
-function LineChartWidget({ datos, width, height }: { datos: any[]; width: number; height: number }) {
   return (
-    <ResponsiveContainer width={width} height={height}>
-      <LineChart data={datos}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e6ef" />
-        <XAxis
-          dataKey="label"
-          tick={{ fill: '#7a84a0', fontSize: 10 }}
-          stroke="#e2e6ef"
-          axisLine={false}
-        />
-        <YAxis
-          tick={{ fill: '#7a84a0', fontSize: 10 }}
-          stroke="#e2e6ef"
-          axisLine={false}
-        />
-        <Tooltip
-          contentStyle={{
-            background: '#1b2d5e',
-            border: 'none',
-            borderRadius: 4,
-            color: '#ffffff'
-          }}
-        />
-        <Line
-          type="monotone"
-          dataKey="value"
-          stroke="#7dc244"
-          strokeWidth={2.5}
-          dot={{ fill: '#7dc244', r: 4 }}
-          activeDot={{ r: 6 }}
-        />
-      </LineChart>
-    </ResponsiveContainer>
-  );
-}
-
-function AreaChartWidget({ datos, width, height }: { datos: any[]; width: number; height: number }) {
-  return (
-    <ResponsiveContainer width={width} height={height}>
-      <AreaChart data={datos}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e6ef" />
-        <XAxis
-          dataKey="label"
-          tick={{ fill: '#7a84a0', fontSize: 10 }}
-          stroke="#e2e6ef"
-          axisLine={false}
-        />
-        <YAxis
-          tick={{ fill: '#7a84a0', fontSize: 10 }}
-          stroke="#e2e6ef"
-          axisLine={false}
-        />
-        <Tooltip
-          contentStyle={{
-            background: '#1b2d5e',
-            border: 'none',
-            borderRadius: 4,
-            color: '#ffffff'
-          }}
-        />
-        <Area
-          type="monotone"
-          dataKey="value"
-          stroke="#7dc244"
-          fill="#7dc244"
-          fillOpacity={0.2}
-        />
-      </AreaChart>
-    </ResponsiveContainer>
-  );
-}
-
-function PieChartWidget({ datos, width, height }: { datos: any[]; width: number; height: number }) {
-  return (
-    <ResponsiveContainer width={width} height={height}>
-      <PieChart>
-        <Pie
+    <div style={{ opacity: opacidad }}>
+      <ResponsiveContainer width={width} height={height}>
+        <BarChart
           data={datos}
-          cx="50%"
-          cy="50%"
-          labelLine={false}
-          label={(entry: any) => `${entry.label}: ${(entry.percent * 100).toFixed(0)}%`}
+          layout="horizontal"
+          margin={{ top: padding, right: padding, left: padding * 5, bottom: padding }}
         >
-          {datos.map((entry, index) => (
-            <Cell
-              key={`cell-${index}`}
-              fill={CHART_COLORS[index % CHART_COLORS.length]}
-            />
-          ))}
-        </Pie>
-        <Tooltip
-          contentStyle={{
-            background: '#1b2d5e',
-            border: 'none',
-            borderRadius: 4,
-            color: '#ffffff'
-          }}
-        />
-      </PieChart>
-    </ResponsiveContainer>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e6ef" />
+          <XAxis
+            type="number"
+            tick={{ fill: '#7a84a0', fontSize: 10 }}
+            stroke="#e2e6ef"
+            axisLine={false}
+          />
+          <YAxis
+            type="category"
+            dataKey="label"
+            tick={{ fill: '#7a84a0', fontSize: 10 }}
+            stroke="#e2e6ef"
+            axisLine={false}
+            width={60}
+          />
+          <Tooltip
+            contentStyle={{
+              background: '#1b2d5e',
+              border: 'none',
+              borderRadius: 4,
+              color: '#ffffff'
+            }}
+          />
+          <Bar dataKey="value" fill={colorPrincipal} radius={[0, 4, 4, 0]}>
+            {datos.map((entry, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={paletaPersonalizada[index % paletaPersonalizada.length]}
+              />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function LineChartWidget({ widget, datos, width, height }: { widget: any; datos: any[]; width: number; height: number }) {
+  const estilo = widget.config?.estilo || {};
+  const color = estilo.color_principal || '#7dc244';
+  const padding = estilo.padding ?? 12;
+  const opacidad = estilo.opacidad ?? 1;
+
+  return (
+    <div style={{ opacity: opacidad }}>
+      <ResponsiveContainer width={width} height={height}>
+        <LineChart data={datos} margin={{ top: padding, right: padding, bottom: padding, left: padding }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e6ef" />
+          <XAxis
+            dataKey="label"
+            tick={{ fill: '#7a84a0', fontSize: 10 }}
+            stroke="#e2e6ef"
+            axisLine={false}
+          />
+          <YAxis
+            tick={{ fill: '#7a84a0', fontSize: 10 }}
+            stroke="#e2e6ef"
+            axisLine={false}
+          />
+          <Tooltip
+            contentStyle={{
+              background: '#1b2d5e',
+              border: 'none',
+              borderRadius: 4,
+              color: '#ffffff'
+            }}
+          />
+          <Line
+            type="monotone"
+            dataKey="value"
+            stroke={color}
+            strokeWidth={2.5}
+            dot={{ fill: color, r: 4 }}
+            activeDot={{ r: 6 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function AreaChartWidget({ widget, datos, width, height }: { widget: any; datos: any[]; width: number; height: number }) {
+  const estilo = widget.config?.estilo || {};
+  const color = estilo.color_principal || '#7dc244';
+  const padding = estilo.padding ?? 12;
+  const opacidad = estilo.opacidad ?? 1;
+
+  return (
+    <div style={{ opacity: opacidad }}>
+      <ResponsiveContainer width={width} height={height}>
+        <AreaChart data={datos} margin={{ top: padding, right: padding, bottom: padding, left: padding }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e6ef" />
+          <XAxis
+            dataKey="label"
+            tick={{ fill: '#7a84a0', fontSize: 10 }}
+            stroke="#e2e6ef"
+            axisLine={false}
+          />
+          <YAxis
+            tick={{ fill: '#7a84a0', fontSize: 10 }}
+            stroke="#e2e6ef"
+            axisLine={false}
+          />
+          <Tooltip
+            contentStyle={{
+              background: '#1b2d5e',
+              border: 'none',
+              borderRadius: 4,
+              color: '#ffffff'
+            }}
+          />
+          <Area
+            type="monotone"
+            dataKey="value"
+            stroke={color}
+            fill={color}
+            fillOpacity={0.2}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function PieChartWidget({ widget, datos, width, height }: { widget: any; datos: any[]; width: number; height: number }) {
+  const estilo = widget.config?.estilo || {};
+  const colorPrincipal = estilo.color_principal || '#7dc244';
+  const opacidad = estilo.opacidad ?? 1;
+  const paletaPersonalizada = [colorPrincipal, ...CHART_COLORS.slice(1)];
+
+  return (
+    <div style={{ opacity: opacidad }}>
+      <ResponsiveContainer width={width} height={height}>
+        <PieChart>
+          <Pie
+            data={datos}
+            cx="50%"
+            cy="50%"
+            labelLine={false}
+            label={(entry: any) => `${entry.label}: ${(entry.percent * 100).toFixed(0)}%`}
+          >
+            {datos.map((entry, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={paletaPersonalizada[index % paletaPersonalizada.length]}
+              />
+            ))}
+          </Pie>
+          <Tooltip
+            contentStyle={{
+              background: '#1b2d5e',
+              border: 'none',
+              borderRadius: 4,
+              color: '#ffffff'
+            }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
