@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useReportStudioStore } from '@/lib/reportes/studio-store';
+import { updateWidgetConfig } from '@/lib/reportes/actions';
 import { Button } from '@/components/ui/button';
 
 // ========== COMPONENTE ==========
@@ -11,7 +12,42 @@ export function PropertiesPanel() {
     s.widgets.find((w) => w.id === s.selectedId)
   );
   const updateWidget = useReportStudioStore((s) => s.updateWidget);
+  const setIsSaving = useReportStudioStore((s) => s.setIsSaving);
   const setDeleteDialogOpen = useReportStudioStore((s) => s.setDeleteDialogOpen);
+
+  // Debounce para auto-guardado de estilo (500ms)
+  const debouncedSaveConfig = useMemo(
+    () => debounce(async (widgetId: string, config: any) => {
+      try {
+        await updateWidgetConfig(widgetId, config);
+        setIsSaving(false);
+      } catch (error) {
+        console.error('Error guardando estilo:', error);
+        setIsSaving(false);
+      }
+    }, 500),
+    [setIsSaving]
+  );
+
+  // Wrapper para actualizar estilo con auto-save
+  const handleUpdateEstilo = (campoEstilo: string, valor: any) => {
+    if (!selectedWidget) return;
+
+    const nuevoConfig = {
+      ...selectedWidget.config,
+      estilo: {
+        ...(selectedWidget.config?.estilo || {}),
+        [campoEstilo]: valor
+      }
+    };
+
+    // Actualizar store local inmediatamente
+    updateWidget(selectedWidget.id, { config: nuevoConfig });
+
+    // Persistir a Supabase con debounce 500ms
+    setIsSaving(true);
+    debouncedSaveConfig(selectedWidget.id, nuevoConfig);
+  };
 
   if (!selectedWidget) {
     return (
@@ -103,17 +139,7 @@ export function PropertiesPanel() {
                 key={color.value}
                 color={color.value}
                 selected={estilo.color_principal === color.value}
-                onClick={() =>
-                  updateWidget(selectedWidget.id, {
-                    config: {
-                      ...selectedWidget.config,
-                      estilo: {
-                        ...estilo,
-                        color_principal: color.value
-                      }
-                    }
-                  })
-                }
+                onClick={() => handleUpdateEstilo('color_principal', color.value)}
               />
             ))}
           </div>
@@ -133,17 +159,7 @@ export function PropertiesPanel() {
               min="0"
               max="32"
               value={estilo.padding || 12}
-              onChange={(e) =>
-                updateWidget(selectedWidget.id, {
-                  config: {
-                    ...selectedWidget.config,
-                    estilo: {
-                      ...estilo,
-                      padding: parseInt(e.target.value)
-                    }
-                  }
-                })
-              }
+              onChange={(e) => handleUpdateEstilo('padding', parseInt(e.target.value))}
               style={{
                 flex: 1,
                 height: 4,
@@ -180,17 +196,7 @@ export function PropertiesPanel() {
               min="0"
               max="16"
               value={estilo.border_radius || 8}
-              onChange={(e) =>
-                updateWidget(selectedWidget.id, {
-                  config: {
-                    ...selectedWidget.config,
-                    estilo: {
-                      ...estilo,
-                      border_radius: parseInt(e.target.value)
-                    }
-                  }
-                })
-              }
+              onChange={(e) => handleUpdateEstilo('border_radius', parseInt(e.target.value))}
               style={{
                 flex: 1,
                 height: 4,
@@ -227,17 +233,7 @@ export function PropertiesPanel() {
               min="50"
               max="100"
               value={((estilo.opacidad || 1) * 100).toFixed(0)}
-              onChange={(e) =>
-                updateWidget(selectedWidget.id, {
-                  config: {
-                    ...selectedWidget.config,
-                    estilo: {
-                      ...estilo,
-                      opacidad: parseInt(e.target.value) / 100
-                    }
-                  }
-                })
-              }
+              onChange={(e) => handleUpdateEstilo('opacidad', parseInt(e.target.value) / 100)}
               style={{
                 flex: 1,
                 height: 4,
@@ -361,3 +357,21 @@ const COLORS = [
   { value: '#e85d4a', label: 'Rojo' },
   { value: '#8b5cf6', label: 'Púrpura' }
 ];
+
+// ========== UTILIDADES ==========
+
+function debounce<T extends (...args: any[]) => void>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null;
+
+  return (...args: Parameters<T>) => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+    timeout = setTimeout(() => {
+      func(...args);
+    }, wait);
+  };
+}

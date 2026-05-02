@@ -38,7 +38,7 @@ export function buildQueryParams(
   if (activeFilters.length > 0) {
     activeFilters.forEach(filtro => {
       switch (filtro.campo) {
-        case 'fecCreacion':
+        case 'fecha_creacion':
           if (filtro.operador === 'gte') {
             params.p_fecha_desde = filtro.valor;
           } else if (filtro.operador === 'lte') {

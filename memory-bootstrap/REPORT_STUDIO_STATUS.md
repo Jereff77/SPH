@@ -1,9 +1,9 @@
 # Report Studio - Estado del Proyecto
 
-**Proyecto**: CRM Ventas - SPH Bienes Raíces  
-**Módulo**: Report Studio - Constructor de reportes y dashboards  
-**Fecha**: 01/05/2026  
-**Fase Actual**: Fase 3 completada  
+**Proyecto**: CRM Ventas - SPH Bienes Raíces
+**Módulo**: Report Studio - Constructor de reportes y dashboards
+**Fecha**: 01/05/2026 (actualizado: 9:45pm)
+**Fase Actual**: Fase 3 completada (3.1-3.4)
 **Stack**: Next.js 16, Supabase, React, Zustand, Recharts, react-rnd
 
 ---
@@ -102,6 +102,12 @@
 - ✅ Carga de datos desde Supabase en browser client
 - ✅ Transformación de datos según tipo de widget y agregación
 - ✅ Re-fetch automático al cambiar configuración
+- ✅ **Fase 3.4**: Función RPC `get_widget_grouped` creada en Supabase
+  - Ejecuta queries agrupados sobre `v_leads_completo` y `v_actividades_completo`
+  - Soporta 5 funciones de agregación: COUNT, SUM, AVG, MIN, MAX
+  - Soporta 4 filtros opcionales: fecha (desde/hasta), etapa, asesor, origen
+  - 3 capas de whitelist de seguridad (fuentes, dimensiones, agregación)
+  - Retorno compatible con Recharts: `TABLE(label TEXT, value NUMERIC)`
 
 **Archivos creados/modificados**:
 - `web/components/reportes/studio/panels/library-panel.tsx`
@@ -289,7 +295,63 @@ ALTER TABLE crm_reports
 
 ---
 
+#### 3.4. Conexión a Datos Reales + Bugs Corregidos
+
+**Implementado**:
+
+**Función RPC get_widget_grouped creada**:
+- ✅ Función SQL en Supabase con `SECURITY INVOKER` (respeta RLS)
+- ✅ 3 capas de whitelist de seguridad:
+  - **Fuentes**: Solo `v_leads_completo` y `v_actividades_completo`
+  - **Dimensiones**: 13 campos para leads, 9 para actividades (coinciden con estructura real de BD)
+  - **Agregación**: Solo `count`, `sum`, `avg`, `min`, `max`
+- ✅ `quote_ident()` en métrica para proteger contra SQL injection
+- ✅ Soporta 4 filtros opcionales: `p_fecha_desde`, `p_fecha_hasta`, `p_etapa`, `p_asesor`, `p_origen`
+- ✅ Retorna formato compatible con Recharts: `TABLE(label TEXT, value NUMERIC)`
+- ✅ Marca temporal: `[2026-05-01 18:00:00]`
+
+**Archivos modificados**:
+- `web/lib/reportes/query-builder.ts` - Corregido `fecCreacion` → `fecha_creacion`
+- `web/lib/reportes/actions.ts` - Llama a `supabase.rpc('get_widget_grouped')` con parámetros seguros
+- `web/lib/reportes/studio-store.ts` - Tiene `activeFilters: FiltroActivo[]` en estado (preparado para Fase 4)
+
+**Bugs corregidos**:
+
+1. **✅ Widgets muestran datos reales de Supabase** - COMPLETADO
+   - Función `get_widget_grouped` ejecuta queries agrupados sobre vistas
+   - Datos transformados a formato `ChartData[]` para Recharts
+   - Filtros globales soportados (aunque UI de filtros pendiente para Fase 4)
+
+2. **✅ Campo de fecha con nombre incorrecto** - CORREGIDO
+   - **Problema**: `query-builder.ts` usaba `fecCreacion` pero la columna en BD es `fecha_creacion`
+   - **Solución**: Cambiado `case 'fecCreacion'` → `case 'fecha_creacion'` en [query-builder.ts:41](web/lib/reportes/query-builder.ts#L41)
+
+3. **✅ Estilos del Panel de Propiedades no persistían** - CORREGIDO
+   - **Problema**: Cambios de color/padding/border_radius/opacidad se perdían al recargar
+   - **Causa**: `properties-panel.tsx` solo actualizaba estado local, nunca llamaba a Supabase
+   - **Solución**: Implementado patrón de `data-panel.tsx` con:
+     - Debounce 500ms con `useMemo` + función `debounce` local
+     - Feedback visual inmediato: `setIsSaving(true)`
+     - Handler `handleUpdateEstilo` que actualiza store local + persiste a Supabase
+     - Llamada a `updateWidgetConfig` de actions.ts
+   - **Archivos modificados**: `web/components/reportes/studio/panels/properties-panel.tsx`
+
+---
+
 ### 🔄 Fase 4: Pendiente (Próxima Fase)
+
+**Objetivo**: Sistema de filtros interactivos avanzado
+
+**Estado actual**:
+- ✅ **Backend preparado**: Función `get_widget_grouped` ya acepta parámetros de filtro (`p_fecha_desde`, `p_fecha_hasta`, `p_etapa`, `p_asesor`, `p_origen`)
+- ✅ **Frontend preparado**: `studio-store.ts` ya tiene `activeFilters: FiltroActivo[]` en estado
+- ✅ **Query builder listo**: `buildQueryParams()` mapea filtros activos a parámetros RPC
+
+**Por implementar**:
+- 4 tipos de widgets de filtro: rango fechas, multiselect, rango numérico, toggle
+- UI de filtros interactivos (panel lateral o flotante)
+- Conexión de filtros a widgets (afectan datos de múltiples widgets)
+- Estado de filtros persistido en Supabase (columna `filter_config` ya existe en `crm_widgets`)
 
 **Objetivo**: Sistema de filtros interactivos avanzado
 
@@ -677,6 +739,22 @@ const opacidad = estilo.opacidad ?? 1;
     - Cambiado `innerHeight = height - (widget.mostrar_titulo ? 32 : 0)` a `innerHeight = height`
     - Wrapper flex con `flex: 1` maneja automáticamente el espacio del título
 
+13. **✅ Widgets no mostraban datos reales** - CORREGIDO (Fase 3.4)
+    - Creada función `get_widget_grouped` en Supabase con SECURITY INVOKER
+    - Función RPC ejecuta queries agrupados sobre vistas `v_leads_completo` y `v_actividades_completo`
+    - 3 capas de whitelist: fuentes, dimensiones, agregación
+    - Formato de retorno compatible con Recharts: `TABLE(label TEXT, value NUMERIC)`
+
+14. **✅ Campo de fecha con nombre incorrecto en query-builder** - CORREGIDO (Fase 3.4)
+    - Cambiado `case 'fecCreacion'` → `case 'fecha_creacion'` para coincidir con columna real
+    - El mapeo de filtros ahora usa el nombre correcto de la columna
+
+15. **✅ Estilos del Panel de Propiedades no persistían** - CORREGIDO (Fase 3.4)
+    - **Problema**: Cambios de color/padding/border_radius/opacidad se perdían al recargar
+    - **Causa**: `properties-panel.tsx` solo actualizaba estado local de Zustand
+    - **Solución**: Implementado debounce 500ms + `updateWidgetConfig` de actions.ts
+    - Patrón replicado de `data-panel.tsx`: `handleUpdateEstilo` + feedback visual inmediato
+
 ---
 
 ## 6. Schema Completo de Supabase
@@ -996,5 +1074,5 @@ npx playwright test
 
 ---
 
-**Última actualización**: 01/05/2026  
-**Estado**: Fase 3 cerrada. Listo para iniciar Fase 4 (Sistema de Filtros Interactivos).
+**Última actualización**: 01/05/2026 9:45pm
+**Estado**: Fase 3 cerrada (3.1-3.4 completadas). Backend preparado para Fase 4: get_widget_grouped acepta parámetros de filtro, studio-store tiene activeFilters en estado. Listo para implementar UI de filtros interactivos.
