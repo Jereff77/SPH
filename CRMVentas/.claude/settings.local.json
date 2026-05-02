@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(git *)",
-      "Bash(rsync -av --exclude='.git' --exclude='.next' --exclude='node_modules' \"D:/Clientes/SPH Bines Raices/codigo/repoSPH/CRM Ventas/\" \"CRM Ventas/\")"
-    ]
-  }
-}
