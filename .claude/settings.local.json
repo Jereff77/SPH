@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(rsync -av --exclude='.git' --exclude='.next' --exclude='node_modules' \"D:/Clientes/SPH Bines Raices/codigo/repoSPH/CRM Ventas/\" \"CRM Ventas/\")",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_evaluate",
+      "mcp__supaSPH__execute_sql",
+      "mcp__supaSPH__apply_migration",
+      "Bash(npx shadcn@latest add slider)",
+      "Bash(npx shadcn@latest add slider --yes)",
+      "Bash(npx shadcn@latest add switch --yes)",
+      "Bash(npx shadcn@latest add switch tabs --yes)",
+      "mcp__supaSPH__list_tables"
+    ],
+    "additionalDirectories": [
+      "d:\\Clientes\\SPH Bines Raices\\codigo\\repoSPH\\CRM Ventas\\web\\app\\(crm)\\reportes-v2",
+      "D:\\Clientes\\SPH Bines Raices\\codigo\\repoSPH\\CRM Ventas\\web"
+    ]
+  }
+}
