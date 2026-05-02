@@ -6,6 +6,7 @@ Repositorio central para los proyectos de SPH. Este repositorio se usa como cont
 
 - `app-qr`
 - `cfdis`
+- `CRMVentas`
 - `ERP-RLS`
 - `QR-RLS`
 
@@ -25,6 +26,14 @@ git clone --single-branch --branch app-qr https://github.com/Jereff77/SPH
 
 ```bash
 git clone --single-branch --branch cfdis https://github.com/Jereff77/SPH
+```
+
+### CRMVentas
+
+CRM de Ventas para SPH Bienes Raíces - sistema de seguimiento de prospectos, leads y pipeline comercial. Incluye Report Studio, un constructor visual de reportes y dashboards con drag & drop.
+
+```bash
+git clone --single-branch --branch CRMVentas https://github.com/Jereff77/SPH
 ```
 
 ### ERP-RLS
