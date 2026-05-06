@@ -28,43 +28,47 @@ export function buildQueryParams(
     p_agregacion: config.agregacion || 'sum',
     p_fecha_desde: null,
     p_fecha_hasta: null,
-    p_etapa: null,
-    p_asesor: null,
-    p_origen: null,
+    p_filtros: [],
     p_limit: config.limite || 25
   };
 
-  // Mapear filtros activos a parámetros específicos
+  // Procesar filtros activos
   if (activeFilters.length > 0) {
-    activeFilters.forEach(filtro => {
-      switch (filtro.campo) {
-        case 'fecha_creacion':
-          if (filtro.operador === 'gte') {
+    const filtrosProcesados = activeFilters
+      .filter(filtro => {
+        // Excluir filtros de fecha especiales (se manejan con p_fecha_desde/hasta)
+        if (filtro.campo === 'fecha_creacion') {
+          // Los operadores mayor/menor/entre para fecha van a p_fecha_desde/hasta
+          if (filtro.operador === 'mayor') {
             params.p_fecha_desde = filtro.valor;
-          } else if (filtro.operador === 'lte') {
+          } else if (filtro.operador === 'menor') {
             params.p_fecha_hasta = filtro.valor;
+          } else if (filtro.operador === 'entre') {
+            params.p_fecha_desde = filtro.valor;
+            params.p_fecha_hasta = filtro.valor2;
           }
-          break;
+          return false; // No incluir en p_filtros
+        }
+        return true; // Incluir en p_filtros
+      })
+      .map(filtro => {
+        // Mapear operadores en español a valores del filtro
+        const operadorMap: Record<string, string> = {
+          'igual': 'igual',
+          'en_lista': 'en_lista',
+          'entre': 'entre'
+        };
 
-        case 'etapa':
-          if (filtro.operador === 'eq') {
-            params.p_etapa = filtro.valor;
-          }
-          break;
+        return {
+          campo: filtro.campo,
+          operador: operadorMap[filtro.operador] || 'igual',
+          valor: filtro.valor,
+          valor2: filtro.valor2
+        };
+      });
 
-        case 'responsable_comercial':
-          if (filtro.operador === 'eq') {
-            params.p_asesor = filtro.valor;
-          }
-          break;
-
-        case 'origen':
-          if (filtro.operador === 'eq') {
-            params.p_origen = filtro.valor;
-          }
-          break;
-      }
-    });
+    // Convertir a JSONB para Supabase (array JavaScript → JSONB automático)
+    params.p_filtros = filtrosProcesados;
   }
 
   return params;
@@ -145,9 +149,7 @@ export interface QueryParams {
   p_agregacion: 'count' | 'sum' | 'avg' | 'min' | 'max';
   p_fecha_desde: string | null;
   p_fecha_hasta: string | null;
-  p_etapa: string | null;
-  p_asesor: string | null;
-  p_origen: string | null;
+  p_filtros: object[];
   p_limit: number;
 }
 

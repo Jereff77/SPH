@@ -7,8 +7,7 @@ import { ChartRenderer } from '../renderers/chart-renderer';
 import { KpiRenderer } from '../renderers/kpi-renderer';
 import { TableRenderer } from '../renderers/table-renderer';
 import { FilterRenderer } from '../renderers/filter-renderer';
-import { updateWidgetLayout } from '@/lib/reportes/actions';
-import { createClient } from '@/lib/supabase/client';
+import { updateWidgetLayout, getWidgetData } from '@/lib/reportes/actions';
 import { WidgetData } from '@/lib/reportes/types';
 
 // ========== COMPONENTE ==========
@@ -23,11 +22,15 @@ interface WidgetWrapperProps {
 
 export function WidgetWrapper({ widget, selected, onSelect, zoom, mode = 'design' }: WidgetWrapperProps) {
   const { updateWidget } = useReportStudioStore();
+  const activeFilters = useReportStudioStore((s) => s.activeFilters);
   const [widgetData, setWidgetData] = useState<WidgetData | undefined>(undefined);
 
   // Cargar datos del widget cuando la configuración está completa
   useEffect(() => {
     const cargarDatos = async () => {
+      // Widgets de filtro no cargan datos de gráfica
+      if (widget.widget_category === 'filter') return;
+
       const { config } = widget;
       if (!config) return;
 
@@ -43,34 +46,16 @@ export function WidgetWrapper({ widget, selected, onSelect, zoom, mode = 'design
       }
 
       try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from(config.fuente)
-          .select('*')
-          .limit(config.limite || 25);
-
-        if (error) {
-          console.error('Error cargando datos:', error);
-          return;
-        }
-
-        // Transformar datos al formato del renderer
-        const transformedData = transformarDatos(data || [], widget);
-        setWidgetData({
-          tipo: widget.tipo,
-          datos: transformedData,
-          metadata: {
-            total: transformedData.length,
-            campos: esKPI ? [config.dimension] : [config.dimension, config.metrica]
-          }
-        });
+        const data = await getWidgetData(widget.id, activeFilters);
+        setWidgetData(data);
       } catch (err) {
-        console.error('Error cargando datos:', err);
+        console.error('Error cargando datos del widget:', err);
+        setWidgetData(undefined);
       }
     };
 
     cargarDatos();
-  }, [widget.config?.dimension, widget.config?.metrica, widget.config?.agregacion, widget.id, widget.tipo]);
+  }, [widget.id, widget.config?.dimension, widget.config?.metrica, widget.config?.agregacion, widget.tipo, activeFilters]);
 
   // Debounce de persistencia de layout (no guardar en cada pixel de movimiento)
   const debouncedSave = useMemo(
@@ -248,85 +233,6 @@ export function WidgetWrapper({ widget, selected, onSelect, zoom, mode = 'design
 }
 
 // ========== UTILIDADES ==========
-
-function transformarDatos(data: any[], widget: Widget): any[] {
-  const { config } = widget;
-  if (!config) return [];
-
-  const esKPI = widget.tipo === 'kpi';
-
-  // Para KPIs: agregar con la función especificada
-  if (esKPI) {
-    const campo = config.dimension;
-    const agregacion = config.agregacion || 'count';
-
-    if (agregacion === 'count') {
-      // COUNT: retornar un solo registro con el total
-      return [{ label: 'Total', value: data.length }];
-    } else if (agregacion === 'sum' && campo) {
-      // SUM: sumar el campo numérico
-      const suma = data.reduce((acc, row) => acc + (Number(row[campo]) || 0), 0);
-      return [{ label: 'Suma', value: suma }];
-    } else if (agregacion === 'avg' && campo) {
-      // AVG: promedio del campo numérico
-      const valores = data.map(row => Number(row[campo]) || 0).filter(v => !isNaN(v));
-      const promedio = valores.length > 0 ? valores.reduce((a, b) => a + b, 0) / valores.length : 0;
-      return [{ label: 'Promedio', value: promedio }];
-    } else if (agregacion === 'min' && campo) {
-      // MIN: valor mínimo
-      const valores = data.map(row => Number(row[campo]) || 0).filter(v => !isNaN(v));
-      const min = valores.length > 0 ? Math.min(...valores) : 0;
-      return [{ label: 'Mínimo', value: min }];
-    } else if (agregacion === 'max' && campo) {
-      // MAX: valor máximo
-      const valores = data.map(row => Number(row[campo]) || 0).filter(v => !isNaN(v));
-      const max = valores.length > 0 ? Math.max(...valores) : 0;
-      return [{ label: 'Máximo', value: max }];
-    }
-    return [{ label: 'Total', value: data.length }];
-  }
-
-  // Para gráficos: agrupar por dimensión y aplicar agregación al campo métrica
-  const dimension = config.dimension;
-  const metrica = config.metrica;
-  const agregacion = config.agregacion || 'sum';
-
-  if (!dimension || !metrica) return [];
-
-  // Agrupar datos por dimensión
-  const agrupados = data.reduce((acc: any, row: any) => {
-    const key = row[dimension];
-    if (!acc[key]) {
-      acc[key] = { label: key, value: 0, valores: [] };
-    }
-
-    // Recolectar valores para poder calcular avg, min, max
-    const valor = Number(row[metrica]) || 0;
-    acc[key].valores.push(valor);
-    acc[key].value += valor; // Por defecto sumamos
-
-    return acc;
-  }, {});
-
-  // Aplicar la función de agregación a cada grupo
-  return Object.values(agrupados).map((grupo: any) => {
-    if (agregacion === 'count') {
-      grupo.value = grupo.valores.length;
-    } else if (agregacion === 'sum') {
-      grupo.value = grupo.valores.reduce((a: number, b: number) => a + b, 0);
-    } else if (agregacion === 'avg') {
-      grupo.value = grupo.valores.length > 0
-        ? grupo.valores.reduce((a: number, b: number) => a + b, 0) / grupo.valores.length
-        : 0;
-    } else if (agregacion === 'min') {
-      grupo.value = grupo.valores.length > 0 ? Math.min(...grupo.valores) : 0;
-    } else if (agregacion === 'max') {
-      grupo.value = grupo.valores.length > 0 ? Math.max(...grupo.valores) : 0;
-    }
-    // sum es el default, ya está calculado
-    return grupo;
-  });
-}
 
 function debounce(
   func: (...args: any[]) => void,

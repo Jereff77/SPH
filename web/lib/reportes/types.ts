@@ -82,7 +82,7 @@ export interface FiltroActivo {
   campo: string;
   operador: OperadorFiltro;
   valor: any;
-  valor2?: any;  // Para operador 'between'
+  valor2?: any;  // Para operador 'entre'
 }
 
 export interface FiltroLocal {
@@ -92,17 +92,16 @@ export interface FiltroLocal {
 }
 
 export type OperadorFiltro =
-  | 'eq'          // igual a
-  | 'neq'         // no igual a
-  | 'contains'    // contiene
-  | 'in'          // está en (lista)
-  | 'gt'          // mayor que
-  | 'gte'         // mayor o igual que
-  | 'lt'          // menor que
-  | 'lte'         // menor o igual que
-  | 'between'     // está entre
-  | 'is_null'     // es vacío
-  | 'not_null';   // no es vacío
+  | 'igual'
+  | 'distinto'
+  | 'contiene'
+  | 'no_contiene'
+  | 'mayor'
+  | 'menor'
+  | 'entre'
+  | 'en_lista'
+  | 'is_null'
+  | 'not_null';
 
 // ========== TIPOS DE WIDGET ==========
 
@@ -119,7 +118,8 @@ export type WidgetType =
   | 'filter_daterange'
   | 'filter_multiselect'
   | 'filter_numericrange'
-  | 'filter_toggle';
+  | 'filter_toggle'
+  | 'filter_dropdown';
 
 export type Agregacion = 'count' | 'sum' | 'avg' | 'max' | 'min';
 

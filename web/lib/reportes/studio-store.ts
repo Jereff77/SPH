@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { WidgetType } from './types';
+import { updateReporte } from './actions';
 
 // ========== TIPOS ==========
 
@@ -100,9 +101,18 @@ interface ReportStudioState {
 
 // ========== STORE ==========
 
+// Debounce para persistir filtros en Supabase (500ms)
+const debouncedSaveFilters = debounce(async (reporteId: string, filtros: object[]) => {
+  try {
+    await updateReporte(reporteId, { filtros_activos: filtros });
+  } catch (error) {
+    console.error('Error guardando filtros:', error);
+  }
+}, 500);
+
 export const useReportStudioStore = create<ReportStudioState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // ========== ESTADO INICIAL ==========
       report: null,
       widgets: [],
@@ -149,15 +159,34 @@ export const useReportStudioStore = create<ReportStudioState>()(
       setDeleteDialogOpen: (open) => set({ isDeleteDialogOpen: open }),
 
       // ========== ACCIONES - FILTROS ==========
-      setActiveFilters: (filters) => set({ activeFilters: filters }),
+      setActiveFilters: (filters) => {
+        set({ activeFilters: filters });
+        const { report } = get();
+        if (report?.id) {
+          debouncedSaveFilters(report.id, filters);
+        }
+      },
 
-      addFilter: (filter) => set((state) => ({
-        activeFilters: [...state.activeFilters, filter]
-      })),
+      addFilter: (filter) => {
+        const nuevosFiltros = [
+          ...get().activeFilters.filter((f) => f.campo !== filter.campo),
+          filter
+        ];
+        set({ activeFilters: nuevosFiltros });
+        const { report } = get();
+        if (report?.id) {
+          debouncedSaveFilters(report.id, nuevosFiltros);
+        }
+      },
 
-      removeFilter: (campo) => set((state) => ({
-        activeFilters: state.activeFilters.filter((f) => f.campo !== campo)
-      })),
+      removeFilter: (campo) => {
+        const nuevosFiltros = get().activeFilters.filter((f) => f.campo !== campo);
+        set({ activeFilters: nuevosFiltros });
+        const { report } = get();
+        if (report?.id) {
+          debouncedSaveFilters(report.id, nuevosFiltros);
+        }
+      },
 
       // ========== ACCIONES - UI ==========
       setZoom: (zoom) => set({ zoom, zoomMode: 'fixed' }),
@@ -333,6 +362,11 @@ export const useReportStudioStore = create<ReportStudioState>()(
             newState.pageHeight = reporte.page_height;
           }
 
+          // Restaurar filtros activos desde Supabase
+          if (reporte.filtros_activos && Array.isArray(reporte.filtros_activos)) {
+            newState.activeFilters = reporte.filtros_activos;
+          }
+
           return newState;
         }),
     }),
@@ -349,3 +383,21 @@ export const useReportStudioStore = create<ReportStudioState>()(
     }
   )
 );
+
+// ========== UTILIDADES ==========
+// Función debounce para auto-guardado de filtros
+function debounce<T extends (...args: any[]) => void>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null;
+
+  return (...args: Parameters<T>) => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+    timeout = setTimeout(() => {
+      func(...args);
+    }, wait);
+  };
+}

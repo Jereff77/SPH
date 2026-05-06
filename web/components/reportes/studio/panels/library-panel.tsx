@@ -25,7 +25,8 @@ const PALETTE = [
       { tipo: 'filter_daterange', label: 'Rango fechas', icon: '📅' },
       { tipo: 'filter_multiselect', label: 'Multiselect', icon: '☰' },
       { tipo: 'filter_numericrange', label: 'Rango numérico', icon: '⇔' },
-      { tipo: 'filter_toggle', label: 'Toggle', icon: '⊙' }
+      { tipo: 'filter_toggle', label: 'Toggle', icon: '⊙' },
+      { tipo: 'filter_dropdown', label: 'Selección', icon: '▾' }
     ]
   }
 ];

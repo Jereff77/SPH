@@ -2,8 +2,8 @@
 
 **Proyecto**: CRM Ventas - SPH Bienes Raíces
 **Módulo**: Report Studio - Constructor de reportes y dashboards
-**Fecha**: 01/05/2026 (actualizado: 9:45pm)
-**Fase Actual**: Fase 3 completada (3.1-3.4)
+**Fecha**: 02/05/2026 (actualizado: 2:30am)
+**Fase Actual**: Fase 4 completada
 **Stack**: Next.js 16, Supabase, React, Zustand, Recharts, react-rnd
 
 ---
@@ -338,28 +338,240 @@ ALTER TABLE crm_reports
 
 ---
 
-### 🔄 Fase 4: Pendiente (Próxima Fase)
+### ✅ Fase 4: Completada
 
 **Objetivo**: Sistema de filtros interactivos avanzado
 
-**Estado actual**:
-- ✅ **Backend preparado**: Función `get_widget_grouped` ya acepta parámetros de filtro (`p_fecha_desde`, `p_fecha_hasta`, `p_etapa`, `p_asesor`, `p_origen`)
-- ✅ **Frontend preparado**: `studio-store.ts` ya tiene `activeFilters: FiltroActivo[]` en estado
-- ✅ **Query builder listo**: `buildQueryParams()` mapea filtros activos a parámetros RPC
+**Implementado**:
+
+#### 4.1. 5 Tipos de Filtros Interactivos
+
+**Filtros implementados**:
+- ✅ **Dropdown/Selección** (`filter_dropdown`): Selección simple con operador `igual`
+- ✅ **MultiSelect** (`filter_multiselect`): Selección múltiple con operador `en_lista`
+- ✅ **DateRange** (`filter_daterange`): Rango de fechas con operador `entre` + parámetros especiales p_fecha_desde/hasta
+- ✅ **NumericRange** (`filter_numericrange`): Rango numérico con operador `entre`
+- ✅ **Toggle** (`filter_toggle`): Booleano con operador `igual`
+
+**Componente FilterRenderer**:
+- ✅ `filter-renderer.tsx` (~520 líneas) - Renderiza 5 tipos de filtros interactivos
+- ✅ Sincronización bidireccional con estado global `activeFilters`
+- ✅ Carga dinámica de opciones desde Supabase (`getDistinctValues` para dropdowns/multiselect)
+- ✅ Estado local sincronizado con filtro activo (useEffect)
+- ✅ Handlers `onAddFilter` y `onRemoveFilter` para actualización de estado
+
+**Flujo de interacción**:
+1. Usuario cambia valor en filtro (ej: selecciona etapa en dropdown)
+2. `handleChange` ejecuta → `addFilter` o `removeFilter` del store
+3. `activeFilters` cambia en Zustand
+4. `widget-wrapper.tsx` detecta cambio (useEffect dependency)
+5. `getWidgetData` se re-ejecuta con nuevos filtros
+6. Widget muestra datos actualizados
+
+**Archivos creados/modificados**:
+- `web/components/reportes/studio/renderers/filter-renderer.tsx` - Nuevo (~520 líneas)
+- `web/components/reportes/studio/panels/library-panel.tsx` - Agregado `filter_dropdown` a PALETTE
+- `web/lib/reportes/studio-store.ts` - `addFilter` con upsert por campo (reemplaza existente)
+- `web/lib/reportes/actions.ts` - `getDistinctValues` para populatear filtros
+
+---
+
+#### 4.2. Re-fetch Automático de Widgets
+
+**Implementado**:
+- ✅ `widget-wrapper.tsx` - `activeFilters` como dependencia de useEffect
+- ✅ `getWidgetData` se re-ejecuta automáticamente cuando `activeFilters` cambia
+- ✅ Todos los widgets de gráfica responden a filtros globales simultáneamente
+- ✅ Widgets de filtro (`widget_category === 'filter'`) no cargan datos de gráfica
+
+**Flujo de reactividad**:
+```typescript
+// En widget-wrapper.tsx
+useEffect(() => {
+  const cargarDatos = async () => {
+    if (widget.widget_category === 'filter') return;
+    // ... validación de config ...
+    const data = await getWidgetData(widget.id, activeFilters);
+    setWidgetData(data);
+  };
+  cargarDatos();
+}, [widget.id, widget.config, activeFilters]); // ✅ activeFilters como dependencia
+```
+
+**Características**:
+- Re-fetch optimizado: solo se ejecuta cuando `activeFilters` cambia realmente (referencial equality)
+- No hay duplicación de lógica: `getWidgetData` maneja todos los filtros en backend
+- Sincronización visual inmediata: optimistic UI updates + re-fetch en background
+
+---
+
+#### 4.3. RPC get_widget_grouped v2 con p_filtros JSONB
+
+**Arquitectura de filtrado**:
+- ✅ **Parámetro `p_filtros`**: Array JSONB con filtros genéricos
+- ✅ **Reemplaza parámetros fijos**: `p_etapa`, `p_asesor`, `p_origen` eliminados
+- ✅ **Escala ilimitada**: Soporta N filtros simultáneos con 3 operadores
+- ✅ **Whitelist dinámica**: Validación de campos según fuente en cada iteración
+
+**Estructura de p_filtros**:
+```json
+[
+  {
+    "campo": "etapa",
+    "operador": "igual",
+    "valor": "Registro"
+  },
+  {
+    "campo": "origen",
+    "operador": "en_lista",
+    "valor": "[\"Inmobiliaria\", \"SPH\"]"
+  },
+  {
+    "campo": "valor",
+    "operador": "entre",
+    "valor": "1000000",
+    "valor2": "10000000"
+  }
+]
+```
+
+**Operadores soportados**:
+- `igual`: Igualdad exacta (dropdown, toggle)
+- `en_lista`: Pertenencia a lista (multiselect)
+- `entre`: Rango (daterange, numericrange)
+
+**Whitelist de seguridad**:
+1. **Fuentes**: `v_leads_completo`, `v_actividades_completo`
+2. **Campos por fuente**: 13 campos para leads, 9 para actividades + `valor` para filtros numéricos
+3. **Operadores**: Solo `igual`, `en_lista`, `entre` permitidos
+
+**Migración SQL aplicada**:
+```sql
+-- Versión v2 con p_filtros JSONB
+CREATE OR REPLACE FUNCTION public.get_widget_grouped(
+  p_fuente TEXT,
+  p_dimension TEXT,
+  p_metrica TEXT,
+  p_agregacion TEXT DEFAULT 'count',
+  p_fecha_desde TEXT DEFAULT NULL,
+  p_fecha_hasta TEXT DEFAULT NULL,
+  p_filtros JSONB DEFAULT '[]',
+  p_limit INTEGER DEFAULT 25
+) RETURNS TABLE(label TEXT, value NUMERIC)
+```
+
+**Archivos modificados**:
+- `web/lib/reportes/query-builder.ts` - Procesamiento de filtros con operadores, mapeo a p_filtros
+- `web/lib/reportes/actions.ts` - Llamada a RPC con parámetro `p_filtros`
+- `web/lib/reportes/types.ts` - `QueryParams.p_filtros: object[]`, `OperadorFiltro` unificado a español
+- Supabase RPC - `get_widget_grouped` v2 creada, versión vieja eliminada
+
+---
+
+#### 4.4. Persistencia de Filtros Activos
+
+**Implementado**:
+- ✅ **Columna Supabase**: `filtros_activos JSONB` agregada a `crm_reports`
+- ✅ **Debounce de persistencia**: 500ms para guardar cambios de filtros
+- ✅ **Restauración automática**: `initializeFromSupabase` carga filtros al abrir reporte
+- ✅ **Sincronización visual**: `useEffect` con dependencias específicas (`[filtroActivo?.valor]`)
+- ✅ **Arquitectura corregida**: `updateWidgetConfig` actualiza `config` y `filter_config` por separado
+
+**Flujo de persistencia completa**:
+1. Usuario configura campo vinculado → Guarda en `widget.filter_config.campo_vinculado`
+2. Usuario selecciona valor → Debounce 500ms → Guarda en `reporte.filtros_activos`
+3. Widgets de gráfica re-fetchean datos automáticamente con `activeFilters`
+4. Al recargar página: `initializeFromSupabase` restaura filtros desde Supabase
+5. `useEffect` detecta cambio `undefined` → valor → Inputs se sincronizan visualmente
+
+**Migración SQL aplicada**:
+```sql
+ALTER TABLE public.crm_reports
+  ADD COLUMN IF NOT EXISTS filtros_activos JSONB DEFAULT '[]';
+```
+
+**Archivos modificados**:
+- `web/lib/reportes/studio-store.ts` - `debouncedSaveFilters`, `initializeFromSupabase` restaura filtros, `get` agregado
+- `web/lib/reportes/actions.ts` - `updateReporte` acepta `filtros_activos`, `updateWidgetConfig` acepta `filterConfig`
+- `web/components/reportes/studio/panels/data-panel.tsx` - `handleUpdateWidget` separa `config` y `filter_config`
+- `web/components/reportes/studio/renderers/filter-renderer.tsx` - `useEffect` con `[filtroActivo?.valor]`
+
+---
+
+**Bugs corregidos en Fase 4**:
+
+16. **✅ Bug #16: p_filtros enviado como string en lugar de object[]** - CORREGIDO
+    - **Problema**: `query-builder.ts` enviaba `p_filtros: '[]'::text` en lugar de array JavaScript
+    - **Error Supabase**: "cannot extract elements from a scalar"
+    - **Causa**: JSON.stringify() convertía array a string
+    - **Solución**: `QueryParams.p_filtros: object[]` + `params.p_filtros = filtrosProcesados`
+    - Supabase convierte automáticamente array JavaScript → JSONB
+
+17. **✅ Bug #17: Doble sistema de operadores (español/inglés)** - CORREGIDO
+    - **Problema**: `types.ts` usaba OperadorFiltro en inglés, `studio-store.ts` usaba español
+    - **Error TypeScript**: "types 'OperadorFiltro' and '"mayor"' have no overlap"
+    - **Solución**: Unificado todo a español en `types.ts`
+    - `OperadorFiltro` ahora: `'igual' | 'distinto' | 'contiene' | 'no_contiene' | 'mayor' | 'menor' | 'entre' | 'en_lista' | 'is_null' | 'not_null'`
+
+18. **✅ Bug #18: addFilter acumulaba duplicados por campo** - CORREGIDO
+    - **Problema**: Se podían tener 2 filtros con mismo campo (ej: 2 filtros de "etapa")
+    - **Solución**: `addFilter` ahora hace upsert: reemplaza filtro existente con mismo campo
+    - Implementación: `[...state.activeFilters.filter(f => f.campo !== filter.campo), filter]`
+
+19. **✅ Bug #19: get_widget_grouped retornaba BIGINT en lugar de NUMERIC** - CORREGIDO
+    - **Problema**: COUNT(*) retorna BIGINT, pero RETURNS TABLE esperaba NUMERIC
+    - **Error**: "structure of query does not match function result type"
+    - **Solución**: Cast `(%s)::NUMERIC` en v_sql de función RPC
+    - Aplica a count y otras agregaciones que retornan enteros
+
+20. **✅ Bug #20: activeFilters no persistían al recargar** - CORREGIDO (Fase 4)
+    - **Problema**: `filtros_activos` no se guardaba en Supabase, se perdían al recargar
+    - **Causa**: `debouncedSaveFilters` nunca se llamaba desde acciones de filtros
+    - **Solución**: `addFilter`, `removeFilter`, `setActiveFilters` llaman a `debouncedSaveFilters` con debounce 500ms
+    - Columna `filtros_activos JSONB` agregada a `crm_reports`
+
+21. **✅ Bug #21: Filtros no se renderizaban visualmente al restaurar** - CORREGIDO (Fase 4)
+    - **Problema**: Al recargar página, inputs de filtros aparecían vacíos (no mostraban selección guardada)
+    - **Causa 1**: `filter_config.campo_vinculado` no se persistía (guardado dentro de `config`, columna separada)
+    - **Causa 2**: `useEffect` usaba dependencia `[filtroActivo]` (objeto completo) en lugar de `[filtroActivo?.valor]`
+    - **Solución 1**: `updateWidgetConfig` actualiza columnas `config` y `filter_config` por separado
+    - **Solución 2**: Cambiar dependencias a `[filtroActivo?.valor, filtroActivo?.valor2]` para detectar cambio `undefined` → valor
+
+---
+
+**Testing completado**:
+- ✅ **Backend**: 8 tests RPC ejecutados (5 tipos de filtro + combinaciones múltiples)
+- ✅ **Frontend**: Compilación TypeScript sin errores
+- ✅ **Integración**: Filtros → Store → WidgetWrapper → RPC → Datos actualizados
+- ✅ **Combinaciones**: Múltiples filtros simultáneos + filtros de fecha + JSONB
+
+**Archivos modificados en Fase 4**:
+- `web/components/reportes/studio/renderers/filter-renderer.tsx` - NUEVO (~520 líneas)
+- `web/components/reportes/studio/panels/library-panel.tsx` - filter_dropdown agregado
+- `web/lib/reportes/studio-store.ts` - addFilter con upsert, activeFilters en estado
+- `web/lib/reportes/query-builder.ts` - p_filtros object[], procesamiento de operadores
+- `web/lib/reportes/types.ts` - OperadorFiltro español, QueryParams.p_filtros object[]
+- `web/lib/reportes/actions.ts` - getDistinctValues, getWidgetData usa p_filtros
+- `web/components/reportes/studio/canvas/widget-wrapper.tsx` - activeFilters dependency
+- Supabase RPC - get_widget_grouped v2 con p_filtros JSONB
+
+---
+
+---
+
+---
+
+### 📋 Fase 3.5: Próxima Fase (Pendiente)
+
+**Objetivo**: Configuración avanzada por tipo de widget
 
 **Por implementar**:
-- 4 tipos de widgets de filtro: rango fechas, multiselect, rango numérico, toggle
-- UI de filtros interactivos (panel lateral o flotante)
-- Conexión de filtros a widgets (afectan datos de múltiples widgets)
-- Estado de filtros persistido en Supabase (columna `filter_config` ya existe en `crm_widgets`)
+- **Gráficos**: Ángulo de etiquetas en ejes (0°, 45°, 90°), mostrar/ocultar grid, mostrar/ocultar leyenda
+- **Tablas**: Selector de columnas visibles, orden de columnas, paginación configurable (10/25/50 filas)
+- **KPIs**: Formato numérico (decimal, moneda, porcentaje), subtítulo personalizable, icono personalizable
+- **Todos**: Borde superior/inferior (no solo radius), sombra, fondo gradiente
 
-**Objetivo**: Sistema de filtros interactivos avanzado
-
-**Por implementar**:
-- 4 tipos de filtros: rango fechas, multiselect, rango numérico, toggle
-- Filtros vinculados a widgets (afectan datos de múltiples widgets)
-- Lógica de filtrado en Server Side (RPC segura)
-- Estado de filtros persistido en Supabase
+**Nota**: Fase de mejora continua basada en necesidades de personalización más granular. Se implementará antes de exportación PDF.
 
 ---
 
@@ -372,20 +584,6 @@ ALTER TABLE crm_reports
 - Estilos finales y pulido de UI
 - Documentación de usuario
 - Testing completo E2E
-
----
-
-### 📋 Radar: Fase 3.5 - Configuración Avanzada por Tipo de Widget (Futura)
-
-**Objetivo**: Propiedades específicas según tipo de widget
-
-**Por implementar**:
-- **Gráficos**: Ángulo de etiquetas en ejes (0°, 45°, 90°), mostrar/ocultar grid, mostrar/ocultar leyenda
-- **Tablas**: Selector de columnas visibles, orden de columnas, paginación configurable (10/25/50 filas)
-- **KPIs**: Formato numérico (decimal, moneda, porcentaje), subtítulo personalizable, icono personalizable
-- **Todos**: Borde superior/inferior (no solo radius), sombra, fondo gradiente
-
-**Nota**: Esta fase surge de necesidad natural de personalización más granular. Se implementará después de Fase 4.
 
 ---
 
@@ -417,16 +615,16 @@ web/
 │       ├── chart-renderer.tsx             # Renderiza Recharts (bar, line, pie) ~280 líneas
 │       ├── kpi-renderer.tsx               # Renderiza KPIs ~170 líneas
 │       ├── table-renderer.tsx             # Renderiza tablas ~200 líneas
-│       └── filter-renderer.tsx            # Renderiza filtros ~40 líneas
+│       └── filter-renderer.tsx            # Renderiza 5 tipos de filtros ~520 líneas
 │
 ├── lib/reportes/
 │   ├── studio-store.ts                    # Zustand store ~250 líneas
-│   ├── actions.ts                         # Server Actions + API calls ~420 líneas
+│   ├── actions.ts                         # Server Actions + API calls ~475 líneas
 │   ├── query-builder.ts                   # Construye params RPC ~160 líneas
 │   └── types.ts                           # Interfaces TypeScript ~180 líneas
 ```
 
-**Total aproximado**: ~3,400 líneas de código TypeScript/TSX
+**Total aproximado**: ~3,950 líneas de código TypeScript/TSX
 
 ---
 
@@ -755,6 +953,30 @@ const opacidad = estilo.opacidad ?? 1;
     - **Solución**: Implementado debounce 500ms + `updateWidgetConfig` de actions.ts
     - Patrón replicado de `data-panel.tsx`: `handleUpdateEstilo` + feedback visual inmediato
 
+16. **✅ p_filtros enviado como string en lugar de object[]** - CORREGIDO (Fase 4)
+    - **Problema**: `query-builder.ts` enviaba `p_filtros: '[]'::text` en lugar de array JavaScript
+    - **Error Supabase**: "cannot extract elements from a scalar"
+    - **Causa**: JSON.stringify() convertía array a string, Supabase esperaba JSONB
+    - **Solución**: `QueryParams.p_filtros: object[]` + `params.p_filtros = filtrosProcesados`
+    - Supabase convierte automáticamente array JavaScript → JSONB
+
+17. **✅ Doble sistema de operadores (español/inglés)** - CORREGIDO (Fase 4)
+    - **Problema**: `types.ts` usaba OperadorFiltro en inglés, `studio-store.ts` usaba español
+    - **Error TypeScript**: "types 'OperadorFiltro' and '"mayor"' have no overlap"
+    - **Solución**: Unificado todo a español en `types.ts`
+    - `OperadorFiltro` ahora: `'igual' | 'distinto' | 'contiene' | 'no_contiene' | 'mayor' | 'menor' | 'entre' | 'en_lista' | 'is_null' | 'not_null'`
+
+18. **✅ addFilter acumulaba duplicados por campo** - CORREGIDO (Fase 4)
+    - **Problema**: Se podían tener 2 filtros con mismo campo (ej: 2 filtros de "etapa")
+    - **Solución**: `addFilter` ahora hace upsert: reemplaza filtro existente con mismo campo
+    - Implementación: `[...state.activeFilters.filter(f => f.campo !== filter.campo), filter]`
+
+19. **✅ get_widget_grouped retornaba BIGINT en lugar de NUMERIC** - CORREGIDO (Fase 4)
+    - **Problema**: COUNT(*) retorna BIGINT, pero RETURNS TABLE esperaba NUMERIC
+    - **Error**: "structure of query does not match function result type"
+    - **Solución**: Cast `(%s)::NUMERIC` en v_sql de función RPC
+    - Aplica a count y otras agregaciones que retornan enteros
+
 ---
 
 ## 6. Schema Completo de Supabase
@@ -1069,10 +1291,11 @@ npx playwright test
 - Fase 2: ✅ Completada (incluyendo todos los bugs)
 - Mejoras Canvas: ✅ Completadas
 - Fase 3: ✅ Completada (eliminación, RLS, properties panel + renderers)
-- Fase 4: 🔄 Próxima (filtros interactivos)
+- Fase 4: ✅ Completada (sistema de filtros interactivos con 5 tipos de filtros)
+- Fase 3.5: 🔄 Próxima (configuración avanzada por tipo de widget)
 - Fase 5: ⏳ Pendiente (exportación PDF, pulido)
 
 ---
 
-**Última actualización**: 01/05/2026 9:45pm
-**Estado**: Fase 3 cerrada (3.1-3.4 completadas). Backend preparado para Fase 4: get_widget_grouped acepta parámetros de filtro, studio-store tiene activeFilters en estado. Listo para implementar UI de filtros interactivos.
+**Última actualización**: 02/05/2026 2:30am
+**Estado**: Fase 4 completada (4.1-4.4). Sistema de filtros interactivos 100% funcional con 5 tipos de filtros, persistencia en Supabase (filtros_activos en crm_reports), restauración automática al recargar página, sincronización visual correcta, RPC get_widget_grouped v2 con p_filtros JSONB, re-fetch automático de widgets. Próxima fase: 3.5 (configuración avanzada por tipo de widget).

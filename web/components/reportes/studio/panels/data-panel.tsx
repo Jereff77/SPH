@@ -21,9 +21,9 @@ export function DataPanel() {
 
   // Debounce para auto-guardado de config (500ms)
   const debouncedSaveConfig = useMemo(
-    () => debounce(async (widgetId: string, config: any) => {
+    () => debounce(async (widgetId: string, config: any, filterConfig?: any) => {
       try {
-        await updateWidgetConfig(widgetId, config);
+        await updateWidgetConfig(widgetId, config, filterConfig);
         setIsSaving(false);
       } catch (error) {
         console.error('Error guardando config:', error);
@@ -78,10 +78,27 @@ export function DataPanel() {
     // Actualizar store localmente (inmediato)
     updateWidget(selectedWidget.id, patch);
 
-    // Si hay cambios en config, guardar a Supabase con debounce
-    if (patch.config) {
+    // Guardar config y filter_config por separado
+    if (patch.config || patch.filter_config) {
       setIsSaving(true);  // ⚡ Feedback visual inmediato
-      debouncedSaveConfig(selectedWidget.id, patch.config);
+
+      // Merge: config existente + cambios de config
+      const newConfig = {
+        ...(selectedWidget.config || {}),
+        ...(patch.config || {})
+      };
+
+      // Merge: filter_config existente + cambios de filter_config
+      let newFilterConfig = undefined;
+      if (patch.filter_config) {
+        newFilterConfig = {
+          ...(selectedWidget.filter_config || {}),
+          ...patch.filter_config
+        };
+      }
+
+      // Llamar a updateWidgetConfig con dos parámetros separados
+      debouncedSaveConfig(selectedWidget.id, newConfig, newFilterConfig);
     }
   };
 

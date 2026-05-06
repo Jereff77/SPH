@@ -127,9 +127,7 @@ export async function getWidgetData(
     p_agregacion: params.p_agregacion,
     p_fecha_desde: params.p_fecha_desde,
     p_fecha_hasta: params.p_fecha_hasta,
-    p_etapa: params.p_etapa,
-    p_asesor: params.p_asesor,
-    p_origen: params.p_origen,
+    p_filtros: params.p_filtros,
     p_limit: params.p_limit
   });
 
@@ -261,6 +259,7 @@ export async function updateReporte(
     page_height?: number;
     zoom_mode?: 'fixed' | 'fit_width' | 'fit_height';
     zoom_value?: number;
+    filtros_activos?: object[];
   }
 ): Promise<void> {
   const supabase = await getSupabaseClient();
@@ -363,17 +362,77 @@ export async function createWidget(
 }
 
 /**
+ * Obtiene valores distintos de un campo para populatear filtros multiselect
+ *
+ * @param fuente - Vista a consultar (v_leads_completo | v_actividades_completo)
+ * @param campo - Campo a consultar
+ * @returns Array de strings con valores únicos (max 50)
+ */
+export async function getDistinctValues(
+  fuente: string,
+  campo: string
+): Promise<string[]> {
+  const supabase = await getSupabaseClient();
+
+  // Whitelist de fuentes permitidas
+  const fuentesPermitidas = ['v_leads_completo', 'v_actividades_completo'];
+  if (!fuentesPermitidas.includes(fuente)) {
+    throw new Error(`Fuente no permitida: ${fuente}`);
+  }
+
+  // Whitelist de campos permitidos por fuente
+  const camposPermitidos: Record<string, string[]> = {
+    'v_leads_completo': [
+      'lead_id', 'nombreLead', 'telefono', 'correo', 'lead_status',
+      'fecha_creacion', 'responsable_comercial', 'etapa', 'origen',
+      'tipo_cliente', 'tipo_operacion', 'tipo_venta'
+    ],
+    'v_actividades_completo': [
+      'id', 'tipo_actividad', 'fecha', 'nombre', 'mensaje',
+      'nivel_calor', 'nombreLead', 'etapa', 'responsable_comercial'
+    ]
+  };
+
+  const camposFuente = camposPermitidos[fuente];
+  if (!camposFuente || !camposFuente.includes(campo)) {
+    throw new Error(`Campo no permitido para ${fuente}: ${campo}`);
+  }
+
+  // Ejecutar query DISTINCT
+  const { data, error } = await supabase
+    .rpc('get_distinct_values', {
+      p_fuente: fuente,
+      p_campo: campo,
+      p_limit: 50
+    });
+
+  if (error) {
+    throw new Error(`Error cargando valores distintos: ${error.message}`);
+  }
+
+  // La RPC retorna TABLE(valor TEXT)
+  return data?.map((row: any) => row.valor).filter(Boolean) || [];
+}
+
+/**
  * Actualiza la configuración de un widget
  */
 export async function updateWidgetConfig(
   widgetId: string,
-  config: any
+  config: any,
+  filterConfig?: any  // 🆕 Parámetro opcional para filter_config
 ): Promise<void> {
   const supabase = await getSupabaseClient();
 
+  // Construir objeto de actualización con ambas columnas
+  const updateData: any = { config };
+  if (filterConfig !== undefined) {
+    updateData.filter_config = filterConfig;
+  }
+
   const { error } = await supabase
     .from('crm_widgets')
-    .update({ config })
+    .update(updateData)
     .eq('id', widgetId);
 
   if (error) {
