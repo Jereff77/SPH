@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useAuth } from '../hooks/useAuth'
 
+const LS_KEY = 'sph_last_email'
+
 export function LoginPage() {
   const { login } = useAuth()
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => localStorage.getItem(LS_KEY) ?? '')
   const [password, setPassword] = useState('')
   const [showPwd, setShowPwd] = useState(false)
   const [error, setError] = useState('')
@@ -15,6 +17,7 @@ export function LoginPage() {
     setLoading(true)
     try {
       await login(email, password)
+      localStorage.setItem(LS_KEY, email)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al iniciar sesión'
       setError(msg.includes('Invalid login') ? 'Correo o contraseña incorrectos.' : msg)
