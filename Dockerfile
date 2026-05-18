@@ -1,34 +1,28 @@
-# ── Stage 1: Build ────────────────────────────────────────────────────────────
+# ── Stage 1: Build con valores placeholder ────────────────────────────────────
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Instalar dependencias
 COPY package.json package-lock.json* ./
 RUN npm ci
 
-# Variables de entorno en tiempo de build (Vite las embebe en el bundle)
-ARG VITE_SUPABASE_URL
-ARG VITE_SUPABASE_ANON_KEY
-ARG VITE_TOKEN_LIMIT=1000000
-
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
-ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
-ENV VITE_TOKEN_LIMIT=$VITE_TOKEN_LIMIT
-
-# Build
 COPY . .
-RUN npm run build
 
-# ── Stage 2: Serve ─────────────────────────────────────────────────────────────
-FROM nginx:alpine AS runner
+# Build con placeholders — serán reemplazados al iniciar el contenedor
+RUN VITE_SUPABASE_URL=__SPH_SUPABASE_URL__ \
+    VITE_SUPABASE_ANON_KEY=__SPH_ANON_KEY__ \
+    VITE_TOKEN_LIMIT=__SPH_TOKEN_LIMIT__ \
+    npm run build
 
-# Configuración nginx para SPA
+# ── Stage 2: Serve con nginx ───────────────────────────────────────────────────
+FROM nginx:alpine
+
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Copiar build
 COPY --from=builder /app/dist /usr/share/nginx/html
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 80
 
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]
