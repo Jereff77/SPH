@@ -6,18 +6,11 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 
+# EasyPanel crea el archivo .env en el build context antes del docker build.
+# COPY . . lo incluye y Vite lo lee automáticamente — no se necesitan ARGs ni inyección en runtime.
 COPY . .
 
-# EasyPanel pasa las variables de entorno como build args
-ARG VITE_SUPABASE_URL
-ARG VITE_SUPABASE_ANON_KEY
-ARG VITE_TOKEN_LIMIT=1000000
-
-RUN VITE_SUPABASE_URL=${VITE_SUPABASE_URL} \
-    VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY} \
-    VITE_TOKEN_LIMIT=${VITE_TOKEN_LIMIT} \
-    NODE_OPTIONS=--max-old-space-size=1536 \
-    npx vite build
+RUN NODE_OPTIONS=--max-old-space-size=1536 npx vite build
 
 # ── Stage 2: Serve con nginx ───────────────────────────────────────────────────
 FROM nginx:alpine
