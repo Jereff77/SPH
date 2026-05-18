@@ -1,0 +1,2 @@
+# Forzar LF en scripts de shell (evita CRLF en Linux/Docker)
+*.sh text eol=lf
