@@ -1,4 +1,4 @@
-# ── Stage 1: Build con valores placeholder ────────────────────────────────────
+# ── Stage 1: Build ────────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 
 WORKDIR /app
@@ -8,11 +8,14 @@ RUN npm ci
 
 COPY . .
 
-# Build con placeholders — serán reemplazados al iniciar el contenedor
-# Usamos vite build directamente (sin tsc -b) para reducir uso de memoria en CI
-RUN VITE_SUPABASE_URL=__SPH_SUPABASE_URL__ \
-    VITE_SUPABASE_ANON_KEY=__SPH_ANON_KEY__ \
-    VITE_TOKEN_LIMIT=__SPH_TOKEN_LIMIT__ \
+# EasyPanel pasa las variables de entorno como build args
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ARG VITE_TOKEN_LIMIT=1000000
+
+RUN VITE_SUPABASE_URL=${VITE_SUPABASE_URL} \
+    VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY} \
+    VITE_TOKEN_LIMIT=${VITE_TOKEN_LIMIT} \
     NODE_OPTIONS=--max-old-space-size=1536 \
     npx vite build
 
@@ -21,10 +24,7 @@ FROM nginx:alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 80
 
-ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]
