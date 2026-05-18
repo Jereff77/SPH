@@ -9,10 +9,12 @@ RUN npm ci
 COPY . .
 
 # Build con placeholders — serán reemplazados al iniciar el contenedor
+# Usamos vite build directamente (sin tsc -b) para reducir uso de memoria en CI
 RUN VITE_SUPABASE_URL=__SPH_SUPABASE_URL__ \
     VITE_SUPABASE_ANON_KEY=__SPH_ANON_KEY__ \
     VITE_TOKEN_LIMIT=__SPH_TOKEN_LIMIT__ \
-    npm run build
+    NODE_OPTIONS=--max-old-space-size=1536 \
+    npx vite build
 
 # ── Stage 2: Serve con nginx ───────────────────────────────────────────────────
 FROM nginx:alpine
