@@ -1,4 +1,4 @@
---[Fecha y Hora]: 21/01/2026 21:17:00
+--[Fecha y Hora]: 24/04/2026 00:00:00
 --[Descripción]: Script de instalación para todas las funciones y triggers del módulo arrePdp
 --                Este script instala los componentes en el orden correcto para evitar
 --                errores de dependencia.
@@ -29,6 +29,14 @@
 --   - ACTUALIZADO COMPLETO: Función arrepdp_actualizar_vigencia() ahora actualiza todos los campos necesarios en arrenPropiedades
 --   - NUEVO: Función arrepdp_desvincular_propiedades() para desvincular propiedades de planes vencidos
 --   - NUEVO: Trigger trigger_arrepdp_desvincular_propiedades_diaria() para ejecución automática diaria de desvinculación
+--
+--[Actualización]: 24/04/2026 00:00:00 - Creación de función arrepdp_listar_contratos_ciclo_inpc(p_anio, p_mes):
+--               * Nueva función de consulta (STABLE, solo lectura) para listar contratos que inician ciclo en un mes/año dado
+--               * Propósito: identificar qué planes requieren la aplicación del incremento INPC anual
+--               * Incluye JOIN con inversionista para obtener razón social del arrendatario
+--               * Retorna columna ciclo calculada: p_anio - año(fecInicio) + 1
+--               * Filtros: mes inicio = p_mes, año inicio < p_anio, fecFin > 31/12/p_anio
+--               * Impacto: facilita el proceso mensual de identificación y aplicación de incrementos INPC
 --
 --[Actualización]: 21/01/2026 21:17:00 - Creación del trigger programado para desvinculación automática de propiedades:
 --               * Creada función trigger_arrepdp_desvincular_propiedades_diaria() con logging completo
@@ -227,6 +235,27 @@ BEGIN
         RAISE NOTICE '✅ Función arrepdp_actualizar_vigencia instalada correctamente';
     ELSE
         RAISE EXCEPTION '❌ Error: Función arrepdp_actualizar_vigencia no se instaló';
+    END IF;
+END $$;
+
+-- 6.1 Instalar función de consulta de contratos por ciclo INPC
+RAISE NOTICE 'Instalando función: arrepdp_listar_contratos_ciclo_inpc (consulta contratos para incremento INPC)';
+
+\i arrepdp_listar_contratos_ciclo_inpc.sql
+
+DO $$
+DECLARE
+    v_func_count integer;
+BEGIN
+    SELECT COUNT(*) INTO v_func_count
+    FROM information_schema.routines
+    WHERE routine_schema = 'public'
+      AND routine_name = 'arrepdp_listar_contratos_ciclo_inpc';
+
+    IF v_func_count > 0 THEN
+        RAISE NOTICE '✅ Función arrepdp_listar_contratos_ciclo_inpc instalada correctamente';
+    ELSE
+        RAISE EXCEPTION '❌ Error: Función arrepdp_listar_contratos_ciclo_inpc no se instaló';
     END IF;
 END $$;
 

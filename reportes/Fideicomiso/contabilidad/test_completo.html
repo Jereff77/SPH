@@ -1,0 +1,1460 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contabilidad</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#e0e1e5;
+    --white:#ffffff;
+    --row-alt:#d4d5da;
+    --header-dark:#2d3148;
+    --header-dark2:#3a3f5c;
+    --subtotal-bg:#c8c9ce;
+    --border:#b8b9be;
+    --text:#1a1a2e;
+    --text-muted:#6b6c7e;
+    --neg:#c0392b;
+  }
+  html,body{
+    height:100%;
+    background:var(--bg);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    font-size:13px;
+    color:var(--text);
+  }
+  .panel{background:var(--bg);padding:16px 20px;min-height:100vh;}
+
+  .panel-title{
+    font-size:14px;font-weight:600;color:var(--text);
+    margin-bottom:12px;padding-bottom:10px;
+    border-bottom:1px solid var(--border);
+  }
+  .toolbar{
+    display:flex;justify-content:flex-end;
+    align-items:center;gap:10px;margin-bottom:10px;
+  }
+  .year-select{
+    font-family:inherit;font-size:13px;
+    border:1.5px solid var(--header-dark);border-radius:8px;
+    padding:6px 32px 6px 14px;background:var(--white);
+    color:var(--text);outline:none;cursor:pointer;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%232d3148'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 10px center;
+    min-width:110px;
+  }
+  .btn-nuevo{
+    font-family:inherit;font-size:13px;font-weight:600;
+    background:var(--header-dark);color:#fff;border:none;
+    border-radius:8px;padding:7px 20px;cursor:pointer;transition:opacity .15s;
+  }
+  .btn-nuevo:hover{opacity:.87;}
+  .btn-nuevo-cat{
+    background:transparent;color:var(--header-dark);
+    border:1.5px solid var(--header-dark);
+  }
+  .btn-nuevo-cat:hover{opacity:1;background:var(--row-alt);}
+
+  .tbl-wrap{overflow-x:auto;}
+  table{border-collapse:collapse;width:100%;font-size:12px;}
+
+  th,td{border:1px solid var(--border);white-space:nowrap;padding:0;}
+  th:last-child,td:last-child{border-right:1px solid var(--border);}
+
+  /* sticky cols */
+  .c0{position:sticky;left:0;  z-index:3;width:36px;min-width:36px;}
+  .c1{position:sticky;left:36px;z-index:3;min-width:150px;max-width:170px;}
+  .c2{position:sticky;left:186px;z-index:3;min-width:160px;max-width:180px;}
+  .c3{position:sticky;left:346px;z-index:3;min-width:160px;max-width:200px;border-right:2px solid var(--border)!important;}
+
+  /* thead */
+  thead th{
+    background:var(--bg);font-size:11px;font-weight:600;
+    color:var(--text);padding:7px 10px;text-align:center;
+    border-bottom:1px solid var(--border);
+  }
+  thead th.c0,thead th.c1,thead th.c2,thead th.c3{text-align:left;}
+  thead th.th-sub{background:var(--subtotal-bg);border-left:2px solid var(--border)!important;}
+
+  /* rows */
+  tr.row-even td{background:var(--white);}
+  tr.row-odd  td{background:var(--row-alt);}
+  tr.row-even:hover td,tr.row-odd:hover td{filter:brightness(.97);}
+
+  td.c0{background:inherit;color:var(--text-muted);font-size:10px;text-align:center;padding:5px 4px;}
+  td.c1{background:inherit;font-size:11px;padding:5px 10px;color:var(--text-muted);}
+  td.c2{background:inherit;font-size:11px;font-weight:500;padding:5px 10px;color:var(--text);}
+  td.c3{background:inherit;font-size:10px;padding:5px 10px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;}
+
+  td.num{text-align:right;padding:5px 10px;font-variant-numeric:tabular-nums;}
+  td.neg{color:var(--neg);}
+
+  /* ── EDICIÓN INLINE (Excel) ── */
+  td.num.editable:hover{background:#d0d8ff!important;cursor:cell;}
+  td.num.editing{background:#fff8e1!important;outline:2px solid var(--header-dark);padding:0;}
+  .cell-input{
+    width:100%;border:none;outline:none;background:transparent;
+    font-family:inherit;font-size:12px;font-weight:500;
+    text-align:right;padding:5px 10px;
+    font-variant-numeric:tabular-nums;color:var(--text);
+  }
+  td.td-sub{background:var(--subtotal-bg)!important;font-weight:600;border-left:2px solid var(--border)!important;}
+
+  /* total rows */
+  tr.tr-total td{
+    background:var(--row-alt);font-weight:600;
+    font-size:11px;padding:6px 10px;
+  }
+  tr.tr-total td.num{text-align:right;}
+  tr.tr-total td.td-sub{background:var(--subtotal-bg)!important;}
+
+  tr.tr-gran td{
+    background:var(--header-dark)!important;
+    color:#fff!important;font-weight:600;
+    font-size:11px;padding:6px 10px;
+  }
+  tr.tr-gran td.num{text-align:right;}
+  tr.tr-gran td.neg{color:#ffb3ad!important;}
+  tr.tr-gran td.td-sub{background:var(--header-dark2)!important;}
+
+  /* IVA indicator dots */
+  .iva-dot{
+    display:inline-block;width:8px;height:8px;border-radius:50%;
+    background:#e67e22;flex-shrink:0;cursor:pointer;
+    transition:transform .15s,opacity .15s;
+  }
+  .iva-dot:hover{transform:scale(1.3);opacity:.8;}
+  .iva-dot-off{
+    display:inline-block;width:5px;height:5px;border-radius:50%;
+    background:#444;flex-shrink:0;cursor:pointer;opacity:.25;
+    transition:transform .15s,opacity .15s;
+  }
+  .iva-dot-off:hover{opacity:.55;transform:scale(1.25);}
+  td.num .cell-inner{display:flex;align-items:center;justify-content:flex-end;gap:4px;}
+
+  /* ── LEYENDA ── */
+  .leyenda{
+    display:none;margin-top:10px;
+    font-size:11px;color:var(--text-muted);
+    align-items:center;gap:16px;flex-wrap:wrap;
+  }
+  .leyenda.visible{display:flex;}
+  .leyenda-item{display:flex;align-items:center;gap:5px;}
+  .leyenda-sep{color:var(--border);}
+  .loading{
+    padding:28px;text-align:center;
+    font-size:12px;color:var(--text-muted);
+    background:var(--bg);
+  }
+  .spinner{
+    display:inline-block;width:13px;height:13px;
+    border:2px solid var(--border);border-top-color:var(--text);
+    border-radius:50%;animation:spin .6s linear infinite;
+    vertical-align:middle;margin-right:6px;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ── NOTAS ESTILO EXCEL ── */
+  td.num{position:relative;}
+  .note-tri{
+    position:absolute;top:0;right:0;width:0;height:0;
+    border-style:solid;border-width:0 7px 7px 0;
+    border-color:transparent #e74c3c transparent transparent;
+    cursor:pointer;
+  }
+  .note-tooltip{
+    display:none;position:fixed;z-index:400;
+    background:#fffbe6;border:1px solid #e6c800;border-radius:6px;
+    padding:8px 10px;font-size:11px;color:#333;
+    max-width:240px;line-height:1.5;
+    box-shadow:2px 2px 8px rgba(0,0,0,.15);
+    white-space:pre-wrap;pointer-events:none;
+  }
+  .note-tooltip.visible{display:block;}
+
+  /* ── SALDO BANCO ── */
+  tr.saldo-row td{
+    background:var(--bg)!important;
+    border-top:2px solid var(--header-dark);
+    padding:0;
+  }
+  tr.saldo-row td.c0,tr.saldo-row td.c1,tr.saldo-row td.c2,tr.saldo-row td.c3{
+    padding:6px 10px;font-size:11px;font-weight:600;
+    color:var(--text);background:var(--bg)!important;
+  }
+  .saldo-cell{
+    position:relative;
+    display:flex;flex-direction:column;align-items:flex-end;
+    padding:4px 8px;min-height:36px;
+  }
+  .saldo-input{
+    width:100%;border:none;background:transparent;
+    font-family:inherit;font-size:12px;font-weight:500;
+    text-align:right;color:var(--text);outline:none;
+    font-variant-numeric:tabular-nums;padding:2px 0;
+    cursor:pointer;
+  }
+  .saldo-input::placeholder{color:var(--text-muted);font-weight:400;}
+  .saldo-diff{
+    font-size:10px;font-variant-numeric:tabular-nums;
+    color:var(--text-muted);line-height:1.2;
+  }
+  td.saldo-ok{
+    background:#e8f5ee!important;
+    border:1.5px solid #1a6b4a!important;
+  }
+  td.saldo-err{
+    background:#fdf0ee!important;
+    border:2px solid var(--neg)!important;
+  }
+  td.saldo-ok .saldo-diff{color:#1a6b4a;font-weight:600;}
+  td.saldo-err .saldo-diff{color:var(--neg);font-weight:600;}
+  td.saldo-empty{background:var(--bg)!important;}
+
+  /* ── FILTROS ── */
+  .th-wrap{display:flex;align-items:center;justify-content:center;gap:3px;}
+  .th-wrap.left{justify-content:flex-start;}
+  .filter-btn{
+    background:none;border:none;cursor:pointer;padding:1px 2px;
+    color:var(--text-muted);font-size:9px;line-height:1;border-radius:3px;
+    opacity:.4;transition:opacity .15s,background .15s;flex-shrink:0;
+  }
+  .filter-btn:hover{opacity:1;background:var(--border);}
+  .filter-btn.active{opacity:1;color:var(--header-dark);background:var(--subtotal-bg);}
+  .fdrop{
+    display:none;position:fixed;z-index:300;
+    background:var(--white);border:1px solid var(--border);
+    border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.13);
+    min-width:170px;overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;
+  }
+  .fdrop.open{display:block;}
+  .fdrop-head{
+    padding:8px 10px 6px;border-bottom:1px solid var(--border);
+    font-size:10px;font-weight:600;text-transform:uppercase;
+    letter-spacing:.05em;color:var(--text-muted);
+  }
+  .fdrop-opts{max-height:200px;overflow-y:auto;}
+  .fdrop-opt{
+    display:flex;align-items:center;gap:7px;
+    padding:6px 10px;cursor:pointer;
+    border-bottom:.5px solid var(--border);color:var(--text);
+  }
+  .fdrop-opt:last-child{border-bottom:none;}
+  .fdrop-opt:hover{background:var(--row-alt);}
+  .fdrop-opt input[type=checkbox]{cursor:pointer;accent-color:var(--header-dark);}
+  .fdrop-foot{
+    padding:6px 10px;border-top:1px solid var(--border);display:flex;gap:6px;
+  }
+  .fdrop-foot button{
+    flex:1;font-family:inherit;font-size:11px;font-weight:500;
+    padding:4px 0;border-radius:5px;cursor:pointer;
+    border:1px solid var(--border);background:var(--bg);color:var(--text);
+  }
+  .fdrop-foot button.apply{background:var(--header-dark);color:#fff;border-color:var(--header-dark);}
+
+  /* ── MODAL ── */
+  .modal-bg{
+    display:none;position:fixed;inset:0;z-index:100;
+    background:rgba(0,0,0,.35);
+    align-items:center;justify-content:center;
+  }
+  .modal-bg.open{display:flex;}
+  .modal{
+    background:var(--white);border-radius:12px;
+    width:340px;max-width:95vw;
+    box-shadow:0 8px 32px rgba(0,0,0,.18);
+    overflow:hidden;position:relative;
+  }
+  .modal-head{
+    background:var(--header-dark);color:#fff;
+    padding:10px 14px;display:flex;align-items:center;justify-content:space-between;
+  }
+  .modal-head-title{font-size:12px;font-weight:600;letter-spacing:.02em;}
+  .modal-badge{
+    background:#e74c3c;color:#fff;font-size:10px;font-weight:700;
+    padding:2px 8px;border-radius:4px;margin-left:8px;
+  }
+  .modal-close{
+    background:none;border:none;color:#fff;font-size:18px;
+    cursor:pointer;line-height:1;padding:0 2px;opacity:.8;
+  }
+  .modal-close:hover{opacity:1;}
+  .modal-body{padding:14px;}
+
+  /* año/mes row */
+  .m-row{display:flex;gap:8px;margin-bottom:12px;}
+  .m-select{
+    flex:1;font-family:inherit;font-size:12px;
+    border:1.5px solid var(--border);border-radius:8px;
+    padding:7px 28px 7px 10px;background:var(--white);
+    color:var(--text);outline:none;cursor:pointer;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%236b6c7e'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 9px center;
+  }
+  .m-select:focus{border-color:var(--header-dark);}
+  .m-select-wide{
+    width:100%;font-family:inherit;font-size:12px;
+    border:1.5px solid var(--border);border-radius:8px;
+    padding:9px 28px 9px 12px;background:var(--white);
+    color:var(--text);outline:none;cursor:pointer;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%236b6c7e'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 9px center;
+  }
+  .m-select-wide:focus{border-color:var(--header-dark);}
+  .m-select-wide:disabled{background:#f0f0f3;color:var(--text-muted);cursor:not-allowed;}
+
+  /* field rows */
+  .m-field{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .m-label{
+    min-width:90px;font-size:11px;font-weight:500;
+    color:var(--text-muted);background:var(--bg);
+    border-radius:6px;padding:5px 8px;text-align:center;
+    white-space:nowrap;
+  }
+
+  /* monto field */
+  .m-monto-wrap{
+    position:relative;flex:1;
+    border:1.5px solid var(--border);border-radius:8px;
+    background:var(--white);overflow:visible;
+  }
+  .m-monto-wrap:focus-within{border-color:var(--header-dark);}
+  .m-monto-label{
+    position:absolute;top:-8px;left:10px;
+    font-size:10px;color:var(--text-muted);
+    background:var(--white);padding:0 3px;
+  }
+  .m-monto-input{
+    width:100%;border:none;outline:none;
+    font-family:inherit;font-size:13px;font-weight:500;
+    text-align:right;padding:9px 12px;
+    background:transparent;color:var(--text);
+    border-radius:8px;
+  }
+  .m-monto-hint{
+    text-align:right;font-size:10px;
+    color:var(--header-dark);padding:2px 4px 0;
+  }
+
+  /* footer */
+  .modal-footer{
+    padding:10px 14px 14px;display:flex;justify-content:flex-end;
+  }
+  .btn-agregar{
+    font-family:inherit;font-size:13px;font-weight:600;
+    background:var(--header-dark);color:#fff;border:none;
+    border-radius:8px;padding:9px 28px;cursor:pointer;
+    transition:opacity .15s;
+  }
+  .btn-agregar:hover{opacity:.87;}
+  .btn-agregar:disabled{opacity:.4;cursor:not-allowed;}
+
+  /* toast */
+  .toast{
+    position:fixed;bottom:20px;right:20px;z-index:200;
+    background:var(--header-dark);color:#fff;
+    font-size:12px;padding:10px 18px;border-radius:8px;
+    opacity:0;transition:opacity .25s;pointer-events:none;
+  }
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="panel-title">Contabilidad</div>
+  <div class="toolbar">
+    <select class="year-select" id="sel-year" onchange="loadData()">
+      <option value="2023">2023</option>
+      <option value="2024">2024</option>
+      <option value="2025">2025</option>
+      <option value="2026">2026</option>
+    </select>
+    <button class="btn-nuevo btn-nuevo-cat" onclick="openModalConcepto()">+ Catálogo</button>
+    <button class="btn-nuevo" onclick="onNuevo()">Nuevo</button>
+  </div>
+
+  <div id="loading" class="loading"><span class="spinner"></span>Cargando...</div>
+
+  <div class="tbl-wrap" id="tbl-wrap" style="display:none;">
+    <table>
+      <thead>
+        <tr>
+          <th class="c0"></th>
+          <th class="c1"><div class="th-wrap left">Tipo<button class="filter-btn" onclick="openTextFilter(event,'tipo')">▼</button></div></th>
+          <th class="c2"><div class="th-wrap left">Concepto<button class="filter-btn" onclick="openTextFilter(event,'concepto')">▼</button></div></th>
+          <th class="c3"><div class="th-wrap left">Descripción<button class="filter-btn" onclick="openTextFilter(event,'desc')">▼</button></div></th>
+          <th data-mes="Ene"><div class="th-wrap">Ene<button class="filter-btn" onclick="openFilter(event,'Ene')">▼</button></div></th>
+          <th data-mes="Feb"><div class="th-wrap">Feb<button class="filter-btn" onclick="openFilter(event,'Feb')">▼</button></div></th>
+          <th data-mes="Mar"><div class="th-wrap">Mar<button class="filter-btn" onclick="openFilter(event,'Mar')">▼</button></div></th>
+          <th data-mes="Abr"><div class="th-wrap">Abr<button class="filter-btn" onclick="openFilter(event,'Abr')">▼</button></div></th>
+          <th data-mes="May"><div class="th-wrap">May<button class="filter-btn" onclick="openFilter(event,'May')">▼</button></div></th>
+          <th data-mes="Jun"><div class="th-wrap">Jun<button class="filter-btn" onclick="openFilter(event,'Jun')">▼</button></div></th>
+          <th data-mes="Jul"><div class="th-wrap">Jul<button class="filter-btn" onclick="openFilter(event,'Jul')">▼</button></div></th>
+          <th data-mes="Ago"><div class="th-wrap">Ago<button class="filter-btn" onclick="openFilter(event,'Ago')">▼</button></div></th>
+          <th data-mes="Sep"><div class="th-wrap">Sep<button class="filter-btn" onclick="openFilter(event,'Sep')">▼</button></div></th>
+          <th data-mes="Oct"><div class="th-wrap">Oct<button class="filter-btn" onclick="openFilter(event,'Oct')">▼</button></div></th>
+          <th data-mes="Nov"><div class="th-wrap">Nov<button class="filter-btn" onclick="openFilter(event,'Nov')">▼</button></div></th>
+          <th data-mes="Dic"><div class="th-wrap">Dic<button class="filter-btn" onclick="openFilter(event,'Dic')">▼</button></div></th>
+          <th class="th-sub"><div class="th-wrap">SubTotal<button class="filter-btn" onclick="openFilter(event,'Total')">▼</button></div></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Leyenda IVA -->
+  <div class="leyenda" id="leyenda">
+    <span class="leyenda-item"><span class="iva-dot" style="pointer-events:none"></span> Aplica IVA</span>
+    <span class="leyenda-sep">|</span>
+    <span class="leyenda-item"><span class="iva-dot-off" style="pointer-events:none;opacity:.45"></span> Sin IVA</span>
+    <span class="leyenda-sep">·</span>
+    <span>Clic en el punto para activar / desactivar</span>
+  </div>
+</div>
+
+<div class="note-tooltip" id="note-tooltip"></div>
+
+<!-- Filtro dropdown -->
+<div class="fdrop" id="fdrop">
+  <div class="fdrop-head" id="fdrop-title">Filtrar</div>
+  <div class="fdrop-opts" id="fdrop-opts"></div>
+  <div class="fdrop-foot">
+    <button onclick="clearFilter()">Limpiar</button>
+    <button class="apply" onclick="applyFilter()">Aplicar</button>
+  </div>
+</div>
+
+<!-- ── MODAL ── -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <div class="modal-head">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="modal-head-title">fideContaConceptos</span>
+        <span class="modal-badge">Row</span>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- contenido generado dinámicamente por modalBodyHTML() -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn-agregar" id="btn-agregar" onclick="guardarMovimiento()">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL CATÁLOGO ── -->
+<div class="modal-bg" id="modal-cat-bg">
+  <div class="modal" style="width:380px;">
+    <div class="modal-head">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="modal-head-title">fideContaConceptos</span>
+        <span class="modal-badge" style="background:#1a6b4a;">Nuevo</span>
+      </div>
+      <button class="modal-close" onclick="closeModalConcepto()">✕</button>
+    </div>
+    <div class="modal-body">
+      <datalist id="cat-tipos-list"></datalist>
+
+      <div class="m-field">
+        <span class="m-label">Tipo —</span>
+        <input class="m-select-wide" id="cat-tipo" list="cat-tipos-list"
+          placeholder="Selecciona o escribe nuevo tipo"
+          style="padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;
+                 font-family:inherit;font-size:12px;background:var(--white);
+                 color:var(--text);outline:none;width:100%;">
+      </div>
+      <div class="m-field">
+        <span class="m-label">Concepto —</span>
+        <input class="m-select-wide" id="cat-concepto" type="text" placeholder="Nombre del concepto"
+          style="padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;
+                 font-family:inherit;font-size:12px;background:var(--white);
+                 color:var(--text);outline:none;width:100%;">
+      </div>
+      <div class="m-field">
+        <span class="m-label">SubConcepto —</span>
+        <input class="m-select-wide" id="cat-subconcepto" type="text" placeholder="Opcional"
+          style="padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;
+                 font-family:inherit;font-size:12px;background:var(--white);
+                 color:var(--text);outline:none;width:100%;">
+      </div>
+      <div class="m-field">
+        <span class="m-label">Descripción —</span>
+        <input class="m-select-wide" id="cat-descripcion" type="text" placeholder="Opcional"
+          style="padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;
+                 font-family:inherit;font-size:12px;background:var(--white);
+                 color:var(--text);outline:none;width:100%;">
+      </div>
+      <div class="m-field">
+        <span class="m-label">Aplica IVA —</span>
+        <div style="flex:1;display:flex;gap:16px;padding:6px 0;">
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
+            <input type="radio" name="cat-iva" value="true"> Sí
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
+            <input type="radio" name="cat-iva" value="false" checked> No
+          </label>
+        </div>
+      </div>
+      <div class="m-field" style="gap:8px;">
+        <span class="m-label">Orden tipo —</span>
+        <input id="cat-orden-tipo" type="number" min="0" max="999" value="99"
+          style="width:70px;padding:7px 10px;border:1.5px solid var(--border);
+                 border-radius:8px;font-family:inherit;font-size:12px;
+                 background:var(--white);color:var(--text);outline:none;text-align:center;">
+        <span class="m-label" style="margin-left:8px;">Orden concepto —</span>
+        <input id="cat-orden-concepto" type="number" min="0" max="999" value="99"
+          style="width:70px;padding:7px 10px;border:1.5px solid var(--border);
+                 border-radius:8px;font-family:inherit;font-size:12px;
+                 background:var(--white);color:var(--text);outline:none;text-align:center;">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-agregar" id="btn-cat-guardar" onclick="guardarConcepto()">Agregar al catálogo</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://szjlkvakwljssdnysazp.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6amxrdmFrd2xqc3NkbnlzYXpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTY4MTkxOTEsImV4cCI6MjAxMjM5NTE5MX0.OvICpRi2IHrrzwQ6TDl_031QRU6qTy2gRWylMrGU8y8';
+
+const USER_JWT = ''; const SUPABASE_KEY = (USER_JWT && USER_JWT.startsWith('eyJ')) ? USER_JWT : SUPABASE_ANON_KEY; const CURRENT_UID = '';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  global: {
+    headers: {
+      Authorization: `Bearer ${SUPABASE_KEY}`
+    }
+  }
+});
+
+const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+const fmt = v => {
+  const n = parseFloat(v) || 0;
+  if (n === 0) return '0';
+  return new Intl.NumberFormat('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
+};
+
+function buildDot(iva) {
+  if (iva) return `<span class="iva-dot" title="Aplica IVA — clic para quitar" onclick="event.stopPropagation();toggleIVA(this)"></span>`;
+  return `<span class="iva-dot-off" title="Sin IVA — clic para activar" onclick="event.stopPropagation();toggleIVA(this)"></span>`;
+}
+
+function numCell(v, extra='', iva=false, nota='') {
+  const n = parseFloat(v) || 0;
+  const negCls = n < 0 ? ' neg' : '';
+  const dot = (iva && n !== 0) ? '<span class="iva-dot" style="pointer-events:none"></span>' : '';
+  const tri = nota ? `<span class="note-tri" data-nota="${nota.replace(/"/g,'&quot;')}" onmouseenter="showNote(event,this)" onmouseleave="hideNote()"></span>` : '';
+  return `<td class="num${negCls} ${extra}">${tri}<span class="cell-inner">${fmt(n)}${dot}</span></td>`;
+}
+
+function numCellEditable(v, f, mes, iva, nota) {
+  const n = parseFloat(v) || 0;
+  const negCls = n < 0 ? ' neg' : '';
+  const dot = buildDot(iva);
+  const tri = nota ? `<span class="note-tri" data-nota="${nota.replace(/"/g,'&quot;')}" onmouseenter="showNote(event,this)" onmouseleave="hideNote()"></span>` : '';
+  const fData = encodeURIComponent(JSON.stringify({
+    tipo: f.tipo, concepto: f.concepto,
+    subconcepto: f.subconcepto || '-', descripcion: f.descripcion || '-'
+  }));
+  return `<td class="num${negCls} editable" data-mes="${mes}" data-fdata="${fData}" data-iva="${iva}" onclick="openCellEdit(this,event)">${tri}<span class="cell-inner">${fmt(n)}${dot}</span></td>`;
+}
+
+function render(detalle, totales) {
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+
+  const grupos = {};
+  const ordenTipos = [];
+  detalle.forEach(r => {
+    if (!grupos[r.tipo]) { grupos[r.tipo] = []; ordenTipos.push(r.tipo); }
+    grupos[r.tipo].push(r);
+  });
+
+  allRows = [];
+  let i = 0;
+  ordenTipos.forEach(tipo => {
+    grupos[tipo].forEach(f => {
+      const desc = (f.descripcion && f.descripcion !== '-') ? f.descripcion : '';
+      const tr = document.createElement('tr');
+      tr.className = i % 2 === 0 ? 'row-even' : 'row-odd';
+      tr.dataset.tipo    = f.tipo;
+      tr.dataset.concepto= f.concepto;
+      tr.dataset.desc    = f.descripcion || '';
+      MESES.forEach(m => tr.dataset[m.toLowerCase()] = f[m] ?? 0);
+      if (f.notas) tr.dataset.notas = JSON.stringify(f.notas);
+      tr.dataset.total   = f['Total'] ?? 0;
+      const iva = f.aplicaIVA === true;
+      tr.innerHTML = `
+        <td class="c0">${i + 1}</td>
+        <td class="c1">${f.tipo}</td>
+        <td class="c2">${f.concepto}</td>
+        <td class="c3" title="${desc}">${desc}</td>
+        ${MESES.map(m => numCellEditable(f[m] ?? 0, f, m, iva, f.notas?.[m] || '')).join('')}
+        ${numCell(f['Total'] ?? 0, 'td-sub', iva)}`;
+      tbody.appendChild(tr);
+      allRows.push(tr);
+      i++;
+    });
+  });
+
+  const granTotalRow = totales.find(t => t.tipo.toUpperCase().includes('GRAN'));
+  window._granTotales = granTotalRow || {};
+
+  totales.forEach(t => {
+    const isGran = t.tipo.toUpperCase().includes('GRAN');
+    const tr = document.createElement('tr');
+    tr.className = isGran ? 'tr-gran' : 'tr-total';
+    tr.innerHTML = `
+      <td class="c0"></td>
+      <td colspan="3" style="padding:6px 10px;">${t.tipo}</td>
+      ${MESES.map(m => numCell(t[m] ?? 0)).join('')}
+      ${numCell(t['Total'] ?? 0, 'td-sub')}`;
+    tbody.appendChild(tr);
+  });
+
+  renderSaldoRow(tbody);
+}
+
+let allRows = [];
+let activeFilter = null;
+let currentFilterMes = null;
+let textFilters = {};
+let currentFilterCampo = null;
+
+function openFilter(e, mes) {
+  e.stopPropagation();
+  const drop = document.getElementById('fdrop');
+  if (drop.classList.contains('open') && currentFilterMes === mes && !currentFilterCampo) { closeDrop(); return; }
+  currentFilterMes = mes;
+  currentFilterCampo = null;
+  document.getElementById('fdrop-title').textContent = 'Filtrar — ' + mes;
+
+  const key = mes.toLowerCase();
+  const valSet = new Set();
+  allRows.forEach(r => {
+    const v = parseFloat(r.dataset[key] ?? 0);
+    valSet.add(v === 0 ? '(cero)' : v > 0 ? 'positivos' : 'negativos');
+  });
+
+  const opciones = ['(cero)','positivos','negativos'].filter(o => valSet.has(o));
+  const activeVals = (activeFilter && activeFilter.mes === mes) ? activeFilter.valores : null;
+  const todosActivo = !activeVals;
+
+  const opts = document.getElementById('fdrop-opts');
+  opts.innerHTML = '<label class="fdrop-opt"><input type="checkbox" id="chk-todos" value="__todos__" ' +
+    (todosActivo ? 'checked' : '') + ' onchange="toggleTodos(this)"> Todos</label>' +
+    opciones.map(op => '<label class="fdrop-opt"><input type="checkbox" class="fopt" value="' + op + '" ' +
+      (todosActivo ? 'checked' : (activeVals.has(op) ? 'checked' : '')) + '> ' + op + '</label>').join('');
+
+  const rect = e.currentTarget.getBoundingClientRect();
+  drop.style.top  = (rect.bottom + 4) + 'px';
+  drop.style.left = Math.min(rect.left, window.innerWidth - 185) + 'px';
+  drop.classList.add('open');
+}
+
+function toggleTodos(cb) {
+  document.querySelectorAll('#fdrop-opts .fopt').forEach(c => c.checked = cb.checked);
+}
+
+function openTextFilter(e, campo) {
+  e.stopPropagation();
+  const drop = document.getElementById('fdrop');
+  if (drop.classList.contains('open') && currentFilterCampo === campo && !currentFilterMes) { closeDrop(); return; }
+  currentFilterMes = null;
+  currentFilterCampo = campo;
+
+  const labels = { tipo: 'Tipo', concepto: 'Concepto', desc: 'Descripción' };
+  document.getElementById('fdrop-title').textContent = 'Filtrar — ' + labels[campo];
+
+  const vals = [...new Set(allRows.map(tr => tr.dataset[campo]).filter(Boolean))].sort();
+  const activos = textFilters[campo] || null;
+  const todosActivo = !activos;
+
+  const opts = document.getElementById('fdrop-opts');
+  opts.innerHTML = '<label class="fdrop-opt"><input type="checkbox" id="chk-todos" value="__todos__" ' +
+    (todosActivo ? 'checked' : '') + ' onchange="toggleTodos(this)"> Todos</label>' +
+    vals.map(v => '<label class="fdrop-opt"><input type="checkbox" class="fopt" value="' + v + '" ' +
+      (todosActivo || (activos && activos.has(v)) ? 'checked' : '') + '> ' + (v || '(sin valor)') + '</label>').join('');
+
+  const rect = e.currentTarget.getBoundingClientRect();
+  drop.style.top  = (rect.bottom + 4) + 'px';
+  drop.style.left = Math.min(rect.left, window.innerWidth - 185) + 'px';
+  drop.classList.add('open');
+}
+
+function applyFilter() {
+  const checked = [...document.querySelectorAll('#fdrop-opts .fopt:checked')].map(c => c.value);
+  const allOpts  = document.querySelectorAll('#fdrop-opts .fopt');
+  const todosChk = document.getElementById('chk-todos')?.checked;
+
+  if (currentFilterCampo && !currentFilterMes) {
+    // Filtro de texto
+    if (todosChk || checked.length === allOpts.length || checked.length === 0) {
+      delete textFilters[currentFilterCampo];
+    } else {
+      textFilters[currentFilterCampo] = new Set(checked);
+    }
+  } else {
+    // Filtro numérico de mes
+    const mes = currentFilterMes;
+    if (todosChk || checked.length === allOpts.length || checked.length === 0) {
+      activeFilter = null;
+    } else {
+      activeFilter = { mes, valores: new Set(checked) };
+    }
+  }
+
+  applyVisibility();
+  closeDrop();
+  updateFilterBtnStates();
+}
+
+function clearFilter() {
+  if (currentFilterCampo && !currentFilterMes) {
+    delete textFilters[currentFilterCampo];
+  } else {
+    activeFilter = null;
+  }
+  applyVisibility();
+  closeDrop();
+  updateFilterBtnStates();
+}
+
+function updateFilterBtnStates() {
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    const th = b.closest('th');
+    const mes = th?.dataset.mes;
+    if (mes) {
+      b.classList.toggle('active', !!(activeFilter && activeFilter.mes === mes));
+    } else {
+      // columnas de texto
+      const onclick = b.getAttribute('onclick') || '';
+      const m = onclick.match(/'(\w+)'\)/);
+      if (m) b.classList.toggle('active', !!(textFilters[m[1]] && textFilters[m[1]].size > 0));
+    }
+  });
+}
+
+function applyVisibility() {
+  allRows.forEach(tr => {
+    let visible = true;
+
+    // Filtro numérico de mes
+    if (activeFilter) {
+      const key = activeFilter.mes.toLowerCase();
+      const v = parseFloat(tr.dataset[key] ?? 0);
+      const cat = v === 0 ? '(cero)' : v > 0 ? 'positivos' : 'negativos';
+      if (!activeFilter.valores.has(cat)) visible = false;
+    }
+
+    // Filtros de texto
+    if (visible) {
+      for (const [campo, vals] of Object.entries(textFilters)) {
+        if (vals && vals.size > 0 && !vals.has(tr.dataset[campo] || '')) {
+          visible = false; break;
+        }
+      }
+    }
+
+    tr.style.display = visible ? '' : 'none';
+  });
+}
+
+function showNote(e, el) {
+  const nota = el.dataset.nota || '';
+  if (!nota) return;
+  const tip = document.getElementById('note-tooltip');
+  tip.textContent = nota;
+  tip.classList.add('visible');
+  const x = Math.min(e.clientX + 12, window.innerWidth - 240);
+  const y = e.clientY + 14;
+  tip.style.left = x + 'px';
+  tip.style.top  = y + 'px';
+}
+function hideNote() {
+  document.getElementById('note-tooltip').classList.remove('visible');
+}
+
+function closeDrop() { document.getElementById('fdrop').classList.remove('open'); }
+document.addEventListener('click', e => {
+  const drop = document.getElementById('fdrop');
+  if (drop.classList.contains('open') && !drop.contains(e.target)) closeDrop();
+});
+
+let saldosData = {};
+const TOLERANCIA = 0.80;
+
+async function loadSaldos(anio) {
+  try {
+    const { data, error } = await sb.from('fideSaldosBanco')
+      .select('mes,saldo')
+      .eq('anio', anio);
+    saldosData = {};
+    if (!error && data) data.forEach(r => { saldosData[MESES[r.mes - 1]] = parseFloat(r.saldo); });
+  } catch(e) { saldosData = {}; }
+}
+
+function renderSaldoRow(tbody) {
+  const tr = document.createElement('tr');
+  tr.className = 'saldo-row';
+  tr.id = 'saldo-banco-row';
+  tr.innerHTML = `
+    <td class="c0"></td>
+    <td class="c1" colspan="3">Saldo estado de cuenta</td>
+    ${MESES.map(m => `
+      <td id="saldo-td-${m}" class="saldo-empty">
+        <div class="saldo-cell">
+          <input class="saldo-input" id="saldo-inp-${m}" type="text"
+            inputmode="decimal" placeholder="—"
+            value="${saldosData[m] !== undefined ? fmt(saldosData[m]) : ''}"
+            onfocus="this.value=saldosData['${m}'] !== undefined ? saldosData['${m}'] : ''"
+            onblur="saveSaldo('${m}', this.value)"
+            onkeydown="if(event.key==='Enter'||event.key==='Tab'){this.blur();}">
+          <span class="saldo-diff" id="saldo-diff-${m}"></span>
+        </div>
+      </td>`).join('')}
+    <td class="td-sub" style="background:var(--subtotal-bg)"></td>`;
+  tbody.appendChild(tr);
+
+  MESES.forEach(m => { if (saldosData[m] !== undefined) updateDiff(m); });
+}
+
+async function saveSaldo(mes, rawVal) {
+  const anio = parseInt(document.getElementById('sel-year').value);
+  const inp = document.getElementById(`saldo-inp-${mes}`);
+
+  const cleaned = String(rawVal).replace(/,/g, '').trim();
+  const val = parseFloat(cleaned);
+
+  if (isNaN(val) || cleaned === '') {
+    saldosData[mes] = undefined;
+    inp.value = '';
+    updateDiff(mes);
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/fideSaldosBanco?anio=eq.${anio}&mes=eq.${MESES.indexOf(mes)+1}`,
+      { method: 'DELETE', headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: 'return=minimal' } }
+    );
+    return;
+  }
+
+  saldosData[mes] = val;
+  inp.value = fmt(val);
+  updateDiff(mes);
+
+  const mesNum = MESES.indexOf(mes) + 1;
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/fideSaldosBanco`,
+    {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates,return=minimal'
+      },
+      body: JSON.stringify({ anio, mes: mesNum, saldo: val, uidr: (CURRENT_UID && CURRENT_UID !== '{{CURRENT_UID}}') ? CURRENT_UID : null })
+    }
+  );
+}
+
+function updateDiff(mes) {
+  const td   = document.getElementById(`saldo-td-${mes}`);
+  const diff_el = document.getElementById(`saldo-diff-${mes}`);
+  if (!td || !diff_el) return;
+
+  const saldo = saldosData[mes];
+  if (saldo === undefined || saldo === null) {
+    td.className = 'saldo-empty';
+    diff_el.textContent = '';
+    return;
+  }
+
+  const gran = parseFloat(window._granTotales?.[mes] ?? 0);
+  const diff = gran - saldo;
+  const absDiff = Math.abs(diff);
+
+  if (absDiff <= TOLERANCIA) {
+    td.className = 'saldo-ok';
+    diff_el.textContent = '✓ cuadrado';
+  } else {
+    td.className = 'saldo-err';
+    const sign = diff > 0 ? '+' : '';
+    diff_el.textContent = `${sign}${fmt(diff)}`;
+  }
+}
+
+async function openCellEdit(td, event) {
+  event.stopPropagation();
+  if (td.classList.contains('editing')) return;
+
+  const mes = td.dataset.mes;
+  const f = JSON.parse(decodeURIComponent(td.dataset.fdata));
+  const year = parseInt(document.getElementById('sel-year').value);
+  const mesNum = MESES.indexOf(mes) + 1;
+
+  const { data } = await sb.from('fideContabilidad')
+    .select('id, monto, notas, aplicaIVA')
+    .eq('tipo', f.tipo).eq('concepto', f.concepto)
+    .eq('subconcepto', f.subconcepto).eq('descripcion', f.descripcion)
+    .eq('mes', mesNum).eq('anio', year).eq('status', true)
+    .maybeSingle();
+
+  const valorActual = data?.monto ?? 0;
+  const registroId  = data?.id ?? null;
+
+  const originalHTML = td.innerHTML;
+  td.classList.add('editing');
+  td.innerHTML = `<input class="cell-input" type="number" step="0.01"
+    value="${valorActual !== 0 ? valorActual : ''}" placeholder="0.00">`;
+
+  const input = td.querySelector('.cell-input');
+  input.focus();
+  input.select();
+
+  let saved = false;
+
+  const doSave = async () => {
+    if (saved) return;
+    saved = true;
+    await saveCellEdit(td, f, mes, mesNum, year, registroId, data, input.value);
+  };
+
+  const doRestore = () => {
+    if (saved) return;
+    saved = true;
+    td.classList.remove('editing');
+    td.innerHTML = originalHTML;
+  };
+
+  input.addEventListener('keydown', async e => {
+    if (e.key === 'Escape') { doRestore(); return; }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); await doSave(); }
+  });
+
+  input.addEventListener('blur', doSave);
+}
+
+async function saveCellEdit(td, f, mes, mesNum, year, registroId, registroAntes, rawVal) {
+  const cleaned = String(rawVal).replace(/,/g, '').trim();
+  const nuevoMonto = parseFloat(cleaned);
+  const uidActual  = (CURRENT_UID && CURRENT_UID !== '{{CURRENT_UID}}') ? CURRENT_UID : null;
+  const iva = td.dataset.iva === 'true';
+  const dot = buildDot(iva);
+
+  td.classList.remove('editing');
+
+  if (isNaN(nuevoMonto) || cleaned === '') {
+    td.innerHTML = `<span class="cell-inner">${fmt(registroAntes?.monto ?? 0)}${dot}</span>`;
+    return;
+  }
+
+  // Actualización optimista
+  td.innerHTML = `<span class="cell-inner">${fmt(nuevoMonto)}${dot}</span>`;
+  if (nuevoMonto < 0) td.classList.add('neg'); else td.classList.remove('neg');
+
+  let error;
+  if (registroId) {
+    ({ error } = await sb.from('fideContabilidad')
+      .update({ monto: nuevoMonto, uid: uidActual })
+      .eq('id', registroId));
+    if (!error) await registrarHistorial('UPDATE', registroId, registroAntes, { monto: nuevoMonto, notas: registroAntes?.notas }, uidActual);
+  } else {
+    ({ error } = await sb.from('fideContabilidad').insert({
+      anio: year, mes: mesNum, tipo: f.tipo, concepto: f.concepto,
+      subconcepto: f.subconcepto, descripcion: f.descripcion,
+      monto: nuevoMonto, "aplicaIVA": false, status: true, uid: uidActual
+    }));
+    if (!error) {
+      const { data: nuevo } = await sb.from('fideContabilidad')
+        .select('id').eq('anio', year).eq('mes', mesNum)
+        .eq('tipo', f.tipo).eq('concepto', f.concepto)
+        .eq('subconcepto', f.subconcepto).eq('descripcion', f.descripcion)
+        .eq('status', true).single();
+      if (nuevo) await registrarHistorial('INSERT', nuevo.id, null, { monto: nuevoMonto, notas: null }, uidActual);
+    }
+  }
+
+  if (error) {
+    showToast('Error: ' + error.message);
+    td.innerHTML = `<span class="cell-inner">${fmt(registroAntes?.monto ?? 0)}${dot}</span>`;
+    return;
+  }
+
+  showToast('✓ Guardado');
+  loadData();
+}
+
+async function toggleIVA(dotEl) {
+  const td = dotEl.closest('td');
+  const mes = td.dataset.mes;
+  const f = JSON.parse(decodeURIComponent(td.dataset.fdata));
+  const year = parseInt(document.getElementById('sel-year').value);
+  const mesNum = MESES.indexOf(mes) + 1;
+  const nuevoIVA = dotEl.classList.contains('iva-dot-off');
+
+  const { data, error: fetchErr } = await sb.from('fideContabilidad')
+    .select('id')
+    .eq('tipo', f.tipo).eq('concepto', f.concepto)
+    .eq('subconcepto', f.subconcepto).eq('descripcion', f.descripcion)
+    .eq('mes', mesNum).eq('anio', year).eq('status', true)
+    .maybeSingle();
+
+  if (fetchErr) { showToast('Error: ' + fetchErr.message); return; }
+  if (!data) { showToast('Sin registro — ingresa un monto primero'); return; }
+
+  const { error } = await sb.from('fideContabilidad')
+    .update({ aplicaIVA: nuevoIVA })
+    .eq('id', data.id);
+
+  if (error) { showToast('Error: ' + error.message); return; }
+
+  // Actualizar dot y data-iva sin recargar toda la tabla
+  dotEl.className = nuevoIVA ? 'iva-dot' : 'iva-dot-off';
+  dotEl.title = nuevoIVA ? 'Aplica IVA — clic para quitar' : 'Sin IVA — clic para activar';
+  td.dataset.iva = String(nuevoIVA);
+  showToast(nuevoIVA ? '● IVA activado ✓' : '○ IVA desactivado ✓');
+}
+
+async function loadData() {
+  const year = parseInt(document.getElementById('sel-year').value);
+  activeFilter = null;
+  textFilters = {};
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('tbl-wrap').style.display = 'none';
+  document.getElementById('loading').innerHTML = '<span class="spinner"></span>Cargando...';
+
+  try {
+    const [r1, r2] = await Promise.all([
+      sb.rpc('pivot_contabilidad',        { p_anio: year }),
+      sb.rpc('pivot_contabilidad_totales', { p_anio: year }),
+    ]);
+    if (r1.error) throw r1.error;
+    if (r2.error) throw r2.error;
+    await loadSaldos(year);
+    render(r1.data, r2.data);
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('tbl-wrap').style.display = 'block';
+    document.getElementById('leyenda').classList.add('visible');
+  } catch (err) {
+    document.getElementById('loading').innerHTML =
+      `<span style="color:#c0392b">Error: ${err.message || JSON.stringify(err)}</span>`;
+  }
+}
+
+function onNuevo() {
+  openModal();
+}
+
+let editId = null;
+let catalogoConceptos = [];
+
+async function openModal() {
+  editId = null;
+
+  document.querySelector('.modal-head-title').textContent = 'fideContaConceptos';
+  document.querySelector('.modal-badge').textContent = 'Row';
+  document.querySelector('.modal-body').innerHTML = modalBodyHTML();
+  document.querySelector('.modal-footer').innerHTML =
+    `<button class="btn-agregar" id="btn-agregar" onclick="guardarMovimiento()">Agregar</button>`;
+
+  const yr = document.getElementById('sel-year').value;
+  document.getElementById('m-anio').value = yr;
+
+  const ivaNo = document.querySelector('input[name="m-iva"][value="false"]');
+  if (ivaNo) ivaNo.checked = true;
+
+  if (catalogoConceptos.length === 0) {
+    const { data, error } = await sb
+      .from('fideContaConceptos')
+      .select('tipo,concepto,subconcepto,descripcion,es_ingreso')
+      .order('tipo').order('concepto').order('subconcepto').order('descripcion');
+    if (!error) catalogoConceptos = data;
+  }
+
+  const tipos = [...new Set(catalogoConceptos.map(r => r.tipo).filter(Boolean))];
+  const selTipo = document.getElementById('m-tipo');
+  selTipo.innerHTML = '<option value="">Tipo</option>';
+  tipos.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; selTipo.appendChild(o); });
+
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+function closeModal() {
+  editId = null;
+  document.getElementById('modal-bg').classList.remove('open');
+}
+
+function onTipoChange() {
+  const tipo = document.getElementById('m-tipo').value;
+  const selC = document.getElementById('m-concepto');
+  const selS = document.getElementById('m-subconcepto');
+  const selD = document.getElementById('m-descripcion');
+
+  selC.innerHTML = '<option value="">Concepto</option>';
+  selS.innerHTML = '<option value="">subConcepto</option>';
+  selD.innerHTML = '<option value="">Descripcion</option>';
+  selS.disabled = true; selD.disabled = true;
+
+  if (!tipo) { selC.disabled = true; return; }
+  const conceptos = [...new Set(catalogoConceptos.filter(r => r.tipo === tipo).map(r => r.concepto).filter(Boolean))];
+  conceptos.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; selC.appendChild(o); });
+  selC.disabled = false;
+}
+
+function onConceptoChange() {
+  const tipo     = document.getElementById('m-tipo').value;
+  const concepto = document.getElementById('m-concepto').value;
+  const selS = document.getElementById('m-subconcepto');
+  const selD = document.getElementById('m-descripcion');
+
+  const info = catalogoConceptos.find(r => r.tipo === tipo && r.concepto === concepto);
+  const signoHint = document.getElementById('signo-hint');
+  if (signoHint && info) {
+    const esIngreso = info.es_ingreso === true;
+    signoHint.textContent = esIngreso ? '↑ Ingreso — monto positivo' : '↓ Egreso — monto negativo';
+    signoHint.style.color = esIngreso ? '#1a6b4a' : '#c0392b';
+    signoHint.style.display = 'block';
+  } else if (signoHint) {
+    signoHint.style.display = 'none';
+  }
+
+  selS.innerHTML = '<option value="">subConcepto</option>';
+  selD.innerHTML = '<option value="">Descripcion</option>';
+  selD.disabled = true;
+
+  if (!concepto) { selS.disabled = true; return; }
+  const subs = [...new Set(
+    catalogoConceptos
+      .filter(r => r.tipo === tipo && r.concepto === concepto)
+      .map(r => r.subconcepto)
+      .filter(v => v && v.trim())
+  )];
+  subs.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; selS.appendChild(o); });
+  selS.disabled = subs.length === 0;
+  if (subs.length === 0) onSubChange();
+}
+
+function onSubChange() {
+  const tipo      = document.getElementById('m-tipo').value;
+  const concepto  = document.getElementById('m-concepto').value;
+  const sub       = document.getElementById('m-subconcepto').value;
+  const selD = document.getElementById('m-descripcion');
+
+  selD.innerHTML = '<option value="">Descripcion</option>';
+  const descs = [...new Set(
+    catalogoConceptos
+      .filter(r => r.tipo === tipo && r.concepto === concepto && (r.subconcepto || '').trim() === (sub || '').trim())
+      .map(r => r.descripcion)
+      .filter(v => v && v.trim())
+  )];
+  descs.forEach(d => { const o = document.createElement('option'); o.value = d; o.textContent = d; selD.appendChild(o); });
+  selD.disabled = descs.length === 0;
+}
+
+async function guardarMovimiento() {
+  const isEdit = !!editId;
+  const anio        = parseInt(document.getElementById('m-anio').value);
+  const mes         = parseInt(document.getElementById('m-mes').value);
+  const tipo        = document.getElementById('m-tipo').value;
+  const concepto    = document.getElementById('m-concepto').value;
+  const subconcepto = document.getElementById('m-subconcepto').value || '-';
+  const descripcion = document.getElementById('m-descripcion').value || '-';
+  const monto       = parseFloat(document.getElementById('m-monto').value);
+  const aplicaIVA   = document.querySelector('input[name="m-iva"]:checked')?.value === 'true';
+  const notas       = document.getElementById('m-notas')?.value?.trim() || null;
+  const uidActual   = (CURRENT_UID && CURRENT_UID !== '{{CURRENT_UID}}') ? CURRENT_UID : null;
+
+  if (!anio || !mes || !tipo || !concepto || isNaN(monto)) {
+    showToast('Completa todos los campos requeridos');
+    return;
+  }
+
+  const btn = document.getElementById('btn-agregar');
+  btn.disabled = true;
+  btn.textContent = 'Verificando...';
+
+  try {
+    let error;
+
+    if (isEdit) {
+      const { data: antes } = await sb.from('fideContabilidad').select('*').eq('id', editId).single();
+      ({ error } = await sb.from('fideContabilidad').update({
+        anio, mes, tipo, concepto, subconcepto, descripcion,
+        monto, "aplicaIVA": aplicaIVA, notas, uid: uidActual
+      }).eq('id', editId));
+      if (!error) {
+        await registrarHistorial('UPDATE', editId, antes, { monto, notas }, uidActual);
+        showToast('Registro actualizado ✓');
+      }
+    } else {
+      const { data: existente } = await sb.from('fideContabilidad')
+        .select('*')
+        .eq('anio', anio).eq('mes', mes).eq('tipo', tipo)
+        .eq('concepto', concepto).eq('subconcepto', subconcepto)
+        .eq('descripcion', descripcion).eq('status', true)
+        .maybeSingle();
+
+      if (existente) {
+        btn.disabled = false;
+        btn.textContent = 'Agregar';
+        const confirmar = confirm(
+          `Ya existe un registro con estos datos:\n` +
+          `Concepto: ${concepto}\n` +
+          `Monto actual: $${existente.monto?.toLocaleString('es-MX')}\n` +
+          `Fecha: ${new Date(existente.fc).toLocaleDateString('es-MX')}\n\n` +
+          `¿Deseas reemplazarlo con el nuevo monto de $${monto.toLocaleString('es-MX')}?`
+        );
+        if (!confirmar) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Reemplazando...';
+        const snapshot = { ...existente };
+        ({ error } = await sb.from('fideContabilidad').update({
+          monto, "aplicaIVA": aplicaIVA, notas, uid: uidActual
+        }).eq('id', existente.id));
+        if (!error) {
+          await registrarHistorial('REPLACE', existente.id, snapshot, { monto, notas }, uidActual);
+          showToast('Registro reemplazado ✓');
+        }
+      } else {
+        ({ error } = await sb.from('fideContabilidad').insert({
+          anio, mes, tipo, concepto, subconcepto, descripcion,
+          monto, "aplicaIVA": aplicaIVA, notas, uid: uidActual, status: true
+        }));
+        if (!error) {
+          const { data: nuevo } = await sb.from('fideContabilidad')
+            .select('id').eq('anio', anio).eq('mes', mes).eq('tipo', tipo)
+            .eq('concepto', concepto).eq('subconcepto', subconcepto)
+            .eq('descripcion', descripcion).eq('status', true).single();
+          if (nuevo) await registrarHistorial('INSERT', nuevo.id, null, { monto, notas }, uidActual);
+          showToast('Movimiento registrado ✓');
+        }
+      }
+    }
+
+    if (error) throw error;
+    editId = null;
+    closeModal();
+    loadData();
+  } catch (err) {
+    showToast('Error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = isEdit ? 'Actualizar' : 'Agregar';
+  }
+}
+
+async function registrarHistorial(accion, registroId, antes, despues, uid) {
+  try {
+    await sb.from('fideContaHistorial').insert({
+      registro_id: registroId,
+      accion,
+      uid,
+      monto_antes: antes?.monto ?? null,
+      monto_nuevo: despues.monto,
+      notas_antes: antes?.notas ?? null,
+      notas_nuevo: despues.notas ?? null,
+      snapshot: antes ? JSON.parse(JSON.stringify(antes)) : null
+    });
+  } catch(e) {
+    console.error('Error al registrar historial:', e);
+  }
+}
+
+async function eliminarMovimiento() {
+  if (!editId) return;
+  if (!confirm('¿Seguro que quieres eliminar este registro?')) return;
+  const { error } = await sb.from('fideContabilidad')
+    .update({ status: false }).eq('id', editId);
+  if (error) { showToast('Error: ' + error.message); return; }
+  showToast('Registro eliminado ✓');
+  editId = null;
+  closeModal();
+  loadData();
+}
+
+
+function modalBodyHTML() {
+  return `
+    <div class="m-row">
+      <select class="m-select" id="m-anio">
+        <option value="">Año</option>
+        <option value="2023">2023</option><option value="2024">2024</option><option value="2025">2025</option><option value="2026">2026</option>
+      </select>
+      <select class="m-select" id="m-mes">
+        <option value="">Mes</option>
+        <option value="1">Enero</option><option value="2">Febrero</option>
+        <option value="3">Marzo</option><option value="4">Abril</option>
+        <option value="5">Mayo</option><option value="6">Junio</option>
+        <option value="7">Julio</option><option value="8">Agosto</option>
+        <option value="9">Septiembre</option><option value="10">Octubre</option>
+        <option value="11">Noviembre</option><option value="12">Diciembre</option>
+      </select>
+    </div>
+    <div class="m-field">
+      <span class="m-label">Tipo -</span>
+      <select class="m-select-wide" id="m-tipo" onchange="onTipoChange()"><option value="">Tipo</option></select>
+    </div>
+    <div class="m-field">
+      <span class="m-label">Concepto -</span>
+      <select class="m-select-wide" id="m-concepto" onchange="onConceptoChange()" disabled><option value="">Concepto</option></select>
+    </div>
+    <div id="signo-hint" style="display:none;font-size:11px;font-weight:600;margin:-6px 0 6px 98px;padding:4px 8px;border-radius:4px;background:#f5f5f5;"></div>
+    <div class="m-field">
+      <span class="m-label">subConcepto -</span>
+      <select class="m-select-wide" id="m-subconcepto" onchange="onSubChange()" disabled><option value="">subConcepto</option></select>
+    </div>
+    <div class="m-field">
+      <span class="m-label">Descripcion -</span>
+      <select class="m-select-wide" id="m-descripcion" disabled><option value="">Descripcion</option></select>
+    </div>
+    <div class="m-field">
+      <span class="m-label">Notas -</span>
+      <textarea id="m-notas" rows="2"
+        style="flex:1;border:1.5px solid var(--border);border-radius:8px;
+               padding:7px 10px;font-family:inherit;font-size:12px;resize:none;
+               background:var(--white);color:var(--text);outline:none;"
+        placeholder="Comentario opcional..."></textarea>
+    </div>
+    <div class="m-field">
+      <span class="m-label">Aplica IVA -</span>
+      <div style="flex:1;display:flex;gap:16px;padding:6px 0;">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
+          <input type="radio" name="m-iva" value="true"> Sí
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
+          <input type="radio" name="m-iva" value="false" checked> No
+        </label>
+      </div>
+    </div>
+    <div class="m-field">
+      <span class="m-label">Monto -</span>
+      <div style="flex:1;">
+        <div class="m-monto-wrap">
+          <span class="m-monto-label">Monto</span>
+          <input class="m-monto-input" type="number" id="m-monto" step="0.01" placeholder="Monto"
+            oninput="document.getElementById('m-monto-hint').textContent = this.value || '0.0'">
+        </div>
+        <div class="m-monto-hint" id="m-monto-hint">0.0</div>
+      </div>
+    </div>`;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+document.getElementById('modal-bg').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+document.getElementById('modal-cat-bg').addEventListener('click', function(e) {
+  if (e.target === this) closeModalConcepto();
+});
+
+async function openModalConcepto() {
+  // Limpiar campos
+  document.getElementById('cat-tipo').value = '';
+  document.getElementById('cat-concepto').value = '';
+  document.getElementById('cat-subconcepto').value = '';
+  document.getElementById('cat-descripcion').value = '';
+  document.getElementById('cat-orden-tipo').value = 99;
+  document.getElementById('cat-orden-concepto').value = 99;
+  const ivaNo = document.querySelector('input[name="cat-iva"][value="false"]');
+  if (ivaNo) ivaNo.checked = true;
+
+  // Poblar datalist con tipos existentes
+  if (catalogoConceptos.length === 0) {
+    const { data } = await sb.from('fideContaConceptos')
+      .select('tipo,concepto,subconcepto,descripcion,es_ingreso')
+      .order('tipo').order('concepto').order('subconcepto').order('descripcion');
+    if (data) catalogoConceptos = data;
+  }
+  const dl = document.getElementById('cat-tipos-list');
+  dl.innerHTML = '';
+  [...new Set(catalogoConceptos.map(r => r.tipo).filter(Boolean))].sort().forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t;
+    dl.appendChild(opt);
+  });
+
+  document.getElementById('modal-cat-bg').classList.add('open');
+  setTimeout(() => document.getElementById('cat-tipo').focus(), 100);
+}
+
+function closeModalConcepto() {
+  document.getElementById('modal-cat-bg').classList.remove('open');
+}
+
+async function guardarConcepto() {
+  const tipo        = document.getElementById('cat-tipo').value.trim();
+  const concepto    = document.getElementById('cat-concepto').value.trim();
+  const subconcepto = document.getElementById('cat-subconcepto').value.trim() || '';
+  const descripcion = document.getElementById('cat-descripcion').value.trim() || null;
+  const aplicaIVA   = document.querySelector('input[name="cat-iva"]:checked')?.value === 'true';
+  const orden_tipo  = parseInt(document.getElementById('cat-orden-tipo').value) || 99;
+  const orden_concepto = parseInt(document.getElementById('cat-orden-concepto').value) || 99;
+
+  if (!tipo || !concepto) {
+    showToast('Tipo y Concepto son obligatorios');
+    return;
+  }
+
+  const btn = document.getElementById('btn-cat-guardar');
+  btn.disabled = true;
+  btn.textContent = 'Verificando...';
+
+  try {
+    // Verificar duplicado
+    const { data: existe } = await sb.from('fideContaConceptos')
+      .select('id')
+      .eq('tipo', tipo).eq('concepto', concepto)
+      .eq('subconcepto', subconcepto)
+      .eq('descripcion', descripcion ?? '')
+      .maybeSingle();
+
+    if (existe) {
+      showToast('Ya existe ese concepto en el catálogo');
+      return;
+    }
+
+    const { error } = await sb.from('fideContaConceptos').insert({
+      tipo, concepto, subconcepto,
+      descripcion: descripcion || null,
+      aplicaIVA, orden_tipo, orden_concepto
+    });
+
+    if (error) throw error;
+
+    // Limpiar caché para que "Nuevo" recargue el catálogo
+    catalogoConceptos = [];
+    showToast('Concepto agregado al catálogo ✓');
+    closeModalConcepto();
+  } catch (err) {
+    showToast('Error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Agregar al catálogo';
+  }
+}
+
+const sel = document.getElementById('sel-year');
+const cy = new Date().getFullYear();
+[...sel.options].forEach(o => { if (parseInt(o.value) === cy) o.selected = true; });
+
+loadData();
+</script>
+</body>
+</html>

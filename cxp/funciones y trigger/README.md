@@ -20,6 +20,8 @@ Este directorio contiene todas las funciones y triggers asociados al módulo de 
 - `cxp_puede_autorizar.sql` - Verifica permisos de autorización
 - `cxp_puede_insertar.sql` - Verifica permisos de inserción
 - `cxp_trigger_validar_fecha.sql` - Trigger para validar fechas
+- `cxp_actualizar_gerente.sql` - Función trigger que actualiza uidGerente y nomGerente automáticamente según idCategoria
+- `trigger_cxp_actualizar_gerente.sql` - Trigger BEFORE INSERT OR UPDATE que sincroniza uidGerente y nomGerente con PresCategorias y catUsers
 - `trigger_cxp_actualizar_nomcfdi.sql` - Trigger que se ejecuta después de insertar para actualizar nomCFDI cuando está vacío
 - `cxp_validar_fecha_habilitada.sql` - Valida si una fecha está habilitada
 - `cxp_validar_y_actualizar_proveedor.sql` - Valida y actualiza datos de proveedores
@@ -53,7 +55,9 @@ Este directorio contiene todas las funciones y triggers asociados al módulo de 
 5. Actualización Automática de Datos
    ├── cxp_actualizar_nomcfdi_vacio()
    ├── cxp_aprobados_sin_pago_aplicado()
-   └── trigger_cxp_actualizar_nomcfdi()
+   ├── trigger_cxp_actualizar_nomcfdi()
+   ├── cxp_actualizar_gerente()
+   └── trigger_cxp_actualizar_gerente()
 
 6. Mantenimiento de Calendario
    ├── cxp_fechas_habilitadas_anual()
@@ -62,11 +66,11 @@ Este directorio contiene todas las funciones y triggers asociados al módulo de 
 
 ## 📊 Estado Actual
 
-- **Total de funciones**: 15
-- **Total de triggers**: 3
-- **Funciones documentadas**: 3
+- **Total de funciones**: 16
+- **Total de triggers**: 4
+- **Funciones documentadas**: 4
 - **Scripts de prueba**: 2
-- **Última actualización**: 20/11/2025
+- **Última actualización**: 15/05/2026
 
 ## 🔧 Instalación
 
@@ -75,6 +79,46 @@ Para instalar todas las funciones de CXP, ejecutar:
 ```sql
 \i cxp/funciones y trigger/instalar_todo.sql
 ```
+
+## 🔄 Funcionalidad de Actualización Automática de Gerente
+
+### Descripción
+
+El sistema incluye una funcionalidad automática para mantener sincronizados los campos `uidGerente` y `nomGerente` de cada registro CXP con el responsable definido en la categoría presupuestal asignada.
+
+### Componentes
+
+1. **Función**: `cxp_actualizar_gerente()`
+   - Busca el `uidResponsable` en `PresCategorias` usando el `idCategoria` del registro
+   - Con ese UUID, busca el `nomCompleto` en `catUsers`
+   - Asigna ambos valores al registro antes de guardarse (BEFORE trigger)
+   - Optimización: en UPDATE, solo recalcula si `idCategoria` cambió
+
+2. **Trigger**: `trigger_cxp_actualizar_gerente`
+   - Se ejecuta BEFORE INSERT OR UPDATE en la tabla `cxp`
+   - Llama a `cxp_actualizar_gerente()` para realizar la sincronización
+
+### Comportamiento
+
+| Escenario | Resultado |
+|---|---|
+| INSERT con `idCategoria` válida | Llena `uidGerente` y `nomGerente` automáticamente |
+| INSERT con `idCategoria` NULL | Deja ambos campos en NULL |
+| UPDATE cambiando `idCategoria` | Recalcula y actualiza ambos campos |
+| UPDATE sin cambiar `idCategoria` | No hace consultas extra (optimización) |
+| Categoría sin `uidResponsable` asignado | Pone NULL en ambas columnas |
+
+### Ejemplo
+
+```sql
+-- Al insertar, uidGerente y nomGerente se llenan automáticamente
+INSERT INTO cxp ("idCxp", "idCategoria", ...) VALUES ('CXP001', 'CAT_ADMIN', ...);
+
+-- Verificar resultado
+SELECT "idCxp", "idCategoria", "uidGerente", "nomGerente" FROM cxp WHERE "idCxp" = 'CXP001';
+```
+
+---
 
 ## 📝 Notas Importantes
 

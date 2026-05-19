@@ -6,7 +6,7 @@ Esta carpeta contiene todas las funciones y triggers asociados a la tabla `arreP
 
 ## 📁 Estructura de Componentes
 
-### Funciones (8)
+### Funciones (9)
 1. `arrepdp_crear_plan_completo_rpc.sql` - Función RPC principal para crear planes completos
 2. `arrepdp_crear_plan_simple_rpc.sql` - Función RPC simplificada con validación de superposición
 3. `arrepdp_generar_detalle_desde_plan.sql` - Función para generar detalles desde un plan existente
@@ -14,8 +14,9 @@ Esta carpeta contiene todas las funciones y triggers asociados a la tabla `arreP
 5. `arrepdp_actualizar_vigencia.sql` - Función para actualizar el estado de vigencia de contratos
 6. `arrepdp_eliminar_plan_con_restricciones.sql` - Función para eliminar planes con restricciones de seguridad
 7. `arrepdp_desvincular_propiedades.sql` - Función para desvincular propiedades de planes vencidos
-8. `trigger_arrepdp_actualizar_vigencia_diaria.sql` - Trigger programado para ejecución automática diaria
-9. `trigger_arrepdp_desvincular_propiedades_diaria.sql` - Trigger programado para desvinculación automática diaria
+8. `arrepdp_listar_contratos_ciclo_inpc.sql` - Función de consulta para listar contratos que inician ciclo en un mes/año dado (útil para aplicación de incremento INPC)
+9. `trigger_arrepdp_actualizar_vigencia_diaria.sql` - Trigger programado para ejecución automática diaria
+10. `trigger_arrepdp_desvincular_propiedades_diaria.sql` - Trigger programado para desvinculación automática diaria
 
 ### Scripts de Prueba (3)
 1. `test_arrepdp_crear_plan_completo_rpc.sql` - Script de prueba para validar la función RPC
@@ -285,6 +286,38 @@ graph TD
 - **Índices recomendados**: Se recomienda índice en `fecFin` para tablas grandes
 - **Transacción única**: Todo o nada para mantener consistencia
 
+#### `arrepdp_listar_contratos_ciclo_inpc(p_anio, p_mes)` (NUEVA)
+- **Propósito**: Función de consulta que lista los contratos cuyo ciclo anual inicia en el mes y año indicados, para identificar qué planes requieren la aplicación del incremento por INPC.
+- **Características**:
+  - Solo lectura (`STABLE`), no modifica datos
+  - Retorna el número de ciclo calculado dinámicamente
+  - JOIN automático con `inversionista` para incluir la razón social del arrendatario
+  - Excluye contratos nuevos (ciclo 1) y contratos que terminen dentro del año consultado
+- **Parámetros**: `p_anio integer`, `p_mes integer`
+- **Retorno**: TABLE con idArrePdp, arrendatario, idNavArrend, fecInicio, fecFin, plazo, ciclo, rtaBase, Moneda, vigente
+- **Activación**: Llamada directa antes de aplicar el proceso de incremento INPC anual
+- **Fecha de documentación**: 24/04/2026 00:00:00
+
+**Proceso Interno:**
+1. Filtra contratos donde `EXTRACT(MONTH FROM fecInicio) = p_mes`
+2. Excluye contratos iniciados en `p_anio` o posterior (ciclo sería 1 → no aplica incremento)
+3. Excluye contratos que terminan dentro de `p_anio` (`fecFin <= 31/12/p_anio`)
+4. Calcula ciclo: `p_anio - año(fecInicio) + 1`
+5. Retorna la lista ordenada por `fecInicio`
+
+**Casos de Uso Típicos:**
+- **Proceso INPC mensual**: Ejecutar al inicio de cada mes para saber qué contratos tienen ciclo ese mes/año
+- **Auditoría de incrementos**: Verificar cuántos y cuáles contratos requieren actualización
+- **Integración con otras funciones**: Usar los `idArrePdp` retornados como entrada para `arrepdpdetalle_actualizar_inpc()`
+
+**Relaciones con otros módulos:**
+- **Tabla principal**: `public."arrePdp"`
+- **Tabla JOIN**: `public."inversionista"` (razonsocial del arrendatario)
+- **Funciones complementarias**:
+  - `arrepdpdetalle_actualizar_inpc(id_arrepdp)` — aplica el INPC a un plan específico
+  - `arrepdpdetalle_actualizar_inpc_desde_anio(id, anio)` — aplica desde un año específico
+  - `actualizar_inpc_por_ciclo(ciclo_inicio, nuevo_inpc)` — actualización masiva por ciclo
+
 #### `arrepdp_eliminar_plan_con_restricciones()` (NUEVA)
 - **Propósito**: Función que elimina un plan de pagos con restricciones de seguridad
 - **Características**:
@@ -445,7 +478,7 @@ graph TD
     ```
 
 ## 📈 Estado Actual de Componentes
-- **Total funciones**: 8
+- **Total funciones**: 9
 - **Total scripts de prueba**: 3
 - **Total scripts de mantenimiento**: 1
 - **Total triggers**: 2
@@ -544,6 +577,14 @@ SELECT * FROM trigger_arrepdp_actualizar_vigencia_diaria();
   - `arrepdp-desvincular-propiedades` (diario a las 1:30 AM hora de México)
 
 ## 📝 Historial de Cambios
+
+- **24/04/2026 00:00:00**: Creación de función `arrepdp_listar_contratos_ciclo_inpc(p_anio, p_mes)`
+  - **Nueva función de consulta** para listar contratos que inician ciclo en un mes/año dado
+  - **Propósito**: Identificar qué planes requieren aplicación del incremento INPC anual
+  - **Columna ciclo calculada**: `p_anio - año(fecInicio) + 1`
+  - **JOIN con inversionista**: Incluye razón social del arrendatario
+  - **Filtros**: mes de inicio = p_mes, año inicio < p_anio, fecFin > 31/12/p_anio
+  - **Impacto**: Permite al equipo de administración identificar fácilmente los contratos a actualizar cada mes
 - **12/12/2025 01:25**: Agregado soporte completo para mesGracia en `arrepdp_crear_plan_simple_rpc`
   - **Cambios realizados**:
     - Agregados 4 parámetros p_mes_gracia_* con valores por defecto 0.0

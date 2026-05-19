@@ -1,4 +1,4 @@
---[Fecha y Hora]: 13/11/2025 19:08:00
+--[Fecha y Hora]: 15/05/2026 12:07:00
 --[Descripción]: Script de instalación para todas las funciones y triggers del módulo CXP
 --
 --[Componentes instalados]:
@@ -123,7 +123,10 @@ RAISE NOTICE '5. Instalando funciones de actualización automática...';
 -- Función para actualizar estatus de aprobados sin pago aplicado
 \i cxp_aprobados_sin_pago_aplicado.sql
 
-RAISE NOTICE '   → Funciones de actualización automática instaladas: 2';
+-- Función trigger para actualizar uidGerente y nomGerente según idCategoria
+\i cxp_actualizar_gerente.sql
+
+RAISE NOTICE '   → Funciones de actualización automática instaladas: 3';
 
 -- 6. Triggers (al final, dependen de funciones anteriores)
 RAISE NOTICE '6. Instalando triggers...';
@@ -137,7 +140,10 @@ RAISE NOTICE '6. Instalando triggers...';
 -- Trigger para actualizar nomCFDI cuando está vacío
 \i trigger_cxp_actualizar_nomcfdi.sql
 
-RAISE NOTICE '   → Triggers instalados: 3';
+-- Trigger para actualizar uidGerente y nomGerente según idCategoria
+\i trigger_cxp_actualizar_gerente.sql
+
+RAISE NOTICE '   → Triggers instalados: 4';
 
 -- Crear trigger para actualizar día de la semana en fechas habilitadas
 -- Nota: Este trigger se crea aquí porque depende de la función de actualización

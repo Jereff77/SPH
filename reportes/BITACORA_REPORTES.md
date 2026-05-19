@@ -34,6 +34,25 @@ Este documento registra los cambios, ajustes, problemas resueltos y mantenimient
 
 ---
 
+### [06/03/2026] - Análisis del Reporte de Fideicomiso
+**Archivos afectados:**
+- `reportes/Fideicomiso/fide.html`
+
+**Descripción:**
+- Se analizó la estructura y funcionalidad del reporte de Fideicomiso.
+- **Funcionalidad Principal:**
+  - Consulta RPC: `resumen_fideicomiso_completo`.
+  - Filtros: Fideicomiso -> Mes -> Año (lógica de cascada).
+  - Cálculo de Dispersión: Identifica `p_no_dispersion` basado en la selección de Mes/Año.
+  - Totales: Calcula sumatorias en el frontend (Inversión, Renta, Retención, Dispersión).
+- **Observaciones Técnicas:**
+  - **Manejo de Datos:** Implementa robustez en nombres de campos (fallback entre snake_case y camelCase/legacy) para soportar diferentes versiones de la respuesta RPC.
+  - **Exportación:** Utiliza `html2canvas` para capturas PNG y función personalizada para CSV.
+  - **Estándares:** Cumple con el uso de `supabaseClient` para evitar conflictos globales.
+  - **UI/UX:** Implementa búsqueda en tiempo real (nombre, personalidad, adhesión) y ordenamiento de columnas.
+
+---
+
 ## Notas Técnicas Generales
 
 ### Estructura de Reportes

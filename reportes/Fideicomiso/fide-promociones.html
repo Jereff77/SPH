@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte Promociones - Fideicomiso SPH</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: #e3e3e3;
+            color: #2d3748;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+        /* ── Filtros ── */
+        .filters-section {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        .filters-title { font-size: 1.5rem; font-weight: 600; margin-bottom: 20px; color: #2d3748; }
+
+        .filters-grid { display: flex; gap: 20px; align-items: flex-end; }
+
+        .filter-group { display: flex; flex-direction: column; flex: 1; }
+        .filter-group:last-child { flex: 0 0 auto; }
+
+        .filter-group label {
+            font-size: 0.85rem; font-weight: 600; color: #4a5568;
+            margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+
+        .filter-select {
+            width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0;
+            border-radius: 8px; font-size: 1rem; background: white;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 12px center; background-repeat: no-repeat; background-size: 16px;
+            padding-right: 40px; transition: all 0.2s;
+        }
+        .filter-select:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.1); }
+
+        .btn-consultar {
+            padding: 12px 30px; background: #2d3748; color: white;
+            border: none; border-radius: 8px; font-size: 1rem; font-weight: 600;
+            cursor: pointer; transition: all 0.2s; white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(45,55,72,0.3);
+        }
+        .btn-consultar:hover:not(:disabled) { background: #1a202c; transform: translateY(-2px); }
+        .btn-consultar:disabled { background: #cbd5e0; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* ── Tarjetas resumen ── */
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+            display: none;
+        }
+
+        .summary-card {
+            background: white; border-radius: 12px; padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border-left: 5px solid;
+        }
+        .summary-card.card-total     { border-left-color: #2d3748; }
+        .summary-card.card-en-promo  { border-left-color: #48bb78; }
+        .summary-card.card-termina   { border-left-color: #ed8936; }
+        .summary-card.card-finalizo  { border-left-color: #667eea; }
+        .summary-card.card-sin-promo { border-left-color: #a0aec0; }
+
+        .card-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #718096; margin-bottom: 8px; }
+        .card-value { font-size: 2rem; font-weight: 700; color: #2d3748; }
+
+        /* ── Buscador ── */
+        .search-section {
+            background: white; padding: 20px 24px; border-radius: 12px;
+            margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            display: none;
+        }
+        .search-grid { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 12px; align-items: end; }
+
+        .search-group { display: flex; flex-direction: column; }
+        .search-group label { font-size: 0.8rem; font-weight: 600; color: #4a5568; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+        .search-input, .search-select {
+            width: 100%; padding: 9px 12px; border: 2px solid #e2e8f0;
+            border-radius: 6px; font-size: 0.9rem; background: white; transition: all 0.2s;
+        }
+        .search-input:focus, .search-select:focus { outline: none; border-color: #667eea; }
+        .search-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 8px center; background-repeat: no-repeat; background-size: 14px; padding-right: 28px;
+        }
+
+        .btn-limpiar {
+            padding: 9px 16px; background: #e53e3e; color: white;
+            border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600;
+            cursor: pointer; transition: all 0.2s; white-space: nowrap;
+        }
+        .btn-limpiar:hover { background: #c53030; }
+
+        .search-info { margin-top: 10px; font-size: 0.82rem; color: #718096; display: none; }
+        .search-info.active { display: block; }
+
+        /* ── Tabla principal ── */
+        .results-section {
+            background: white; border-radius: 12px; overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08); display: none;
+        }
+
+        .results-header {
+            background: #f7fafc; padding: 18px 28px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .results-title { font-size: 1.2rem; font-weight: 600; color: #2d3748; }
+
+        .table-container { overflow-x: auto; }
+
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+
+        .data-table th {
+            background: #2d3748; color: white; padding: 14px 12px;
+            text-align: left; font-weight: 600; font-size: 0.78rem;
+            text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap;
+            cursor: pointer; user-select: none; transition: background 0.2s;
+        }
+        .data-table th:hover { background: #1a202c; }
+        .data-table th.center { text-align: center; }
+        .data-table th.right  { text-align: right; }
+
+        .sort-icon { display: inline-block; margin-left: 5px; opacity: 0.35; font-size: 0.7rem; }
+        .data-table th.active-sort .sort-icon { opacity: 1; color: #63b3ed; }
+
+        .data-table tbody tr { border-bottom: 1px solid #e2e8f0; transition: background 0.15s; }
+        .data-table tbody tr:hover { background-color: #f7fafc; }
+
+        .data-table td { padding: 13px 12px; vertical-align: middle; }
+        .data-table td.center { text-align: center; }
+        .data-table td.right  { text-align: right; }
+
+        /* ── Badges ── */
+        .badge {
+            display: inline-block; padding: 4px 10px; border-radius: 20px;
+            font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+            white-space: nowrap;
+        }
+        .badge-fisica   { background: #fed7d7; color: #c53030; }
+        .badge-moral    { background: #c6f6d5; color: #2f855a; }
+        .badge-en-promo { background: #c6f6d5; color: #276749; }
+        .badge-termina  { background: #feebc8; color: #c05621; }
+        .badge-finalizo { background: #ebf4ff; color: #2b6cb0; }
+        .badge-sin-promo{ background: #e2e8f0; color: #718096; }
+
+        /* ── Fecha destacada ── */
+        .fecha-fin {
+            font-weight: 600; font-size: 0.92rem;
+        }
+        .fecha-fin.pasada  { color: #2b6cb0; }
+        .fecha-fin.futura  { color: #276749; }
+        .fecha-fin.cercana { color: #c05621; }
+        .fecha-fin.na      { color: #a0aec0; font-style: italic; font-weight: 400; }
+
+        /* ── Barra progreso promoción ── */
+        .promo-bar-wrap { width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; min-width: 80px; }
+        .promo-bar-fill { height: 100%; border-radius: 3px; }
+        .promo-bar-fill.en-promo  { background: #48bb78; }
+        .promo-bar-fill.finalizo  { background: #667eea; }
+        .promo-bar-fill.sin-promo { background: #cbd5e0; }
+        .promo-bar-label { font-size: 0.72rem; color: #718096; margin-top: 3px; }
+
+        /* ── Estado carga ── */
+        .loading-state { padding: 60px; text-align: center; color: #718096; }
+        .spinner {
+            display: inline-block; width: 22px; height: 22px;
+            border: 3px solid #e2e8f0; border-radius: 50%; border-top-color: #667eea;
+            animation: spin 0.9s linear infinite; margin-right: 10px; vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty-state { padding: 60px; text-align: center; color: #718096; }
+        .empty-icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.5; }
+
+        /* ── Fila totales ── */
+        .totals-row td { background: #f7fafc; font-weight: 700; border-top: 2px solid #2d3748; }
+
+        @media (max-width: 768px) {
+            .filters-grid { flex-direction: column; }
+            .search-grid { grid-template-columns: 1fr; }
+            .summary-cards { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- Filtros -->
+    <div class="filters-section">
+        <h2 class="filters-title">Fechas de Fin de Promoción</h2>
+        <div class="filters-grid">
+            <div class="filter-group">
+                <label for="fideicomiso">Fideicomiso</label>
+                <select id="fideicomiso" class="filter-select">
+                    <option value="">Seleccione fideicomiso</option>
+                    <option value="jsRw4C6FswY20O">Fideicomiso Innovacion SPH</option>
+                </select>
+            </div>
+            <button id="btnConsultar" class="btn-consultar" disabled>consultar</button>
+        </div>
+    </div>
+
+    <!-- Tarjetas resumen -->
+    <div class="summary-cards" id="summaryCards">
+        <div class="summary-card card-total">
+            <div class="card-label">Total Adherentes</div>
+            <div class="card-value" id="cardTotal">0</div>
+        </div>
+        <div class="summary-card card-en-promo">
+            <div class="card-label">En Promoción</div>
+            <div class="card-value" id="cardEnPromo">0</div>
+        </div>
+        <div class="summary-card card-termina">
+            <div class="card-label">Termina este Periodo</div>
+            <div class="card-value" id="cardTermina">0</div>
+        </div>
+        <div class="summary-card card-finalizo">
+            <div class="card-label">Promoción Finalizada</div>
+            <div class="card-value" id="cardFinalizo">0</div>
+        </div>
+        <div class="summary-card card-sin-promo">
+            <div class="card-label">Sin Promoción</div>
+            <div class="card-value" id="cardSinPromo">0</div>
+        </div>
+    </div>
+
+    <!-- Buscador -->
+    <div class="search-section" id="searchSection">
+        <div class="search-grid">
+            <div class="search-group">
+                <label>Buscar nombre</label>
+                <input type="text" id="searchNombre" class="search-input" placeholder="Filtrar por nombre...">
+            </div>
+            <div class="search-group">
+                <label>Personalidad</label>
+                <select id="searchTipo" class="search-select">
+                    <option value="">Todas</option>
+                    <option value="fisica">Física</option>
+                    <option value="moral">Moral</option>
+                </select>
+            </div>
+            <div class="search-group">
+                <label>Estado</label>
+                <select id="searchEstado" class="search-select">
+                    <option value="">Todos los estados</option>
+                    <option value="en_promocion">En Promoción</option>
+                    <option value="termina_este_periodo">Termina este Periodo</option>
+                    <option value="finalizada">Finalizada</option>
+                    <option value="sin_promocion">Sin Promoción</option>
+                </select>
+            </div>
+            <div class="search-group" style="justify-content: flex-end;">
+                <label>&nbsp;</label>
+                <button id="btnLimpiar" class="btn-limpiar">🗑 Limpiar</button>
+            </div>
+        </div>
+        <div id="searchInfo" class="search-info"></div>
+    </div>
+
+    <!-- Resultados -->
+    <div class="results-section" id="resultsSection">
+        <div class="results-header">
+            <span class="results-title" id="resultsTitle">Adherentes</span>
+        </div>
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th onclick="ordenar('no_adhesion')" data-col="no_adhesion">Adhesión <span class="sort-icon">⇅</span></th>
+                        <th onclick="ordenar('nombre')" data-col="nombre">Nombre <span class="sort-icon">⇅</span></th>
+                        <th class="center" onclick="ordenar('tipo')" data-col="tipo">Tipo <span class="sort-icon">⇅</span></th>
+                        <th class="center" onclick="ordenar('fechaInicioPromocion')" data-col="fechaInicioPromocion">Inicio Inversión <span class="sort-icon">⇅</span></th>
+                        <th class="center" onclick="ordenar('fechaFinPromocion')" data-col="fechaFinPromocion">Fin de Promoción <span class="sort-icon">⇅</span></th>
+                        <th class="center" onclick="ordenar('dispersionId')" data-col="dispersionId">Dispersión <span class="sort-icon">⇅</span></th>
+                        <th class="center" onclick="ordenar('estado')" data-col="estado">Estado <span class="sort-icon">⇅</span></th>
+                        <th class="center">Avance Promoción</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- datos -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+    // ── Supabase ──────────────────────────────────────────────────────────
+    const SUPABASE_CONFIG = {
+        url: 'https://szjlkvakwljssdnysazp.supabase.co',
+        key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6amxrdmFrd2xqc3NkbnlzYXpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTY4MTkxOTEsImV4cCI6MjAxMjM5NTE5MX0.OvICpRi2IHrrzwQ6TDl_031QRU6qTy2gRWylMrGU8y8'
+    };
+    const supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.key);
+
+    // ── Dispersiones (mismo mapeo que fide.html) ──────────────────────────
+    const TABLA_DISPERSIONES = [
+        { id: '1ra',  inicio: '2023-11-30', fin: '2024-03-31' },
+        { id: '2da',  inicio: '2024-04-01', fin: '2024-06-30' },
+        { id: '3ra',  inicio: '2024-07-01', fin: '2024-09-30' },
+        { id: '4ta',  inicio: '2024-10-01', fin: '2024-12-31' },
+        { id: '5ta',  inicio: '2025-01-01', fin: '2025-03-31' },
+        { id: '6ta',  inicio: '2025-04-01', fin: '2025-06-30' },
+        { id: '7ma',  inicio: '2025-07-01', fin: '2025-09-30' },
+        { id: '8va',  inicio: '2025-10-01', fin: '2025-12-31' },
+        { id: '9na',  inicio: '2026-01-01', fin: '2026-03-31' },
+        { id: '10ma', inicio: '2026-04-01', fin: '2026-06-30' },
+        { id: '11ma', inicio: '2026-07-01', fin: '2026-09-30' },
+        { id: '12ma', inicio: '2026-10-01', fin: '2026-12-31' },
+        { id: '13ra', inicio: '2027-01-01', fin: '2027-03-31' },
+        { id: '14ta', inicio: '2027-04-01', fin: '2027-06-30' },
+        { id: '15ta', inicio: '2027-07-01', fin: '2027-09-30' },
+        { id: '16ta', inicio: '2027-10-01', fin: '2027-12-31' },
+        { id: '17ma', inicio: '2028-01-01', fin: '2028-03-31' },
+        { id: '18va', inicio: '2028-04-01', fin: '2028-06-30' },
+        { id: '19na', inicio: '2028-07-01', fin: '2028-09-30' },
+        { id: '20ma', inicio: '2028-10-01', fin: '2028-12-31' }
+    ];
+
+    // Dispersión actual (hoy)
+    function dispersionActual() {
+        const hoy = new Date();
+        return TABLA_DISPERSIONES.find(d => {
+            const ini = new Date(d.inicio + 'T00:00:00');
+            const fin = new Date(d.fin + 'T23:59:59');
+            return hoy >= ini && hoy <= fin;
+        });
+    }
+
+    // ── Estado global ──────────────────────────────────────────────────────
+    let todosLosAdherentes = [];
+    let adherentesFiltrados = [];
+    let sortState = { col: null, dir: 'asc' };
+
+    // ── UI helpers ────────────────────────────────────────────────────────
+    const fmtFecha = (iso) => {
+        if (!iso) return '—';
+        const [y, m, d] = iso.split('-');
+        return `${d}/${m}/${y}`;
+    };
+
+    function estadoBadge(estado) {
+        switch (estado) {
+            case 'en_promocion':        return '<span class="badge badge-en-promo">En Promoción</span>';
+            case 'termina_este_periodo':return '<span class="badge badge-termina">⚠ Termina este periodo</span>';
+            case 'finalizada':          return '<span class="badge badge-finalizo">Finalizada</span>';
+            default:                    return '<span class="badge badge-sin-promo">Sin Promoción</span>';
+        }
+    }
+
+    function tiposBadge(tipo) {
+        const t = String(tipo || '').toLowerCase();
+        return t === 'fisica'
+            ? '<span class="badge badge-fisica">Física</span>'
+            : '<span class="badge badge-moral">Moral</span>';
+    }
+
+    function clasesFechaFin(adh) {
+        if (!adh.tienePromocion) return 'na';
+        if (!adh.fechaFinPromocion) return 'na';
+        if (adh.estado === 'termina_este_periodo') return 'cercana';
+        if (adh.estado === 'en_promocion') return 'futura';
+        return 'pasada';
+    }
+
+    function barraProgreso(adh) {
+        if (!adh.tienePromocion) {
+            return `<div class="promo-bar-wrap"><div class="promo-bar-fill sin-promo" style="width:100%"></div></div>
+                    <div class="promo-bar-label">Sin promoción</div>`;
+        }
+        if (!adh.fechaInicioPromocion || !adh.fechaFinPromocion) {
+            return `<div class="promo-bar-wrap"><div class="promo-bar-fill en-promo" style="width:50%"></div></div>
+                    <div class="promo-bar-label">En curso</div>`;
+        }
+        const ini  = new Date(adh.fechaInicioPromocion + 'T00:00:00');
+        const fin  = new Date(adh.fechaFinPromocion    + 'T00:00:00');
+        const hoy  = new Date();
+        const total = fin - ini;
+        const trans = Math.min(hoy - ini, total);
+        const pct   = Math.max(0, Math.min(100, Math.round((trans / total) * 100)));
+        const clase = adh.estado === 'finalizada' ? 'finalizo' : 'en-promo';
+        const dias  = Math.ceil((fin - hoy) / 86400000);
+        const label = adh.estado === 'finalizada'
+            ? 'Completada'
+            : dias > 0 ? `${dias} días restantes` : 'Vence hoy';
+        return `<div class="promo-bar-wrap"><div class="promo-bar-fill ${clase}" style="width:${pct}%"></div></div>
+                <div class="promo-bar-label">${label} (${pct}%)</div>`;
+    }
+
+    // ── Obtención de datos ─────────────────────────────────────────────────
+    async function consultarPromociones() {
+        const idFide = document.getElementById('fideicomiso').value;
+        if (!idFide) return;
+
+        // Mostrar loading
+        document.getElementById('resultsSection').style.display = 'block';
+        document.getElementById('tableBody').innerHTML =
+            `<tr><td colspan="8" class="loading-state"><span class="spinner"></span>Cargando adherentes... (esto puede tomar unos segundos)</td></tr>`;
+        document.getElementById('summaryCards').style.display = 'none';
+        document.getElementById('searchSection').style.display = 'none';
+
+        try {
+            // Paso 1: Obtener lista de adherentes únicos llamando todas las dispersiones en paralelo
+            const resumenPromises = TABLA_DISPERSIONES.map(d =>
+                supabaseClient.rpc('resumen_fideicomiso_completo', {
+                    p_id_fideicomiso: idFide,
+                    p_no_dispersion: d.id
+                })
+            );
+            const resumenResults = await Promise.all(resumenPromises);
+
+            // Construir mapa de adherentes únicos con sus datos básicos
+            const adherentMap = {};
+            resumenResults.forEach(res => {
+                if (res.data) {
+                    res.data.forEach(row => {
+                        if (!adherentMap[row.no_adhesion]) {
+                            // rfc_inversionista contiene razonsocial (nombre a mostrar) — igual que en fide.html
+                            adherentMap[row.no_adhesion] = {
+                                no_adhesion : row.no_adhesion,
+                                nombre      : row.rfc_inversionista || row.nombre_inversionista || 'Sin Nombre',
+                                tipo        : row.tipo_persona || 'N/A'
+                            };
+                        }
+                    });
+                }
+            });
+
+            const listaNoAdhesion = Object.keys(adherentMap);
+
+            if (listaNoAdhesion.length === 0) {
+                document.getElementById('tableBody').innerHTML =
+                    `<tr><td colspan="8" class="empty-state"><div class="empty-icon">📋</div><div>No se encontraron adherentes</div></td></tr>`;
+                return;
+            }
+
+            // Paso 2: Para cada adherente, obtener TODOS sus períodos (sin filtrar dispersión)
+            const planPromises = listaNoAdhesion.map(noAdh =>
+                supabaseClient.rpc('plan_dispersiones_dinamico', {
+                    p_id_fideicomiso: idFide,
+                    p_no_adhesion   : noAdh
+                })
+            );
+            const planResults = await Promise.all(planPromises);
+
+            // Paso 3: Procesar cada adherente
+            todosLosAdherentes = listaNoAdhesion.map((noAdh, i) => {
+                const rows = planResults[i].data || [];
+                const base = adherentMap[noAdh];
+
+                if (rows.length === 0) {
+                    return { ...base, tienePromocion: false, estado: 'sin_promocion',
+                             fechaFinPromocion: null, fechaInicioPromocion: null,
+                             dispersionFin: null, dispersionId: null };
+                }
+
+                // Actualizar nombre desde plan_dispersiones_dinamico (más completo)
+                const r0 = rows[0];
+                base.nombre = r0.rfc_inversionista || r0.nombre_inversionista || base.nombre;
+                base.tipo   = r0.tipo_persona || base.tipo;
+
+                // Clasificar filas
+                const promoRows = rows.filter(r =>
+                    r.tipo_periodo === 'TOTAL_PROMOCION' || r.sub_periodo === 'PROMOCION'
+                );
+                const normalRows = rows.filter(r =>
+                    r.tipo_periodo === 'TOTAL_NORMAL' || r.sub_periodo === 'NORMAL'
+                );
+
+                const tienePromocion    = promoRows.length > 0;
+                const promocionFinalizo = tienePromocion && normalRows.length > 0;
+
+                let fechaFinPromocion    = null;
+                let fechaInicioPromocion = null;
+                let dispersionFin        = null;
+                let dispersionId         = null;
+
+                if (tienePromocion) {
+                    // Fecha inicio: primer día de la primera fila en promoción
+                    const firstPromo = promoRows.reduce((a, b) =>
+                        new Date(a.fecha_inicio) <= new Date(b.fecha_inicio) ? a : b
+                    );
+                    fechaInicioPromocion = firstPromo.fecha_inicio;
+
+                    if (promocionFinalizo) {
+                        // Fecha fin exacta: último día del último sub-período en promoción
+                        const lastPromo = promoRows.reduce((a, b) =>
+                            new Date(a.fecha_fin) >= new Date(b.fecha_fin) ? a : b
+                        );
+                        fechaFinPromocion = lastPromo.fecha_fin;
+                    } else {
+                        // Aún en promoción: estimar fin = primer pago + 1 año
+                        const fechasPago = rows
+                            .map(r => r.fecha_pago)
+                            .filter(Boolean)
+                            .map(f => new Date(f + 'T12:00:00'));
+                        if (fechasPago.length > 0) {
+                            const primerPago = new Date(Math.min(...fechasPago));
+                            const finEst = new Date(primerPago);
+                            finEst.setFullYear(finEst.getFullYear() + 1);
+                            fechaFinPromocion = finEst.toISOString().split('T')[0];
+                        }
+                    }
+
+                    // Dispersión donde cae la fecha fin de promoción
+                    if (fechaFinPromocion) {
+                        const finDate = new Date(fechaFinPromocion + 'T12:00:00');
+                        dispersionFin = TABLA_DISPERSIONES.find(d => {
+                            const ini = new Date(d.inicio + 'T00:00:00');
+                            const fin = new Date(d.fin    + 'T23:59:59');
+                            return finDate >= ini && finDate <= fin;
+                        });
+                        dispersionId = dispersionFin ? dispersionFin.id : null;
+                    }
+                }
+
+                // Estado relativo a hoy
+                const hoy = new Date();
+                let estado;
+                if (!tienePromocion) {
+                    estado = 'sin_promocion';
+                } else if (promocionFinalizo) {
+                    estado = 'finalizada';
+                } else {
+                    // En promoción — verificar si termina en el período actual
+                    const dispActual = dispersionActual();
+                    if (dispersionId && dispActual && dispersionId === dispActual.id) {
+                        estado = 'termina_este_periodo';
+                    } else {
+                        estado = 'en_promocion';
+                    }
+                }
+
+                return {
+                    ...base,
+                    tienePromocion,
+                    fechaFinPromocion,
+                    fechaInicioPromocion,
+                    dispersionFin,
+                    dispersionId,
+                    estado,
+                    promocionFinalizo
+                };
+            });
+
+            // Ordenar por defecto: estado (termina primero) y luego fecha fin
+            const ordenEstado = { termina_este_periodo: 0, en_promocion: 1, finalizada: 2, sin_promocion: 3 };
+            todosLosAdherentes.sort((a, b) => {
+                const oe = (ordenEstado[a.estado] ?? 9) - (ordenEstado[b.estado] ?? 9);
+                if (oe !== 0) return oe;
+                if (a.fechaFinPromocion && b.fechaFinPromocion) {
+                    return new Date(a.fechaFinPromocion) - new Date(b.fechaFinPromocion);
+                }
+                return 0;
+            });
+
+            adherentesFiltrados = [...todosLosAdherentes];
+            renderizar(adherentesFiltrados);
+            actualizarTarjetas(todosLosAdherentes);
+
+            document.getElementById('summaryCards').style.display = 'grid';
+            document.getElementById('searchSection').style.display = 'block';
+
+        } catch (err) {
+            console.error(err);
+            document.getElementById('tableBody').innerHTML =
+                `<tr><td colspan="8" class="empty-state"><div class="empty-icon">⚠️</div><div>Error: ${err.message}</div></td></tr>`;
+        }
+    }
+
+    // ── Render tabla ───────────────────────────────────────────────────────
+    function renderizar(lista) {
+        const tbody = document.getElementById('tableBody');
+        const titulo = document.getElementById('resultsTitle');
+
+        if (!lista || lista.length === 0) {
+            tbody.innerHTML =
+                `<tr><td colspan="8" class="empty-state"><div class="empty-icon">🔍</div><div>Sin resultados para los filtros aplicados</div></td></tr>`;
+            titulo.textContent = 'Adherentes';
+            return;
+        }
+
+        titulo.textContent = `${lista.length} adherente${lista.length !== 1 ? 's' : ''}`;
+
+        const filas = lista.map(adh => {
+            const claseFecha = clasesFechaFin(adh);
+            const fechaMostrar = adh.fechaFinPromocion
+                ? (adh.estado !== 'finalizada' && !adh.promocionFinalizo ? `~${fmtFecha(adh.fechaFinPromocion)}` : fmtFecha(adh.fechaFinPromocion))
+                : '—';
+            const dispLabel = adh.dispersionFin
+                ? `${adh.dispersionFin.id}<br><small style="color:#718096;font-weight:400">${fmtFecha(adh.dispersionFin.inicio)} – ${fmtFecha(adh.dispersionFin.fin)}</small>`
+                : '—';
+
+            return `<tr>
+                <td style="font-weight:600">${adh.no_adhesion}</td>
+                <td>${adh.nombre}</td>
+                <td class="center">${tiposBadge(adh.tipo)}</td>
+                <td class="center">${fmtFecha(adh.fechaInicioPromocion)}</td>
+                <td class="center"><span class="fecha-fin ${claseFecha}">${fechaMostrar}</span></td>
+                <td class="center" style="line-height:1.4">${dispLabel}</td>
+                <td class="center">${estadoBadge(adh.estado)}</td>
+                <td style="min-width:120px">${barraProgreso(adh)}</td>
+            </tr>`;
+        }).join('');
+
+        tbody.innerHTML = filas;
+    }
+
+    // ── Tarjetas resumen ───────────────────────────────────────────────────
+    function actualizarTarjetas(lista) {
+        document.getElementById('cardTotal').textContent   = lista.length;
+        document.getElementById('cardEnPromo').textContent = lista.filter(a => a.estado === 'en_promocion').length;
+        document.getElementById('cardTermina').textContent = lista.filter(a => a.estado === 'termina_este_periodo').length;
+        document.getElementById('cardFinalizo').textContent= lista.filter(a => a.estado === 'finalizada').length;
+        document.getElementById('cardSinPromo').textContent= lista.filter(a => a.estado === 'sin_promocion').length;
+    }
+
+    // ── Búsqueda / filtrado ────────────────────────────────────────────────
+    function filtrar() {
+        const termNombre = document.getElementById('searchNombre').value.toLowerCase().trim();
+        const termTipo   = document.getElementById('searchTipo').value.toLowerCase();
+        const termEstado = document.getElementById('searchEstado').value;
+
+        adherentesFiltrados = todosLosAdherentes.filter(adh => {
+            const nombre  = (adh.nombre || '').toLowerCase();
+            const tipo    = (adh.tipo   || '').toLowerCase();
+
+            return (!termNombre || nombre.includes(termNombre))
+                && (!termTipo   || tipo === termTipo)
+                && (!termEstado || adh.estado === termEstado);
+        });
+
+        renderizar(adherentesFiltrados);
+
+        const info = document.getElementById('searchInfo');
+        if (adherentesFiltrados.length < todosLosAdherentes.length) {
+            info.textContent = `Mostrando ${adherentesFiltrados.length} de ${todosLosAdherentes.length} adherentes`;
+            info.classList.add('active');
+        } else {
+            info.classList.remove('active');
+        }
+    }
+
+    function limpiarFiltros() {
+        document.getElementById('searchNombre').value = '';
+        document.getElementById('searchTipo').value   = '';
+        document.getElementById('searchEstado').value = '';
+        adherentesFiltrados = [...todosLosAdherentes];
+        renderizar(adherentesFiltrados);
+        document.getElementById('searchInfo').classList.remove('active');
+    }
+
+    // ── Ordenamiento ───────────────────────────────────────────────────────
+    function ordenar(campo) {
+        if (sortState.col === campo) {
+            sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortState.col = campo;
+            sortState.dir = 'asc';
+        }
+
+        // Actualizar iconos
+        document.querySelectorAll('.data-table th[data-col]').forEach(th => {
+            th.classList.remove('active-sort');
+            th.querySelector('.sort-icon').textContent = '⇅';
+        });
+        const thActivo = document.querySelector(`.data-table th[data-col="${campo}"]`);
+        if (thActivo) {
+            thActivo.classList.add('active-sort');
+            thActivo.querySelector('.sort-icon').textContent = sortState.dir === 'asc' ? '↑' : '↓';
+        }
+
+        adherentesFiltrados.sort((a, b) => {
+            let va = a[campo];
+            let vb = b[campo];
+
+            // Campos de fecha → comparar como Date
+            if (campo === 'fechaFinPromocion' || campo === 'fechaInicioPromocion') {
+                va = va ? new Date(va) : new Date('9999-01-01');
+                vb = vb ? new Date(vb) : new Date('9999-01-01');
+                return sortState.dir === 'asc' ? va - vb : vb - va;
+            }
+
+            // Estado → orden lógico
+            if (campo === 'estado') {
+                const ord = { termina_este_periodo: 0, en_promocion: 1, finalizada: 2, sin_promocion: 3 };
+                va = ord[va] ?? 9;
+                vb = ord[vb] ?? 9;
+                return sortState.dir === 'asc' ? va - vb : vb - va;
+            }
+
+            // Adhesión numérica
+            if (campo === 'no_adhesion') {
+                const na = parseInt(va) || 0;
+                const nb = parseInt(vb) || 0;
+                if (!isNaN(na) && !isNaN(nb)) return sortState.dir === 'asc' ? na - nb : nb - na;
+            }
+
+            // Texto
+            va = String(va || '').toLowerCase();
+            vb = String(vb || '').toLowerCase();
+            return sortState.dir === 'asc'
+                ? va.localeCompare(vb, 'es')
+                : vb.localeCompare(va, 'es');
+        });
+
+        renderizar(adherentesFiltrados);
+    }
+
+    // ── Event listeners ────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        const selectFide = document.getElementById('fideicomiso');
+        const btnConsultar = document.getElementById('btnConsultar');
+
+        selectFide.addEventListener('change', () => {
+            btnConsultar.disabled = !selectFide.value;
+        });
+
+        btnConsultar.addEventListener('click', consultarPromociones);
+
+        document.getElementById('searchNombre').addEventListener('input', filtrar);
+        document.getElementById('searchTipo').addEventListener('change', filtrar);
+        document.getElementById('searchEstado').addEventListener('change', filtrar);
+        document.getElementById('btnLimpiar').addEventListener('click', limpiarFiltros);
+
+        // Auto-seleccionar si hay un solo fideicomiso
+        if (selectFide.options.length === 2) {
+            selectFide.selectedIndex = 1;
+            selectFide.dispatchEvent(new Event('change'));
+        }
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+'; const SUPABASE_KEY = (USER_JWT && USER_JWT.startsWith('eyJ')) ? USER_JWT : SUPABASE_ANON_KEY; const CURRENT_UID = '

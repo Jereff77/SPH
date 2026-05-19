@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contabilidad</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#e0e1e5;
+    --white:#ffffff;
+    --row-alt:#d4d5da;
+    --header-dark:#2d3148;
+    --header-dark2:#3a3f5c;
+    --subtotal-bg:#c8c9ce;
+    --border:#b8b9be;
+    --text:#1a1a2e;
+    --text-muted:#6b6c7e;
+    --neg:#c0392b;
+  }
+  html,body{
+    height:100%;
+    background:var(--bg);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    font-size:13px;
+    color:var(--text);
+  }
+  .panel{background:var(--bg);padding:16px 20px;min-height:100vh;}
+
+  .panel-title{
+    font-size:14px;font-weight:600;color:var(--text);
+    margin-bottom:12px;padding-bottom:10px;
+    border-bottom:1px solid var(--border);
+  }
+  .toolbar{
+    display:flex;justify-content:flex-end;
+    align-items:center;gap:10px;margin-bottom:10px;
+  }
+  .year-select{
+    font-family:inherit;font-size:13px;
+    border:1.5px solid var(--header-dark);border-radius:8px;
+    padding:6px 32px 6px 14px;background:var(--white);
+    color:var(--text);outline:none;cursor:pointer;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%232d3148'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 10px center;
+    min-width:110px;
+  }
+  .btn-nuevo{
+    font-family:inherit;font-size:13px;font-weight:600;
+    background:var(--header-dark);color:#fff;border:none;
+    border-radius:8px;padding:7px 20px;cursor:pointer;transition:opacity .15s;
+  }
+  .btn-nuevo:hover{opacity:.87;}
+
+  .tbl-wrap{overflow-x:auto;}
+  table{border-collapse:collapse;width:100%;font-size:12px;}
+
+  th,td{border:1px solid var(--border);white-space:nowrap;padding:0;}
+  th:last-child,td:last-child{border-right:1px solid var(--border);}
+
+  /* sticky cols */
+  .c0{position:sticky;left:0;  z-index:3;width:36px;min-width:36px;}
+  .c1{position:sticky;left:36px;z-index:3;min-width:150px;max-width:170px;}
+  .c2{position:sticky;left:186px;z-index:3;min-width:160px;max-width:180px;}
+  .c3{position:sticky;left:346px;z-index:3;min-width:160px;max-width:200px;border-right:2px solid var(--border)!important;}
+
+  /* thead */
+  thead th{
+    background:var(--bg);font-size:11px;font-weight:600;
+    color:var(--text);padding:7px 10px;text-align:center;
+    border-bottom:1px solid var(--border);
+  }
+  thead th.c0,thead th.c1,thead th.c2,thead th.c3{text-align:left;}
+  thead th.th-sub{background:var(--subtotal-bg);border-left:2px solid var(--border)!important;}
+
+  /* rows */
+  tr.row-even td{background:var(--white);}
+  tr.row-odd  td{background:var(--row-alt);}
+  tr.row-even:hover td,tr.row-odd:hover td{filter:brightness(.97);}
+
+  td.c0{background:inherit;color:var(--text-muted);font-size:10px;text-align:center;padding:5px 4px;}
+  td.c1{background:inherit;font-size:11px;padding:5px 10px;color:var(--text-muted);}
+  td.c2{background:inherit;font-size:11px;font-weight:500;padding:5px 10px;color:var(--text);}
+  td.c3{background:inherit;font-size:10px;padding:5px 10px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;}
+
+  td.num{text-align:right;padding:5px 10px;font-variant-numeric:tabular-nums;}
+  td.neg{color:var(--neg);}
+  td.td-sub{background:var(--subtotal-bg)!important;font-weight:600;border-left:2px solid var(--border)!important;}
+
+  /* total rows */
+  tr.tr-total td{
+    background:var(--row-alt);font-weight:600;
+    font-size:11px;padding:6px 10px;
+  }
+  tr.tr-total td.num{text-align:right;}
+  tr.tr-total td.td-sub{background:var(--subtotal-bg)!important;}
+
+  tr.tr-gran td{
+    background:var(--header-dark)!important;
+    color:#fff!important;font-weight:600;
+    font-size:11px;padding:6px 10px;
+  }
+  tr.tr-gran td.num{text-align:right;}
+  tr.tr-gran td.neg{color:#ffb3ad!important;}
+  tr.tr-gran td.td-sub{background:var(--header-dark2)!important;}
+
+  /* IVA indicator dot on cells */
+  .iva-dot{
+    display:inline-block;width:5px;height:5px;border-radius:50%;
+    background:#e67e22;margin-left:4px;vertical-align:middle;
+    flex-shrink:0;position:relative;top:-1px;
+  }
+  td.num .cell-inner{display:flex;align-items:center;justify-content:flex-end;gap:3px;}
+    padding:28px;text-align:center;
+    font-size:12px;color:var(--text-muted);
+    background:var(--bg);
+  }
+  .spinner{
+    display:inline-block;width:13px;height:13px;
+    border:2px solid var(--border);border-top-color:var(--text);
+    border-radius:50%;animation:spin .6s linear infinite;
+    vertical-align:middle;margin-right:6px;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+
+  /* ── NOTAS ESTILO EXCEL ── */
+  td.num{position:relative;}
+  .note-tri{
+    position:absolute;top:0;right:0;width:0;height:0;
+    border-style:solid;border-width:0 7px 7px 0;
+    border-color:transparent #e74c3c transparent transparent;
+    cursor:pointer;
+  }
+  .note-tooltip{
+    display:none;position:fixed;z-index:400;
+    background:#fffbe6;border:1px solid #e6c800;border-radius:6px;
+    padding:8px 10px;font-size:11px;color:#333;
+    max-width:240px;line-height:1.5;
+    box-shadow:2px 2px 8px rgba(0,0,0,.15);
+    white-space:pre-wrap;pointer-events:none;
+  }
+  .note-tooltip.visible{display:block;}
+
+
+  /* ── SALDO BANCO ── */
+  tr.saldo-row td{
+    background:var(--bg)!important;
+    border-top:2px solid var(--header-dark);
+    padding:0;
+  }
+  tr.saldo-row td.c0,tr.saldo-row td.c1,tr.saldo-row td.c2,tr.saldo-row td.c3{
+    padding:6px 10px;font-size:11px;font-weight:600;
+    color:var(--text);background:var(--bg)!important;
+  }
+  .saldo-cell{
+    position:relative;
+    display:flex;flex-direction:column;align-items:flex-end;
+    padding:4px 8px;min-height:36px;
+  }
+  .saldo-input{
+    width:100%;border:none;background:transparent;
+    font-family:inherit;font-size:12px;font-weight:500;
+    text-align:right;color:var(--text);outline:none;
+    font-variant-numeric:tabular-nums;padding:2px 0;
+    cursor:pointer;
+  }
+  .saldo-input::placeholder{color:var(--text-muted);font-weight:400;}
+  .saldo-diff{
+    font-size:10px;font-variant-numeric:tabular-nums;
+    color:var(--text-muted);line-height:1.2;
+  }
+  td.saldo-ok{
+    background:#e8f5ee!important;
+    border:1.5px solid #1a6b4a!important;
+  }
+  td.saldo-err{
+    background:#fdf0ee!important;
+    border:2px solid var(--neg)!important;
+  }
+  td.saldo-ok .saldo-diff{color:#1a6b4a;font-weight:600;}
+  td.saldo-err .saldo-diff{color:var(--neg);font-weight:600;}
+  td.saldo-empty{background:var(--bg)!important;}
+
+  /* ── FILTROS ── */
+  .th-wrap{display:flex;align-items:center;justify-content:center;gap:3px;}
+  .th-wrap.left{justify-content:flex-start;}
+  .filter-btn{
+    background:none;border:none;cursor:pointer;padding:1px 2px;
+    color:var(--text-muted);font-size:9px;line-height:1;border-radius:3px;
+    opacity:.4;transition:opacity .15s,background .15s;flex-shrink:0;
+  }
+  .filter-btn:hover{opacity:1;background:var(--border);}
+  .filter-btn.active{opacity:1;color:var(--header-dark);background:var(--subtotal-bg);}
+  .fdrop{
+    display:none;position:fixed;z-index:300;
+    background:var(--white);border:1px solid var(--border);
+    border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.13);
+    min-width:170px;overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;
+  }
+  .fdrop.open{display:block;}
+  .fdrop-head{
+    padding:8px 10px 6px;border-bottom:1px solid var(--border);
+    font-size:10px;font-weight:600;text-transform:uppercase;
+    letter-spacing:.05em;color:var(--text-muted);
+  }
+  .fdrop-opts{max-height:200px;overflow-y:auto;}
+  .fdrop-opt{
+    display:flex;align-items:center;gap:7px;
+    padding:6px 10px;cursor:pointer;
+    border-bottom:.5px solid var(--border);color:var(--text);
+  }
+  .fdrop-opt:last-child{border-bottom:none;}
+  .fdrop-opt:hover{background:var(--row-alt);}
+  .fdrop-opt input[type=checkbox]{cursor:pointer;accent-color:var(--header-dark);}
+  .fdrop-foot{
+    padding:6px 10px;border-top:1px solid var(--border);display:flex;gap:6px;
+  }
+  .fdrop-foot button{
+    flex:1;font-family:inherit;font-size:11px;font-weight:500;
+    padding:4px 0;border-radius:5px;cursor:pointer;
+    border:1px solid var(--border);background:var(--bg);color:var(--text);
+  }
+  .fdrop-foot button.apply{background:var(--header-dark);color:#fff;border-color:var(--header-dark);}
+
+  /* ── MODAL ── */
+  .modal-bg{
+    display:none;position:fixed;inset:0;z-index:100;
+    background:rgba(0,0,0,.35);
+    align-items:center;justify-content:center;
+  }
+  .modal-bg.open{display:flex;}
+  .modal{
+    background:var(--white);border-radius:12px;
+    width:340px;max-width:95vw;
+    box-shadow:0 8px 32px rgba(0,0,0,.18);
+    overflow:hidden;position:relative;
+  }
+  .modal-head{
+    background:var(--header-dark);color:#fff;
+    padding:10px 14px;display:flex;align-items:center;justify-content:space-between;
+  }
+  .modal-head-title{font-size:12px;font-weight:600;letter-spacing:.02em;}
+  .modal-badge{
+    background:#e74c3c;color:#fff;font-size:10px;font-weight:700;
+    padding:2px 8px;border-radius:4px;margin-left:8px;
+  }
+  .modal-close{
+    background:none;border:none;color:#fff;font-size:18px;
+    cursor:pointer;line-height:1;padding:0 2px;opacity:.8;
+  }
+  .modal-close:hover{opacity:1;}
+  .modal-body{padding:14px;}
+
+  /* año/mes row */
+  .m-row{display:flex;gap:8px;margin-bottom:12px;}
+  .m-select{
+    flex:1;font-family:inherit;font-size:12px;
+    border:1.5px solid var(--border);border-radius:8px;
+    padding:7px 28px 7px 10px;background:var(--white);
+    color:var(--text);outline:none;cursor:pointer;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%236b6c7e'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 9px center;
+  }
+  .m-select:focus{border-color:var(--header-dark);}
+  .m-select-wide{
+    width:100%;font-family:inherit;font-size:12px;
+    border:1.5px solid var(--border);border-radius:8px;
+    padding:9px 28px 9px 12px;background:var(--white);
+    color:var(--text);outline:none;cursor:pointer;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%236b6c7e'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 9px center;
+  }
+  .m-select-wide:focus{border-color:var(--header-dark);}
+  .m-select-wide:disabled{background:#f0f0f3;color:var(--text-muted);cursor:not-allowed;}
+
+  /* field rows */
+  .m-field{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .m-label{
+    min-width:90px;font-size:11px;font-weight:500;
+    color:var(--text-muted);background:var(--bg);
+    border-radius:6px;padding:5px 8px;text-align:center;
+    white-space:nowrap;
+  }
+
+  /* monto field */
+  .m-monto-wrap{
+    position:relative;flex:1;
+    border:1.5px solid var(--border);border-radius:8px;
+    background:var(--white);overflow:visible;
+  }
+  .m-monto-wrap:focus-within{border-color:var(--header-dark);}
+  .m-monto-label{
+    position:absolute;top:-8px;left:10px;
+    font-size:10px;color:var(--text-muted);
+    background:var(--white);padding:0 3px;
+  }
+  .m-monto-input{
+    width:100%;border:none;outline:none;
+    font-family:inherit;font-size:13px;font-weight:500;
+    text-align:right;padding:9px 12px;
+    background:transparent;color:var(--text);
+    border-radius:8px;
+  }
+  .m-monto-hint{
+    text-align:right;font-size:10px;
+    color:var(--header-dark);padding:2px 4px 0;
+  }
+
+  /* footer */
+  .modal-footer{
+    padding:10px 14px 14px;display:flex;justify-content:flex-end;
+  }
+  .btn-agregar{
+    font-family:inherit;font-size:13px;font-weight:600;
+    background:var(--header-dark);color:#fff;border:none;
+    border-radius:8px;padding:9px 28px;cursor:pointer;
+    transition:opacity .15s;
+  }
+  .btn-agregar:hover{opacity:.87;}
+  .btn-agregar:disabled{opacity:.4;cursor:not-allowed;}
+
+  /* toast */
+  .toast{
+    position:fixed;bottom:20px;right:20px;z-index:200;
+    background:var(--header-dark);color:#fff;
+    font-size:12px;padding:10px 18px;border-radius:8px;
+    opacity:0;transition:opacity .25s;pointer-events:none;
+  }
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="panel-title">Contabilidad</div>
+  <div class="toolbar">
+    <select class="year-select" id="sel-year" onchange="loadData()">
+      <option value="2023">2023</option>
+      <option value="2024">2024</option>
+      <option value="2025">2025</option>
+      <option value="2026">2026</option>
+    </select>
+    <button class="btn-nuevo" onclick="onNuevo()">Nuevo</button>
+  </div>
+
+  <div id="loading" class="loading"><span class="spinner"></span>Cargando...</div>
+
+  <div class="tbl-wrap" id="tbl-wrap" style="display:none;">
+    <table>
+      <thead>
+        <tr>
+          <th class="c0"></th>
+          <th class="c1"><div class="th-wrap left">Tipo</div></th>
+          <th class="c2"><div class="th-wrap left">Concepto</div></th>
+          <th class="c3"><div class="th-wrap left">Descripción</div></th>
+          <th data-mes="Ene"><div class="th-wrap">Ene<button class="filter-btn" onclick="openFilter(event,'Ene')">▼</button></div></th>
+          <th data-mes="Feb"><div class="th-wrap">Feb<button class="filter-btn" onclick="openFilter(event,'Feb')">▼</button></div></th>
+          <th data-mes="Mar"><div class="th-wrap">Mar<button class="filter-btn" onclick="openFilter(event,'Mar')">▼</button></div></th>
+          <th data-mes="Abr"><div class="th-wrap">Abr<button class="filter-btn" onclick="openFilter(event,'Abr')">▼</button></div></th>
+          <th data-mes="May"><div class="th-wrap">May<button class="filter-btn" onclick="openFilter(event,'May')">▼</button></div></th>
+          <th data-mes="Jun"><div class="th-wrap">Jun<button class="filter-btn" onclick="openFilter(event,'Jun')">▼</button></div></th>
+          <th data-mes="Jul"><div class="th-wrap">Jul<button class="filter-btn" onclick="openFilter(event,'Jul')">▼</button></div></th>
+          <th data-mes="Ago"><div class="th-wrap">Ago<button class="filter-btn" onclick="openFilter(event,'Ago')">▼</button></div></th>
+          <th data-mes="Sep"><div class="th-wrap">Sep<button class="filter-btn" onclick="openFilter(event,'Sep')">▼</button></div></th>
+          <th data-mes="Oct"><div class="th-wrap">Oct<button class="filter-btn" onclick="openFilter(event,'Oct')">▼</button></div></th>
+          <th data-mes="Nov"><div class="th-wrap">Nov<button class="filter-btn" onclick="openFilter(event,'Nov')">▼</button></div></th>
+          <th data-mes="Dic"><div class="th-wrap">Dic<button class="filter-btn" onclick="openFilter(event,'Dic')">▼</button></div></th>
+          <th class="th-sub"><div class="th-wrap">SubTotal<button class="filter-btn" onclick="openFilter(event,'Total')">▼</button></div></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="note-tooltip" id="note-tooltip"></div>
+
+<!-- Filtro dropdown -->
+<div class="fdrop" id="fdrop">
+  <div class="fdrop-head" id="fdrop-title">Filtrar</div>
+  <div class="fdrop-opts" id="fdrop-opts"></div>
+  <div class="fdrop-foot">
+    <button onclick="clearFilter()">Limpiar</button>
+    <button class="apply" onclick="applyFilter()">Aplicar</button>
+  </div>
+</div>
+
+<!-- ── MODAL ── -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <div class="modal-head">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="modal-head-title">fideContaConceptos</span>
+        <span class="modal-badge">Row</span>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- contenido generado dinámicamente por modalBodyHTML() -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn-agregar" id="btn-agregar" onclick="guardarMovimiento()">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── SUPABASE CONFIG ──────────────────────────────────────────
+const SUPABASE_URL = 'https://szjlkvakwljssdnysazp.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6amxrdmFrd2xqc3NkbnlzYXpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTY4MTkxOTEsImV4cCI6MjAxMjM5NTE5MX0.OvICpRi2IHrrzwQ6TDl_031QRU6qTy2gRWylMrGU8y8';
+
+// ─── TOKEN DE USUARIO ─────────────────────────────────────────
+// Reemplaza este valor con el JWT activo del usuario.
+// Este token expira — debe ser inyectado dinámicamente desde tu sistema.
+// Opciones: URL param (?token=...), postMessage desde el padre, o localStorage.
+const USER_JWT = 'eyJhbGciOiJIUzI1NiIsImtpZCI6ImE5SWoxeE5xL01xcjF6Y2ciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3N6amxrdmFrd2xqc3NkbnlzYXpwLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiI4OTZmMDFlNS0yODNmLTRiZGItYjNmMy0xMTM4MWFkZWRiMzAiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzc4MDQ4MjAwLCJpYXQiOjE3NzgwNDQ2MDAsImVtYWlsIjoiamVyZWZmQGFjZWxlcmVtb3MuY29tIiwicGhvbmUiOiIiLCJhcHBfbWV0YWRhdGEiOnsicHJvdmlkZXIiOiJlbWFpbCIsInByb3ZpZGVycyI6WyJlbWFpbCJdfSwidXNlcl9tZXRhZGF0YSI6eyJrZXkiOiIifSwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJhYWwiOiJhYWwxIiwiYW1yIjpbeyJtZXRob2QiOiJwYXNzd29yZCIsInRpbWVzdGFtcCI6MTc3ODA0NDYwMH1dLCJzZXNzaW9uX2lkIjoiZTk5NWYyYWItYTFkOS00NjM5LWI5MDctNTdlMDMzZmJhZGIwIiwiaXNfYW5vbnltb3VzIjpmYWxzZX0.g5SiuL13mEl9dyQouVHTKGMFImT_r0GY1mOsFam29Ig'; // ← sustituye este placeholder
+
+// Usa el JWT del usuario si está disponible, si no cae al anon key
+const SUPABASE_KEY = (USER_JWT && USER_JWT !== '{{USER_JWT_TOKEN}}') ? USER_JWT : SUPABASE_ANON_KEY;
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  global: {
+    headers: {
+      Authorization: `Bearer ${SUPABASE_KEY}`
+    }
+  }
+});
+
+const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+const fmt = v => {
+  const n = parseFloat(v) || 0;
+  if (n === 0) return '0';
+  return new Intl.NumberFormat('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
+};
+
+function numCell(v, extra='', iva=false, nota='') {
+  const n = parseFloat(v) || 0;
+  const negCls = n < 0 ? ' neg' : '';
+  const dot = (iva && n !== 0) ? '<span class="iva-dot" title="Aplica IVA"></span>' : '';
+  const tri = nota ? `<span class="note-tri" data-nota="${nota.replace(/"/g,'&quot;')}" onmouseenter="showNote(event,this)" onmouseleave="hideNote()"></span>` : '';
+  return `<td class="num${negCls} ${extra}">${tri}<span class="cell-inner">${fmt(n)}${dot}</span></td>`;
+}
+
+// Orden exacto del Excel por concepto+descripcion
+function render(detalle, totales) {
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+
+  const grupos = {};
+  const ordenTipos = [];
+  detalle.forEach(r => {
+    if (!grupos[r.tipo]) { grupos[r.tipo] = []; ordenTipos.push(r.tipo); }
+    grupos[r.tipo].push(r);
+  });
+
+  allRows = []; // reset filtros
+  let i = 0;
+  ordenTipos.forEach(tipo => {
+    grupos[tipo].forEach(f => {
+      const desc = (f.descripcion && f.descripcion !== '-') ? f.descripcion : '';
+      const tr = document.createElement('tr');
+      tr.className = i % 2 === 0 ? 'row-even' : 'row-odd';
+      tr.dataset.tipo    = f.tipo;
+      tr.dataset.concepto= f.concepto;
+      tr.dataset.desc    = f.descripcion || '';
+      // data attributes para filtros por mes
+      MESES.forEach(m => tr.dataset[m.toLowerCase()] = f[m] ?? 0);
+      if (f.notas) tr.dataset.notas = JSON.stringify(f.notas);
+      tr.dataset.total   = f['Total'] ?? 0;
+      // tr.onclick = () => openEditPicker(f); // TODO: reactivar cuando se corrija el modal de edición
+      const iva = f.aplicaIVA === true;
+      tr.innerHTML = `
+        <td class="c0">${i + 1}</td>
+        <td class="c1">${f.tipo}</td>
+        <td class="c2">${f.concepto}</td>
+        <td class="c3" title="${desc}">${desc}</td>
+        ${MESES.map(m => numCell(f[m] ?? 0, '', iva, f.notas?.[m] || '')).join('')}
+        ${numCell(f['Total'] ?? 0, 'td-sub', iva)}`;
+      tbody.appendChild(tr);
+      allRows.push(tr);
+      i++;
+    });
+  });
+
+  // store gran total per mes for saldo comparison
+  const granTotalRow = totales.find(t => t.tipo.toUpperCase().includes('GRAN'));
+  window._granTotales = granTotalRow || {};
+
+  totales.forEach(t => {
+    const isGran = t.tipo.toUpperCase().includes('GRAN');
+    const tr = document.createElement('tr');
+    tr.className = isGran ? 'tr-gran' : 'tr-total';
+    tr.innerHTML = `
+      <td class="c0"></td>
+      <td colspan="3" style="padding:6px 10px;">${t.tipo}</td>
+      ${MESES.map(m => numCell(t[m] ?? 0)).join('')}
+      ${numCell(t['Total'] ?? 0, 'td-sub')}`;
+    tbody.appendChild(tr);
+  });
+
+  // saldo banco row
+  renderSaldoRow(tbody);
+}
+
+// ─── FILTROS ──────────────────────────────────────────────────
+let allRows = [];
+let activeFilter = null;
+let currentFilterMes = null;
+
+function openFilter(e, mes) {
+  e.stopPropagation();
+  const drop = document.getElementById('fdrop');
+  if (drop.classList.contains('open') && currentFilterMes === mes) { closeDrop(); return; }
+  currentFilterMes = mes;
+  document.getElementById('fdrop-title').textContent = 'Filtrar — ' + mes;
+
+  const key = mes.toLowerCase();
+  const valSet = new Set();
+  allRows.forEach(r => {
+    const v = parseFloat(r.dataset[key] ?? 0);
+    valSet.add(v === 0 ? '(cero)' : v > 0 ? 'positivos' : 'negativos');
+  });
+
+  const opciones = ['(cero)','positivos','negativos'].filter(o => valSet.has(o));
+  const activeVals = (activeFilter && activeFilter.mes === mes) ? activeFilter.valores : null;
+  const todosActivo = !activeVals;
+
+  const opts = document.getElementById('fdrop-opts');
+  opts.innerHTML = '<label class="fdrop-opt"><input type="checkbox" id="chk-todos" value="__todos__" ' +
+    (todosActivo ? 'checked' : '') + ' onchange="toggleTodos(this)"> Todos</label>' +
+    opciones.map(op => '<label class="fdrop-opt"><input type="checkbox" class="fopt" value="' + op + '" ' +
+      (todosActivo ? 'checked' : (activeVals.has(op) ? 'checked' : '')) + '> ' + op + '</label>').join('');
+
+  const rect = e.currentTarget.getBoundingClientRect();
+  drop.style.top  = (rect.bottom + 4) + 'px';
+  drop.style.left = Math.min(rect.left, window.innerWidth - 185) + 'px';
+  drop.classList.add('open');
+}
+
+function toggleTodos(cb) {
+  document.querySelectorAll('#fdrop-opts .fopt').forEach(c => c.checked = cb.checked);
+}
+
+function applyFilter() {
+  const mes = currentFilterMes;
+  const todosChk = document.getElementById('chk-todos') && document.getElementById('chk-todos').checked;
+  const allOpts = document.querySelectorAll('#fdrop-opts .fopt');
+  const checked = [...document.querySelectorAll('#fdrop-opts .fopt:checked')].map(c => c.value);
+
+  if (todosChk || checked.length === allOpts.length || checked.length === 0) {
+    activeFilter = null;
+  } else {
+    activeFilter = { mes: mes, valores: new Set(checked) };
+  }
+
+  applyVisibility();
+  closeDrop();
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    const m = b.closest('th') && b.closest('th').dataset.mes;
+    if (m) b.classList.toggle('active', !!(activeFilter && activeFilter.mes === m));
+  });
+}
+
+function clearFilter() {
+  activeFilter = null;
+  applyVisibility();
+  closeDrop();
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+}
+
+function applyVisibility() {
+  if (!activeFilter) { allRows.forEach(tr => tr.style.display = ''); return; }
+  const mes = activeFilter.mes;
+  const valores = activeFilter.valores;
+  const key = mes.toLowerCase();
+  allRows.forEach(tr => {
+    const v = parseFloat(tr.dataset[key] ?? 0);
+    const cat = v === 0 ? '(cero)' : v > 0 ? 'positivos' : 'negativos';
+    tr.style.display = valores.has(cat) ? '' : 'none';
+  });
+}
+
+function showNote(e, el) {
+  const nota = el.dataset.nota || '';
+  if (!nota) return;
+  const tip = document.getElementById('note-tooltip');
+  tip.textContent = nota;
+  tip.classList.add('visible');
+  const x = Math.min(e.clientX + 12, window.innerWidth - 240);
+  const y = e.clientY + 14;
+  tip.style.left = x + 'px';
+  tip.style.top  = y + 'px';
+}
+function hideNote() {
+  document.getElementById('note-tooltip').classList.remove('visible');
+}
+
+function closeDrop() { document.getElementById('fdrop').classList.remove('open'); }
+document.addEventListener('click', e => {
+  const drop = document.getElementById('fdrop');
+  if (drop.classList.contains('open') && !drop.contains(e.target)) closeDrop();
+});
+
+// ─── SALDO BANCO ──────────────────────────────────────────────
+let saldosData = {}; // { "Ene": 12345.67, ... }
+const TOLERANCIA = 0.80;
+
+async function loadSaldos(anio) {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/fideSaldosBanco?anio=eq.${anio}&select=mes,saldo`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    const data = await res.json();
+    saldosData = {};
+    data.forEach(r => { saldosData[MESES[r.mes - 1]] = parseFloat(r.saldo); });
+  } catch(e) { saldosData = {}; }
+}
+
+function renderSaldoRow(tbody) {
+  const tr = document.createElement('tr');
+  tr.className = 'saldo-row';
+  tr.id = 'saldo-banco-row';
+  tr.innerHTML = `
+    <td class="c0"></td>
+    <td class="c1" colspan="3">Saldo estado de cuenta</td>
+    ${MESES.map(m => `
+      <td id="saldo-td-${m}" class="saldo-empty">
+        <div class="saldo-cell">
+          <input class="saldo-input" id="saldo-inp-${m}" type="text"
+            inputmode="decimal" placeholder="—"
+            value="${saldosData[m] !== undefined ? fmt(saldosData[m]) : ''}"
+            onfocus="this.value=saldosData['${m}'] !== undefined ? saldosData['${m}'] : ''"
+            onblur="saveSaldo('${m}', this.value)"
+            onkeydown="if(event.key==='Enter'||event.key==='Tab'){this.blur();}">
+          <span class="saldo-diff" id="saldo-diff-${m}"></span>
+        </div>
+      </td>`).join('')}
+    <td class="td-sub" style="background:var(--subtotal-bg)"></td>`;
+  tbody.appendChild(tr);
+
+  // Render diffs for already-loaded saldos
+  MESES.forEach(m => { if (saldosData[m] !== undefined) updateDiff(m); });
+}
+
+async function saveSaldo(mes, rawVal) {
+  const anio = parseInt(document.getElementById('sel-year').value);
+  const inp = document.getElementById(`saldo-inp-${mes}`);
+
+  // Parse: remove formatting
+  const cleaned = String(rawVal).replace(/,/g, '').trim();
+  const val = parseFloat(cleaned);
+
+  if (isNaN(val) || cleaned === '') {
+    // clear
+    saldosData[mes] = undefined;
+    inp.value = '';
+    updateDiff(mes);
+    // delete from DB
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/fideSaldosBanco?anio=eq.${anio}&mes=eq.${MESES.indexOf(mes)+1}`,
+      { method: 'DELETE', headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, Prefer: 'return=minimal' } }
+    );
+    return;
+  }
+
+  saldosData[mes] = val;
+  inp.value = fmt(val);
+  updateDiff(mes);
+
+  // Upsert to DB
+  const mesNum = MESES.indexOf(mes) + 1;
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/fideSaldosBanco`,
+    {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates,return=minimal'
+      },
+      body: JSON.stringify({ anio, mes: mesNum, saldo: val })
+    }
+  );
+}
+
+function updateDiff(mes) {
+  const td   = document.getElementById(`saldo-td-${mes}`);
+  const diff_el = document.getElementById(`saldo-diff-${mes}`);
+  if (!td || !diff_el) return;
+
+  const saldo = saldosData[mes];
+  if (saldo === undefined || saldo === null) {
+    td.className = 'saldo-empty';
+    diff_el.textContent = '';
+    return;
+  }
+
+  const gran = parseFloat(window._granTotales?.[mes] ?? 0);
+  const diff = gran - saldo;
+  const absDiff = Math.abs(diff);
+
+  if (absDiff <= TOLERANCIA) {
+    td.className = 'saldo-ok';
+    diff_el.textContent = '✓ cuadrado';
+  } else {
+    td.className = 'saldo-err';
+    const sign = diff > 0 ? '+' : '';
+    diff_el.textContent = `${sign}${fmt(diff)}`;
+  }
+}
+
+async function loadData() {
+  const year = parseInt(document.getElementById('sel-year').value);
+  activeFilter = null;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('tbl-wrap').style.display = 'none';
+  document.getElementById('loading').innerHTML = '<span class="spinner"></span>Cargando...';
+
+  try {
+    const [r1, r2] = await Promise.all([
+      sb.rpc('pivot_contabilidad',         { p_anio: year }),
+      sb.rpc('pivot_contabilidad_totales',  { p_anio: year }),
+      loadSaldos(year),
+    ]);
+    if (r1.error) throw r1.error;
+    if (r2.error) throw r2.error;
+    render(r1.data, r2.data);
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('tbl-wrap').style.display = 'block';
+  } catch (err) {
+    document.getElementById('loading').innerHTML =
+      `<span style="color:#c0392b">Error: ${err.message}</span>`;
+  }
+}
+
+function onNuevo() {
+  openModal();
+}
+
+// ─── ESTADO EDICIÓN ───────────────────────────────────────────
+let editId = null; // null = modo nuevo, number = modo edición
+let catalogoConceptos = [];
+
+async function openModal() {
+  editId = null;
+
+  // restaurar header, body y footer al estado "Nuevo"
+  document.querySelector('.modal-head-title').textContent = 'fideContaConceptos';
+  document.querySelector('.modal-badge').textContent = 'Row';
+  document.querySelector('.modal-body').innerHTML = modalBodyHTML();
+  document.querySelector('.modal-footer').innerHTML =
+    `<button class="btn-agregar" id="btn-agregar" onclick="guardarMovimiento()">Agregar</button>`;
+
+  // pre-select año del selector principal
+  const yr = document.getElementById('sel-year').value;
+  document.getElementById('m-anio').value = yr;
+
+  // reset IVA a No
+  const ivaNo = document.querySelector('input[name="m-iva"][value="false"]');
+  if (ivaNo) ivaNo.checked = true;
+
+  // cargar catálogo si no está cargado
+  if (catalogoConceptos.length === 0) {
+    const { data, error } = await sb
+      .from('fideContaConceptos')
+      .select('tipo,concepto,subconcepto,descripcion')
+      .order('tipo').order('concepto').order('subconcepto').order('descripcion');
+    if (!error) catalogoConceptos = data;
+  }
+
+  // llenar tipos únicos
+  const tipos = [...new Set(catalogoConceptos.map(r => r.tipo).filter(Boolean))];
+  const selTipo = document.getElementById('m-tipo');
+  selTipo.innerHTML = '<option value="">Tipo</option>';
+  tipos.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; selTipo.appendChild(o); });
+
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+function closeModal() {
+  editId = null;
+  document.getElementById('modal-bg').classList.remove('open');
+}
+
+function onTipoChange() {
+  const tipo = document.getElementById('m-tipo').value;
+  const selC = document.getElementById('m-concepto');
+  const selS = document.getElementById('m-subconcepto');
+  const selD = document.getElementById('m-descripcion');
+
+  selC.innerHTML = '<option value="">Concepto</option>';
+  selS.innerHTML = '<option value="">subConcepto</option>';
+  selD.innerHTML = '<option value="">Descripcion</option>';
+  selS.disabled = true; selD.disabled = true;
+
+  if (!tipo) { selC.disabled = true; return; }
+  const conceptos = [...new Set(catalogoConceptos.filter(r => r.tipo === tipo).map(r => r.concepto).filter(Boolean))];
+  conceptos.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; selC.appendChild(o); });
+  selC.disabled = false;
+}
+
+function onConceptoChange() {
+  const tipo     = document.getElementById('m-tipo').value;
+  const concepto = document.getElementById('m-concepto').value;
+  const selS = document.getElementById('m-subconcepto');
+  const selD = document.getElementById('m-descripcion');
+
+  selS.innerHTML = '<option value="">subConcepto</option>';
+  selD.innerHTML = '<option value="">Descripcion</option>';
+  selD.disabled = true;
+
+  if (!concepto) { selS.disabled = true; return; }
+  const subs = [...new Set(
+    catalogoConceptos
+      .filter(r => r.tipo === tipo && r.concepto === concepto)
+      .map(r => r.subconcepto)
+      .filter(v => v && v.trim())
+  )];
+  subs.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; selS.appendChild(o); });
+  selS.disabled = subs.length === 0;
+  if (subs.length === 0) onSubChange(); // saltar directo a descripción
+}
+
+function onSubChange() {
+  const tipo      = document.getElementById('m-tipo').value;
+  const concepto  = document.getElementById('m-concepto').value;
+  const sub       = document.getElementById('m-subconcepto').value;
+  const selD = document.getElementById('m-descripcion');
+
+  selD.innerHTML = '<option value="">Descripcion</option>';
+  const descs = [...new Set(
+    catalogoConceptos
+      .filter(r => r.tipo === tipo && r.concepto === concepto && (r.subconcepto || '').trim() === (sub || '').trim())
+      .map(r => r.descripcion)
+      .filter(v => v && v.trim())
+  )];
+  descs.forEach(d => { const o = document.createElement('option'); o.value = d; o.textContent = d; selD.appendChild(o); });
+  selD.disabled = descs.length === 0;
+}
+
+async function guardarMovimiento() {
+  const anio        = parseInt(document.getElementById('m-anio').value);
+  const mes         = parseInt(document.getElementById('m-mes').value);
+  const tipo        = document.getElementById('m-tipo').value;
+  const concepto    = document.getElementById('m-concepto').value;
+  const subconcepto = document.getElementById('m-subconcepto').value;
+  const descripcion = document.getElementById('m-descripcion').value;
+  const aplicaIVA   = document.querySelector('input[name="m-iva"]:checked')?.value === 'true';
+
+  if (!anio || !mes || !tipo || !concepto || isNaN(monto)) {
+    showToast('Completa todos los campos requeridos');
+    return;
+  }
+
+  const btn = document.getElementById('btn-agregar');
+  btn.disabled = true;
+  btn.textContent = editId ? 'Actualizando...' : 'Guardando...';
+
+  try {
+    let error;
+    if (editId) {
+      ({ error } = await sb.from('fideContabilidad').update({
+        anio, mes, tipo, concepto,
+        subconcepto: subconcepto || null,
+        descripcion: descripcion || null,
+        monto, "aplicaIVA": aplicaIVA, notas: document.getElementById('m-notas')?.value?.trim() || null
+      }).eq('id', editId));
+      if (!error) showToast('Registro actualizado ✓');
+    } else {
+      ({ error } = await sb.from('fideContabilidad').insert({
+        anio, mes, tipo, concepto,
+        subconcepto: subconcepto || null,
+        descripcion: descripcion || null,
+        monto, "aplicaIVA": aplicaIVA, notas: document.getElementById('m-notas')?.value?.trim() || null, notas: document.getElementById('m-notas')?.value?.trim() || null, status: true
+      }));
+      if (!error) showToast('Movimiento registrado ✓');
+    }
+    if (error) throw error;
+    editId = null;
+    closeModal();
+    loadData();
+  } catch (err) {
+    showToast('Error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = editId ? 'Actualizar' : 'Agregar';
+  }
+}
+
+async function eliminarMovimiento() {
+  if (!editId) return;
+  if (!confirm('¿Seguro que quieres eliminar este registro?')) return;
+  const { error } = await sb.from('fideContabilidad')
+    .update({ status: false }).eq('id', editId);
+  if (error) { showToast('Error: ' + error.message); return; }
+  showToast('Registro eliminado ✓');
+  editId = null;
+  closeModal();
+  loadData();
+}
+
+// ─── EDICION: abrir modal desde renglón ───────────────────────
+async function openEditPicker(f) {
+  const year = parseInt(document.getElementById('sel-year').value);
+  const { data, error } = await sb
+    .from('fideContabilidad')
+    .select('*')
+    .eq('tipo',    f.tipo)
+    .eq('concepto', f.concepto)
+    .eq('anio',    year)
+    .eq('status',  true)
+    .order('mes');
+
+  if (error || !data || data.length === 0) {
+    showToast('No se encontró el registro'); return;
+  }
+  if (data.length === 1) {
+    await openModalEdit(data[0]);
+  } else {
+    showMonthPicker(data, f);
+  }
+}
+
+function showMonthPicker(registros, f) {
+  const MN = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  window._editRegistros = registros;
+  const items = registros.map(r => `
+    <div onclick="selectForEdit(${r.id})"
+      style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--border);
+             font-size:12px;display:flex;justify-content:space-between;align-items:center;
+             background:var(--white);"
+      onmouseover="this.style.background='var(--row-alt)'"
+      onmouseout="this.style.background='var(--white)'">
+      <span style="font-weight:500">${MN[r.mes]}</span>
+      <span style="font-variant-numeric:tabular-nums">${new Intl.NumberFormat('es-MX',{minimumFractionDigits:2}).format(r.monto)}</span>
+    </div>`).join('');
+
+  document.querySelector('.modal-head-title').textContent = f.concepto;
+  document.querySelector('.modal-badge').textContent = 'Selecciona';
+  document.querySelector('.modal-body').innerHTML =
+    `<p style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">
+      ${registros.length} registros — ¿cuál quieres editar?
+    </p>${items}`;
+  document.querySelector('.modal-footer').innerHTML =
+    `<button class="btn-agregar" style="background:var(--text-muted)"
+       onclick="closeModal()">Cancelar</button>`;
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+async function selectForEdit(id) {
+  const reg = (window._editRegistros || []).find(r => r.id === id);
+  if (reg) await openModalEdit(reg);
+}
+
+async function openModalEdit(reg) {
+  editId = reg.id;
+  if (catalogoConceptos.length === 0) {
+    const { data } = await sb.from('fideContaConceptos')
+      .select('tipo,concepto,subconcepto,descripcion').order('tipo').order('concepto');
+    if (data) catalogoConceptos = data;
+  }
+  // restaurar estructura del modal
+  document.querySelector('.modal-head-title').textContent = 'fideContaConceptos';
+  document.querySelector('.modal-badge').textContent = 'Editar';
+  document.querySelector('.modal-body').innerHTML = modalBodyHTML();
+  document.querySelector('.modal-footer').innerHTML = `
+    <div style="display:flex;gap:8px;">
+      <button class="btn-agregar" style="background:#888" onclick="eliminarMovimiento()">Eliminar</button>
+      <button class="btn-agregar" id="btn-agregar" onclick="guardarMovimiento()">Actualizar</button>
+    </div>`;
+
+  // poblar año/mes
+  document.getElementById('m-anio').value = reg.anio;
+  document.getElementById('m-mes').value  = reg.mes;
+
+  // poblar tipos y cascada
+  const tipos = [...new Set(catalogoConceptos.map(r => r.tipo).filter(Boolean))];
+  const selT = document.getElementById('m-tipo');
+  selT.innerHTML = '<option value="">Tipo</option>';
+  tipos.forEach(t => { const o=document.createElement('option'); o.value=t; o.textContent=t; selT.appendChild(o); });
+  selT.value = reg.tipo;
+  onTipoChange();
+
+  await new Promise(r => setTimeout(r, 0));
+  document.getElementById('m-concepto').value = reg.concepto;
+  onConceptoChange();
+
+  await new Promise(r => setTimeout(r, 0));
+  if (reg.subconcepto) document.getElementById('m-subconcepto').value = reg.subconcepto;
+  onSubChange();
+
+  await new Promise(r => setTimeout(r, 0));
+  if (reg.descripcion) document.getElementById('m-descripcion').value = reg.descripcion;
+
+  document.getElementById('m-monto').value = reg.monto;
+  document.getElementById('m-monto-hint').textContent = reg.monto ?? '0.0';
+  // precargar aplicaIVA
+  const ivaVal = reg.aplicaIVA === true ? 'true' : 'false';
+  const ivaRadio = document.querySelector(`input[name="m-iva"][value="${ivaVal}"]`);
+  if (ivaRadio) ivaRadio.checked = true;
+  const notasEl = document.getElementById('m-notas');
+  if (notasEl) notasEl.value = reg.notas || '';
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+function modalBodyHTML() {
+  return `
+    <div class="m-row">
+      <select class="m-select" id="m-anio">
+        <option value="">Año</option>
+        <option value="2024">2024</option><option value="2025">2025</option><option value="2026">2026</option>
+      </select>
+      <select class="m-select" id="m-mes">
+        <option value="">Mes</option>
+        <option value="1">Enero</option><option value="2">Febrero</option>
+        <option value="3">Marzo</option><option value="4">Abril</option>
+        <option value="5">Mayo</option><option value="6">Junio</option>
+        <option value="7">Julio</option><option value="8">Agosto</option>
+        <option value="9">Septiembre</option><option value="10">Octubre</option>
+        <option value="11">Noviembre</option><option value="12">Diciembre</option>
+      </select>
+    </div>
+    <div class="m-field">
+      <span class="m-label">Tipo -</span>
+      <select class="m-select-wide" id="m-tipo" onchange="onTipoChange()"><option value="">Tipo</option></select>
+    </div>
+    <div class="m-field">
+      <span class="m-label">Concepto -</span>
+      <select class="m-select-wide" id="m-concepto" onchange="onConceptoChange()" disabled><option value="">Concepto</option></select>
+    </div>
+    <div class="m-field">
+      <span class="m-label">subConcepto -</span>
+      <select class="m-select-wide" id="m-subconcepto" onchange="onSubChange()" disabled><option value="">subConcepto</option></select>
+    </div>
+    <div class="m-field">
+      <span class="m-label">Descripcion -</span>
+      <select class="m-select-wide" id="m-descripcion" disabled><option value="">Descripcion</option></select>
+    </div>
+    <div class="m-field">
+      <span class="m-label">Notas -</span>
+      <textarea id="m-notas" rows="2"
+        style="flex:1;border:1.5px solid var(--border);border-radius:8px;
+               padding:7px 10px;font-family:inherit;font-size:12px;resize:none;
+               background:var(--white);color:var(--text);outline:none;"
+        placeholder="Comentario opcional..."></textarea>
+    </div>
+    <div class="m-field">
+      <span class="m-label">Aplica IVA -</span>
+      <div style="flex:1;display:flex;gap:16px;padding:6px 0;">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
+          <input type="radio" name="m-iva" value="true"> Sí
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
+          <input type="radio" name="m-iva" value="false" checked> No
+        </label>
+      </div>
+    </div>
+    <div class="m-field">
+      <span class="m-label">Monto -</span>
+      <div style="flex:1;">
+        <div class="m-monto-wrap">
+          <span class="m-monto-label">Monto</span>
+          <input class="m-monto-input" type="number" id="m-monto" step="0.01" placeholder="Monto"
+            oninput="document.getElementById('m-monto-hint').textContent = this.value || '0.0'">
+        </div>
+        <div class="m-monto-hint" id="m-monto-hint">0.0</div>
+      </div>
+    </div>`;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// cerrar modal al click fuera
+document.getElementById('modal-bg').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// año actual por defecto
+const sel = document.getElementById('sel-year');
+const cy = new Date().getFullYear();
+[...sel.options].forEach(o => { if (parseInt(o.value) === cy) o.selected = true; });
+
+loadData();
+</script>
+</body>
+</html>
