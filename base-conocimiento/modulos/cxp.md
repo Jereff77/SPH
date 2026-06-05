@@ -45,8 +45,8 @@ Captura/Solicitud  →  Autorización  →  Pago/Transferencia  →  Conciliaci�
 | Solicitudes de pago | `/cxp/solicitudes` | 420 | ✅ listado (4 etapas) + **alta de Solicitud de Pago (CFDI)** + editar/enviar/eliminar |
 | **Pagar solicitudes** | `/cxp/pagar` | **400** | ✅ desarrollado (tesorería: listado + registrar pago/conciliación + tiempo real) |
 | Claves SAT | `/configuraciones/parametros` (pestaña) | 210 | ✅ desarrollado |
+| **Aprobar Solicitudes** | `/cxp/aprobar` | **430** | ✅ desarrollado (bandeja del aprobador: regresar/rechazar/aprobar con presupuesto) |
 | Solicitudes pendientes | `/cxp/pendientes` | **450** | ✅ desarrollado |
-| Aprobar facturas | (pendiente) | 430 | ⏳ módulo aparte (la aprobación la hace otra gente) |
 | Dashboard CxP | (pendiente) | 440 / 441 | ⏳ |
 | Reportes | (pendiente) | 460 | ⏳ |
 
@@ -182,13 +182,14 @@ atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
 - ✅ **Solicitudes de pago**: listado en 4 etapas + **alta de Solicitud de Pago (CFDI)** con parser
   propio y validaciones fiscales + editar/enviar/eliminar (solo Guardado).
 - ✅ **Solicitudes pendientes** (gestión: responsable + devolver).
+- ✅ **Aprobar Solicitudes** (430, bandeja del aprobador): regresar/rechazar/aprobar con validación de
+  presupuesto + reasignar fuera de presupuesto + marca `autorizadoFP` + tiempo real (SSE).
 - ✅ **Pagar solicitudes** (tesorería): listado con filtros estilo Excel + **tiempo real (SSE)** +
   **registrar pago en 3 vías** (asignar `movbancarios` del proveedor · comprobante PDF vía N8N ·
   captura de pantalla con banco Banbajío/Actinver) + desaplicar (401) + batch aprobados sin pago
   (402). Validación de monto = total.
-- ⏳ **Aprobación** (430, módulo aparte: la hace otra gente), **Dashboard** (440/441), **Reportes** (460),
-  conciliación avanzada (automática/parciales/importación de estado de cuenta), tipos de solicitud
-  Urgentes/Línea de captura/Devoluciones/Sin XML.
+- ⏳ **Dashboard** (440/441), **Reportes** (460), conciliación avanzada (automática/parciales/importación
+  de estado de cuenta), tipos de solicitud Urgentes/Línea de captura/Devoluciones/Sin XML.
 - Decisiones acordadas: reutilizar RPCs de negocio seguras; el CFDI se parsea en el backend (sin N8N),
   pero el **comprobante de pago** sí sigue usando el webhook N8N por ahora; las escrituras quedan
   auditadas con el usuario real.
@@ -331,3 +332,51 @@ Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un mod
 - Conciliación automática por monto, drag-drop, 1 pago↔N solicitudes, pagos parciales,
   importación del estado de cuenta bancario.
 - El webhook de N8N se sigue usando tal cual; luego se integrará al backend (como el CFDI).
+
+---
+
+## Aprobar Solicitudes (bandeja del aprobador) — v2  ✅
+
+> Ruta **`/cxp/aprobar`** · permiso **430**. Reescribe la v1 `solicitudes_aprobar`. Es la bandeja del
+> **aprobador/gerente**. La **aprobación la hace gente distinta** de quien paga (módulo "Pagar
+> solicitudes", 400). Tiempo real por SSE (`/cxp/aprobar/stream`, reutiliza `RealtimeService`).
+
+### Listado
+- **Solo las solicitudes asignadas al aprobador** (`uidGerente = actorUid`), por estado. **Por defecto
+  Enviado (idEstado=2).** Filtro de **Estado** en el encabezado (estilo Excel: Enviado/Rechazado/Aprobado)
+  + **buscador general** (proveedor, concepto, justificación, cuenta, solicitado por). Endpoint
+  `GET /cxp/aprobar?idEstado=`.
+- Columnas: Acciones (↩/🗑/✔) · Documentos (PDF/XML) · Estado (badge **"Fuera de presup."** si
+  `autorizadoFP`) · Nombre · Folio · Fecha CFDI · Monto · Concepto · Justificación · Cuenta/Clasif. ·
+  Solicitado por.
+
+### Acciones (modal con motivo; solo en estado Enviado)
+- **Regresar** (`POST /:idCxp/regresar`, motivo obligatorio): `idEstado→1` (al solicitante para corregir).
+- **Rechazar** (`POST /:idCxp/rechazar`, motivo obligatorio): `idEstado→3` (la factura debe refacturarse).
+- **Aprobar** (`POST /:idCxp/aprobar`): pre-valida `cxp_puede_autorizar()`; llama la RPC
+  `cxp_autorizar_solicitud_pago(idCxp, comentario, p_autorizo = actorUid)`. La RPC valida presupuesto
+  (categoría activa, `idCategoria≠'-'`, presupuestable, `total_gastado_comprometido + subtotal ≤
+  presupuesto_acumulado`); si `p_autorizo` = aprobador FP, **omite** la validación. Pone `idEstado=4`,
+  `autorizo`, `fecAutorizacion`. Devuelve `{ autorizado, mensaje }` (el front muestra el mensaje).
+  Si `autorizado` y estaba **fuera de presupuesto**, el backend marca **`autorizadoFP=true`**.
+- 🔐 **Seguridad v2**: el `p_autorizo` se toma del **JWT** (no del cliente, como hacía v1). Escrituras con `comoActor`.
+
+### Presupuesto y "fuera de presupuesto"
+- `GET /:idCxp/presupuesto` → datos de `v_resumenPresupuesto` (acumulado, consumido, comprometido, total,
+  % avance) + `fuera = presupuestable && (total_gastado_comprometido + subtotal > presupuesto_acumulado)`
+  + `esAprobadorFP` + `puedeReasignar`. El modal lo muestra (en **rojo** si fuera).
+- El **aprobador FP** se configura en `SPHConfiguraciones.'Aprobar fuera de presupuesto'` (= un uid).
+- Si una solicitud está **fuera de presupuesto** y el usuario **no** es el aprobador FP, el modal ofrece
+  **"Solicitar aprobar fuera de presupuesto"** → `POST /:idCxp/fuera-presupuesto`: reasigna
+  `uidGerente = aprobador_FP` (la solicitud pasa a su bandeja). El aprobador FP sí puede aprobarla
+  (la RPC omite la validación cuando `p_autorizo` = aprobador FP).
+
+### Archivos
+- Backend: `aprobacion.{service,controller,schemas}.ts`, `aprobacion-stream.controller.ts` (SSE 430),
+  `sse-auth.guard.ts` (generalizado: lee la clave de `@RequierePermiso` con Reflector).
+- Frontend: `AprobarSolicitudesPage.tsx`, `AprobarSolicitudModal.tsx`, `aprobar.api.ts`,
+  `useCxpRealtime.ts` (hook SSE genérico; `usePagosRealtime` ahora lo envuelve).
+
+### RPCs/objetos reutilizados (sin crear nada nuevo)
+`cxp_autorizar_solicitud_pago`, `cxp_puede_autorizar`, vista `v_resumenPresupuesto`, parámetro
+`SPHConfiguraciones.'Aprobar fuera de presupuesto'`, permisos 430/431, campo `cxp.autorizadoFP`.

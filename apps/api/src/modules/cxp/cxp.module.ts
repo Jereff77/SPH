@@ -14,6 +14,9 @@ import { PagosService } from './pagos.service.js';
 import { PagosStreamController } from './pagos-stream.controller.js';
 import { RealtimeService } from './realtime.service.js';
 import { SseAuthGuard } from './sse-auth.guard.js';
+import { AprobacionController } from './aprobacion.controller.js';
+import { AprobacionService } from './aprobacion.service.js';
+import { AprobacionStreamController } from './aprobacion-stream.controller.js';
 
 /**
  * Módulo Cuentas por Pagar (CxP). Se construye por fases: Proveedores →
@@ -29,6 +32,8 @@ import { SseAuthGuard } from './sse-auth.guard.js';
     ClavesSatController,
     PagosController,
     PagosStreamController,
+    AprobacionController,
+    AprobacionStreamController,
   ],
   providers: [
     ProveedoresService,
@@ -39,6 +44,7 @@ import { SseAuthGuard } from './sse-auth.guard.js';
     PagosService,
     RealtimeService,
     SseAuthGuard,
+    AprobacionService,
   ],
 })
 export class CxpModule {}

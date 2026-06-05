@@ -36,12 +36,13 @@ export const MENU: MenuGrupo[] = [
     label: 'Cuentas por Pagar',
     Icon: IconCxP,
     items: [
-      { label: 'Pagar solicitudes', to: '/cxp/pagar', clave: 400 },
       { label: 'Solicitudes de pago', to: '/cxp/solicitudes', clave: 420 },
+      { label: 'Aprobar Solicitudes', to: '/cxp/aprobar', clave: 430 },
+      { label: 'Pagar solicitudes', to: '/cxp/pagar', clave: 400 },
       { label: 'Solicitudes pendientes', to: '/cxp/pendientes', clave: 450 },
       { label: 'Proveedores', to: '/cxp/proveedores', clave: 410 },
       { label: 'Bancos', to: '/cxp/bancos', clave: 470 },
-      // Próximas fases: Aprobar (430), Reportes (460)…
+      // Próximas fases: Reportes (460), Dashboard (440/441)…
     ],
   },
   {

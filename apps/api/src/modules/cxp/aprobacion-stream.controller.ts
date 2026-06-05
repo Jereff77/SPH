@@ -9,19 +9,18 @@ interface SseMessage {
 }
 
 /**
- * Endpoint SSE para el tiempo real de la pantalla de pagos. El front se conecta
- * con EventSource y, ante cada cambio en `cxp`, recibe un evento para refrescar
- * la tabla. Autenticación por token en query (SseAuthGuard, permiso 400).
+ * SSE para el tiempo real de la bandeja de aprobación. Reutiliza el RealtimeService
+ * que escucha la tabla `cxp`. Autenticación por token en query (SseAuthGuard,
+ * permiso 430).
  */
-@Controller('cxp/pagos')
-export class PagosStreamController {
+@Controller('cxp/aprobar')
+export class AprobacionStreamController {
   constructor(private readonly realtime: RealtimeService) {}
 
   @Sse('stream')
   @UseGuards(SseAuthGuard)
-  @RequierePermiso(400)
+  @RequierePermiso(430)
   stream(): Observable<SseMessage> {
-    // init inmediato + heartbeat cada 25s (mantiene viva la conexión) + cambios.
     return merge(
       of<SseMessage>({ data: { tipo: 'init' } }),
       interval(25_000).pipe(map((): SseMessage => ({ data: { tipo: 'ping' } }))),
