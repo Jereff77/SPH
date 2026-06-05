@@ -1,0 +1,41 @@
+# Dependencias
+node_modules/
+.pnpm-store/
+
+# Builds
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Turborepo
+.turbo/
+
+# Entornos — NUNCA commitear secretos (service_role, jwt secret, etc.)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editores / SO
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Coverage / test
+coverage/
+.nyc_output/
+
+# Vite
+apps/web/dist/
+apps/web/.vite/
+# Artefactos de tsc -b (composite) para la config de Vite
+apps/web/vite.config.js
+apps/web/vite.config.d.ts

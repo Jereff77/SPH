@@ -1,0 +1,30 @@
+{
+  "name": "@erp/types",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./database": {
+      "types": "./dist/database.types.d.ts",
+      "import": "./dist/database.types.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist",
+    "gen:db": "echo 'Generar con: supabase gen types typescript --project-id szjlkvakwljssdnysazp > src/database.types.ts'"
+  },
+  "devDependencies": {
+    "@erp/config": "workspace:*",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.2"
+  }
+}

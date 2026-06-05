@@ -1,0 +1,176 @@
+import { useRef, useState } from 'react';
+import { NavLink, Link, useLocation } from 'react-router-dom';
+import { Logo } from '@/components/Logo';
+import { IconChevron } from '@/components/icons';
+import { useAuth } from '@/features/auth/useAuth';
+import { VerComoModal } from '@/features/auth/VerComoModal';
+import { nombreUsuario } from '@/features/auth/format';
+import { APP_VERSION } from '@/lib/constants';
+import { MENU } from './menu';
+
+/** Grupo del menú al que pertenece una ruta (null en el landing/otras). */
+function grupoDeRuta(pathname: string): string | null {
+  for (const g of MENU) {
+    if (
+      g.items.some(
+        (it) => pathname === it.to || pathname.startsWith(`${it.to}/`),
+      )
+    ) {
+      return g.id;
+    }
+  }
+  return null;
+}
+
+interface SidebarProps {
+  colapsado: boolean;
+  /** Se llama al navegar (para cerrar el drawer en móvil). */
+  onNavegar?: () => void;
+}
+
+export function Sidebar({ colapsado, onNavegar }: SidebarProps) {
+  const { usuario, tienePermiso, esSoporte, activarVerComo } = useAuth();
+  const { pathname } = useLocation();
+  // Al cargar/recargar: abre el grupo de la ruta actual (ninguno en el landing).
+  const [grupoAbierto, setGrupoAbierto] = useState<string | null>(() =>
+    grupoDeRuta(pathname),
+  );
+  const [verComoOpen, setVerComoOpen] = useState(false);
+  // Long-press sobre el logo (solo soporte) abre "Ver como".
+  const timerRef = useRef<number | null>(null);
+  const disparadoRef = useRef(false);
+
+  const cancelarLongPress = (): void => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+  const onLogoPointerDown = (): void => {
+    if (!esSoporte) return;
+    disparadoRef.current = false;
+    timerRef.current = window.setTimeout(() => {
+      disparadoRef.current = true;
+      setVerComoOpen(true);
+    }, 600);
+  };
+  const onLogoClick = (e: React.MouseEvent): void => {
+    cancelarLongPress();
+    if (disparadoRef.current) {
+      // Fue long-press: no navegar a inicio.
+      e.preventDefault();
+      disparadoRef.current = false;
+      return;
+    }
+    onNavegar?.();
+  };
+
+  // Solo grupos con al menos un ítem permitido.
+  const grupos = MENU.map((g) => ({
+    ...g,
+    items: g.items.filter((it) => it.clave === undefined || tienePermiso(it.clave)),
+  })).filter((g) => g.items.length > 0);
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Cabecera: espacio para el logo + usuario + versión */}
+      <div className="border-b border-white/10 p-3">
+        <Link
+          to="/"
+          onClick={onLogoClick}
+          onPointerDown={onLogoPointerDown}
+          onPointerUp={cancelarLongPress}
+          onPointerLeave={cancelarLongPress}
+          title={
+            esSoporte
+              ? 'Ir al inicio (mantén presionado para «Ver como»)'
+              : 'Ir al inicio'
+          }
+          className="block select-none rounded-md transition hover:opacity-80"
+        >
+          <Logo
+            fondo="oscuro"
+            mini={colapsado}
+            className={
+              colapsado
+                ? 'mx-auto !border-white/30 !text-white/50'
+                : 'mx-auto !border-white/30 !text-white/50'
+            }
+          />
+        </Link>
+        {!colapsado && (
+          <div className="mt-3">
+            <p className="truncate text-sm font-semibold text-white">
+              {nombreUsuario(usuario)}
+            </p>
+            <p className="text-xs font-medium text-[#8cc63f]">{APP_VERSION}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Menú */}
+      <nav className="flex-1 overflow-y-auto p-2">
+        {grupos.map((grupo) => {
+          const abierto = grupoAbierto === grupo.id;
+          return (
+            <div key={grupo.id} className="mb-1">
+              <button
+                type="button"
+                title={grupo.label}
+                onClick={() =>
+                  setGrupoAbierto((a) => (a === grupo.id ? null : grupo.id))
+                }
+                className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-white/90 transition hover:bg-white/10 ${
+                  colapsado ? 'justify-center' : ''
+                }`}
+              >
+                <grupo.Icon className="h-5 w-5 shrink-0" />
+                {!colapsado && (
+                  <>
+                    <span className="flex-1 text-left">{grupo.label}</span>
+                    <IconChevron
+                      className={`h-4 w-4 transition-transform ${abierto ? 'rotate-180' : ''}`}
+                    />
+                  </>
+                )}
+              </button>
+
+              {!colapsado && abierto && (
+                <div className="mt-1 ml-4 space-y-1 border-l border-white/10 pl-3">
+                  {grupo.items.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end
+                      onClick={onNavegar}
+                      className={({ isActive }) =>
+                        `block rounded-md px-3 py-1.5 text-sm transition ${
+                          isActive
+                            ? 'bg-white/15 font-medium text-white'
+                            : 'text-white/75 hover:bg-white/10 hover:text-white'
+                        }`
+                      }
+                    >
+                      {item.label}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </nav>
+
+      {verComoOpen && (
+        <VerComoModal
+          onClose={() => setVerComoOpen(false)}
+          onElegir={async (uid) => {
+            await activarVerComo(uid);
+            setVerComoOpen(false);
+            onNavegar?.();
+          }}
+        />
+      )}
+    </div>
+  );
+}

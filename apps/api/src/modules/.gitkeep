@@ -1,0 +1,3 @@
+# Aquí van los módulos de dominio del ERP (inversionistas, cxp, fideicomiso, crm,
+# configuraciones, fideicomiso, soporte, autorizaciones, ...), cada uno como un
+# módulo NestJS que opera sobre las tablas/RPCs existentes de Supabase.
