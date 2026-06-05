@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Post,
   Query,
@@ -32,14 +33,26 @@ export class AprobacionController {
   constructor(private readonly svc: AprobacionService) {}
 
   @Get()
-  listar(@CurrentUser() actor: AuthUser, @Query('idEstado') idEstado?: string) {
+  listar(
+    @CurrentUser() actor: AuthUser,
+    @Query('idEstado') idEstado?: string,
+    @Headers('x-ver-como') verComo?: string,
+  ) {
     const estado = idEstado ? Number(idEstado) : 2;
-    return this.svc.listar(actor.uid, Number.isFinite(estado) ? estado : 2);
+    return this.svc.listar(
+      actor.uid,
+      Number.isFinite(estado) ? estado : 2,
+      verComo || undefined,
+    );
   }
 
   @Get(':idCxp/presupuesto')
-  presupuesto(@CurrentUser() actor: AuthUser, @Param('idCxp') idCxp: string) {
-    return this.svc.presupuesto(idCxp, actor.uid);
+  presupuesto(
+    @CurrentUser() actor: AuthUser,
+    @Param('idCxp') idCxp: string,
+    @Headers('x-ver-como') verComo?: string,
+  ) {
+    return this.svc.presupuesto(idCxp, actor.uid, verComo || undefined);
   }
 
   @Post(':idCxp/regresar')

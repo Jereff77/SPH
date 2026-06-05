@@ -36,13 +36,17 @@ export class AprobacionService {
   private readonly COLS =
     'idCxp, folio, nomCFDI, fecCFDI, idEstado, estado, idProveedor, nombreProveedor, concepto, ultimoComentario, subtotal, total, idCategoria, urlCFDI, urlXLM, uidr, autorizadoFP';
 
-  /** Solicitudes asignadas al aprobador, por estado (default Enviado=2). */
-  async listar(actorUid: string, idEstado = 2) {
+  /**
+   * Solicitudes asignadas al aprobador, por estado (default Enviado=2). `verComo`
+   * (solo soporte) permite ver la bandeja de otro usuario sin actuar por él.
+   */
+  async listar(actorUid: string, idEstado = 2, verComo?: string) {
+    const uid = await this.supabase.uidEfectivo(actorUid, verComo);
     const { data, error } = await this.supabase.admin
       .from('cxp')
       .select(this.COLS)
       .eq('status', true)
-      .eq('uidGerente', actorUid)
+      .eq('uidGerente', uid)
       .eq('idEstado', idEstado)
       .order('fc', { ascending: false });
     if (error) throw new InternalServerErrorException(error.message);
@@ -92,8 +96,8 @@ export class AprobacionService {
     return mapa;
   }
 
-  /** Lee la solicitud y valida que sea del aprobador y esté procesable (idEstado<3). */
-  private async solicitudDelAprobador(idCxp: string, actorUid: string) {
+  /** Lee la solicitud y valida que sea del aprobador (`uidEsperado`) y esté procesable. */
+  private async solicitudDelAprobador(idCxp: string, uidEsperado: string) {
     const { data, error } = await this.supabase.admin
       .from('cxp')
       .select('idCxp, uidGerente, idEstado, idCategoria, subtotal')
@@ -101,7 +105,7 @@ export class AprobacionService {
       .maybeSingle();
     if (error) throw new InternalServerErrorException(error.message);
     if (!data) throw new NotFoundException('Solicitud no encontrada.');
-    if (data.uidGerente !== actorUid)
+    if (data.uidGerente !== uidEsperado)
       throw new ForbiddenException('La solicitud no está asignada a este aprobador.');
     if ((data.idEstado ?? 0) >= 3)
       throw new BadRequestException(
@@ -133,9 +137,10 @@ export class AprobacionService {
     return data;
   }
 
-  /** Datos de presupuesto para el modal de aprobación. */
-  async presupuesto(idCxp: string, actorUid: string) {
-    const sol = await this.solicitudDelAprobador(idCxp, actorUid);
+  /** Datos de presupuesto para el modal de aprobación (respeta "Ver como"). */
+  async presupuesto(idCxp: string, actorUid: string, verComo?: string) {
+    const uid = await this.supabase.uidEfectivo(actorUid, verComo);
+    const sol = await this.solicitudDelAprobador(idCxp, uid);
     const pres = await this.resumenPresupuesto(sol.idCategoria);
     const uidFP = await this.uidAprobadorFP();
 
@@ -145,7 +150,7 @@ export class AprobacionService {
     const presupuestable = pres?.presupuestable ?? false;
     const gasto = totalGastadoComprometido + subtotal;
     const fuera = presupuestable && gasto > presupuestoAcumulado;
-    const esAprobadorFP = !!uidFP && uidFP === actorUid;
+    const esAprobadorFP = !!uidFP && uidFP === uid;
 
     return {
       idCategoria: sol.idCategoria,
