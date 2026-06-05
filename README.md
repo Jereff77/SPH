@@ -8,6 +8,7 @@ Repositorio central para los proyectos de SPH. Este repositorio se usa como cont
 - `cfdis`
 - `CRMVentas`
 - `ERP-RLS`
+- `erp_v2`
 - `QR-RLS`
 
 Cada una de estas ramas representa un proyecto diferente. No se mezclan entre sí ni se fusionan a `main`.
@@ -40,6 +41,14 @@ git clone --single-branch --branch CRMVentas https://github.com/Jereff77/SPH
 
 ```bash
 git clone --single-branch --branch ERP-RLS https://github.com/Jereff77/SPH
+```
+
+### erp_v2
+
+Reescritura del ERP de SPH Bienes Raíces con una nueva arquitectura: **NestJS** (backend, única vía de acceso a Supabase con RBAC server-side) + **React/Vite** (frontend), en un monorepo con **pnpm + Turborepo**. Mantiene la base de datos de Supabase y convive con la versión anterior (FlutterFlow) durante la transición.
+
+```bash
+git clone --single-branch --branch erp_v2 https://github.com/Jereff77/SPH
 ```
 
 ### QR-RLS
