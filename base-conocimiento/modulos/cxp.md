@@ -1,13 +1,13 @@
 ---
 modulo: CxP (Cuentas por Pagar)
-estado: parcial              # Proveedores en v2; resto en desarrollo por fases
-version_doc: 0.2
-ultima_actualizacion: 2026-06-04
-submodulos: [Proveedores, Bancos, Solicitudes, Aprobación, Pago/Conciliación, Reportes]
-rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes]
+estado: parcial              # Proveedores, Bancos, Solicitudes (alta+listado), Pendientes y Pagar en v2; resto por fases
+version_doc: 0.3
+ultima_actualizacion: 2026-06-05
+submodulos: [Proveedores, Bancos, Solicitudes, "Pagar solicitudes", Aprobación, Pago/Conciliación, Reportes, "Claves SAT"]
+rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes, /cxp/pagar]
 claves_permiso: [400, 401, 402, 410, 420, 430, 431, 440, 441, 450, 460, 470]
-tablas: [cxp, catProveedores, catBancos, cxpComentarios, cxp_fechas_habilitadas, movbancarios, PresCategorias, v_resumenPresupuesto]
-palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, proveedor, banco, bancos, transferencia, conciliación, movimiento bancario, presupuesto, devolución, urgente, RFC]
+tablas: [cxp, catProveedores, catBancos, catClavesProdServ, cxpComentarios, cxp_fechas_habilitadas, movbancarios, PresCategorias, v_resumenPresupuesto, SPHConfiguraciones]
+palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, N8N, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, retención, IVA, ISR, tiempo real, SSE]
 relacionado_con: [configuraciones, inversionistas, fideicomiso]
 ---
 
@@ -42,10 +42,12 @@ Captura/Solicitud  →  Autorización  →  Pago/Transferencia  →  Conciliaci�
 |---|---|---|---|
 | Proveedores | `/cxp/proveedores` | **410** | ✅ desarrollado |
 | Bancos | `/cxp/bancos` | **470** | ✅ desarrollado |
-| Solicitudes de pago | `/cxp/solicitudes` | 420 | 🟠 listado (4 etapas, lectura); edición/captura pendiente |
-| Dashboard CxP | (pendiente) | 400 / 440 / 441 | ⏳ |
+| Solicitudes de pago | `/cxp/solicitudes` | 420 | ✅ listado (4 etapas) + **alta de Solicitud de Pago (CFDI)** + editar/enviar/eliminar |
+| **Pagar solicitudes** | `/cxp/pagar` | **400** | ✅ desarrollado (tesorería: listado + registrar pago/conciliación + tiempo real) |
+| Claves SAT | `/configuraciones/parametros` (pestaña) | 210 | ✅ desarrollado |
 | Solicitudes pendientes | `/cxp/pendientes` | **450** | ✅ desarrollado |
-| Aprobar facturas | (pendiente) | 430 | ⏳ |
+| Aprobar facturas | (pendiente) | 430 | ⏳ módulo aparte (la aprobación la hace otra gente) |
+| Dashboard CxP | (pendiente) | 440 / 441 | ⏳ |
 | Reportes | (pendiente) | 460 | ⏳ |
 
 Permisos (confirmados en `segModulos`): **400** módulo · **401** desaplicar pagos · **402** aprobados sin
@@ -146,7 +148,14 @@ parametrizadas desde el backend.
    editable**.
 4. La **conciliación** (asignar un `movbancarios` y marcar `aplicado=true`, pasar a estado pagado) mueve
    pagos reales: es la parte más sensible.
-5. CFDI se guarda en el bucket `CFDIproveedores`.
+5. CFDI se guarda en el bucket `CFDIproveedores`; el **comprobante de pago** en el bucket `cxp`.
+6. **`idCategoria = '-'` (sin categoría real):** un trigger fuerza la solicitud a **Guardado** al crearla
+   o al intentar **enviarla** (no se puede enviar a aprobación sin categoría válida). El backend además
+   bloquea el envío con mensaje claro. Los ya **Pagados** no se tocan.
+7. **Al enviar**, el CFDI debe ser **del mes en curso** (misma regla que el alta): no se puede enviar a
+   aprobación una factura de un mes anterior.
+8. **Movimientos para pagar:** solo `tipo='Transferencia SPEI'` sin aplicar, filtrados por proveedor
+   (nombre **o** importe = total). Los **depósitos** no aparecen (son entradas).
 
 ## 8. 🩺 Diagnóstico / problemas comunes
 
@@ -156,7 +165,11 @@ parametrizadas desde el backend.
 | "No puedo crear/editar un proveedor." | Falta permiso 410 o RFC/banco incompletos. | Verificar permiso y campos obligatorios. |
 | "No me deja autorizar." | `cxp_puede_autorizar()` = false o no es el gerente. | Revisar quién autoriza esa solicitud. |
 | "No puedo cargar CFDI hoy." | La fecha no está habilitada (`cxp_fechas_habilitadas`). | Habilitar la fecha en Parámetros → Fechas CxP. |
-| "Un pago quedó mal conciliado." | Asignación incorrecta de `movbancarios`. | Escalar a soporte (desaplicar, permiso 401). |
+| "No me deja enviar la solicitud." | `idCategoria='-'` (sin categoría) o el CFDI no es del mes en curso. | Asignar categoría válida / la factura debe ser del mes actual. |
+| "Al analizar el CFDI me rechaza." | RFC receptor no autorizado, no es PUE, mes distinto, folio duplicado, proveedor no registrado, o clave SAT sin registrar. | Seguir el mensaje; registrar proveedor/clave SAT si aplica. |
+| "Al pagar no aparece el movimiento del proveedor." | No hay SPEI sin aplicar que coincida (nombre truncado **y** importe ≠ total), o es otro tipo. | Verificar el comprobante; usar la opción de capturar comprobante (PDF). |
+| "No me deja registrar el pago." | El importe del comprobante no coincide con el total de la solicitud. | Verificar el comprobante / monto. |
+| "Un pago quedó mal conciliado." | Asignación incorrecta de `movbancarios`. | Desaplicar (permiso 401) y reasignar. |
 
 **Cuándo escalar a ticket:** desaplicar/corregir pagos, inconsistencias de conciliación, solicitudes
 atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
@@ -164,10 +177,20 @@ atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
 ## 9. Estado y pendientes
 
 - ✅ **Proveedores** (catálogo CRUD + status).
-- ⏳ **Solicitudes** (captura con/sin CFDI: subir archivo + captura manual), **Aprobación**,
-  **Pago/Conciliación bancaria** (sensible), **Reportes**, devoluciones y urgentes.
-- Decisiones acordadas: reutilizar RPCs de negocio seguras; CFDI = subir archivo + captura manual; las
-  escrituras de v2 quedan auditadas con el usuario real.
+- ✅ **Bancos** (catálogo).
+- ✅ **Claves SAT** (catálogo de retenciones, en Parámetros).
+- ✅ **Solicitudes de pago**: listado en 4 etapas + **alta de Solicitud de Pago (CFDI)** con parser
+  propio y validaciones fiscales + editar/enviar/eliminar (solo Guardado).
+- ✅ **Solicitudes pendientes** (gestión: responsable + devolver).
+- ✅ **Pagar solicitudes** (tesorería): listado con filtros estilo Excel + **tiempo real (SSE)** +
+  **registrar pago** (asignar `movbancarios` del proveedor **o** capturar comprobante PDF vía N8N) +
+  desaplicar (401) + batch aprobados sin pago (402). Validación de monto = total.
+- ⏳ **Aprobación** (430, módulo aparte: la hace otra gente), **Dashboard** (440/441), **Reportes** (460),
+  conciliación avanzada (automática/parciales/importación de estado de cuenta), tipos de solicitud
+  Urgentes/Línea de captura/Devoluciones/Sin XML.
+- Decisiones acordadas: reutilizar RPCs de negocio seguras; el CFDI se parsea en el backend (sin N8N),
+  pero el **comprobante de pago** sí sigue usando el webhook N8N por ahora; las escrituras quedan
+  auditadas con el usuario real.
 
 ---
 
@@ -229,3 +252,72 @@ atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
   fase futura (el menú ya los lista como "Próx.").
 - `cxp` no guarda desglose de impuestos (solo `subtotal`/`total`); las retenciones se
   validan pero no se almacenan desglosadas.
+
+---
+
+## Pagar solicitudes (tesorería) — v2  ✅
+
+> Pantalla principal de pago: **`/cxp/pagar`** · permiso **400**. Reescribe la v1
+> `solicitudes_cx_p` (que usaba SQL interpolado inseguro) con consultas tipadas.
+> **La aprobación (rechazar/regresar/aprobar) NO va aquí** — la hace otra gente en el
+> módulo de Aprobación (clave 430, pendiente). Aquí solo se **paga/concilia**.
+
+### Listado y filtros
+- **Por defecto muestra los Aprobados** (`idEstado = 4`) del mes/año actuales.
+- Filtros **fuera de la tabla**: solo **Año** y **Mes** (+ botón ✨ "Aprobados sin pago").
+- Filtros **estilo Excel en los encabezados** (icono de embudo, popover): **Estado**,
+  **Proveedor**, **Categoría**, **Clasificación**. (Para ver pagados se filtra Estado→Pagado.)
+- Columnas: Documentos (PDF/XML) · Fecha Sol. · Fecha Autoriz. · Semana · Estado · Folio ·
+  **Proveedor** (con el botón de pago al lado) · Fecha CFDI · Monto · M. aplicado · Concepto ·
+  Justificación · Categoría · Clasificación · **Solicitó/Autorizó** (`uidr`/`autorizo`→`catUsers`).
+  Encabezado azul fijo + orden por columna + fila de **Totales** fija al pie.
+- Endpoints: `GET /cxp/pagos` (filtros), `GET /cxp/pagos/filtros` (años/proveedores/categorías).
+
+### Tiempo real (SSE)
+- El backend **escucha Supabase Realtime** sobre `cxp` (`RealtimeService`) y reenvía los
+  cambios por **SSE** (`GET /cxp/pagos/stream`); el front (`usePagosRealtime`, EventSource)
+  refresca la tabla al instante. Captura también cambios hechos desde **v1**.
+- El front **no habla con Supabase**: el SSE pasa por el backend. Auth del stream por
+  `?token=` en la URL (EventSource no manda cabeceras) + permiso 400 (`SseAuthGuard`).
+- La tabla `cxp` ya estaba en la publicación `supabase_realtime`.
+
+### Aplicar pago — DOS opciones (botón 💵 junto al proveedor)
+Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un modal con:
+
+**A) Asignar movimiento bancario** (`movbancarios` existente)
+- Lista **solo los movimientos del proveedor** de esa solicitud, replicando la consulta v1
+  (`arrastrar_pago`): `(beneficiario ILIKE '%nombreProveedor%' OR importe = total) AND
+  aplicado=false AND tipo='Transferencia SPEI'`. El **OR por importe** cubre cuando el
+  beneficiario del comprobante viene **truncado**. (Implementado server-side con 2 consultas
+  unidas; excluye depósitos.) Endpoint: `GET /cxp/pagos/:idCxp/movimientos`.
+- Al asignar (`POST /cxp/pagos/:idCxp/asignar`): `movbancarios.aplicado=true` + `UPDATE cxp`
+  (`montoAplicado`, `idEstado=6`, `pagador`, `fecPago`, `idMovBancarios`) + comentario.
+
+**B) Capturar desde comprobante (PDF)** — usa el **webhook de N8N** (heredado de v1)
+- El usuario sube el PDF; el **backend** lo guarda (bucket `cxp`) y llama al webhook
+  `…/webhook/13755874-…` enviando `{ "url": "<URL del PDF>" }`.
+- Mapea la respuesta `$.data.output.*` (FechadeOperacion, Importe, NombredelOrdenante,
+  CuentaDestino, BancoDestino, NombreBeneficiario, ConceptodePago, Referencia, NoAutorizacion,
+  ClaveRastreo) y **prellena el formulario**. Endpoint: `POST /cxp/pagos/:idCxp/analizar-comprobante`.
+- "Registrar pago" (`POST /cxp/pagos/:idCxp`) crea el `movbancarios` y aplica el pago (sin
+  re-subir el PDF; usa `urlComprobante`). El webhook lo llama el **backend**, no el front.
+- ⚠️ **Validación de monto:** el importe del pago **debe coincidir** con el total de la
+  solicitud (tolerancia 1 centavo) — bloqueado en el front (aviso + botón inhabilitado) y en el
+  backend (`registrarPago`).
+
+### Otras acciones
+- **Ver pago / desaplicar** (🏦): muestra el `movbancarios` aplicado; **desaplicar**
+  (`POST /cxp/pagos/:idCxp/desaplicar`, permiso **401**) revierte a Aprobado (`idEstado=4`,
+  limpia `montoAplicado`/`pagador`/`fecPago`/`idMovBancarios`) + comentario.
+- **Aprobados sin pago** (✨, permiso **402**): batch `cxp_aprobados_sin_pago_aplicado(mes, anio)`.
+
+### Archivos
+- Backend: `pagos.{service,controller,schemas}.ts`, `pagos-stream.controller.ts`,
+  `realtime.service.ts`, `sse-auth.guard.ts`. Webhook N8N + parseo de importe/fecha en el service.
+- Frontend: `PagarSolicitudesPage.tsx`, `pagos.api.ts`, `AplicarPagoModal.tsx` (2 opciones),
+  `TransferenciaModal.tsx`, `usePagosRealtime.ts`; `components/tabla/ColumnFilter.tsx` (filtro Excel).
+
+### Pendiente (fase futura)
+- Conciliación automática por monto, drag-drop, 1 pago↔N solicitudes, pagos parciales,
+  importación del estado de cuenta bancario.
+- El webhook de N8N se sigue usando tal cual; luego se integrará al backend (como el CFDI).

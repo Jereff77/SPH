@@ -31,7 +31,7 @@ futuro, en una tabla vectorial `pgvector` para búsqueda semántica).
 | Auditoría / Ver como | ✅ desarrollado | `modulos/auditoria-y-ver-como.md` | (transversal) | 200 | historial, bitácora, auditoría, trazabilidad, ver como, quién cambió |
 | Inversionistas / Propietarios | 🟡 stub | `modulos/inversionistas.md` | (pendiente v2) | — | inversionista, propietario, dueño, propiedad, escrituración, PDP |
 | Arrendatarios | 🟡 stub | `modulos/arrendatarios.md` | (pendiente v2) | — | arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp |
-| CxP (Cuentas por pagar) | 🟠 parcial | `modulos/cxp.md` | /cxp/proveedores | 400, 401, 402, 410, 420, 430, 431 | pago, cuenta por pagar, factura, CFDI, autorizar, transferencia, proveedor, conciliación |
+| CxP (Cuentas por pagar) | 🟠 parcial | `modulos/cxp.md` | /cxp/pagar, /cxp/solicitudes, /cxp/pendientes, /cxp/proveedores, /cxp/bancos | 400, 401, 402, 410, 420, 450, 470 | pago, pagar solicitudes, cuenta por pagar, factura, CFDI, aplicar pago, comprobante, N8N, autorizar, transferencia SPEI, proveedor, banco, conciliación, desaplicar, claves SAT, retención, tiempo real |
 | Fideicomiso | 🟡 stub | `modulos/fideicomiso.md` | (pendiente v2) | — | fideicomiso, dispersión, aportación, rendimiento, contabilidad |
 | CRM | 🟡 stub | `modulos/crm.md` | (pendiente v2) | — | lead, prospecto, empresa, inmobiliaria, actividad comercial |
 
@@ -48,10 +48,10 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `propiedades`, `inversionista`, `v_propiedades` | Inversionistas/Propietarios (y Parques para el dueño) |
 | `arrenPropiedades`, `arrePdp` | Arrendatarios (y Parques para el arrendatario) |
 | `catUsers`, `segModulosUsuarios`, `segModulos`, `segPlantillasPermisos` | Configuraciones (Usuarios/Permisos) |
-| `inpc`, `PresCategorias`, `PresDetalle`, `cxp_fechas_habilitadas` | Configuraciones (Parámetros) |
-| `SPHConfiguraciones` | Configuraciones (Sistema) |
+| `inpc`, `PresCategorias`, `PresDetalle`, `cxp_fechas_habilitadas`, `catClavesProdServ` | Configuraciones (Parámetros: INPC/Cuentas/Fechas/**Claves SAT**) |
+| `SPHConfiguraciones` | Configuraciones (Sistema) · `RFC_RECEPTORES_AUTORIZADOS` lo usa CxP |
 | `auditoria`, `actividad` | Auditoría |
-| `cxp`, `pagos`, `pdp`, `pdpDetalle` | CxP |
+| `cxp`, `cxpComentarios`, `catProveedores`, `catBancos`, `catClavesProdServ`, `movbancarios` | CxP |
 
 ## Mapa inverso: ruta → módulo
 
@@ -60,6 +60,9 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `/login`, `/recuperar` | Autenticación |
 | `/` | Landing / Indicadores |
 | `/parques`, `/parques/disponibilidad` | Parques |
+| `/cxp/pagar` | CxP (Pagar solicitudes / tesorería) |
+| `/cxp/solicitudes`, `/cxp/pendientes` | CxP (Solicitudes / Pendientes) |
+| `/cxp/proveedores`, `/cxp/bancos` | CxP (Catálogos) |
 | `/configuraciones/usuarios` | Configuraciones (Usuarios) |
 | `/configuraciones/parametros` | Configuraciones (Parámetros) |
 | `/configuraciones/permisos` | Configuraciones (Permisos) |

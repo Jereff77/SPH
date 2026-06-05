@@ -1,13 +1,13 @@
 ---
 modulo: Configuraciones
 estado: desarrollado
-version_doc: 1.0
-ultima_actualizacion: 2026-06-04
+version_doc: 1.1
+ultima_actualizacion: 2026-06-05
 submodulos: [Usuarios, Parámetros, Permisos, Sistema, Cambiar contraseña]
 rutas: [/configuraciones/usuarios, /configuraciones/parametros, /configuraciones/permisos, /configuraciones/sistema, /configuraciones/cambiar-contrasena]
 claves_permiso: [200, 203, 210, 220, 221]
-tablas: [catUsers, crm_responsableComercial, segModulos, segModulosUsuarios, segPlantillasPermisos, segDetallesPlantilla, inpc, PresCategorias, PresDetalle, Presupuestos, v_resumenPresupuesto, cxp_fechas_habilitadas, SPHConfiguraciones]
-palabras_clave: [usuarios, permisos, plantillas, parámetros, INPC, cuentas, presupuesto, fechas CxP, CFDI, logos, favicon, dominios, correos autorizados, contraseña, soporte, responsable comercial]
+tablas: [catUsers, crm_responsableComercial, segModulos, segModulosUsuarios, segPlantillasPermisos, segDetallesPlantilla, inpc, PresCategorias, PresDetalle, Presupuestos, v_resumenPresupuesto, cxp_fechas_habilitadas, catClavesProdServ, SPHConfiguraciones]
+palabras_clave: [usuarios, permisos, plantillas, parámetros, INPC, cuentas, presupuesto, fechas CxP, claves SAT, retención, IVA, ISR, CFDI, logos, favicon, dominios, correos autorizados, contraseña, soporte, responsable comercial]
 relacionado_con: [autenticacion, auditoria, parques, cxp]
 ---
 
@@ -28,7 +28,7 @@ Agrupa cinco submenús de administración del sistema. Cada submenú tiene su pr
 | Submenú | Ruta | Permiso | Qué hace |
 |---|---|---|---|
 | Usuarios | `/configuraciones/usuarios` | 200 (ver), 203 (modificar) | Lista de usuarios + toggles + historial. |
-| Parámetros | `/configuraciones/parametros` | 210 | INPC, Cuentas (presupuesto), Fechas CxP. |
+| Parámetros | `/configuraciones/parametros` | 210 | INPC, Cuentas (presupuesto), Fechas CxP, **Claves SAT**. |
 | Permisos | `/configuraciones/permisos` | 220 | Asignar accesos por usuario + plantillas. |
 | Sistema | `/configuraciones/sistema` | 221 | Logos, favicon, dominios y correos autorizados. |
 | Cambiar contraseña | `/configuraciones/cambiar-contrasena` | — (cualquiera) | Cambia la propia contraseña. |
@@ -54,7 +54,7 @@ Equivalente v1: `lib/pages/web_app/i09_configuraciones/`.
 
 ---
 
-## 4. Submenú: Parámetros (3 pestañas)
+## 4. Submenú: Parámetros (4 pestañas)
 
 ### 4.1 INPC
 - **Tabla `inpc`:** `id` ("AAAA/MM", lo arma un trigger), `consecutivo` (trigger), `anio`, `mes`,
@@ -80,6 +80,17 @@ Equivalente v1: `lib/pages/web_app/i09_configuraciones/`.
 - **Tabla `cxp_fechas_habilitadas`:** PK `fecha`; flags `cfdi` y `autorizar`; `dia_semana`/`mes_anio`
   los pone un trigger.
 - **Acciones:** filtrar por periodo (mes-año), toggles CFDI/Autorizar, alta y baja de fechas.
+
+### 4.4 Claves SAT  (catálogo de retenciones para CxP)
+- **Tabla `catClavesProdServ`** (PK `idClave` uuid): `claveProdServ` (clave Producto/Servicio del SAT,
+  única), `descripcion`, `retieneIVA` (bool), `retieneISR` (bool), `status`, `fc`, `uidr`. RLS habilitado
+  (solo service_role) + trigger de auditoría.
+- **Para qué sirve:** al dar de alta una **Solicitud de Pago (CFDI)** en CxP, el sistema valida las
+  retenciones por cada partida del XML según su clave Producto/Servicio. Aplica a los regímenes **612,
+  626 y 606**. Si una clave del CFDI **no está registrada aquí**, la factura se rechaza pidiendo
+  registrarla. Ver `cxp.md` para el detalle fiscal (tasas Ret. IVA 10.6667% / Ret. ISR por régimen).
+- **Acciones:** listar (tabla con encabezado fijo + filtros + orden), crear, editar, activar/desactivar
+  (toggles inline de Retiene IVA / Retiene ISR / Activa). Escrituras auditadas.
 
 > Pestaña "Pizarra de Avisos": placeholder, no desarrollada.
 

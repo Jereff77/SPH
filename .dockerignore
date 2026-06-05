@@ -1,0 +1,35 @@
+# Dependencias e instalaciones (se reinstalan dentro de la imagen)
+**/node_modules
+.pnpm-store
+
+# Builds y cachés
+**/dist
+**/build
+**/out
+**/.turbo
+**/.vite
+**/*.tsbuildinfo
+
+# Git / editores / SO
+.git
+.gitignore
+.vscode
+.idea
+**/.DS_Store
+**/Thumbs.db
+
+# Entornos — NUNCA copiar secretos a la imagen
+**/.env
+**/.env.*
+!**/.env.example
+
+# Logs y pruebas
+**/*.log
+**/coverage
+**/.nyc_output
+
+# Documentación y sesiones (no afectan el runtime)
+.sessions
+base-conocimiento
+HANDOFF.md
+REVISION-SEGURIDAD.md
