@@ -7,13 +7,18 @@ const moneda = (n: number | null | undefined) =>
   (n ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 const hoyISO = () => new Date().toISOString().split('T')[0]!;
 
-type Metodo = 'menu' | 'banco' | 'comprobante';
+/** Bancos disponibles para la opción "captura de pantalla". */
+const BANCOS_CAPTURA = ['Banbajío', 'Actinver'];
+
+type Metodo = 'menu' | 'banco' | 'comprobante' | 'captura';
 
 /**
- * Aplica un pago a una solicitud Aprobada con DOS caminos (como en v1):
+ * Aplica un pago a una solicitud Aprobada con TRES caminos:
  *  - "banco": asignar un movimiento de `movbancarios` existente.
  *  - "comprobante": subir el PDF del comprobante; el webhook N8N extrae los
  *    datos y se registra el pago (creando el movimiento).
+ *  - "captura": elegir banco (Banbajío/Actinver), capturar el monto y subir una
+ *    captura/comprobante (PDF/JPG/PNG); sin lectura automática.
  */
 export function AplicarPagoModal({
   solicitud,
@@ -60,6 +65,9 @@ export function AplicarPagoModal({
           {metodo === 'comprobante' && (
             <OpcionComprobante solicitud={solicitud} onPagada={onPagada} />
           )}
+          {metodo === 'captura' && (
+            <OpcionCaptura solicitud={solicitud} onPagada={onPagada} />
+          )}
         </div>
       </div>
     </div>
@@ -70,7 +78,7 @@ function Menu({ onElegir }: { onElegir: (m: Metodo) => void }) {
   const card =
     'flex flex-col items-start gap-1 rounded-xl border-2 p-5 text-left transition hover:border-[#3f5b87] hover:bg-gray-50';
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3">
       <button onClick={() => onElegir('banco')} className={card}>
         <span className="text-2xl">🏦</span>
         <span className="font-semibold text-gray-800">Asignar movimiento bancario</span>
@@ -80,9 +88,16 @@ function Menu({ onElegir }: { onElegir: (m: Metodo) => void }) {
       </button>
       <button onClick={() => onElegir('comprobante')} className={card}>
         <span className="text-2xl">📄</span>
-        <span className="font-semibold text-gray-800">Capturar desde comprobante</span>
+        <span className="font-semibold text-gray-800">Capturar desde comprobante (automático)</span>
         <span className="text-xs text-gray-500">
           Sube el PDF del comprobante; los datos se leen automáticamente.
+        </span>
+      </button>
+      <button onClick={() => onElegir('captura')} className={card}>
+        <span className="text-2xl">📸</span>
+        <span className="font-semibold text-gray-800">Captura de pantalla del pago</span>
+        <span className="text-xs text-gray-500">
+          Elige el banco (Banbajío/Actinver), captura el monto y sube la imagen o PDF del pago.
         </span>
       </button>
     </div>
@@ -344,6 +359,107 @@ function OpcionComprobante({
           className="rounded-lg bg-[#1f2a4d] px-4 py-2 text-sm font-medium text-white hover:bg-[#172039] disabled:opacity-50"
         >
           {registrar.isPending ? 'Registrando…' : 'Registrar pago'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ----------------- Opción C: captura de pantalla del pago -------------------
+
+function OpcionCaptura({
+  solicitud,
+  onPagada,
+}: {
+  solicitud: PagoRow;
+  onPagada: () => void;
+}) {
+  const [banco, setBanco] = useState('');
+  const [importe, setImporte] = useState(String(solicitud.total ?? ''));
+  const [fecha, setFecha] = useState(hoyISO());
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const total = solicitud.total ?? 0;
+  const importeNum = Number(importe) || 0;
+  const coincide = Math.abs(importeNum - total) <= 0.01;
+
+  const aplicar = useMutation({
+    mutationFn: () => {
+      const fd = new FormData();
+      fd.append('importe', importe);
+      fd.append('fecOperacion', fecha);
+      fd.append('bcoDestino', banco);
+      fd.append('beneficiario', solicitud.nombreProveedor ?? '');
+      fd.append('concepto', solicitud.concepto ?? '');
+      if (archivo) fd.append('comprobante', archivo);
+      return pagosApi.registrar(solicitud.idCxp, fd);
+    },
+    onSuccess: onPagada,
+    onError: (e) =>
+      setError(e instanceof ApiRequestError ? e.message : 'No se pudo aplicar el pago.'),
+  });
+
+  const inputCls =
+    'mt-1 block w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30';
+  const lbl = 'block text-xs text-gray-600';
+  const puede = !!banco && coincide && !!archivo && !aplicar.isPending;
+
+  return (
+    <div className="space-y-3">
+      {error && (
+        <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+      )}
+
+      <label className={lbl}>
+        Banco *
+        <select value={banco} onChange={(e) => setBanco(e.target.value)} className={inputCls}>
+          <option value="">Selecciona el banco…</option>
+          {BANCOS_CAPTURA.map((b) => (
+            <option key={b} value={b}>{b}</option>
+          ))}
+        </select>
+      </label>
+
+      <label className={lbl}>
+        Monto pagado * (debe ser igual al total: {moneda(total)})
+        <input
+          type="number"
+          step="0.01"
+          value={importe}
+          onChange={(e) => setImporte(e.target.value)}
+          className={inputCls}
+        />
+      </label>
+      {importeNum > 0 && !coincide && (
+        <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+          ⚠️ El monto ({moneda(importeNum)}) debe coincidir con el total a pagar ({moneda(total)}).
+        </div>
+      )}
+
+      <label className={lbl}>
+        Fecha del pago
+        <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={inputCls} />
+      </label>
+
+      <label className={lbl}>
+        Comprobante / captura de pantalla * (PDF, JPG o PNG)
+        <input
+          type="file"
+          accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
+          onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+          className="mt-1 block w-full text-xs"
+        />
+      </label>
+
+      <div className="flex justify-end pt-1">
+        <button
+          onClick={() => aplicar.mutate()}
+          disabled={!puede}
+          title={!puede ? 'Selecciona banco, monto igual al total y el comprobante' : undefined}
+          className="rounded-lg bg-[#1f2a4d] px-4 py-2 text-sm font-medium text-white hover:bg-[#172039] disabled:opacity-50"
+        >
+          {aplicar.isPending ? 'Aplicando…' : 'Aplicar pago'}
         </button>
       </div>
     </div>

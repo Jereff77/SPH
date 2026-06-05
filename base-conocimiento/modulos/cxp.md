@@ -183,8 +183,9 @@ atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
   propio y validaciones fiscales + editar/enviar/eliminar (solo Guardado).
 - ✅ **Solicitudes pendientes** (gestión: responsable + devolver).
 - ✅ **Pagar solicitudes** (tesorería): listado con filtros estilo Excel + **tiempo real (SSE)** +
-  **registrar pago** (asignar `movbancarios` del proveedor **o** capturar comprobante PDF vía N8N) +
-  desaplicar (401) + batch aprobados sin pago (402). Validación de monto = total.
+  **registrar pago en 3 vías** (asignar `movbancarios` del proveedor · comprobante PDF vía N8N ·
+  captura de pantalla con banco Banbajío/Actinver) + desaplicar (401) + batch aprobados sin pago
+  (402). Validación de monto = total.
 - ⏳ **Aprobación** (430, módulo aparte: la hace otra gente), **Dashboard** (440/441), **Reportes** (460),
   conciliación avanzada (automática/parciales/importación de estado de cuenta), tipos de solicitud
   Urgentes/Línea de captura/Devoluciones/Sin XML.
@@ -281,7 +282,7 @@ atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
   `?token=` en la URL (EventSource no manda cabeceras) + permiso 400 (`SseAuthGuard`).
 - La tabla `cxp` ya estaba en la publicación `supabase_realtime`.
 
-### Aplicar pago — DOS opciones (botón 💵 junto al proveedor)
+### Aplicar pago — TRES opciones (botón 💵 junto al proveedor)
 Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un modal con:
 
 **A) Asignar movimiento bancario** (`movbancarios` existente)
@@ -293,7 +294,7 @@ Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un mod
 - Al asignar (`POST /cxp/pagos/:idCxp/asignar`): `movbancarios.aplicado=true` + `UPDATE cxp`
   (`montoAplicado`, `idEstado=6`, `pagador`, `fecPago`, `idMovBancarios`) + comentario.
 
-**B) Capturar desde comprobante (PDF)** — usa el **webhook de N8N** (heredado de v1)
+**B) Capturar desde comprobante (PDF, automático)** — usa el **webhook de N8N** (heredado de v1)
 - El usuario sube el PDF; el **backend** lo guarda (bucket `cxp`) y llama al webhook
   `…/webhook/13755874-…` enviando `{ "url": "<URL del PDF>" }`.
 - Mapea la respuesta `$.data.output.*` (FechadeOperacion, Importe, NombredelOrdenante,
@@ -301,9 +302,17 @@ Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un mod
   ClaveRastreo) y **prellena el formulario**. Endpoint: `POST /cxp/pagos/:idCxp/analizar-comprobante`.
 - "Registrar pago" (`POST /cxp/pagos/:idCxp`) crea el `movbancarios` y aplica el pago (sin
   re-subir el PDF; usa `urlComprobante`). El webhook lo llama el **backend**, no el front.
-- ⚠️ **Validación de monto:** el importe del pago **debe coincidir** con el total de la
-  solicitud (tolerancia 1 centavo) — bloqueado en el front (aviso + botón inhabilitado) y en el
-  backend (`registrarPago`).
+
+**C) Captura de pantalla del pago** (manual, sin lectura automática)
+- El usuario elige el **banco** (`Banbajío` / `Actinver`), captura el **monto** (= total) y sube una
+  **imagen o PDF** del pago (PDF/JPG/PNG). Botón "Aplicar pago" → mismo `POST /cxp/pagos/:idCxp`
+  (con el archivo como `comprobante`, sin webhook): crea el `movbancarios` (`bcoDestino` = banco,
+  `manual=true`, `tipo='Transferencias'`) y aplica el pago. Útil cuando solo se tiene la captura
+  del SPEI. Los bancos disponibles son una lista fija en el front (`BANCOS_CAPTURA`).
+
+> ⚠️ **Validación de monto (B y C):** el importe del pago **debe coincidir** con el total de la
+> solicitud (tolerancia 1 centavo) — bloqueado en el front (aviso + botón inhabilitado) y en el
+> backend (`registrarPago`).
 
 ### Otras acciones
 - **Ver pago / desaplicar** (🏦): muestra el `movbancarios` aplicado; **desaplicar**
@@ -314,8 +323,9 @@ Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un mod
 ### Archivos
 - Backend: `pagos.{service,controller,schemas}.ts`, `pagos-stream.controller.ts`,
   `realtime.service.ts`, `sse-auth.guard.ts`. Webhook N8N + parseo de importe/fecha en el service.
-- Frontend: `PagarSolicitudesPage.tsx`, `pagos.api.ts`, `AplicarPagoModal.tsx` (2 opciones),
-  `TransferenciaModal.tsx`, `usePagosRealtime.ts`; `components/tabla/ColumnFilter.tsx` (filtro Excel).
+- Frontend: `PagarSolicitudesPage.tsx`, `pagos.api.ts`, `AplicarPagoModal.tsx` (3 opciones: banco /
+  comprobante N8N / captura), `TransferenciaModal.tsx`, `usePagosRealtime.ts`;
+  `components/tabla/ColumnFilter.tsx` (filtro Excel).
 
 ### Pendiente (fase futura)
 - Conciliación automática por monto, drag-drop, 1 pago↔N solicitudes, pagos parciales,
