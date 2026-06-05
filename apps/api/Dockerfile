@@ -21,7 +21,8 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @erp/types build \
  && pnpm --filter @erp/api build
 # Genera un paquete de producción autocontenido (node_modules solo de prod).
-RUN pnpm deploy --filter=@erp/api --prod /prod/api
+# --legacy: requerido en pnpm v10 para desplegar sin "inject-workspace-packages".
+RUN pnpm deploy --filter=@erp/api --prod --legacy /prod/api
 
 # ----- Runtime -----
 FROM node:22-slim AS runner
