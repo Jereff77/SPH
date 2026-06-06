@@ -17,6 +17,8 @@ import { PendientesPage } from '@/features/cxp/PendientesPage';
 import { PagarSolicitudesPage } from '@/features/cxp/PagarSolicitudesPage';
 import { AprobarSolicitudesPage } from '@/features/cxp/AprobarSolicitudesPage';
 import { CorreoPage } from '@/features/correo/CorreoPage';
+import { DashboardVentasPage } from '@/features/ventas/DashboardVentasPage';
+import { PlanesPage } from '@/features/ventas/PlanesPage';
 import { Home } from './Home';
 
 /**
@@ -35,6 +37,8 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { path: '/', element: <Home /> },
+          { path: '/ventas', element: <DashboardVentasPage /> },
+          { path: '/ventas/planes', element: <PlanesPage /> },
           { path: '/parques', element: <ParquesPage /> },
           { path: '/parques/disponibilidad', element: <DisponibilidadPage /> },
           { path: '/cxp/pagar', element: <PagarSolicitudesPage /> },

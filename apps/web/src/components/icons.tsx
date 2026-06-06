@@ -110,6 +110,16 @@ export function IconMail(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** Etiqueta de precio / venta (módulo Ventas). */
+export function IconVentas(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z" />
+      <circle cx="7" cy="7" r="1.2" fill="currentColor" />
+    </svg>
+  );
+}
+
 /** Mini gráfico de barras ascendentes (relleno). */
 export function IconBarras(props: SVGProps<SVGSVGElement>) {
   return (

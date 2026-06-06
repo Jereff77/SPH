@@ -36,14 +36,21 @@
     validaciones fiscales), **Aprobar Solicitudes** (presupuesto + fuera de presupuesto), **Pagar
     solicitudes** (3 vías de pago + tiempo real SSE), **Solicitudes pendientes**.
   - **Correo** (sección propia): buzón de facturas IMAP/SMTP en el backend (sin N8N).
+  - **Ventas** (Inversionistas/Propietarios) — **Etapa 1**: **Dashboard** (clave 600, cobranza con
+    `v_pagos`/`v_rentasCombinadas` + 3 tarjetas + agregar pago con comprobante + tiempo real SSE) y
+    **Planes** (clave 610: lectura de Plan de Pagos / Renta Garantizada / Administrada + **Configuración**
+    de Datos Generales, Documentos, Propiedades y **creación del Plan de Pagos**). Sin objetos nuevos en BD
+    (todo reutiliza tablas/vistas/RPCs y permisos 600/610 existentes).
 - **Objetos NUEVOS en BD (con autorización):** bucket `branding` + `v2_obtener_logo_url()`;
   `catClavesProdServ`; permisos 470/800/801 + enum `Modulos`+='Correo'; tablas `correo_*`; parámetro
   `RFC_RECEPTORES_AUTORIZADOS`. Detalle por módulo en `base-conocimiento/`. Nada del sistema viejo fue tocado.
 - **Despliegue:** EasyPanel, 2 apps (api Dockerfile `apps/api/Dockerfile` :3001, web `apps/web/Dockerfile`
   :80). Guía: `DEPLOY-EASYPANEL.md`. Flujo: push a `erp_v2` → Implementar.
-- **Siguiente:** CxP Dashboard(440/441) y Reportes(460); conciliación bancaria avanzada; configurar la
-  cuenta de Correo (`EMAIL_ENCRYPTION_KEY` en EasyPanel); migrar stubs (Inversionistas, Arrendatarios,
-  Fideicomiso, CRM). Ver pendientes completos en `../.sessions/contexto.md`.
+- **Siguiente:** Ventas Etapa 2 (**Reportes 620**, **Escrituras 630**, creación de **Renta Garantizada**
+  vía RPCs `rgpdp_insertar_registro`/`rgpdp_generar_plan_pagos` y **Renta Administrada** `rapdp_actualizar`);
+  CxP Dashboard(440/441) y Reportes(460); conciliación bancaria avanzada; configurar la cuenta de Correo
+  (`EMAIL_ENCRYPTION_KEY` en EasyPanel); migrar stubs (Arrendatarios, Fideicomiso, CRM). Ver pendientes
+  completos en `../.sessions/contexto.md`.
 
 ---
 

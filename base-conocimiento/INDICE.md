@@ -29,7 +29,7 @@ futuro, en una tabla vectorial `pgvector` para búsqueda semántica).
 | Parques | ✅ desarrollado | `modulos/parques.md` | /parques, /parques/disponibilidad | 700, 701, 702, 710 | parque, nave, bodega, KVA, disponibilidad, manzana, lote, GYM |
 | Landing / Indicadores | ✅ desarrollado | `modulos/landing-indicadores.md` | / | — | inicio, tipo de cambio, dólar, INPC, indicadores, Banxico |
 | Auditoría / Ver como | ✅ desarrollado | `modulos/auditoria-y-ver-como.md` | (transversal) | 200 | historial, bitácora, auditoría, trazabilidad, ver como, quién cambió |
-| Inversionistas / Propietarios | 🟡 stub | `modulos/inversionistas.md` | (pendiente v2) | — | inversionista, propietario, dueño, propiedad, escrituración, PDP |
+| Inversionistas / Propietarios (Ventas) | 🟠 parcial | `modulos/inversionistas.md` | /ventas, /ventas/planes | 600, 610 | inversionista, propietario, dueño, propiedad, nave, venta, plan de pagos, PDP, parcialidad, cobranza, pago, terreno, construcción, ticket, descuento, renta garantizada, renta administrada, configuración, documentos, escrituración |
 | Arrendatarios | 🟡 stub | `modulos/arrendatarios.md` | (pendiente v2) | — | arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp |
 | Correo (buzón de facturas) | ✅ desarrollado | `modulos/correo.md` | /correo | 800 (usar), 801 (configurar cuenta) | correo, email, buzón, bandeja, factura, comprobante, IMAP, SMTP, Hostinger, responder, adjunto, sincronizar |
 | CxP (Cuentas por pagar) | 🟠 parcial | `modulos/cxp.md` | /cxp/pagar, /cxp/aprobar, /cxp/solicitudes, /cxp/pendientes, /cxp/proveedores, /cxp/bancos | 400, 401, 402, 410, 420, 430, 431, 450, 470 | pago, pagar solicitudes, aprobar solicitudes, aprobación, presupuesto, fuera de presupuesto, cuenta por pagar, factura, CFDI, aplicar pago, comprobante, N8N, autorizar, rechazar, regresar, transferencia SPEI, proveedor, banco, conciliación, desaplicar, claves SAT, retención, tiempo real |
@@ -46,7 +46,8 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | Tabla / vista | Módulo(s) |
 |---|---|
 | `parques`, `naves`, `v_naves`, `v_disponibilidad` | Parques |
-| `propiedades`, `inversionista`, `v_propiedades` | Inversionistas/Propietarios (y Parques para el dueño) |
+| `propiedades`, `inversionista`, `inversionista_docs`, `v_propiedades` | Inversionistas/Propietarios (Ventas) (y Parques para el dueño) |
+| `pdp`, `pdpDetalle`, `pagos`, `rgPdp`, `rgPdpDetalle`, `raPdp`, `raPdpDetalle`, `v_pagos`, `v_rentasCombinadas`, `v_Totales_Anual_Mes`, `v_montoTotalAnual`, `v_pagosTotalAnual` | Inversionistas/Propietarios (Ventas) |
 | `arrenPropiedades`, `arrePdp` | Arrendatarios (y Parques para el arrendatario) |
 | `catUsers`, `segModulosUsuarios`, `segModulos`, `segPlantillasPermisos` | Configuraciones (Usuarios/Permisos) |
 | `inpc`, `PresCategorias`, `PresDetalle`, `cxp_fechas_habilitadas`, `catClavesProdServ` | Configuraciones (Parámetros: INPC/Cuentas/Fechas/**Claves SAT**) |
@@ -62,6 +63,7 @@ Para cuando el usuario o un error menciona una tabla concreta.
 |---|---|
 | `/login`, `/recuperar` | Autenticación |
 | `/` | Landing / Indicadores |
+| `/ventas`, `/ventas/planes` | Inversionistas/Propietarios (Ventas) |
 | `/parques`, `/parques/disponibilidad` | Parques |
 | `/cxp/pagar` | CxP (Pagar solicitudes / tesorería) |
 | `/cxp/aprobar` | CxP (Aprobar Solicitudes / aprobador) |
