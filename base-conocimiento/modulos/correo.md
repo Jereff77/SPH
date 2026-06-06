@@ -5,7 +5,7 @@ version_doc: 1.0
 ultima_actualizacion: 2026-06-06
 submodulos: [Bandeja, Cuenta]
 rutas: [/correo]
-claves_permiso: [800]
+claves_permiso: [800, 801]
 tablas: [correo_cuentas, correo_mensajes, correo_adjuntos]
 palabras_clave: [correo, email, buzón, bandeja, factura, comprobante, IMAP, SMTP, Hostinger, responder, adjunto, conversación, hilo, sincronizar, contraseña cifrada]
 relacionado_con: [cxp, configuraciones]
@@ -33,9 +33,13 @@ relacionado_con: [cxp, configuraciones]
 - **Bandeja**: lista de conversaciones (remitente, asunto, fecha, no leídos, 📎) + botón Sincronizar; al
   abrir una → **hilo** de mensajes (recibidos/enviados) con **adjuntos** (descargar) y **responder**
   (texto + adjuntar archivos). Al abrir un hilo, los recibidos se marcan leídos.
-- **Cuenta**: configurar la cuenta (nombre, correo, usuario, contraseña, IMAP/SMTP host+puerto), **Probar
-  conexión** (IMAP login + SMTP verify), activar/desactivar. La contraseña se guarda **cifrada** y nunca
-  se muestra/devuelve.
+- **Cuenta** (solo permiso **801**): configurar la cuenta (nombre, correo, usuario, contraseña, IMAP/SMTP
+  host+puerto), **Probar conexión** (IMAP login + SMTP verify), activar/desactivar. La contraseña se guarda
+  **cifrada** y nunca se muestra/devuelve. Quien no tenga 801 solo ve la Bandeja.
+
+> **Permisos:** **800** = usar el correo (ver bandeja, abrir hilos, responder). **801** = configurar la
+> cuenta (crear/editar/probar/activar). El `GET /correo/cuentas` (lectura, para saber la cuenta activa de la
+> bandeja) va bajo 800; las mutaciones de cuenta van bajo 801.
 
 ## 4. Modelo de datos (tablas nuevas)
 - **`correo_cuentas`**: `id`, `nombre`, `email`, `imapHost`, `imapPort` (993), `smtpHost`, `smtpPort` (465),

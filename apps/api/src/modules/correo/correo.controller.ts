@@ -40,13 +40,15 @@ export class CorreoController {
     private readonly correo: CorreoService,
   ) {}
 
-  // ----- Cuentas -----
+  // ----- Cuentas (lectura: 800 para que la bandeja sepa la cuenta activa) -----
   @Get('cuentas')
   listarCuentas() {
     return this.cuentas.listar();
   }
 
+  // ----- Configurar cuenta: requiere permiso 801 -----
   @Post('cuentas')
+  @RequierePermiso(801)
   crearCuenta(
     @CurrentUser() actor: AuthUser,
     @Body(new ZodValidationPipe(cuentaSchema)) dto: CuentaDto,
@@ -55,6 +57,7 @@ export class CorreoController {
   }
 
   @Patch('cuentas/:id')
+  @RequierePermiso(801)
   async editarCuenta(
     @CurrentUser() actor: AuthUser,
     @Param('id') id: string,
@@ -65,6 +68,7 @@ export class CorreoController {
   }
 
   @Patch('cuentas/:id/activo')
+  @RequierePermiso(801)
   async setActivo(
     @CurrentUser() actor: AuthUser,
     @Param('id') id: string,
@@ -76,12 +80,14 @@ export class CorreoController {
 
   /** Probar conexión con datos del formulario (alta nueva). */
   @Post('cuentas/probar')
+  @RequierePermiso(801)
   probar(@Body(new ZodValidationPipe(cuentaSchema)) dto: CuentaDto) {
     return this.cuentas.probar(dto);
   }
 
   /** Probar una cuenta guardada (usa su contraseña si no se reescribe). */
   @Post('cuentas/:id/probar')
+  @RequierePermiso(801)
   probarGuardada(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(cuentaSchema)) dto: CuentaDto,
