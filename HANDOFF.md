@@ -5,7 +5,12 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-03 (noche). Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-06. Autor: Claude (Opus 4.8).
+>
+> 📌 **El estado detallado y al día por módulo está en `base-conocimiento/INDICE.md`** (router) y los
+> `base-conocimiento/modulos/*.md`. El **handoff operativo** (despliegue EasyPanel, rama, variables,
+> pendientes) está en `../.sessions/contexto.md` (sección "HANDOFF CONSOLIDADO"). Este documento mantiene
+> las **reglas inviolables** y los patrones.
 
 ---
 
@@ -21,20 +26,24 @@
 - **COEXISTENCIA:** el sistema Flutter actual y v2 **conviven** durante la transición. **No se elimina ni
   modifica NADA de la BD** (objetos del sistema viejo intactos); v2 solo **lee** lo existente y, si necesita
   lógica en BD, **crea funciones NUEVAS** — todo con autorización explícita. Ver reglas 1 y 2 (sección 1).
-- **Hecho hasta ahora (todo verificado y funcionando con BD real vía `apps/api/.env.local`):**
-  - Scaffold del monorepo + capa de seguridad (guards JWT/RBAC) + tipos generados del esquema real.
-  - **Autenticación** completa: login por **nombre de usuario o correo** (resuelve dominios + correos
-    autorizados), refresh por cookie httpOnly, /me, bloqueo de inactivos.
-  - **Landing (AppShell):** header + sidebar colapsable (drawer en móvil), responsive, logo clicable→inicio,
-    dashboard con 2 tarjetas (Tipo de cambio / INPC, valores aún placeholder) y logo centrado.
-  - **Configuraciones → Sistema:** logotipos (claro/oscuro, con ancho/alto), favicon, dominios autorizados,
-    correos autorizados (excepciones). Persistido en `SPHConfiguraciones` + bucket `branding`.
-  - **Configuraciones → Usuarios:** listado + toggles Status / esRC / esSoporte (este último solo visible y
-    operable por usuarios soporte). Escribe en `catUsers` y `crm_responsableComercial`.
-- **Objetos NUEVOS creados en la BD (con autorización del usuario):** bucket `branding` (público) y función
-  `public.v2_obtener_logo_url()` (SECURITY DEFINER). Ver sección 5d. Nada del sistema viejo fue tocado.
-- **Siguiente:** **permisos granulares** (proteger endpoints con `@RequierePermiso`), conectar indicadores
-  reales (Banxico/INPC), luego Inversionistas, CxP, etc.
+- **Hecho hasta ahora (verificado; desplegado en EasyPanel desde la rama `erp_v2`):**
+  - Seguridad (guards JWT/RBAC, `@RequierePermiso`), tipos del esquema real, **Auditoría** (triggers
+    `fn_auditoria` + `comoActor(uid)`) y **"Ver como"** (impersonación de solo lectura para soporte).
+  - **Autenticación**, **Landing/Indicadores** (Banxico/INPC reales), **Configuraciones** completas
+    (Usuarios, **Parámetros** con INPC/Cuentas/Fechas CxP/**Claves SAT**, Permisos, Sistema).
+  - **Parques** (parques + disponibilidad).
+  - **CxP** casi completo: Proveedores, Bancos, **Solicitudes de pago** (alta de CFDI con parser propio +
+    validaciones fiscales), **Aprobar Solicitudes** (presupuesto + fuera de presupuesto), **Pagar
+    solicitudes** (3 vías de pago + tiempo real SSE), **Solicitudes pendientes**.
+  - **Correo** (sección propia): buzón de facturas IMAP/SMTP en el backend (sin N8N).
+- **Objetos NUEVOS en BD (con autorización):** bucket `branding` + `v2_obtener_logo_url()`;
+  `catClavesProdServ`; permisos 470/800/801 + enum `Modulos`+='Correo'; tablas `correo_*`; parámetro
+  `RFC_RECEPTORES_AUTORIZADOS`. Detalle por módulo en `base-conocimiento/`. Nada del sistema viejo fue tocado.
+- **Despliegue:** EasyPanel, 2 apps (api Dockerfile `apps/api/Dockerfile` :3001, web `apps/web/Dockerfile`
+  :80). Guía: `DEPLOY-EASYPANEL.md`. Flujo: push a `erp_v2` → Implementar.
+- **Siguiente:** CxP Dashboard(440/441) y Reportes(460); conciliación bancaria avanzada; configurar la
+  cuenta de Correo (`EMAIL_ENCRYPTION_KEY` en EasyPanel); migrar stubs (Inversionistas, Arrendatarios,
+  Fideicomiso, CRM). Ver pendientes completos en `../.sessions/contexto.md`.
 
 ---
 
