@@ -100,6 +100,157 @@ export type Database = {
         }
         Relationships: []
       }
+      correo_cuentas: {
+        Row: {
+          activo: boolean
+          email: string
+          fc: string
+          id: string
+          imapHost: string
+          imapPort: number
+          nombre: string | null
+          passwordCifrada: string
+          smtpHost: string
+          smtpPort: number
+          ultimoUidSync: Json
+          uidr: string | null
+          usuario: string
+        }
+        Insert: {
+          activo?: boolean
+          email: string
+          fc?: string
+          id?: string
+          imapHost: string
+          imapPort?: number
+          nombre?: string | null
+          passwordCifrada: string
+          smtpHost: string
+          smtpPort?: number
+          ultimoUidSync?: Json
+          uidr?: string | null
+          usuario: string
+        }
+        Update: {
+          activo?: boolean
+          email?: string
+          fc?: string
+          id?: string
+          imapHost?: string
+          imapPort?: number
+          nombre?: string | null
+          passwordCifrada?: string
+          smtpHost?: string
+          smtpPort?: number
+          ultimoUidSync?: Json
+          uidr?: string | null
+          usuario?: string
+        }
+        Relationships: []
+      }
+      correo_mensajes: {
+        Row: {
+          bodyHtml: string | null
+          bodyText: string | null
+          cc: string | null
+          conversationId: string | null
+          fc: string
+          fecha: string | null
+          folder: string | null
+          fromEmail: string | null
+          id: string
+          idCuenta: string
+          leido: boolean
+          messageId: string | null
+          subject: string | null
+          tieneAdjuntos: boolean
+          tipo: string
+          toEmail: string | null
+        }
+        Insert: {
+          bodyHtml?: string | null
+          bodyText?: string | null
+          cc?: string | null
+          conversationId?: string | null
+          fc?: string
+          fecha?: string | null
+          folder?: string | null
+          fromEmail?: string | null
+          id?: string
+          idCuenta: string
+          leido?: boolean
+          messageId?: string | null
+          subject?: string | null
+          tieneAdjuntos?: boolean
+          tipo?: string
+          toEmail?: string | null
+        }
+        Update: {
+          bodyHtml?: string | null
+          bodyText?: string | null
+          cc?: string | null
+          conversationId?: string | null
+          fc?: string
+          fecha?: string | null
+          folder?: string | null
+          fromEmail?: string | null
+          id?: string
+          idCuenta?: string
+          leido?: boolean
+          messageId?: string | null
+          subject?: string | null
+          tieneAdjuntos?: boolean
+          tipo?: string
+          toEmail?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "correo_mensajes_idCuenta_fkey"
+            columns: ["idCuenta"]
+            isOneToOne: false
+            referencedRelation: "correo_cuentas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      correo_adjuntos: {
+        Row: {
+          contentType: string | null
+          fc: string
+          filename: string | null
+          id: string
+          idMensaje: string
+          tamano: number | null
+          url: string | null
+        }
+        Insert: {
+          contentType?: string | null
+          fc?: string
+          filename?: string | null
+          id?: string
+          idMensaje: string
+          tamano?: number | null
+          url?: string | null
+        }
+        Update: {
+          contentType?: string | null
+          fc?: string
+          filename?: string | null
+          id?: string
+          idMensaje?: string
+          tamano?: number | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "correo_adjuntos_idMensaje_fkey"
+            columns: ["idMensaje"]
+            isOneToOne: false
+            referencedRelation: "correo_mensajes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       actividad: {
         Row: {
           comentario: string | null

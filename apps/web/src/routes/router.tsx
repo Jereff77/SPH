@@ -16,6 +16,7 @@ import { SolicitudesPage } from '@/features/cxp/SolicitudesPage';
 import { PendientesPage } from '@/features/cxp/PendientesPage';
 import { PagarSolicitudesPage } from '@/features/cxp/PagarSolicitudesPage';
 import { AprobarSolicitudesPage } from '@/features/cxp/AprobarSolicitudesPage';
+import { CorreoPage } from '@/features/correo/CorreoPage';
 import { Home } from './Home';
 
 /**
@@ -42,6 +43,7 @@ export const router = createBrowserRouter([
           { path: '/cxp/pendientes', element: <PendientesPage /> },
           { path: '/cxp/proveedores', element: <ProveedoresPage /> },
           { path: '/cxp/bancos', element: <BancosPage /> },
+          { path: '/correo', element: <CorreoPage /> },
           { path: '/configuraciones/usuarios', element: <UsuariosPage /> },
           { path: '/configuraciones/parametros', element: <ParametrosPage /> },
           { path: '/configuraciones/permisos', element: <PermisosPage /> },

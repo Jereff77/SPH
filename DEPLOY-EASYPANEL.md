@@ -33,7 +33,13 @@ SUPABASE_ANON_KEY=<anon key>
 SUPABASE_JWT_SECRET=<JWT secret del proyecto>    # para verificar los JWT
 DOMINIOS_AUTORIZADOS=aceleremos.com,gruposph.mx,gruposph.com
 BANXICO_TOKEN=<token Banxico>                     # opcional (tiene default)
+EMAIL_ENCRYPTION_KEY=<clave de 32+ bytes>         # cifra las contraseñas del módulo Correo
 ```
+
+> **`EMAIL_ENCRYPTION_KEY`** (módulo Correo): clave maestra para cifrar las contraseñas de las cuentas de
+> correo. Genérala una sola vez con `openssl rand -hex 32` (o `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`) y **no la cambies** después
+> (si cambia, las contraseñas guardadas dejan de poder descifrarse). Sin esta variable, el módulo Correo no
+> permite guardar/usar cuentas.
 
 - **Health check (opcional):** path `GET /api/health` (el contenedor ya trae HEALTHCHECK).
 

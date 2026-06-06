@@ -1,0 +1,88 @@
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import nodemailer from 'nodemailer';
+import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import type { Credenciales } from './cuentas.service.js';
+
+export interface CorreoOriginal {
+  fromEmail: string | null;
+  toEmail: string | null;
+  subject: string | null;
+  messageId: string | null;
+  conversationId: string | null;
+}
+
+export interface AdjuntoSalida {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
+
+/**
+ * Envío de respuestas por SMTP (nodemailer). Tras enviar, registra el correo
+ * como `sent` en `correo_mensajes` (mismo hilo). Reemplaza el flujo N8N de envío.
+ */
+@Injectable()
+export class SmtpService {
+  private readonly logger = new Logger(SmtpService.name);
+
+  constructor(private readonly supabase: SupabaseService) {}
+
+  async responder(
+    cred: Credenciales,
+    original: CorreoOriginal,
+    body: string,
+    adjuntos: AdjuntoSalida[] = [],
+  ): Promise<void> {
+    const para = original.fromEmail;
+    if (!para) throw new InternalServerErrorException('El correo original no tiene remitente.');
+
+    const asuntoBase = original.subject ?? '';
+    const subject = /^re:/i.test(asuntoBase) ? asuntoBase : `Re: ${asuntoBase}`;
+    const conversationId = original.conversationId ?? original.messageId;
+
+    const transporter = nodemailer.createTransport({
+      host: cred.smtpHost,
+      port: cred.smtpPort,
+      secure: cred.smtpPort === 465,
+      auth: { user: cred.usuario, pass: cred.password },
+    });
+
+    let info;
+    try {
+      info = await transporter.sendMail({
+        from: cred.email,
+        to: para,
+        subject,
+        text: body,
+        inReplyTo: original.messageId ?? undefined,
+        references: [original.conversationId, original.messageId]
+          .filter(Boolean)
+          .join(' '),
+        attachments: adjuntos.map((a) => ({
+          filename: a.filename,
+          content: a.content,
+          contentType: a.contentType,
+        })),
+      });
+    } catch (e) {
+      this.logger.error(`SMTP enviar ${cred.email}: ${(e as Error).message}`);
+      throw new InternalServerErrorException('No se pudo enviar el correo.');
+    }
+
+    // Registrar el enviado en el hilo.
+    await this.supabase.admin.from('correo_mensajes').insert({
+      idCuenta: cred.id,
+      messageId: info.messageId ?? null,
+      conversationId,
+      fromEmail: cred.email,
+      toEmail: para,
+      subject,
+      bodyText: body,
+      fecha: new Date().toISOString(),
+      tipo: 'sent',
+      folder: 'INBOX.Sent',
+      leido: true,
+      tieneAdjuntos: adjuntos.length > 0,
+    });
+  }
+}

@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from 'react';
-import { IconGear, IconParque, IconCxP } from '@/components/icons';
+import { IconGear, IconParque, IconCxP, IconMail } from '@/components/icons';
 
 export interface MenuItem {
   label: string;
@@ -44,6 +44,12 @@ export const MENU: MenuGrupo[] = [
       { label: 'Bancos', to: '/cxp/bancos', clave: 470 },
       // Próximas fases: Reportes (460), Dashboard (440/441)…
     ],
+  },
+  {
+    id: 'correo',
+    label: 'Correo',
+    Icon: IconMail,
+    items: [{ label: 'Bandeja', to: '/correo', clave: 800 }],
   },
   {
     id: 'configuraciones',

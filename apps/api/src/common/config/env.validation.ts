@@ -34,6 +34,11 @@ export const envSchema = z.object({
     .default(
       '609198f2a446d552c855a74f6fb891908fbf8afb5e6c5cc0eaa17a4bed9546b3',
     ),
+
+  // Clave maestra para cifrar las contraseñas de las cuentas de correo (AES-256-GCM).
+  // De aquí se deriva una llave de 32 bytes (sha256). SECRETO; configúrala en producción.
+  // Si está vacía, el módulo de Correo no podrá guardar/usar contraseñas.
+  EMAIL_ENCRYPTION_KEY: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -31,6 +31,7 @@ futuro, en una tabla vectorial `pgvector` para búsqueda semántica).
 | Auditoría / Ver como | ✅ desarrollado | `modulos/auditoria-y-ver-como.md` | (transversal) | 200 | historial, bitácora, auditoría, trazabilidad, ver como, quién cambió |
 | Inversionistas / Propietarios | 🟡 stub | `modulos/inversionistas.md` | (pendiente v2) | — | inversionista, propietario, dueño, propiedad, escrituración, PDP |
 | Arrendatarios | 🟡 stub | `modulos/arrendatarios.md` | (pendiente v2) | — | arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp |
+| Correo (buzón de facturas) | ✅ desarrollado | `modulos/correo.md` | /correo | 800 | correo, email, buzón, bandeja, factura, comprobante, IMAP, SMTP, Hostinger, responder, adjunto, sincronizar |
 | CxP (Cuentas por pagar) | 🟠 parcial | `modulos/cxp.md` | /cxp/pagar, /cxp/aprobar, /cxp/solicitudes, /cxp/pendientes, /cxp/proveedores, /cxp/bancos | 400, 401, 402, 410, 420, 430, 431, 450, 470 | pago, pagar solicitudes, aprobar solicitudes, aprobación, presupuesto, fuera de presupuesto, cuenta por pagar, factura, CFDI, aplicar pago, comprobante, N8N, autorizar, rechazar, regresar, transferencia SPEI, proveedor, banco, conciliación, desaplicar, claves SAT, retención, tiempo real |
 | Fideicomiso | 🟡 stub | `modulos/fideicomiso.md` | (pendiente v2) | — | fideicomiso, dispersión, aportación, rendimiento, contabilidad |
 | CRM | 🟡 stub | `modulos/crm.md` | (pendiente v2) | — | lead, prospecto, empresa, inmobiliaria, actividad comercial |
@@ -52,6 +53,8 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `SPHConfiguraciones` | Configuraciones (Sistema) · `RFC_RECEPTORES_AUTORIZADOS` lo usa CxP |
 | `auditoria`, `actividad` | Auditoría |
 | `cxp`, `cxpComentarios`, `catProveedores`, `catBancos`, `catClavesProdServ`, `movbancarios` | CxP |
+| `correo_cuentas`, `correo_mensajes`, `correo_adjuntos` | Correo (buzón de facturas) |
+| `emails`, `email_attachments` | Soporte/CRM (vía N8N — NO es el módulo Correo) |
 
 ## Mapa inverso: ruta → módulo
 
@@ -64,6 +67,7 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `/cxp/aprobar` | CxP (Aprobar Solicitudes / aprobador) |
 | `/cxp/solicitudes`, `/cxp/pendientes` | CxP (Solicitudes / Pendientes) |
 | `/cxp/proveedores`, `/cxp/bancos` | CxP (Catálogos) |
+| `/correo` | Correo (buzón de facturas) |
 | `/configuraciones/usuarios` | Configuraciones (Usuarios) |
 | `/configuraciones/parametros` | Configuraciones (Parámetros) |
 | `/configuraciones/permisos` | Configuraciones (Permisos) |

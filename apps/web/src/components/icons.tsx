@@ -100,6 +100,16 @@ export function IconParque(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** Sobre / correo (módulo Correo). */
+export function IconMail(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="m2 7 10 6 10-6" />
+    </svg>
+  );
+}
+
 /** Mini gráfico de barras ascendentes (relleno). */
 export function IconBarras(props: SVGProps<SVGSVGElement>) {
   return (
