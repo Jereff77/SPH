@@ -1,19 +1,29 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { ventasApi, type InversionistaOpt } from './ventas.api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ventasApi, type InversionistaOpt, type PagoVentaRow } from './ventas.api';
 import { ConfigPropietarioModal } from './ConfigPropietarioModal';
+import { PagoDetalleModal } from './PagoDetalleModal';
+import { ComentariosModal } from './ComentariosModal';
 import { Tabs, type TabDef } from '@/components/Tabs';
+import { SearchSelect } from '@/components/SearchSelect';
 import { THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
 import { IconGear } from '@/components/icons';
 
 const moneda = (n: number | null | undefined) =>
   (n ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
+const num = (n: number | null | undefined) =>
+  (n ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 const fechaCorta = (iso: string | null): string => {
   if (!iso) return '—';
   const p = (iso.split('T')[0] ?? iso).split('-');
   return p.length === 3 ? `${Number(p[2])}/${Number(p[1])}/${p[0]}` : iso;
 };
+
+/** Encabezado fijo bajo la barra de la app (scroll del documento, como el Dashboard). */
+const THEAD_PLAN =
+  '[&>tr>th]:sticky [&>tr>th]:top-14 [&>tr>th]:z-10 [&>tr>th]:bg-[#1f2a4d]';
 
 const nombreInv = (i: InversionistaOpt): string =>
   i.razonsocial?.trim()
@@ -49,6 +59,12 @@ export function PlanesPage() {
     [inversionistas, idInversionista],
   );
 
+  const opcionesInv = useMemo(
+    () =>
+      inversionistas.map((i) => ({ value: i.idInversionista, label: nombreInv(i) })),
+    [inversionistas],
+  );
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold tracking-tight text-gray-800">Ventas · Planes</h1>
@@ -57,21 +73,16 @@ export function PlanesPage() {
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-gray-600">
           Inversionista / Propietario
-          <select
+          <SearchSelect
             value={idInversionista}
-            onChange={(e) => {
-              setIdInversionista(e.target.value);
+            onChange={(v) => {
+              setIdInversionista(v);
               setIdPropiedad('');
             }}
-            className="mt-1 block w-72 rounded border px-2 py-1.5 text-sm"
-          >
-            <option value="">Selecciona…</option>
-            {inversionistas.map((i) => (
-              <option key={i.idInversionista} value={i.idInversionista}>
-                {nombreInv(i)}
-              </option>
-            ))}
-          </select>
+            options={opcionesInv}
+            placeholder="Selecciona…"
+            className="mt-1 w-72"
+          />
         </label>
 
         {invSel && (
@@ -133,52 +144,190 @@ export function PlanesPage() {
 }
 
 function PlanTab({ idPropiedad }: { idPropiedad: string }) {
+  const queryClient = useQueryClient();
   const { data = [], isLoading } = useQuery({
     queryKey: ['ventas-plan', idPropiedad],
     queryFn: () => ventasApi.plan(idPropiedad),
   });
+  const [pagarDe, setPagarDe] = useState<PagoVentaRow | null>(null);
+  const [comentarDe, setComentarDe] = useState<PagoVentaRow | null>(null);
+
+  const refrescar = () =>
+    queryClient.invalidateQueries({ queryKey: ['ventas-plan', idPropiedad] });
+
+  const totales = useMemo(
+    () =>
+      data.reduce(
+        (t, r) => {
+          t.monto += r.monto ?? 0;
+          t.construccion += r.pagos_construccion ?? 0;
+          t.terreno += r.pagos_terreno ?? 0;
+          t.pagos += r.pagos ?? 0;
+          t.balance += r.balance ?? 0;
+          return t;
+        },
+        { monto: 0, construccion: 0, terreno: 0, pagos: 0, balance: 0 },
+      ),
+    [data],
+  );
+  const avanceTotal = totales.monto > 0 ? (totales.pagos * 100) / totales.monto : null;
+  const hayDescuento = data.some((r) => (r.descuentos ?? 0) > 0);
+  const haySaldoFavor = data.some((r) => (r.balance ?? 0) > 0);
+
+  if (!isLoading && data.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed bg-white p-10 text-center text-sm text-gray-400">
+        Esta propiedad no tiene plan de pagos.
+      </div>
+    );
+  }
+
   return (
-    <div className="overflow-auto rounded-xl border bg-white" style={{ maxHeight: '55vh' }}>
-      <table className="min-w-full border-collapse text-sm">
-        <thead className={THEAD_STICKY}>
-          <tr className={THEAD_TR}>
-            <th className="px-4 py-3 text-center">Pago</th>
-            <th className="px-4 py-3 text-left">Fecha</th>
-            <th className="px-4 py-3 text-right">Monto</th>
-            <th className="px-4 py-3 text-right">Pagado</th>
-            <th className="px-4 py-3 text-right">Balance</th>
-            <th className="px-4 py-3 text-left">Tipo</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {isLoading ? (
-            <tr>
-              <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
-                Cargando…
-              </td>
+    <div className="space-y-2">
+      <div className="rounded-xl border bg-white">
+        <table className="min-w-full border-collapse text-sm">
+          <thead className={THEAD_PLAN}>
+            <tr className={THEAD_TR}>
+              <th className="px-3 py-3 text-center">#</th>
+              <th className="px-3 py-3 text-left">Tipo pago</th>
+              <th className="px-3 py-3 text-left">Fecha</th>
+              <th className="px-3 py-3 text-right">Monto</th>
+              <th className="px-3 py-3 text-left">Fecha Pago</th>
+              <th className="px-3 py-3 text-right">Movimiento</th>
+              <th className="px-3 py-3 text-right">Pagos</th>
+              <th className="px-3 py-3 text-right">Balance</th>
+              <th className="px-3 py-3 text-right">% Avance</th>
+              <th className="px-3 py-3 text-center">Opciones</th>
             </tr>
-          ) : data.length === 0 ? (
-            <tr>
-              <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
-                Esta propiedad no tiene plan de pagos.
-              </td>
-            </tr>
-          ) : (
-            data.map((r) => (
-              <tr key={r.idPdpDet} className="hover:bg-gray-50">
-                <td className="px-4 py-2 text-center">{r.numPago ?? '—'}</td>
-                <td className="px-4 py-2 whitespace-nowrap">{fechaCorta(r.fecha)}</td>
-                <td className="px-4 py-2 text-right tabular-nums">{moneda(r.monto)}</td>
-                <td className="px-4 py-2 text-right tabular-nums">{moneda(r.pagos)}</td>
-                <td className="px-4 py-2 text-right tabular-nums font-medium">
-                  {moneda(r.balance)}
+          </thead>
+          <tbody className="divide-y">
+            {isLoading ? (
+              <tr>
+                <td colSpan={10} className="px-4 py-8 text-center text-gray-400">
+                  Cargando…
                 </td>
-                <td className="px-4 py-2">{r.tipoPago ?? '—'}</td>
               </tr>
-            ))
+            ) : (
+              data.map((r) => {
+                const conDescuento = (r.descuentos ?? 0) > 0;
+                const saldoFavor = (r.balance ?? 0) > 0;
+                return (
+                  <tr key={r.idPdpDet} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 text-center">{r.numPago ?? '—'}</td>
+                    <td className="px-3 py-2">{r.tipoPago ?? '—'}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{fechaCorta(r.fecha)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {conDescuento && (
+                        <span title="Contiene descuento" className="mr-1">
+                          ⚠️
+                        </span>
+                      )}
+                      {moneda(r.monto)}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">{fechaCorta(r.fecha_pagos)}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-baseline justify-end gap-1 leading-tight">
+                        <span className="text-[10px] font-semibold text-gray-400">C:</span>
+                        <span className="text-[11px] tabular-nums text-gray-600">
+                          {num(r.pagos_construccion)}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-end gap-1 leading-tight">
+                        <span className="text-[10px] font-semibold text-gray-400">T:</span>
+                        <span className="text-[11px] tabular-nums text-gray-600">
+                          {num(r.pagos_terreno)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">{moneda(r.pagos)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums font-medium">
+                      {saldoFavor ? (
+                        <span className="text-green-600">＋{moneda(r.balance)}</span>
+                      ) : (
+                        moneda(r.balance)
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {r.porcentaje_avance != null ? `${r.porcentaje_avance}%` : '—'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPagarDe(r)}
+                          title="Registrar pago"
+                          className="rounded-full bg-[#1f2a4d] px-2 py-1 text-xs font-bold text-white hover:bg-[#2a376a]"
+                        >
+                          $
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setComentarDe(r)}
+                          title="Comentarios"
+                          className="text-[#3f5b87] hover:text-[#1f2a4d]"
+                          aria-label="Comentarios"
+                        >
+                          💬
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+          {!isLoading && data.length > 0 && (
+            <tfoot className="[&>tr>td]:sticky [&>tr>td]:bottom-0 [&>tr>td]:z-10 [&>tr>td]:bg-[#5b6b8c]">
+              <tr className="font-semibold text-white">
+                <td className="px-3 py-2" colSpan={3}>
+                  Totales
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">{moneda(totales.monto)}</td>
+                <td className="px-3 py-2" />
+                <td className="px-3 py-1.5">
+                  <div className="flex items-baseline justify-end gap-1 leading-tight">
+                    <span className="text-[10px] text-white/70">C:</span>
+                    <span className="text-[11px] tabular-nums">{num(totales.construccion)}</span>
+                  </div>
+                  <div className="flex items-baseline justify-end gap-1 leading-tight">
+                    <span className="text-[10px] text-white/70">T:</span>
+                    <span className="text-[11px] tabular-nums">{num(totales.terreno)}</span>
+                  </div>
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">{moneda(totales.pagos)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{moneda(totales.balance)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {avanceTotal != null ? `${avanceTotal.toFixed(1)}%` : '—'}
+                </td>
+                <td className="px-3 py-2" />
+              </tr>
+            </tfoot>
           )}
-        </tbody>
-      </table>
+        </table>
+      </div>
+
+      {/* Leyenda */}
+      {(hayDescuento || haySaldoFavor) && (
+        <div className="flex flex-wrap gap-4 px-1 text-xs text-gray-500">
+          {hayDescuento && <span>⚠️ Contiene descuento</span>}
+          {haySaldoFavor && (
+            <span>
+              <span className="text-green-600">＋</span> Saldo a favor
+            </span>
+          )}
+        </div>
+      )}
+
+      {pagarDe && (
+        <PagoDetalleModal
+          fila={pagarDe}
+          onClose={() => setPagarDe(null)}
+          onGuardado={refrescar}
+        />
+      )}
+      {comentarDe && (
+        <ComentariosModal fila={comentarDe} onClose={() => setComentarDe(null)} />
+      )}
     </div>
   );
 }

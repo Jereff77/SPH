@@ -36,21 +36,36 @@
     validaciones fiscales), **Aprobar Solicitudes** (presupuesto + fuera de presupuesto), **Pagar
     solicitudes** (3 vías de pago + tiempo real SSE), **Solicitudes pendientes**.
   - **Correo** (sección propia): buzón de facturas IMAP/SMTP en el backend (sin N8N).
-  - **Ventas** (Inversionistas/Propietarios) — **Etapa 1**: **Dashboard** (clave 600, cobranza con
-    `v_pagos`/`v_rentasCombinadas` + 3 tarjetas + agregar pago con comprobante + tiempo real SSE) y
-    **Planes** (clave 610: lectura de Plan de Pagos / Renta Garantizada / Administrada + **Configuración**
-    de Datos Generales, Documentos, Propiedades y **creación del Plan de Pagos**). Sin objetos nuevos en BD
-    (todo reutiliza tablas/vistas/RPCs y permisos 600/610 existentes).
+  - **Ventas** (Inversionistas/Propietarios) — **Etapa 1**: **Dashboard** (clave 600) y **Planes** (clave
+    610). **Cálculos sin vistas** (desde tablas base) con un **único universo**: propiedades con
+    `propiedades.pdpActivo=<filtro>` e inversionista `inversionista=true` y `pruebas=false` (NO tipoCliente;
+    la bandera de "activo" vigente es `propiedades.pdpActivo`, no `pdp.pdpactivo`). Dashboard: 3 tarjetas
+    (objetivo/cobranza/balance — año, mes por vencimiento, cobranza real por fecha de pago), tabla con C/T
+    apilado + fila de totales + un solo scroll, pestañas separadas de Renta Garantizada/Administrada
+    (`v_rentasCombinadas`), agregar/eliminar pago con comprobante (registra en `actividad`+`comentarios`),
+    fechas en horario MX, tiempo real SSE. Planes: selector con búsqueda, tab Plan de Pagos detallado
+    (Movimiento C/T, % avance, saldo a favor, totales) con $ (pago) y 💬 (comentarios), Config (Datos,
+    Documentos, Propiedades, crear Plan de Pagos). Sin objetos nuevos en BD.
+  - **Clientes** (clave 300, sección directa `/clientes`): padrón de la tabla `inversionista` (migra la
+    pantalla "Clientes" del CRM de v1). Chips Inversionistas/Arrendatarios/Ticket/Usuario Final/Papelera +
+    buscador + tabla ordenable + alta/edición + mover a papelera. Sin objetos nuevos en BD.
 - **Objetos NUEVOS en BD (con autorización):** bucket `branding` + `v2_obtener_logo_url()`;
   `catClavesProdServ`; permisos 470/800/801 + enum `Modulos`+='Correo'; tablas `correo_*`; parámetro
   `RFC_RECEPTORES_AUTORIZADOS`. Detalle por módulo en `base-conocimiento/`. Nada del sistema viejo fue tocado.
 - **Despliegue:** EasyPanel, 2 apps (api Dockerfile `apps/api/Dockerfile` :3001, web `apps/web/Dockerfile`
   :80). Guía: `DEPLOY-EASYPANEL.md`. Flujo: push a `erp_v2` → Implementar.
 - **Siguiente:** Ventas Etapa 2 (**Reportes 620**, **Escrituras 630**, creación de **Renta Garantizada**
-  vía RPCs `rgpdp_insertar_registro`/`rgpdp_generar_plan_pagos` y **Renta Administrada** `rapdp_actualizar`);
-  CxP Dashboard(440/441) y Reportes(460); conciliación bancaria avanzada; configurar la cuenta de Correo
-  (`EMAIL_ENCRYPTION_KEY` en EasyPanel); migrar stubs (Arrendatarios, Fideicomiso, CRM). Ver pendientes
-  completos en `../.sessions/contexto.md`.
+  vía RPCs `rgpdp_insertar_registro`/`rgpdp_generar_plan_pagos` y **Renta Administrada** `rapdp_actualizar`,
+  pasar las pestañas de rentas a cálculo propio); CxP Dashboard(440/441) y Reportes(460); conciliación
+  bancaria avanzada; configurar la cuenta de Correo (`EMAIL_ENCRYPTION_KEY` en EasyPanel); migrar stubs
+  (Arrendatarios, Fideicomiso, resto del CRM). Ver pendientes completos en `../.sessions/contexto.md`.
+
+> ⚠️ **Nota de UI:** el sidebar (`components/layout/menu.tsx` + `Sidebar.tsx`) soporta **grupos directos**
+> (un grupo con `to`/`clave` se renderiza como enlace sin submenú — así está "Clientes"). Componente
+> reutilizable nuevo: `components/SearchSelect.tsx` (combobox con búsqueda, sin dependencias).
+> ⚠️ **Pitfall:** al usar la herramienta Write con rutas **relativas** (`version2\apps\...`) mientras el
+> cwd ya es `version2/`, algunos archivos se crean en una carpeta `version2/version2/...` anidada. Usa
+> **rutas absolutas** al escribir, o verifica con `ls` y mueve los archivos si pasa.
 
 ---
 

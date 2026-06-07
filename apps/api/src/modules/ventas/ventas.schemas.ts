@@ -61,6 +61,12 @@ export const docSchema = z.object({
 });
 export type DocDto = z.infer<typeof docSchema>;
 
+/** Agregar un comentario manual a una parcialidad. */
+export const comentarioSchema = z.object({
+  comentario: z.string().trim().min(1, 'El comentario no puede estar vacío.').max(1000),
+});
+export type ComentarioDto = z.infer<typeof comentarioSchema>;
+
 /** Vincular una nave a un inversionista creando una propiedad (Config, sub-tab 3). */
 export const propiedadSchema = z.object({
   idInversionista: z.string().trim().min(1, 'Falta el inversionista.'),

@@ -15,6 +15,16 @@ const ID_ALFABETO =
 /** Bucket de comprobantes de pago de ventas (reutiliza el de CxP). */
 const BUCKET_COMPROBANTES = 'cxp';
 
+const TIPO_MOVIMIENTO: Record<number, string> = {
+  1: 'Terreno',
+  2: 'Construcción',
+  3: 'Ticket',
+};
+
+const fmt = (n: number | null | undefined) => (n ?? 0).toFixed(2);
+
+type Db = ReturnType<SupabaseService['comoActor']>;
+
 /**
  * Ventas > Dashboard (clave 600): registro de un pago contra una parcialidad
  * (`pdpDetalle`). Inserta en `pagos` con identidad del actor (auditoría). El
@@ -98,6 +108,95 @@ export class PagosVentaService {
       throw new InternalServerErrorException('No se pudo registrar el pago.');
     }
 
+    // Registrar el movimiento (actividad + comentario), como v1.
+    const comentario = `Se registró pago Tipo de pago: ${TIPO_MOVIMIENTO[dto.tipomovimiento] ?? dto.tipomovimiento}, Monto: ${fmt(dto.monto)}, IVA: ${fmt(dto.iva)}`;
+    await this.registrarActividad(db, {
+      pantalla: 'RealizarPago',
+      widget: 'Button',
+      nomwidget: 'Registrar',
+      comentario,
+      actorUid,
+    });
+    await this.registrarComentario(db, { idPago, idPdpDet, comentario, actorUid });
+
     return { idPago };
+  }
+
+  /**
+   * Elimina un pago (borrado físico, como v1) y registra el movimiento en
+   * `actividad` y `comentarios`. La auditoría (trg_auditoria) y el recálculo de
+   * `pdp.montoPagado` se disparan solos por el DELETE. Reemplaza el borrado de
+   * `PagosDetalleWidget` de v1.
+   */
+  async eliminarPago(idPago: string, actorUid: string): Promise<void> {
+    const { data: pago, error } = await this.supabase.admin
+      .from('pagos')
+      .select('idPago, idPdpDet, monto, fecha, status')
+      .eq('idPago', idPago)
+      .maybeSingle();
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!pago) throw new NotFoundException('Pago no encontrado.');
+
+    const db = this.supabase.comoActor(actorUid);
+    const comentario = `Se elimina pago con id:${pago.idPago}, Monto:${fmt(pago.monto)}, Fecha: ${pago.fecha ?? '-'}`;
+
+    // Registrar el movimiento ANTES del borrado (para no perder el idPdpDet).
+    await this.registrarComentario(db, {
+      idPago: pago.idPago,
+      idPdpDet: pago.idPdpDet,
+      comentario,
+      actorUid,
+    });
+    await this.registrarActividad(db, {
+      pantalla: 'detallePagos',
+      widget: 'icon',
+      nomwidget: 'Eliminar',
+      comentario,
+      actorUid,
+    });
+
+    const { error: delErr } = await db.from('pagos').delete().eq('idPago', idPago);
+    if (delErr) {
+      this.logger.error(`Error eliminando pago ${idPago}: ${delErr.message}`);
+      throw new InternalServerErrorException('No se pudo eliminar el pago.');
+    }
+  }
+
+  /** Inserta un registro en la bitácora de actividad (entorno 3 = web/servidor). */
+  private async registrarActividad(
+    db: Db,
+    a: {
+      pantalla: string;
+      widget: string;
+      nomwidget: string;
+      comentario: string;
+      actorUid: string;
+    },
+  ): Promise<void> {
+    const { error } = await db.from('actividad').insert({
+      uid: a.actorUid,
+      entorno: 3,
+      logeado: true,
+      pantalla: a.pantalla,
+      widget: a.widget,
+      nomwidget: a.nomwidget,
+      comentario: a.comentario,
+      version: 'erp-v2',
+    });
+    if (error) this.logger.warn(`No se pudo registrar actividad: ${error.message}`);
+  }
+
+  /** Inserta un comentario ligado al pago/parcialidad (origen 'Ventas' por defecto). */
+  private async registrarComentario(
+    db: Db,
+    c: { idPago: string; idPdpDet: string | null; comentario: string; actorUid: string },
+  ): Promise<void> {
+    const { error } = await db.from('comentarios').insert({
+      idPago: c.idPago,
+      idPdpDet: c.idPdpDet,
+      comentario: c.comentario,
+      uid: c.actorUid,
+    });
+    if (error) this.logger.warn(`No se pudo registrar comentario: ${error.message}`);
   }
 }

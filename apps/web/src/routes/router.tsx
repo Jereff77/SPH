@@ -19,6 +19,7 @@ import { AprobarSolicitudesPage } from '@/features/cxp/AprobarSolicitudesPage';
 import { CorreoPage } from '@/features/correo/CorreoPage';
 import { DashboardVentasPage } from '@/features/ventas/DashboardVentasPage';
 import { PlanesPage } from '@/features/ventas/PlanesPage';
+import { ClientesPage } from '@/features/clientes/ClientesPage';
 import { Home } from './Home';
 
 /**
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { path: '/', element: <Home /> },
+          { path: '/clientes', element: <ClientesPage /> },
           { path: '/ventas', element: <DashboardVentasPage /> },
           { path: '/ventas/planes', element: <PlanesPage /> },
           { path: '/parques', element: <ParquesPage /> },

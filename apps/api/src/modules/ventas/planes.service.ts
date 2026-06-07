@@ -55,14 +55,46 @@ export class PlanesService {
 
   // ----------------------------- Selectores / lectura -----------------------------
 
+  /**
+   * Inversionistas para el selector de Planes: los marcados como `inversionista`
+   * (no de prueba) que tengan al menos una propiedad con `propiedades.pdpActivo=true`
+   * (la bandera vigente es la de `propiedades`, no la de `pdp`). Ordenados por
+   * razón social.
+   */
   async inversionistas() {
     const { data, error } = await this.supabase.admin
       .from('inversionista')
-      .select('idInversionista, nombre, apellido1, apellido2, razonsocial')
+      .select(
+        'idInversionista, nombre, apellido1, apellido2, razonsocial, propiedades!inner(idPropiedad)',
+      )
       .eq('status', true)
-      .order('nombre', { ascending: true });
+      .eq('inversionista', true)
+      .eq('pruebas', false)
+      .eq('propiedades.pdpActivo', true)
+      .order('razonsocial', { ascending: true, nullsFirst: false });
     if (error) throw new InternalServerErrorException(error.message);
-    return data ?? [];
+
+    // El embed !inner devuelve el inversionista una vez; quitamos el arreglo anidado.
+    const vistos = new Set<string>();
+    const lista: {
+      idInversionista: string;
+      nombre: string | null;
+      apellido1: string | null;
+      apellido2: string | null;
+      razonsocial: string | null;
+    }[] = [];
+    for (const r of data ?? []) {
+      if (vistos.has(r.idInversionista)) continue;
+      vistos.add(r.idInversionista);
+      lista.push({
+        idInversionista: r.idInversionista,
+        nombre: r.nombre,
+        apellido1: r.apellido1,
+        apellido2: r.apellido2,
+        razonsocial: r.razonsocial,
+      });
+    }
+    return lista;
   }
 
   async propiedadesDe(idInversionista: string) {
@@ -91,15 +123,147 @@ export class PlanesService {
     return data.map((p) => ({ ...p, nave: p.idNave ? (navesMap.get(p.idNave) ?? null) : null }));
   }
 
-  /** Detalle del Plan de Pagos de una propiedad (parcialidades de su PDP). */
+  private chunk<T>(arr: T[], size: number): T[][] {
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  }
+
+  /**
+   * Detalle del Plan de Pagos de una propiedad (parcialidades de su PDP),
+   * calculado a mano (sin vista). Incluye, por parcialidad: pagos por movimiento
+   * (terreno/construcción/ticket), descuentos, total pagado, balance, última
+   * fecha de pago, acumulado y % de avance (acumulado/monto del plan).
+   */
   async planDePagos(idPropiedad: string) {
+    const [{ data: parc, error }, { data: prop }] = await Promise.all([
+      this.supabase.admin
+        .from('pdpDetalle')
+        .select('idPdpDet, idPdp, numPago, fecha, monto, idPropiedad, tipoPago')
+        .eq('idPropiedad', idPropiedad)
+        .order('idPdp', { ascending: true })
+        .order('numPago', { ascending: true }),
+      this.supabase.admin
+        .from('propiedades')
+        .select('nomDescriptivo, idNave')
+        .eq('idPropiedad', idPropiedad)
+        .maybeSingle(),
+    ]);
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!parc || parc.length === 0) return [];
+
+    // Pagos agregados por parcialidad (+ última fecha de pago).
+    const ids = parc.map((p) => p.idPdpDet);
+    const agg = new Map<
+      string,
+      {
+        terreno: number;
+        construccion: number;
+        ticket: number;
+        pagos: number;
+        descuentos: number;
+        fechaPago: string | null;
+      }
+    >();
+    for (const grupo of this.chunk(ids, 150)) {
+      const { data: pagos, error: pagErr } = await this.supabase.admin
+        .from('pagos')
+        .select('idPdpDet, tipomovimiento, tipoOperacion, monto, fecha')
+        .in('idPdpDet', grupo);
+      if (pagErr) throw new InternalServerErrorException(pagErr.message);
+      for (const p of pagos ?? []) {
+        if (!p.idPdpDet) continue;
+        const cur =
+          agg.get(p.idPdpDet) ??
+          { terreno: 0, construccion: 0, ticket: 0, pagos: 0, descuentos: 0, fechaPago: null };
+        const m = p.monto ?? 0;
+        cur.pagos += m;
+        if (p.tipomovimiento === 1) cur.terreno += m;
+        else if (p.tipomovimiento === 2) cur.construccion += m;
+        else if (p.tipomovimiento === 3) cur.ticket += m;
+        if (p.tipoOperacion === 2) cur.descuentos += m;
+        if (p.fecha && (!cur.fechaPago || p.fecha > cur.fechaPago)) cur.fechaPago = p.fecha;
+        agg.set(p.idPdpDet, cur);
+      }
+    }
+
+    // Monto total del plan (pdp.monto) por idPdp.
+    const idPdps = [...new Set(parc.map((p) => p.idPdp).filter((x): x is string => !!x))];
+    const montoTotal = new Map<string, number | null>();
+    for (const grupo of this.chunk(idPdps, 150)) {
+      const { data: pdps } = await this.supabase.admin
+        .from('pdp')
+        .select('idPdp, monto')
+        .in('idPdp', grupo);
+      for (const r of pdps ?? []) montoTotal.set(r.idPdp, r.monto);
+    }
+
+    // Acumulado y % avance por plan (orden ya viene por idPdp, numPago).
+    const acumPorPdp = new Map<string, number>();
+    return parc.map((pd) => {
+      const ag =
+        agg.get(pd.idPdpDet) ??
+        { terreno: 0, construccion: 0, ticket: 0, pagos: 0, descuentos: 0, fechaPago: null };
+      const mt = pd.idPdp ? (montoTotal.get(pd.idPdp) ?? null) : null;
+      const prev = pd.idPdp ? (acumPorPdp.get(pd.idPdp) ?? 0) : 0;
+      const acum = prev + ag.pagos;
+      if (pd.idPdp) acumPorPdp.set(pd.idPdp, acum);
+      const fecha = pd.fecha ?? null;
+      return {
+        idPdpDet: pd.idPdpDet,
+        idPdp: pd.idPdp,
+        numPago: pd.numPago,
+        fecha,
+        mes: fecha ? Number(fecha.slice(5, 7)) : null,
+        anio: fecha ? Number(fecha.slice(0, 4)) : null,
+        monto: pd.monto,
+        montototal: mt,
+        idPropiedad: pd.idPropiedad,
+        nomParque: null,
+        idNave: prop?.idNave ?? null,
+        idInversionista: null,
+        pagos_terreno: ag.terreno,
+        pagos_construccion: ag.construccion,
+        pagos_ticket: ag.ticket,
+        descuentos: ag.descuentos,
+        pagos: ag.pagos,
+        balance: ag.pagos - (pd.monto ?? 0),
+        pagos_acumulados: acum,
+        porcentaje_avance:
+          mt && mt !== 0 ? Math.round((acum * 100) / mt * 100) / 100 : null,
+        tipoPago: pd.tipoPago,
+        fecha_pagos: ag.fechaPago,
+        razonsocial: null,
+        pdpActivo: null,
+        nomDescriptivo: prop?.nomDescriptivo ?? null,
+        ultimoPago: null,
+      };
+    });
+  }
+
+  /** Comentarios de una parcialidad (bitácora del pago/plan). */
+  async comentariosDe(idPdpDet: string) {
     const { data, error } = await this.supabase.admin
-      .from('v_pagos')
-      .select('*')
-      .eq('idPropiedad', idPropiedad)
-      .order('numPago', { ascending: true });
+      .from('comentarios')
+      .select('idComents, comentario, uid, origen, fc, idPago')
+      .eq('idPdpDet', idPdpDet)
+      .eq('status', true)
+      .order('fc', { ascending: false });
     if (error) throw new InternalServerErrorException(error.message);
     return data ?? [];
+  }
+
+  /** Agrega un comentario manual a una parcialidad. */
+  async agregarComentario(
+    idPdpDet: string,
+    comentario: string,
+    actorUid: string,
+  ): Promise<void> {
+    const { error } = await this.supabase
+      .comoActor(actorUid)
+      .from('comentarios')
+      .insert({ idPdpDet, comentario, uid: actorUid });
+    if (error) throw new InternalServerErrorException(error.message);
   }
 
   async rentaGarantizada(idPropiedad: string) {

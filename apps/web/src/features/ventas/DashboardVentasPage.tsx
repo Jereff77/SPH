@@ -1,15 +1,42 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ventasApi, MESES, type PagoVentaRow, type RentaCombinadaRow } from './ventas.api';
+import {
+  ventasApi,
+  hoyMexico,
+  MESES,
+  type PagoVentaRow,
+  type RentaCombinadaRow,
+} from './ventas.api';
 import { TarjetaResumen } from './TarjetaResumen';
 import { PagoDetalleModal } from './PagoDetalleModal';
 import { useVentasRealtime } from './useVentasRealtime';
 import { Tabs, type TabDef } from '@/components/Tabs';
-import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
+import { SortableTh, THEAD_TR } from '@/components/tabla/SortableTh';
 import { useSort, type Accessors } from '@/components/tabla/useSort';
+
+/**
+ * Encabezado fijo del Dashboard: pega bajo el header de la app (top-14) usando el
+ * scroll del documento (sin scroll interno → un solo scrollbar en la pantalla).
+ */
+const THEAD_DASHBOARD =
+  '[&>tr>th]:sticky [&>tr>th]:top-14 [&>tr>th]:z-10 [&>tr>th]:bg-[#1f2a4d]';
 
 const moneda = (n: number | null | undefined) =>
   (n ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+
+/** Número sin símbolo (para las cifras apiladas C/T/F y A/D, como v1). */
+const num = (n: number | null | undefined) =>
+  (n ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Celda apilada con etiqueta + valor (estilo v1: "C: 0.00"). */
+function LineaApilada({ etiqueta, valor }: { etiqueta: string; valor: number | null | undefined }) {
+  return (
+    <div className="flex items-baseline justify-end gap-1 leading-tight">
+      <span className="text-[10px] font-semibold text-gray-400">{etiqueta}</span>
+      <span className="text-[11px] tabular-nums text-gray-600">{num(valor)}</span>
+    </div>
+  );
+}
 
 const fechaCorta = (iso: string | null): string => {
   if (!iso) return '—';
@@ -17,14 +44,12 @@ const fechaCorta = (iso: string | null): string => {
   return p.length === 3 ? `${Number(p[2])}/${Number(p[1])}/${p[0]}` : iso;
 };
 
-/** ¿La parcialidad está vencida y sin cobrar? (rojo, como v1). */
+/** ¿La parcialidad está vencida y sin cobrar? (rojo, como v1). Compara fechas en MX. */
 function vencidaSinPago(r: PagoVentaRow): boolean {
   if ((r.pagos ?? 0) > 0) return false;
   if (!r.fecha) return false;
-  const f = new Date(`${r.fecha.split('T')[0]}T00:00:00`);
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-  return f < hoy;
+  const vence = r.fecha.split('T')[0] ?? r.fecha;
+  return vence < hoyMexico();
 }
 
 const ACCESSORS: Accessors<PagoVentaRow> = {
@@ -40,10 +65,9 @@ const ACCESSORS: Accessors<PagoVentaRow> = {
 
 const TABS: TabDef[] = [
   { id: 'planes', label: 'Planes de pago' },
-  { id: 'rentas', label: 'Renta Garantizada & Administrada' },
+  { id: 'rg', label: 'Renta Garantizada' },
+  { id: 'ra', label: 'Renta Administrada' },
 ];
-
-const TIPOS_RENTA = ['Todos', 'Garantizada', 'Administrada'];
 
 export function DashboardVentasPage() {
   const queryClient = useQueryClient();
@@ -52,8 +76,10 @@ export function DashboardVentasPage() {
   const [mes, setMes] = useState(ahora.getMonth() + 1);
   const [activo, setActivo] = useState(true);
   const [tab, setTab] = useState('planes');
-  const [tipoRenta, setTipoRenta] = useState('Todos');
   const [pagarDe, setPagarDe] = useState<PagoVentaRow | null>(null);
+
+  // Cada pestaña de renta filtra v_rentasCombinadas por su tipo_renta.
+  const tipoRenta = tab === 'rg' ? 'Garantizada' : tab === 'ra' ? 'Administrada' : '';
 
   const { data: filtros } = useQuery({
     queryKey: ['ventas-filtros'],
@@ -62,8 +88,8 @@ export function DashboardVentasPage() {
   });
 
   const { data: tarjetas } = useQuery({
-    queryKey: ['ventas-tarjetas', anio, mes],
-    queryFn: () => ventasApi.tarjetas(anio, mes),
+    queryKey: ['ventas-tarjetas', anio, mes, activo],
+    queryFn: () => ventasApi.tarjetas(anio, mes, activo),
   });
 
   const { data: filas = [], isLoading } = useQuery({
@@ -74,7 +100,7 @@ export function DashboardVentasPage() {
   const { data: rentas = [], isLoading: cargandoRentas } = useQuery({
     queryKey: ['ventas-rentas', anio, mes, tipoRenta],
     queryFn: () => ventasApi.rentas(anio, mes, tipoRenta),
-    enabled: tab === 'rentas',
+    enabled: tab === 'rg' || tab === 'ra',
   });
 
   // Tiempo real: ante cambios en `pagos` (incluso desde v1), refresca.
@@ -89,6 +115,33 @@ export function DashboardVentasPage() {
     key: 'fecha',
     dir: 'asc',
   });
+
+  // Totales del pie: suma de las filas mostradas (siempre cuadra con la tabla).
+  const totales = useMemo(
+    () =>
+      filas.reduce(
+        (t, r) => {
+          t.monto += r.monto ?? 0;
+          t.construccion += r.pagos_construccion ?? 0;
+          t.terreno += r.pagos_terreno ?? 0;
+          t.ticket += r.pagos_ticket ?? 0;
+          t.pagos += r.pagos ?? 0;
+          t.descuentos += r.descuentos ?? 0;
+          t.balance += r.balance ?? 0;
+          return t;
+        },
+        {
+          monto: 0,
+          construccion: 0,
+          terreno: 0,
+          ticket: 0,
+          pagos: 0,
+          descuentos: 0,
+          balance: 0,
+        },
+      ),
+    [filas],
+  );
 
   const anios = filtros?.anios?.length ? filtros.anios : [anio];
 
@@ -147,7 +200,7 @@ export function DashboardVentasPage() {
         </div>
       </div>
 
-      {/* Tarjetas */}
+      {/* Tarjetas: las 3 muestran objetivo / cobranza / balance. */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <TarjetaResumen
           titulo={`Planes de pago ${anio}`}
@@ -158,20 +211,19 @@ export function DashboardVentasPage() {
           ]}
         />
         <TarjetaResumen
-          titulo={`${MESES[mes - 1]} ${anio}`}
+          titulo={`Planes de pago ${MESES[mes - 1]} ${anio}`}
           lineas={[
             { label: 'Objetivo', valor: tarjetas?.mes.objetivo ?? 0 },
-            { label: 'Terreno', valor: tarjetas?.mes.terreno ?? 0 },
-            { label: 'Construcción', valor: tarjetas?.mes.construccion ?? 0 },
-            { label: 'Ticket', valor: tarjetas?.mes.ticket ?? 0 },
+            { label: 'Cobranza', valor: tarjetas?.mes.cobranza ?? 0 },
+            { label: 'Balance', valor: tarjetas?.mes.balance ?? 0, balance: true },
           ]}
         />
         <TarjetaResumen
-          titulo="Cobranza real del mes"
+          titulo={`Cobranza real ${MESES[mes - 1]} ${anio}`}
           lineas={[
-            { label: 'Cobranza', valor: tarjetas?.mes.cobranza ?? 0 },
-            { label: 'Descuentos', valor: tarjetas?.mes.descuentos ?? 0 },
-            { label: 'Balance', valor: tarjetas?.mes.balance ?? 0, balance: true },
+            { label: 'Objetivo', valor: tarjetas?.mesReal.objetivo ?? 0 },
+            { label: 'Cobranza', valor: tarjetas?.mesReal.cobranza ?? 0 },
+            { label: 'Balance', valor: tarjetas?.mesReal.balance ?? 0, balance: true },
           ]}
         />
       </div>
@@ -179,9 +231,9 @@ export function DashboardVentasPage() {
       <Tabs tabs={TABS} activo={tab} onChange={setTab} />
 
       {tab === 'planes' ? (
-        <div className="overflow-auto rounded-xl border bg-white" style={{ maxHeight: '60vh' }}>
+        <div className="rounded-xl border bg-white">
           <table className="min-w-full border-collapse text-sm">
-            <thead className={`${THEAD_STICKY}`}>
+            <thead className={THEAD_DASHBOARD}>
               <tr className={THEAD_TR}>
                 <th className="px-4 py-3" />
                 <SortableTh campo="fecha" sortKey={sortKey} dir={dir} onSort={toggle}>
@@ -202,8 +254,7 @@ export function DashboardVentasPage() {
                 <SortableTh campo="monto" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
                   Monto
                 </SortableTh>
-                <SortableTh align="right">T</SortableTh>
-                <SortableTh align="right">C</SortableTh>
+                <SortableTh align="right">C / T</SortableTh>
                 <SortableTh campo="pagos" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
                   Pagado
                 </SortableTh>
@@ -215,13 +266,13 @@ export function DashboardVentasPage() {
             <tbody className="divide-y">
               {isLoading ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={10} className="px-4 py-8 text-center text-gray-400">
                     Cargando…
                   </td>
                 </tr>
               ) : ordenados.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={10} className="px-4 py-8 text-center text-gray-400">
                     Sin parcialidades para el periodo seleccionado.
                   </td>
                 </tr>
@@ -252,11 +303,9 @@ export function DashboardVentasPage() {
                       <td className="px-4 py-2">{r.nomParque ?? '—'}</td>
                       <td className="px-4 py-2 text-center">{r.numPago ?? '—'}</td>
                       <td className="px-4 py-2 text-right tabular-nums">{moneda(r.monto)}</td>
-                      <td className="px-4 py-2 text-right tabular-nums text-gray-500">
-                        {moneda(r.pagos_terreno)}
-                      </td>
-                      <td className="px-4 py-2 text-right tabular-nums text-gray-500">
-                        {moneda(r.pagos_construccion)}
+                      <td className="px-4 py-2">
+                        <LineaApilada etiqueta="C:" valor={r.pagos_construccion} />
+                        <LineaApilada etiqueta="T:" valor={r.pagos_terreno} />
                       </td>
                       <td className="px-4 py-2 text-right tabular-nums">{moneda(r.pagos)}</td>
                       <td className="px-4 py-2 text-right tabular-nums font-medium">
@@ -267,15 +316,48 @@ export function DashboardVentasPage() {
                 })
               )}
             </tbody>
+            {ordenados.length > 0 && (
+              <tfoot className="[&>tr>td]:sticky [&>tr>td]:bottom-0 [&>tr>td]:z-10 [&>tr>td]:bg-[#5b6b8c]">
+                <tr className="font-semibold text-white">
+                  <td className="px-4 py-2" colSpan={6}>
+                    Totales
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums">{moneda(totales.monto)}</td>
+                  <td className="px-4 py-1.5">
+                    <div className="flex items-baseline justify-end gap-1 leading-tight">
+                      <span className="text-[10px] text-white/70">C:</span>
+                      <span className="text-[11px] tabular-nums">{num(totales.construccion)}</span>
+                    </div>
+                    <div className="flex items-baseline justify-end gap-1 leading-tight">
+                      <span className="text-[10px] text-white/70">T:</span>
+                      <span className="text-[11px] tabular-nums">{num(totales.terreno)}</span>
+                    </div>
+                    <div className="flex items-baseline justify-end gap-1 leading-tight">
+                      <span className="text-[10px] text-white/70">F:</span>
+                      <span className="text-[11px] tabular-nums">{num(totales.ticket)}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-1.5">
+                    <div className="text-right text-sm tabular-nums">{moneda(totales.pagos)}</div>
+                    <div className="flex items-baseline justify-end gap-1 leading-tight">
+                      <span className="text-[10px] text-white/70">A:</span>
+                      <span className="text-[11px] tabular-nums">
+                        {num(totales.pagos - totales.descuentos)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-end gap-1 leading-tight">
+                      <span className="text-[10px] text-white/70">D:</span>
+                      <span className="text-[11px] tabular-nums">{num(totales.descuentos)}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums">{moneda(totales.balance)}</td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       ) : (
-        <RentasTab
-          rentas={rentas}
-          cargando={cargandoRentas}
-          tipo={tipoRenta}
-          onTipo={setTipoRenta}
-        />
+        <RentasTab rentas={rentas} cargando={cargandoRentas} />
       )}
 
       {pagarDe && (
@@ -292,44 +374,25 @@ export function DashboardVentasPage() {
 function RentasTab({
   rentas,
   cargando,
-  tipo,
-  onTipo,
 }: {
   rentas: RentaCombinadaRow[];
   cargando: boolean;
-  tipo: string;
-  onTipo: (t: string) => void;
 }) {
   return (
-    <div className="space-y-3">
-      <label className="text-xs text-gray-600">
-        Tipo de renta
-        <select
-          value={tipo}
-          onChange={(e) => onTipo(e.target.value)}
-          className="ml-2 rounded border px-2 py-1.5 text-sm"
-        >
-          {TIPOS_RENTA.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="overflow-auto rounded-xl border bg-white" style={{ maxHeight: '60vh' }}>
-        <table className="min-w-full border-collapse text-sm">
-          <thead className={THEAD_STICKY}>
-            <tr className={THEAD_TR}>
-              <th className="px-4 py-3 text-left">Propiedad</th>
-              <th className="px-4 py-3 text-left">Cliente</th>
-              <th className="px-4 py-3 text-left">Tipo</th>
-              <th className="px-4 py-3 text-right">Monto</th>
-              <th className="px-4 py-3 text-right">Facturado</th>
-              <th className="px-4 py-3 text-right">Cobrado</th>
-              <th className="px-4 py-3 text-right">Balance mes</th>
-              <th className="px-4 py-3 text-left">Pago</th>
-            </tr>
-          </thead>
+    <div className="rounded-xl border bg-white">
+      <table className="min-w-full border-collapse text-sm">
+        <thead className={THEAD_DASHBOARD}>
+          <tr className={THEAD_TR}>
+            <th className="px-4 py-3 text-left">Propiedad</th>
+            <th className="px-4 py-3 text-left">Cliente</th>
+            <th className="px-4 py-3 text-left">Tipo</th>
+            <th className="px-4 py-3 text-right">Monto</th>
+            <th className="px-4 py-3 text-right">Facturado</th>
+            <th className="px-4 py-3 text-right">Cobrado</th>
+            <th className="px-4 py-3 text-right">Balance mes</th>
+            <th className="px-4 py-3 text-left">Pago</th>
+          </tr>
+        </thead>
           <tbody className="divide-y">
             {cargando ? (
               <tr>
@@ -363,7 +426,6 @@ function RentasTab({
             )}
           </tbody>
         </table>
-      </div>
     </div>
   );
 }

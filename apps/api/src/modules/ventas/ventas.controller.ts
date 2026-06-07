@@ -17,6 +17,7 @@ import { DashboardService } from './dashboard.service.js';
 import { PagosVentaService } from './pagos-venta.service.js';
 import { PlanesService } from './planes.service.js';
 import {
+  comentarioSchema,
   crearPlanPagosSchema,
   docSchema,
   inversionistaSchema,
@@ -92,11 +93,16 @@ export class VentasController {
 
   @Get('dashboard/tarjetas')
   @RequierePermiso(600)
-  tarjetas(@Query('anio') anio?: string, @Query('mes') mes?: string) {
+  tarjetas(
+    @Query('anio') anio?: string,
+    @Query('mes') mes?: string,
+    @Query('activo') activo?: string,
+  ) {
     const ahora = new Date();
     return this.dashboard.tarjetas(
       toNum(anio, ahora.getFullYear()),
       toNum(mes, ahora.getMonth() + 1),
+      activo === undefined ? true : toBool(activo),
     );
   }
 
@@ -140,6 +146,13 @@ export class VentasController {
     return this.pagos.registrarPago(idPdpDet, dto, arch, actor.uid);
   }
 
+  @Delete('dashboard/pagos/:idPago')
+  @RequierePermiso(600)
+  async eliminarPago(@CurrentUser() actor: AuthUser, @Param('idPago') idPago: string) {
+    await this.pagos.eliminarPago(idPago, actor.uid);
+    return { ok: true };
+  }
+
   // ============================ Planes (610) ============================
 
   @Get('planes/inversionistas')
@@ -170,6 +183,24 @@ export class VentasController {
   @RequierePermiso(610)
   rentaAdministrada(@Param('idPropiedad') idPropiedad: string) {
     return this.planes.rentaAdministrada(idPropiedad);
+  }
+
+  // ----- Comentarios de una parcialidad -----
+  @Get('planes/comentarios/:idPdpDet')
+  @RequierePermiso(610)
+  comentarios(@Param('idPdpDet') idPdpDet: string) {
+    return this.planes.comentariosDe(idPdpDet);
+  }
+
+  @Post('planes/comentarios/:idPdpDet')
+  @RequierePermiso(610)
+  async agregarComentario(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPdpDet') idPdpDet: string,
+    @Body(new ZodValidationPipe(comentarioSchema)) dto: { comentario: string },
+  ) {
+    await this.planes.agregarComentario(idPdpDet, dto.comentario, actor.uid);
+    return { ok: true };
   }
 
   // ----- Config: Datos Generales -----

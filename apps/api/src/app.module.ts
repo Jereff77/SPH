@@ -17,6 +17,7 @@ import { AuditoriaModule } from './modules/auditoria/auditoria.module.js';
 import { CxpModule } from './modules/cxp/cxp.module.js';
 import { CorreoModule } from './modules/correo/correo.module.js';
 import { VentasModule } from './modules/ventas/ventas.module.js';
+import { ClientesModule } from './modules/clientes/clientes.module.js';
 
 /**
  * Módulo raíz. Aquí se registran los módulos de dominio del ERP a medida que se
@@ -52,6 +53,7 @@ import { VentasModule } from './modules/ventas/ventas.module.js';
     CxpModule,
     CorreoModule,
     VentasModule,
+    ClientesModule,
     // InversionistasModule,
     // CxpModule,
     // FideicomisoModule,

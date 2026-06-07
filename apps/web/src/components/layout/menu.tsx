@@ -1,5 +1,12 @@
 import type { ComponentType, SVGProps } from 'react';
-import { IconGear, IconParque, IconCxP, IconMail, IconVentas } from '@/components/icons';
+import {
+  IconGear,
+  IconParque,
+  IconCxP,
+  IconMail,
+  IconVentas,
+  IconClientes,
+} from '@/components/icons';
 
 export interface MenuItem {
   label: string;
@@ -13,6 +20,10 @@ export interface MenuGrupo {
   label: string;
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
   items: MenuItem[];
+  /** Si se define, el grupo es un enlace directo (sin submenú). */
+  to?: string;
+  /** Clave de permiso del enlace directo. */
+  clave?: number;
 }
 
 /**
@@ -22,6 +33,14 @@ export interface MenuGrupo {
  * se irán añadiendo conforme se migren.
  */
 export const MENU: MenuGrupo[] = [
+  {
+    id: 'clientes',
+    label: 'Clientes',
+    Icon: IconClientes,
+    to: '/clientes',
+    clave: 300,
+    items: [],
+  },
   {
     id: 'ventas',
     label: 'Ventas',

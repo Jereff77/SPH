@@ -32,17 +32,19 @@ export interface PagoVentaRow {
   ultimoPago: boolean | null;
 }
 
+export interface ResumenTarjeta {
+  objetivo: number;
+  cobranza: number;
+  balance: number;
+}
+
 export interface Tarjetas {
-  anual: { objetivo: number; cobranza: number; balance: number };
-  mes: {
-    objetivo: number;
-    terreno: number;
-    construccion: number;
-    ticket: number;
-    cobranza: number;
-    descuentos: number;
-    balance: number;
-  };
+  /** Todo el año seleccionado. */
+  anual: ResumenTarjeta;
+  /** Solo el mes, por mes de vencimiento de la parcialidad. */
+  mes: ResumenTarjeta;
+  /** Cobranza real del mes (pagos hechos en el mes, incl. atrasados/adelantados). */
+  mesReal: ResumenTarjeta;
 }
 
 /** Fila de la vista `v_rentasCombinadas` (Renta Garantizada & Administrada). */
@@ -186,6 +188,15 @@ export interface InversionistaInput {
   tipoCliente?: string;
 }
 
+export interface Comentario {
+  idComents: number;
+  comentario: string | null;
+  uid: string | null;
+  origen: string;
+  fc: string;
+  idPago: string | null;
+}
+
 export interface CrearPlanInput {
   idPropiedad: string;
   idNave: string;
@@ -211,12 +222,14 @@ export const ventasApi = {
   filtros: () => api.get<{ anios: number[] }>('/ventas/dashboard/filtros'),
   tabla: (anio: number, mes: number, activo: boolean) =>
     api.get<PagoVentaRow[]>(`/ventas/dashboard/tabla${dq({ anio, mes, activo: String(activo) })}`),
-  tarjetas: (anio: number, mes: number) =>
-    api.get<Tarjetas>(`/ventas/dashboard/tarjetas${dq({ anio, mes })}`),
+  tarjetas: (anio: number, mes: number, activo: boolean) =>
+    api.get<Tarjetas>(`/ventas/dashboard/tarjetas${dq({ anio, mes, activo: String(activo) })}`),
   rentas: (anio: number, mes: number, tipo: string) =>
     api.get<RentaCombinadaRow[]>(`/ventas/dashboard/rentas${dq({ anio, mes, tipo })}`),
   detallePagos: (idPdpDet: string) =>
     api.get<PagoRealizado[]>(`/ventas/dashboard/pagos/${idPdpDet}`),
+  eliminarPago: (idPago: string) =>
+    api.delete<{ ok: true }>(`/ventas/dashboard/pagos/${idPago}`),
   registrarPago: (idPdpDet: string, input: RegistrarPagoVentaInput) => {
     const fd = new FormData();
     fd.append('tipomovimiento', String(input.tipomovimiento));
@@ -237,6 +250,10 @@ export const ventasApi = {
     api.get<RentaGarantizadaRow[]>(`/ventas/planes/renta-garantizada/${idPropiedad}`),
   rentaAdministrada: (idPropiedad: string) =>
     api.get<RentaAdministradaRow[]>(`/ventas/planes/renta-administrada/${idPropiedad}`),
+  comentarios: (idPdpDet: string) =>
+    api.get<Comentario[]>(`/ventas/planes/comentarios/${idPdpDet}`),
+  agregarComentario: (idPdpDet: string, comentario: string) =>
+    api.post<{ ok: true }>(`/ventas/planes/comentarios/${idPdpDet}`, { comentario }),
 
   // Config
   getInversionista: (id: string) => api.get<Inversionista>(`/ventas/planes/inversionista/${id}`),
@@ -270,6 +287,14 @@ export const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
+
+/**
+ * "Hoy" en horario de México (America/Mexico_City, GMT-6), en formato yyyy-MM-dd.
+ * Evita el desfase de `toISOString()` (UTC), que por la tarde/noche ya marca el
+ * día siguiente.
+ */
+export const hoyMexico = (): string =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
 
 export const TIPO_MOVIMIENTO: Record<number, string> = {
   1: 'Terreno',

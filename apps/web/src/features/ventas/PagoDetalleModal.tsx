@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   ventasApi,
+  hoyMexico,
   TIPO_MOVIMIENTO,
   type PagoVentaRow,
   type RegistrarPagoVentaInput,
@@ -17,7 +18,6 @@ const fechaCorta = (iso: string | null): string => {
 };
 
 const esUrl = (u: string | null): u is string => !!u && /^https?:\/\//.test(u);
-const hoyISO = () => new Date().toISOString().slice(0, 10);
 
 /**
  * Detalle de pagos de una parcialidad (`pagos` por idPdpDet) + formulario para
@@ -41,14 +41,30 @@ export function PagoDetalleModal({
 
   const [tipomovimiento, setTipomovimiento] = useState(2);
   const [tipoOperacion, setTipoOperacion] = useState(1);
-  const [fecha, setFecha] = useState(hoyISO());
+  const [fecha, setFecha] = useState(hoyMexico());
   const [monto, setMonto] = useState('');
   const [iva, setIva] = useState('');
   const [archivo, setArchivo] = useState<File | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [eliminando, setEliminando] = useState<string | null>(null);
 
   const esTicket = tipomovimiento === 3;
+
+  async function eliminar(idPago: string) {
+    if (!window.confirm('¿Deseas eliminar este pago?')) return;
+    setError(null);
+    setEliminando(idPago);
+    try {
+      await ventasApi.eliminarPago(idPago);
+      await refetch();
+      onGuardado();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar el pago.');
+    } finally {
+      setEliminando(null);
+    }
+  }
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
@@ -110,18 +126,19 @@ export function PagoDetalleModal({
                     <th className="px-3 py-2">Operación</th>
                     <th className="px-3 py-2 text-right">Monto</th>
                     <th className="px-3 py-2 text-center">Comp.</th>
+                    <th className="px-3 py-2 text-center" />
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={5} className="px-3 py-4 text-center text-gray-400">
+                      <td colSpan={6} className="px-3 py-4 text-center text-gray-400">
                         Cargando…
                       </td>
                     </tr>
                   ) : pagos.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-3 py-4 text-center text-gray-400">
+                      <td colSpan={6} className="px-3 py-4 text-center text-gray-400">
                         Sin pagos registrados.
                       </td>
                     </tr>
@@ -149,6 +166,18 @@ export function PagoDetalleModal({
                           ) : (
                             '—'
                           )}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => eliminar(p.idPago)}
+                            disabled={eliminando === p.idPago}
+                            title="Eliminar pago"
+                            className="text-red-600 hover:text-red-800 disabled:opacity-40"
+                            aria-label="Eliminar pago"
+                          >
+                            {eliminando === p.idPago ? '…' : '🗑'}
+                          </button>
                         </td>
                       </tr>
                     ))

@@ -11,6 +11,7 @@ import { MENU } from './menu';
 /** Grupo del menú al que pertenece una ruta (null en el landing/otras). */
 function grupoDeRuta(pathname: string): string | null {
   for (const g of MENU) {
+    if (g.to && (pathname === g.to || pathname.startsWith(`${g.to}/`))) return g.id;
     if (
       g.items.some(
         (it) => pathname === it.to || pathname.startsWith(`${it.to}/`),
@@ -65,11 +66,14 @@ export function Sidebar({ colapsado, onNavegar }: SidebarProps) {
     onNavegar?.();
   };
 
-  // Solo grupos con al menos un ítem permitido.
+  // Grupos directos (enlace): visibles según su propia clave.
+  // Grupos con submenú: solo si tienen al menos un ítem permitido.
   const grupos = MENU.map((g) => ({
     ...g,
     items: g.items.filter((it) => it.clave === undefined || tienePermiso(it.clave)),
-  })).filter((g) => g.items.length > 0);
+  })).filter((g) =>
+    g.to ? g.clave === undefined || tienePermiso(g.clave) : g.items.length > 0,
+  );
 
   return (
     <div className="flex h-full flex-col">
@@ -112,6 +116,32 @@ export function Sidebar({ colapsado, onNavegar }: SidebarProps) {
       <nav className="flex-1 overflow-y-auto p-2">
         {grupos.map((grupo) => {
           const abierto = grupoAbierto === grupo.id;
+
+          // Grupo directo: NavLink sin submenú.
+          if (grupo.to) {
+            return (
+              <div key={grupo.id} className="mb-1">
+                <NavLink
+                  to={grupo.to}
+                  onClick={onNavegar}
+                  title={grupo.label}
+                  className={({ isActive }) =>
+                    `flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition ${
+                      colapsado ? 'justify-center' : ''
+                    } ${
+                      isActive
+                        ? 'bg-white/15 text-white'
+                        : 'text-white/90 hover:bg-white/10'
+                    }`
+                  }
+                >
+                  <grupo.Icon className="h-5 w-5 shrink-0" />
+                  {!colapsado && <span className="flex-1 text-left">{grupo.label}</span>}
+                </NavLink>
+              </div>
+            );
+          }
+
           return (
             <div key={grupo.id} className="mb-1">
               <button

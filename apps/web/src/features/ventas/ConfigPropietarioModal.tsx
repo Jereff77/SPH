@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ventasApi,
+  hoyMexico,
   type InversionistaInput,
   type InversionistaOpt,
 } from './ventas.api';
@@ -14,7 +15,6 @@ const SUBTABS: TabDef[] = [
   { id: 'plan', label: 'Plan de Pagos' },
 ];
 
-const hoyISO = () => new Date().toISOString().slice(0, 10);
 const esUrl = (u: string | null): u is string => !!u && /^https?:\/\//.test(u);
 
 /**
@@ -420,7 +420,7 @@ function PlanPagosTab({ id, onCambio }: { id: string; onCambio: () => void }) {
   const [terreno, setTerreno] = useState('');
   const [obra, setObra] = useState('');
   const [cantPagos, setCantPagos] = useState(1);
-  const [fechaPrimerPago, setFechaPrimerPago] = useState(hoyISO());
+  const [fechaPrimerPago, setFechaPrimerPago] = useState(hoyMexico());
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
