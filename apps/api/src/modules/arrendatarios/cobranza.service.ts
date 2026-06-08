@@ -1,0 +1,176 @@
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import type { AplicarPagoDto } from './arrendatarios.schemas.js';
+
+type Db = ReturnType<SupabaseService['comoActor']>;
+
+export interface FiltrosCobranza {
+  anios: number[];
+  parques: { idParque: string; nomParque: string | null }[];
+}
+
+/**
+ * Arrendatarios > Dashboard de cobranza (clave 10). Reescribe el WebView/HTML de
+ * v1 (que embebía un cliente Supabase + anon key) por endpoints Node que invocan
+ * las RPCs existentes con `service_role`. La aplicación de pagos valida el importe
+ * server-side (Exacto/Sobrante/Insuficiente) y delega en `aplicar_pago_arrendatario`
+ * (transaccional). Reemplaza `dashboard_arren_widget` de v1.
+ */
+@Injectable()
+export class CobranzaService {
+  private readonly logger = new Logger(CobranzaService.name);
+
+  constructor(private readonly supabase: SupabaseService) {}
+
+  /** Años (de las partidas) y parques para los filtros del tablero. */
+  async filtros(): Promise<FiltrosCobranza> {
+    const [{ data: anios, error: anioErr }, { data: parques, error: parqueErr }] =
+      await Promise.all([
+        this.supabase.admin
+          .from('arrePdpDetalle')
+          .select('anio')
+          .eq('status', true)
+          .not('anio', 'is', null),
+        this.supabase.admin
+          .from('parques')
+          .select('idParque, nomParque')
+          .eq('status', true)
+          .order('nomParque', { ascending: true }),
+      ]);
+    if (anioErr) throw new InternalServerErrorException(anioErr.message);
+    if (parqueErr) throw new InternalServerErrorException(parqueErr.message);
+
+    const set = new Set<number>();
+    for (const r of anios ?? []) if (r.anio != null) set.add(r.anio);
+    return {
+      anios: [...set].sort((a, b) => b - a),
+      parques: parques ?? [],
+    };
+  }
+
+  /** Pagos/partidas del tablero (RPC `pagos_arrendatarios`). */
+  async pagos(p: {
+    anio?: number;
+    mes?: number;
+    parque?: string;
+    arrendatario?: string;
+    soloPendientes?: boolean;
+  }) {
+    const { data, error } = await this.supabase.admin.rpc('pagos_arrendatarios', {
+      p_anio: p.anio,
+      p_mes: p.mes,
+      p_parque: p.parque,
+      p_arrendatario: p.arrendatario,
+      p_solo_pendientes: p.soloPendientes ?? false,
+    });
+    if (error) throw new InternalServerErrorException(error.message);
+    return data ?? [];
+  }
+
+  /** Contratos por vencer en un rango de fechas (RPC `contratos_por_vencer`). */
+  async contratosPorVencer(desde?: string, hasta?: string) {
+    const { data, error } = await this.supabase.admin.rpc('contratos_por_vencer', {
+      p_fecha_desde: desde,
+      p_fecha_hasta: hasta,
+    });
+    if (error) throw new InternalServerErrorException(error.message);
+    return data ?? [];
+  }
+
+  /** Contratos vencidos sin renovación (RPC `contratos_vencidos_sin_renovacion`). */
+  async contratosVencidos() {
+    const { data, error } = await this.supabase.admin.rpc('contratos_vencidos_sin_renovacion');
+    if (error) throw new InternalServerErrorException(error.message);
+    return data ?? [];
+  }
+
+  /** Depósitos bancarios sin aplicar (RPC `movbancarios_sin_aplicar`). */
+  async depositosSinAplicar(busqueda?: string, anio?: number, mes?: number) {
+    const { data, error } = await this.supabase.admin.rpc('movbancarios_sin_aplicar', {
+      p_busqueda: busqueda,
+      p_anio: anio,
+      p_mes: mes,
+    });
+    if (error) throw new InternalServerErrorException(error.message);
+    return data ?? [];
+  }
+
+  /**
+   * Aplica un depósito a una o más partidas. Valida importe ≥ suma seleccionada
+   * (Insuficiente → 400; Exacto/Sobrante → ok), impide reaplicar un movimiento ya
+   * aplicado y delega en `aplicar_pago_arrendatario`. Registra la actividad.
+   */
+  async aplicarPago(
+    dto: AplicarPagoDto,
+    actorUid: string,
+  ): Promise<{ estado: 'Exacto' | 'Sobrante'; importe: number; total: number }> {
+    // Movimiento: debe existir y no estar aplicado.
+    const { data: mov, error: movErr } = await this.supabase.admin
+      .from('movbancarios')
+      .select('idmov, importe, aplicado')
+      .eq('idmov', dto.idmov)
+      .maybeSingle();
+    if (movErr) throw new InternalServerErrorException(movErr.message);
+    if (!mov) throw new NotFoundException('Movimiento bancario no encontrado.');
+    if (mov.aplicado) throw new BadRequestException('El depósito ya fue aplicado.');
+
+    // Suma de las partidas seleccionadas (cantidad a cobrar).
+    const { data: partidas, error: parErr } = await this.supabase.admin
+      .from('arrePdpDetalle')
+      .select('idArrePdpDet, cantidad')
+      .in('idArrePdpDet', dto.idsDetalle);
+    if (parErr) throw new InternalServerErrorException(parErr.message);
+    if (!partidas || partidas.length !== dto.idsDetalle.length)
+      throw new BadRequestException('Alguna partida seleccionada no existe.');
+
+    const total = partidas.reduce((s, p) => s + (Number(p.cantidad) ?? 0), 0);
+    const importe = Number(mov.importe) ?? 0;
+    // Tolerancia de centavo para comparaciones de punto flotante.
+    if (importe + 0.005 < total)
+      throw new BadRequestException(
+        `Depósito insuficiente: importe ${importe.toFixed(2)} < total ${total.toFixed(2)}.`,
+      );
+    const estado: 'Exacto' | 'Sobrante' = Math.abs(importe - total) <= 0.005 ? 'Exacto' : 'Sobrante';
+
+    const db = this.supabase.comoActor(actorUid);
+    const { error } = await db.rpc('aplicar_pago_arrendatario', {
+      p_idmov: dto.idmov,
+      p_ids_detalle: dto.idsDetalle,
+      p_fec_pago: dto.fecPago,
+    });
+    if (error) {
+      this.logger.error(`Error aplicando pago arrendatario (${dto.idmov}): ${error.message}`);
+      throw new InternalServerErrorException('No se pudo aplicar el pago.');
+    }
+
+    await this.registrarActividad(db, {
+      comentario: `Se aplicó el depósito ${dto.idmov} (${importe.toFixed(2)}) a ${dto.idsDetalle.length} partida(s) por ${total.toFixed(2)} [${estado}].`,
+      actorUid,
+    });
+
+    return { estado, importe, total };
+  }
+
+  private async registrarActividad(
+    db: Db,
+    a: { comentario: string; actorUid: string },
+  ): Promise<void> {
+    const { error } = await db.from('actividad').insert({
+      uid: a.actorUid,
+      entorno: 3,
+      logeado: true,
+      pantalla: 'dashboard_arren',
+      widget: 'Button',
+      nomwidget: 'AplicarPago',
+      comentario: a.comentario,
+      version: 'erp-v2',
+    });
+    if (error) this.logger.warn(`No se pudo registrar actividad: ${error.message}`);
+  }
+}

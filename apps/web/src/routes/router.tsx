@@ -20,6 +20,8 @@ import { CorreoPage } from '@/features/correo/CorreoPage';
 import { DashboardVentasPage } from '@/features/ventas/DashboardVentasPage';
 import { PlanesPage } from '@/features/ventas/PlanesPage';
 import { ClientesPage } from '@/features/clientes/ClientesPage';
+import { DashboardCobranzaPage } from '@/features/arrendatarios/DashboardCobranzaPage';
+import { ArrendatariosPage } from '@/features/arrendatarios/ArrendatariosPage';
 import { Home } from './Home';
 
 /**
@@ -41,6 +43,8 @@ export const router = createBrowserRouter([
           { path: '/clientes', element: <ClientesPage /> },
           { path: '/ventas', element: <DashboardVentasPage /> },
           { path: '/ventas/planes', element: <PlanesPage /> },
+          { path: '/arrendatarios', element: <DashboardCobranzaPage /> },
+          { path: '/arrendatarios/planes', element: <ArrendatariosPage /> },
           { path: '/parques', element: <ParquesPage /> },
           { path: '/parques/disponibilidad', element: <DisponibilidadPage /> },
           { path: '/cxp/pagar', element: <PagarSolicitudesPage /> },

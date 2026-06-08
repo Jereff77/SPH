@@ -30,8 +30,8 @@ futuro, en una tabla vectorial `pgvector` para búsqueda semántica).
 | Landing / Indicadores | ✅ desarrollado | `modulos/landing-indicadores.md` | / | — | inicio, tipo de cambio, dólar, INPC, indicadores, Banxico |
 | Auditoría / Ver como | ✅ desarrollado | `modulos/auditoria-y-ver-como.md` | (transversal) | 200 | historial, bitácora, auditoría, trazabilidad, ver como, quién cambió |
 | Clientes | ✅ desarrollado | `modulos/clientes.md` | /clientes | 300 | cliente, clientes, inversionista, arrendatario, ticket, usuario final, papelera, prueba, razón social, RFC, CURP, contpaq, personalidad, alta cliente, CRM |
-| Inversionistas / Propietarios (Ventas) | 🟠 parcial | `modulos/inversionistas.md` | /ventas, /ventas/planes | 600, 610 | inversionista, propietario, dueño, propiedad, nave, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, % avance, renta garantizada, renta administrada, configuración, documentos, escrituración, comentarios |
-| Arrendatarios | 🟡 stub | `modulos/arrendatarios.md` | (pendiente v2) | — | arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp |
+| Inversionistas / Propietarios (Ventas) | 🟠 parcial | `modulos/inversionistas.md` | /ventas, /ventas/planes | 600, 610 | inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, % avance, renta garantizada, renta administrada, configuración, documentos, escrituración, comentarios, razón social |
+| Arrendatarios | ✅ desarrollado | `modulos/arrendatarios.md` | /arrendatarios, /arrendatarios/planes | 10, 20 | arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, INPC, mes de gracia, cortesía, concepto financiado, KVA, vigencia, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, m² construcción, depósito |
 | Correo (buzón de facturas) | ✅ desarrollado | `modulos/correo.md` | /correo | 800 (usar), 801 (configurar cuenta) | correo, email, buzón, bandeja, factura, comprobante, IMAP, SMTP, Hostinger, responder, adjunto, sincronizar |
 | CxP (Cuentas por pagar) | 🟠 parcial | `modulos/cxp.md` | /cxp/pagar, /cxp/aprobar, /cxp/solicitudes, /cxp/pendientes, /cxp/proveedores, /cxp/bancos | 400, 401, 402, 410, 420, 430, 431, 450, 470 | pago, pagar solicitudes, aprobar solicitudes, aprobación, presupuesto, fuera de presupuesto, cuenta por pagar, factura, CFDI, aplicar pago, comprobante, N8N, autorizar, rechazar, regresar, transferencia SPEI, proveedor, banco, conciliación, desaplicar, claves SAT, retención, tiempo real |
 | Fideicomiso | 🟡 stub | `modulos/fideicomiso.md` | (pendiente v2) | — | fideicomiso, dispersión, aportación, rendimiento, contabilidad |
@@ -49,8 +49,9 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `parques`, `naves`, `v_naves`, `v_disponibilidad` | Parques |
 | `inversionista` | **Clientes** (padrón) · Inversionistas/Propietarios (Ventas) · Arrendatarios |
 | `propiedades`, `inversionista_docs`, `v_propiedades` | Inversionistas/Propietarios (Ventas) (y Parques para el dueño) |
+| `kvasAsignados` | Inversionistas/Propietarios (Ventas) (KVAs por nave) · Parques |
 | `pdp`, `pdpDetalle`, `pagos`, `rgPdp`, `rgPdpDetalle`, `raPdp`, `raPdpDetalle`, `v_rentasCombinadas` | Inversionistas/Propietarios (Ventas) |
-| `arrenPropiedades`, `arrePdp` | Arrendatarios (y Parques para el arrendatario) |
+| `arrenPropiedades`, `arrePdp`, `arrePdpDetalle`, `arreConceptos`, `v_arrendadasNaves` | Arrendatarios (y Parques para el arrendatario) |
 | `catUsers`, `segModulosUsuarios`, `segModulos`, `segPlantillasPermisos` | Configuraciones (Usuarios/Permisos) |
 | `inpc`, `PresCategorias`, `PresDetalle`, `cxp_fechas_habilitadas`, `catClavesProdServ` | Configuraciones (Parámetros: INPC/Cuentas/Fechas/**Claves SAT**) |
 | `SPHConfiguraciones` | Configuraciones (Sistema) · `RFC_RECEPTORES_AUTORIZADOS` lo usa CxP |
@@ -67,6 +68,8 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `/` | Landing / Indicadores |
 | `/clientes` | Clientes |
 | `/ventas`, `/ventas/planes` | Inversionistas/Propietarios (Ventas) |
+| `/arrendatarios` | Arrendatarios (Dashboard de cobranza) |
+| `/arrendatarios/planes` | Arrendatarios (Planes de Renta) |
 | `/parques`, `/parques/disponibilidad` | Parques |
 | `/cxp/pagar` | CxP (Pagar solicitudes / tesorería) |
 | `/cxp/aprobar` | CxP (Aprobar Solicitudes / aprobador) |

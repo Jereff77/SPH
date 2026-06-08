@@ -6,6 +6,7 @@ import {
   IconMail,
   IconVentas,
   IconClientes,
+  IconArrendatarios,
 } from '@/components/icons';
 
 export interface MenuItem {
@@ -34,14 +35,6 @@ export interface MenuGrupo {
  */
 export const MENU: MenuGrupo[] = [
   {
-    id: 'clientes',
-    label: 'Clientes',
-    Icon: IconClientes,
-    to: '/clientes',
-    clave: 300,
-    items: [],
-  },
-  {
     id: 'ventas',
     label: 'Ventas',
     Icon: IconVentas,
@@ -49,6 +42,15 @@ export const MENU: MenuGrupo[] = [
       { label: 'Dashboard', to: '/ventas', clave: 600 },
       { label: 'Planes', to: '/ventas/planes', clave: 610 },
       // Próximas fases: Reportes (620), Escrituras (630)…
+    ],
+  },
+  {
+    id: 'arrendatarios',
+    label: 'Arrendatarios',
+    Icon: IconArrendatarios,
+    items: [
+      { label: 'Dashboard', to: '/arrendatarios', clave: 10 },
+      { label: 'Planes de Renta', to: '/arrendatarios/planes', clave: 20 },
     ],
   },
   {
@@ -79,6 +81,14 @@ export const MENU: MenuGrupo[] = [
     label: 'Correo',
     Icon: IconMail,
     items: [{ label: 'Bandeja', to: '/correo', clave: 800 }],
+  },
+  {
+    id: 'clientes',
+    label: 'Clientes',
+    Icon: IconClientes,
+    to: '/clientes',
+    clave: 300,
+    items: [],
   },
   {
     id: 'configuraciones',

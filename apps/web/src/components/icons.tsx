@@ -149,3 +149,15 @@ export function IconBarras(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+/** Llave (módulo Arrendatarios). */
+export function IconArrendatarios(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="7.5" cy="15.5" r="4.5" />
+      <path d="m10.7 12.3 8.8-8.8" />
+      <path d="m17 6 3 3" />
+      <path d="m14 9 3 3" />
+    </svg>
+  );
+}

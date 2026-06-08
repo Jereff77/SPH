@@ -1,0 +1,89 @@
+import { z } from 'zod';
+
+const FECHA = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida (yyyy-MM-dd).');
+
+/**
+ * Crear un Plan de Pago de arrendamiento (arrePdp) para una nave ya vinculada al
+ * arrendatario (`arrenPropiedades`). El backend orquesta las 3 RPCs:
+ * `arrepdp_crear_plan_simple_rpc` → `arrepdp_generar_corrida_desde_plan_simple`
+ * → `arrepdpdetalle_aplicar_meses_gracia`. Replica el botón "Crear" de v1
+ * (`arre_pdp_widget`). Las cortesías son meses de gracia por concepto.
+ */
+export const crearPlanRentaSchema = z.object({
+  /** PK de `arrenPropiedades` (la nave arrendada). */
+  idNavArrend: z.string().trim().min(1, 'Falta la nave arrendada.'),
+  /** idInversionista del arrendatario (gotcha: idArrendador = idInversionista). */
+  idArrendador: z.string().trim().min(1, 'Falta el arrendatario.'),
+  fecInicio: FECHA,
+  plazo: z.coerce.number().int().positive('El plazo debe ser mayor a 0.'),
+  m2Construccion: z.coerce.number().positive('La construcción (m²) debe ser mayor a 0.'),
+  deposito: z.coerce.number().min(0).default(0),
+  precioM2: z.coerce.number().min(0).default(0),
+  pm2Admin: z.coerce.number().min(0).default(0),
+  pm2Mtto: z.coerce.number().min(0).default(0),
+  pm2Vig: z.coerce.number().min(0).default(0),
+  inpcPlus: z.coerce.number().min(0).default(0),
+  moneda: z.enum(['MXN', 'USD']).default('MXN'),
+  /** Meses de gracia (cortesías) por concepto; admiten medios meses. */
+  cortesiaRenta: z.coerce.number().min(0).default(0),
+  cortesiaAdmin: z.coerce.number().min(0).default(0),
+  cortesiaMtto: z.coerce.number().min(0).default(0),
+  cortesiaVig: z.coerce.number().min(0).default(0),
+});
+export type CrearPlanRentaDto = z.infer<typeof crearPlanRentaSchema>;
+
+/** Campos editables manualmente por partida del detalle (doble clic en v1). */
+export const CAMPOS_EDITABLES = ['pm2', 'constM2', 'INPC', 'ptsINPC'] as const;
+
+/**
+ * Editar un campo de la corrida a partir de un año (RPC
+ * `arrepdpdetalle_actualizar_campo_manual`). Solo si el plan está vigente.
+ */
+export const editarCampoSchema = z.object({
+  anioDesde: z.coerce.number().int(),
+  concepto: z.string().trim().min(1, 'Falta el concepto.').max(120),
+  campo: z.enum(CAMPOS_EDITABLES),
+  valor: z.coerce.number(),
+});
+export type EditarCampoDto = z.infer<typeof editarCampoSchema>;
+
+/** Conceptos predefinidos del KVA/adecuación (1/2) o texto libre. */
+export const conceptoFinanciadoSchema = z.object({
+  concepto: z.string().trim().min(1, 'El concepto es obligatorio.').max(120),
+  monto: z.coerce.number().positive('El monto debe ser mayor a 0.'),
+  mesInicio: z.coerce.number().int().min(0),
+  periodo: z.coerce.number().int().positive('El periodo debe ser mayor a 0.'),
+  /** Si se divide (prorratea) entre los meses del periodo. */
+  dividir: z.coerce.boolean().default(true),
+});
+export type ConceptoFinanciadoDto = z.infer<typeof conceptoFinanciadoSchema>;
+
+/** Vincular una nave a un arrendatario (Config → Propiedades). */
+export const vincularNaveArreSchema = z.object({
+  idArrendador: z.string().trim().min(1, 'Falta el arrendatario.'),
+  idNave: z.string().trim().min(1, 'Falta la nave.'),
+  idParque: z.string().trim().optional().or(z.literal('')),
+});
+export type VincularNaveArreDto = z.infer<typeof vincularNaveArreSchema>;
+
+/** Metadatos de un documento del arrendatario (bucket `Documentos`). */
+export const docArreSchema = z.object({
+  idInversionista: z.string().trim().min(1, 'Falta el arrendatario.'),
+  titulo: z.string().trim().min(1, 'El título es obligatorio.').max(160),
+  descripcion: z.string().trim().max(400).optional().default(''),
+});
+export type DocArreDto = z.infer<typeof docArreSchema>;
+
+/**
+ * Aplicar un depósito bancario a una o más partidas del detalle (cobranza). El
+ * backend valida importe ≥ suma de partidas y delega en
+ * `aplicar_pago_arrendatario` (transaccional). Replica el modal del dashboard v1.
+ */
+export const aplicarPagoSchema = z.object({
+  idmov: z.string().trim().min(1, 'Falta el movimiento bancario.'),
+  idsDetalle: z.array(z.string().trim().min(1)).min(1, 'Selecciona al menos una partida.'),
+  fecPago: FECHA,
+});
+export type AplicarPagoDto = z.infer<typeof aplicarPagoSchema>;

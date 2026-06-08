@@ -1,0 +1,341 @@
+import { api } from '@/lib/api';
+
+// ============================ Planes de Renta ============================
+
+export interface ArrendatarioOpt {
+  idInversionista: string;
+  nombre: string | null;
+  apellido1: string | null;
+  apellido2: string | null;
+  razonsocial: string | null;
+}
+
+/**
+ * Nombre a mostrar de un arrendatario. Igual que en Ventas: se prioriza la razón
+ * social; si está vacía, se arma con nombre + apellidos. (Gotcha del módulo:
+ * el "arrendador" es un registro de `inversionista`.)
+ */
+export function nombreArrendatario(a: {
+  nombre?: string | null;
+  apellido1?: string | null;
+  apellido2?: string | null;
+  razonsocial?: string | null;
+}): string {
+  return a.razonsocial?.trim()
+    ? a.razonsocial
+    : [a.nombre, a.apellido1, a.apellido2].filter(Boolean).join(' ');
+}
+
+/** Nave arrendada (vista `v_arrendadasNaves`). */
+export interface PropiedadArrendada {
+  idNavArrend: string;
+  idArrendadoPdp: string | null;
+  nomDescriptivo: string | null;
+  idParque: string | null;
+  idNave: string | null;
+  nomParque: string | null;
+  numNave: number | null;
+  numNaveNAME: string | null;
+  tienePdp: boolean | null;
+  pdpActivo: boolean | null;
+}
+
+export type ArrePdpVigente = 'Si' | '3 Meses' | '2 Meses' | '1 Mes' | 'No';
+
+/** Cabecera de un plan de pago de renta (`arrePdp`). */
+export interface PlanRenta {
+  idArrePdp: string;
+  idNavArrend: string | null;
+  idArrendador: string | null;
+  fecInicio: string | null;
+  fecFin: string | null;
+  plazo: number | null;
+  deposito: number | null;
+  precioM2: number | null;
+  construccionM2: number | null;
+  rtaBase: number | null;
+  INPC: number | null;
+  INPCPlus: number | null;
+  pm2Admin: number | null;
+  pm2Mtto: number | null;
+  pm2Vig: number | null;
+  Moneda: string | null;
+  vigente: boolean | null;
+  arrePdpVigente: ArrePdpVigente | null;
+}
+
+/** Fila de la corrida resumida (RPC `arrepdpdetalle_obtener_resumen_por_plan`). */
+export interface ResumenPartida {
+  numPartida: number;
+  anio: number;
+  fecha: string;
+  pm2: number;
+  constM2: number;
+  INPC: number;
+  ptsINPC: number;
+  totalINPC: number;
+  ciclo: number;
+  total_cantidad: number;
+  idArrePdp: string;
+  pdpactivo: boolean;
+}
+
+export type MesGratis = 'No' | 'Si' | 'Medio';
+
+/** Partida del detalle (`arrePdpDetalle`) — incluye flag de cortesía. */
+export interface DetallePartida {
+  idArrePdpDet: string;
+  idArrePdp: string;
+  numPartida: number | null;
+  anio: number | null;
+  ciclo: number | null;
+  concepto: string | null;
+  fecha: string | null;
+  pm2: number | null;
+  constM2: number | null;
+  INPC: number | null;
+  ptsINPC: number | null;
+  inpcTotal: number | null;
+  cantidad: number | null;
+  cantidadAplicada: number | null;
+  tieneMesGratis: MesGratis | null;
+  comprobantePago: string | null;
+  fecPago: string | null;
+  moneda: string | null;
+}
+
+export interface InpcRow {
+  id: string;
+  anio: number | null;
+  mes: number | null;
+  inpc: number | null;
+}
+
+export interface DatosGeneralesArre {
+  idInversionista: string;
+  personalidad: string | null;
+  nombre: string | null;
+  apellido1: string | null;
+  apellido2: string | null;
+  razonsocial: string | null;
+  fecNacimiento: string | null;
+  telefono: string | null;
+  correo: string | null;
+  RFC: string | null;
+  CURP: string | null;
+}
+
+export interface DocArreRow {
+  idDocumento: string;
+  titulo: string | null;
+  descripcion: string | null;
+  urldoc: string | null;
+}
+
+export interface ParqueOpcion {
+  idParque: string;
+  nomParque: string | null;
+}
+
+export interface NaveDisponible {
+  idNave: string;
+  idParque: string | null;
+  numNave: number | null;
+  numNaveNAME: string | null;
+  lote: number | null;
+  mza: number | null;
+  terreno: number | null;
+  construccion: number | null;
+  precio: number | null;
+}
+
+export interface CrearPlanRentaInput {
+  idArrendador: string;
+  fecInicio: string;
+  plazo: number;
+  m2Construccion: number;
+  deposito: number;
+  precioM2: number;
+  pm2Admin: number;
+  pm2Mtto: number;
+  pm2Vig: number;
+  inpcPlus: number;
+  moneda: 'MXN' | 'USD';
+  cortesiaRenta: number;
+  cortesiaAdmin: number;
+  cortesiaMtto: number;
+  cortesiaVig: number;
+}
+
+export interface EditarCampoInput {
+  anioDesde: number;
+  concepto: string;
+  campo: 'pm2' | 'constM2' | 'INPC' | 'ptsINPC';
+  valor: number;
+}
+
+export interface ConceptoInput {
+  concepto: string;
+  monto: number;
+  mesInicio: number;
+  periodo: number;
+  dividir: boolean;
+}
+
+// ============================ Cobranza ============================
+
+export interface FiltrosCobranza {
+  anios: number[];
+  parques: ParqueOpcion[];
+}
+
+/** Fila del tablero (RPC `pagos_arrendatarios`). */
+export interface PagoArreRow {
+  id_detalle: string;
+  fecha: string | null;
+  nave: string | null;
+  parque: string | null;
+  razon_social: string | null;
+  concepto: string | null;
+  monto: number | null;
+  divisa: string | null;
+  fec_pago: string | null;
+  id_arrepdp: string | null;
+  num_partida: number | null;
+}
+
+export interface ContratoPorVencer {
+  nave: string | null;
+  parque: string | null;
+  razon_social: string | null;
+  fec_fin: string | null;
+  moneda: string | null;
+}
+
+export interface ContratoVencido extends ContratoPorVencer {
+  dias_vencido: number | null;
+}
+
+export interface DepositoSinAplicar {
+  idmov: string;
+  fec_operacion: string | null;
+  ordenante: string | null;
+  importe: number | null;
+  rastreo: string | null;
+  moneda: string | null;
+}
+
+export interface AplicarPagoInput {
+  idmov: string;
+  idsDetalle: string[];
+  fecPago: string;
+}
+
+function dq(params: Record<string, string | number | boolean | undefined>): string {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== '') sp.set(k, String(v));
+  }
+  const s = sp.toString();
+  return s ? `?${s}` : '';
+}
+
+export const arrendatariosApi = {
+  // Planes de Renta
+  lista: () => api.get<ArrendatarioOpt[]>('/arrendatarios/lista'),
+  propiedades: (idArrendador: string) =>
+    api.get<PropiedadArrendada[]>(`/arrendatarios/${idArrendador}/propiedades`),
+  planes: (idNavArrend: string, idArrendador: string) =>
+    api.get<PlanRenta[]>(`/arrendatarios/propiedades/${idNavArrend}/planes${dq({ idArrendador })}`),
+  resumen: (idArrePdp: string) =>
+    api.get<ResumenPartida[]>(`/arrendatarios/planes/${idArrePdp}/resumen`),
+  detalle: (idArrePdp: string, numPartida?: number) =>
+    api.get<DetallePartida[]>(`/arrendatarios/planes/${idArrePdp}/detalle${dq({ numPartida })}`),
+  crearPlan: (idNavArrend: string, dto: CrearPlanRentaInput) =>
+    api.post<{ idArrePdp: string; mensaje: string }>(
+      `/arrendatarios/propiedades/${idNavArrend}/planes`,
+      dto,
+    ),
+  editarCampo: (idArrePdp: string, dto: EditarCampoInput) =>
+    api.patch<{ ok: true }>(`/arrendatarios/planes/${idArrePdp}/detalle`, dto),
+  agregarConcepto: (idArrePdp: string, dto: ConceptoInput) =>
+    api.post<{ ok: true }>(`/arrendatarios/planes/${idArrePdp}/conceptos`, dto),
+  eliminarConcepto: (idArrePdp: string, concepto: string) =>
+    api.delete<{ ok: true }>(
+      `/arrendatarios/planes/${idArrePdp}/conceptos/${encodeURIComponent(concepto)}`,
+    ),
+  activar: (idArrePdp: string, idNavArrend: string) =>
+    api.post<{ ok: true }>(`/arrendatarios/planes/${idArrePdp}/activar${dq({ idNavArrend })}`, {}),
+  desactivar: (idArrePdp: string, idNavArrend: string) =>
+    api.post<{ ok: true }>(`/arrendatarios/planes/${idArrePdp}/desactivar${dq({ idNavArrend })}`, {}),
+  eliminarPlan: (idArrePdp: string) =>
+    api.delete<{ mensaje: string }>(`/arrendatarios/planes/${idArrePdp}`),
+
+  // Config
+  datos: (id: string) => api.get<DatosGeneralesArre>(`/arrendatarios/${id}/datos`),
+  docs: (id: string) => api.get<DocArreRow[]>(`/arrendatarios/${id}/documentos`),
+  subirDoc: (idInversionista: string, titulo: string, descripcion: string, archivo: File) => {
+    const fd = new FormData();
+    fd.append('idInversionista', idInversionista);
+    fd.append('titulo', titulo);
+    fd.append('descripcion', descripcion);
+    fd.append('archivo', archivo);
+    return api.postForm<{ idDocumento: string }>('/arrendatarios/documentos', fd);
+  },
+  eliminarDoc: (idDocumento: string) =>
+    api.delete<{ ok: true }>(`/arrendatarios/documentos/${idDocumento}`),
+  parques: () => api.get<ParqueOpcion[]>('/arrendatarios/parques'),
+  navesDisponibles: (idParque?: string) =>
+    api.get<NaveDisponible[]>(`/arrendatarios/naves-disponibles${dq({ idParque })}`),
+  vincularNave: (dto: { idArrendador: string; idNave: string; idParque?: string }) =>
+    api.post<{ idNavArrend: string }>('/arrendatarios/propiedades', dto),
+  inpc: () => api.get<InpcRow[]>('/arrendatarios/inpc'),
+
+  // Cobranza
+  filtrosCobranza: () => api.get<FiltrosCobranza>('/arrendatarios/cobranza/filtros'),
+  cobranza: (p: {
+    anio?: number;
+    mes?: number;
+    parque?: string;
+    arrendatario?: string;
+    soloPendientes?: boolean;
+  }) => api.get<PagoArreRow[]>(`/arrendatarios/cobranza/pagos${dq(p)}`),
+  contratosPorVencer: (desde?: string, hasta?: string) =>
+    api.get<ContratoPorVencer[]>(`/arrendatarios/cobranza/contratos-por-vencer${dq({ desde, hasta })}`),
+  contratosVencidos: () =>
+    api.get<ContratoVencido[]>('/arrendatarios/cobranza/contratos-vencidos'),
+  depositosSinAplicar: (busqueda?: string, anio?: number, mes?: number) =>
+    api.get<DepositoSinAplicar[]>(
+      `/arrendatarios/cobranza/depositos-sin-aplicar${dq({ busqueda, anio, mes })}`,
+    ),
+  aplicarPago: (dto: AplicarPagoInput) =>
+    api.post<{ estado: 'Exacto' | 'Sobrante'; importe: number; total: number }>(
+      '/arrendatarios/cobranza/aplicar-pago',
+      dto,
+    ),
+};
+
+export const MESES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
+
+/** "Hoy" en horario de México (yyyy-MM-dd), igual que en Ventas. */
+export const hoyMexico = (): string =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+
+/** Moneda según divisa (MXN/USD); nunca mezcla divisas. */
+export const moneda = (n: number | null | undefined, divisa: string = 'MXN'): string =>
+  (n ?? 0).toLocaleString('es-MX', {
+    style: 'currency',
+    currency: divisa === 'USD' ? 'USD' : 'MXN',
+  });
+
+export const num = (n: number | null | undefined): string =>
+  (n ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+export const fechaCorta = (iso: string | null): string => {
+  if (!iso) return '—';
+  const p = (iso.split('T')[0] ?? iso).split('-');
+  return p.length === 3 ? `${Number(p[2])}/${Number(p[1])}/${p[0]}` : iso;
+};
