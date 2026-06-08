@@ -1,14 +1,14 @@
 ---
 modulo: Arrendatarios
 estado: desarrollado
-version_doc: 1.0
-ultima_actualizacion: 2026-06-07
+version_doc: 1.1
+ultima_actualizacion: 2026-06-08
 rutas_v2: [/arrendatarios, /arrendatarios/planes]
 rutas_v1: [i02_arrendatarios]
 claves_permiso: [10, 20]
 tablas: [inversionista, arrenPropiedades, arrePdp, arrePdpDetalle, arreConceptos, inversionista_docs, naves, parques, inpc, movbancarios, v_arrendadasNaves]
-rpcs: [arrepdp_crear_plan_simple_rpc, arrepdp_generar_corrida_desde_plan_simple, arrepdpdetalle_aplicar_meses_gracia, arrepdpdetalle_obtener_resumen_por_plan, arrepdpdetalle_actualizar_campo_manual, arrepdp_agregar_concepto_financiado, arrepdp_eliminar_plan_con_restricciones, aplicar_pago_arrendatario, pagos_arrendatarios, contratos_por_vencer, contratos_vencidos_sin_renovacion, movbancarios_sin_aplicar]
-palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido]
+rpcs: [arrepdp_crear_plan_simple_rpc, arrepdp_generar_corrida_desde_plan_simple, arrepdpdetalle_aplicar_meses_gracia, arrepdpdetalle_obtener_resumen_por_plan, arrepdpdetalle_actualizar_campo_manual, arrepdp_agregar_concepto_financiado, arrepdp_eliminar_plan_con_restricciones, aplicar_pago_arrendatario, pagos_arrendatarios, contratos_por_vencer, contratos_vencidos_sin_renovacion, movbancarios_sin_aplicar, v2_arrepdp_renovar, v2_arrepdp_activar_renovaciones]
+palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin]
 relacionado_con: [parques, clientes, inversionistas, cxp]
 ---
 
@@ -82,11 +82,18 @@ actor para auditoría). Crear un plan orquesta **3 RPCs en secuencia**:
     activo (apunta `arrenPropiedades` a ella, `pdpActivo=true`) **sin intervención del usuario**. Corre
     antes del job de desvinculación (07:30), así esa nave no se libera.
 
+- **Fecha fin del plan (`fecFin`)**: es una **columna generada** en `arrePdp` =
+  `fecInicio + plazo meses − 1 día` (el contrato termina el día anterior al "mismo día" N meses
+  después; ej. inicio 1-jun-2023, plazo 36 → fin 31-may-2026). **No se captura ni se edita**, se
+  calcula sola. (Hasta jun-2026 la fórmula no restaba el día; se corrigió.)
+
 ## Objetos nuevos en BD (v2_, autorizados)
 - RPC `v2_arrepdp_renovar(...)` — registra la renovación (inserta `arrePdp` + corrida vía RPCs
   existentes), sin tocar el plan vigente.
 - RPC `v2_arrepdp_activar_renovaciones()` — transición automática al vencer.
 - Job pg_cron `v2-arrepdp-activar-renovaciones` (diario 02:00).
+- **Modificado del sistema viejo (autorizado)**: la columna generada `arrePdp."fecFin"` se redefinió
+  para restar 1 día (`fecInicio + plazo − 1 día`).
 - **Meses de gracia (`tieneMesGratis` = `Si`/`Medio`/`No`)**: las partidas con
   cortesía se **resaltan en amarillo** y no se cobran (o medio mes).
 - **Divisas (MXN/USD)**: la cobranza agrupa y totaliza **por divisa por separado**;
