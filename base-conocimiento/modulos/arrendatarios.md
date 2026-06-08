@@ -29,12 +29,24 @@ corrida mensual con ajuste por **INPC**, meses de gracia, conceptos financiados
 | Ruta | Clave | Qué hace |
 |---|---|---|
 | `/arrendatarios/planes` | 20 | Selector arrendatario → propiedad → historial de planes (`arrePdp`) → **corrida** (tabla con expandible por partida y edición de campos por doble clic). Botón **Configuración** (⚙) y **Consulta INPC**. |
-| `/arrendatarios` | 10 | **Dashboard de cobranza**: filtros (año/mes/parque/solo pendientes), totales **separados por divisa** (MXN/USD), tabla de partidas (pendientes en rojo), vencimientos (por vencer / vencidos) y **Aplicar pago**. En vivo por SSE. |
+| `/arrendatarios` | 10 | **Dashboard de cobranza** (réplica del de v1): barra de stats (Naves / Naves pendientes / Monto pendiente MXN / Cobrado MXN), toggle **Todos/Pendientes/Pagados**, filtro de **divisa** (Ambos/MXN/USD) y periodo (Mes con "Todos" / Año). **Tabla agrupada por nave+parque+razón social** con columnas Pendiente MXN, USD (pend/cob), Cobrado MXN; **filtros por columna** (nave/parque/razón social/concepto), **orden** por clic, **tooltip de desglose por concepto** al pasar el cursor sobre los montos, filas en rojo (todo pendiente)/verde (todo pagado) y **fila de totales** al pie. Botón **💲** por arrendatario con pendientes → modal. **Sidebar de vencimientos colapsable**: Vencidos (con días) + Próximos a 1/2/3 meses (calculados por `fec_fin`). **Aplicar pago** (modal por razón social: depósitos `movbancarios_sin_aplicar` + naves pendientes con checkbox, validación Exacto/Sobrante/Insuficiente). En vivo por SSE. |
 
 **Configuración (⚙)** — 4 sub-pestañas: **Datos Generales** (solo lectura; el
 alta/edición del padrón vive en **Clientes**), **Documentos** (bucket `Documentos`),
-**Propiedades** (vincular naves), **Plan de Pagos** (crear/activar/desactivar/
-eliminar plan + conceptos financiados).
+**Propiedades** (vincular naves), **Plan de Pagos** (réplica del PDP de v1).
+
+La tab **Plan de Pagos** tiene **layout de 2 columnas** (modal ampliado):
+- **Izquierda** — si la propiedad **no** tiene plan: formulario **Generales** (fecha inicio,
+  plazo, m² construcción, INPC+, depósito, moneda + 4 conceptos Renta/Administración/
+  Mantenimiento/Vigilancia con **$ x m² · SubTotal en vivo (=$xm²·m²) · meses de gracia** y
+  **Total Mes** en vivo) y botón **Crear** (orquesta las 3 RPCs). Si **sí** tiene plan:
+  acciones (Activar/Desactivar/Eliminar), **Cargos** (concepto Adecuaciones/Otros servicios/
+  Otro libre, Monto, Dividir, Mes inicio, Periodo → `arrepdp_agregar_concepto_financiado`) y
+  lista de **Conceptos** (eliminar solo los cargos KVA; los base Renta/Admin/Mtto/Vig/Depósito
+  y sus "(Cortesia)" no se eliminan).
+- **Derecha** — **Previsualización** de la corrida (lee el **detalle**, sirve para el plan recién
+  creado aún **inactivo**): #, Año, Concepto, Fecha, **Param** ($m²/m² apilados), Monto; resalta
+  meses de gracia. Se refresca al crear, agregar/eliminar cargo o activar.
 
 ## Cómo funciona el cálculo (importante)
 
@@ -53,10 +65,35 @@ actor para auditoría). Crear un plan orquesta **3 RPCs en secuencia**:
   prioridad. Las partidas solo se editan si el plan **no** está en `No`.
 - **Activar un plan (`pdpActivo`)**: congela renta base y periodo. La corrida solo
   se muestra si el plan está activo.
+- **Liberar la nave**: en Planes de Renta, cuando **todos** los planes de la nave están
+  vencidos (`arrePdpVigente='No'`) y ninguno está activo (`pdpActivo=false`), aparece el botón
+  **🔓 Liberar nave**. Hace baja lógica del vínculo (`arrenPropiedades.status=false`) y marca
+  `naves.Arrendada=false`, dejando la nave **disponible para rentar de nuevo**; los planes y
+  pagos **se conservan** como histórico. El backend revalida la condición (no se confía en la UI).
+  No existía en v1.
+- **Renovación de plan** (no existía en v1): cuando al plan le faltan **≤3 meses** o ya venció,
+  aparece el botón **🔄 Renovar** en Planes de Renta. Abre un modal **precargado con los datos del
+  último mes** del plan anterior (la renta ya incrementada por INPC); la **fecha de inicio es fija =
+  fin del vigente + 1 día** (no se superpone). Al registrar, se crea el plan de renovación **sin tocar
+  el vigente** (RPC `v2_arrepdp_renovar`). Reglas: solo renovable a ≤3 meses/vencido, sin segunda
+  renovación, sin solape.
+  - **Activación automática**: un job pg_cron diario (`v2-arrepdp-activar-renovaciones`, 02:00) ejecuta
+    `v2_arrepdp_activar_renovaciones()`: cuando el plan vigente vence, la renovación pasa a ser el plan
+    activo (apunta `arrenPropiedades` a ella, `pdpActivo=true`) **sin intervención del usuario**. Corre
+    antes del job de desvinculación (07:30), así esa nave no se libera.
+
+## Objetos nuevos en BD (v2_, autorizados)
+- RPC `v2_arrepdp_renovar(...)` — registra la renovación (inserta `arrePdp` + corrida vía RPCs
+  existentes), sin tocar el plan vigente.
+- RPC `v2_arrepdp_activar_renovaciones()` — transición automática al vencer.
+- Job pg_cron `v2-arrepdp-activar-renovaciones` (diario 02:00).
 - **Meses de gracia (`tieneMesGratis` = `Si`/`Medio`/`No`)**: las partidas con
   cortesía se **resaltan en amarillo** y no se cobran (o medio mes).
 - **Divisas (MXN/USD)**: la cobranza agrupa y totaliza **por divisa por separado**;
-  nunca se suman MXN + USD.
+  nunca se suman MXN + USD (tarjetas y fila de totales al pie de la tabla, una por divisa).
+- **Parques de Tickets excluidos**: en **todo** el módulo (selectores de parque/nave,
+  propiedades arrendadas, tabla de cobranza y vencimientos) se ocultan los parques con
+  `esTicket = true` (p. ej. "A3 (Tickets)") — los tickets se gestionan en Ventas, no aquí.
 - **Aplicar pago**: se valida server-side **importe del depósito ≥ suma de las
   partidas** → `Insuficiente` (se rechaza), `Exacto` o `Sobrante` (permitido). Solo
   se aplican partidas de la **misma divisa** que el depósito; un depósito ya

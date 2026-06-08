@@ -28,33 +28,61 @@ export class CobranzaService {
 
   constructor(private readonly supabase: SupabaseService) {}
 
-  /** Años (de las partidas) y parques para los filtros del tablero. */
+  /**
+   * Años **naturales** y parques para los filtros del tablero. Los años son
+   * naturales (no el "ciclo" del contrato que guarda `arrePdpDetalle.anio`) y el
+   * rango va del año del **primer `fecInicio`** al año del **último `fecFin`** de
+   * los contratos (`arrePdp`), incluyendo el año en curso. Excluye los parques de Tickets.
+   */
   async filtros(): Promise<FiltrosCobranza> {
-    const [{ data: anios, error: anioErr }, { data: parques, error: parqueErr }] =
+    const [{ data: ini }, { data: fin }, { data: parques, error: parqueErr }] =
       await Promise.all([
         this.supabase.admin
-          .from('arrePdpDetalle')
-          .select('anio')
+          .from('arrePdp')
+          .select('fecInicio')
           .eq('status', true)
-          .not('anio', 'is', null),
+          .not('fecInicio', 'is', null)
+          .order('fecInicio', { ascending: true })
+          .limit(1)
+          .maybeSingle(),
+        this.supabase.admin
+          .from('arrePdp')
+          .select('fecFin')
+          .eq('status', true)
+          .not('fecFin', 'is', null)
+          .order('fecFin', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
         this.supabase.admin
           .from('parques')
           .select('idParque, nomParque')
           .eq('status', true)
+          .eq('esTicket', false)
           .order('nomParque', { ascending: true }),
       ]);
-    if (anioErr) throw new InternalServerErrorException(anioErr.message);
     if (parqueErr) throw new InternalServerErrorException(parqueErr.message);
 
-    const set = new Set<number>();
-    for (const r of anios ?? []) if (r.anio != null) set.add(r.anio);
-    return {
-      anios: [...set].sort((a, b) => b - a),
-      parques: parques ?? [],
-    };
+    const actual = new Date().getFullYear();
+    const yIni = ini?.fecInicio ? Number(String(ini.fecInicio).slice(0, 4)) : actual;
+    const yFin = fin?.fecFin ? Number(String(fin.fecFin).slice(0, 4)) : actual;
+    const desde = Math.min(yIni, actual);
+    const hasta = Math.max(yFin, actual);
+    const anios: number[] = [];
+    for (let y = desde; y <= hasta; y++) anios.push(y);
+
+    return { anios, parques: parques ?? [] };
   }
 
-  /** Pagos/partidas del tablero (RPC `pagos_arrendatarios`). */
+  /** Nombres de los parques de Tickets (esTicket=true), para excluirlos de la cobranza. */
+  private async nombresParquesTicket(): Promise<Set<string>> {
+    const { data } = await this.supabase.admin
+      .from('parques')
+      .select('nomParque')
+      .eq('esTicket', true);
+    return new Set((data ?? []).map((p) => p.nomParque).filter((x): x is string => !!x));
+  }
+
+  /** Pagos/partidas del tablero (RPC `pagos_arrendatarios`). Excluye los parques de Tickets. */
   async pagos(p: {
     anio?: number;
     mes?: number;
@@ -62,32 +90,41 @@ export class CobranzaService {
     arrendatario?: string;
     soloPendientes?: boolean;
   }) {
-    const { data, error } = await this.supabase.admin.rpc('pagos_arrendatarios', {
-      p_anio: p.anio,
-      p_mes: p.mes,
-      p_parque: p.parque,
-      p_arrendatario: p.arrendatario,
-      p_solo_pendientes: p.soloPendientes ?? false,
-    });
+    const [{ data, error }, ticket] = await Promise.all([
+      this.supabase.admin.rpc('pagos_arrendatarios', {
+        p_anio: p.anio,
+        p_mes: p.mes,
+        p_parque: p.parque,
+        p_arrendatario: p.arrendatario,
+        p_solo_pendientes: p.soloPendientes ?? false,
+      }),
+      this.nombresParquesTicket(),
+    ]);
     if (error) throw new InternalServerErrorException(error.message);
-    return data ?? [];
+    return (data ?? []).filter((r) => !r.parque || !ticket.has(r.parque));
   }
 
-  /** Contratos por vencer en un rango de fechas (RPC `contratos_por_vencer`). */
+  /** Contratos por vencer en un rango de fechas (RPC `contratos_por_vencer`). Excluye Tickets. */
   async contratosPorVencer(desde?: string, hasta?: string) {
-    const { data, error } = await this.supabase.admin.rpc('contratos_por_vencer', {
-      p_fecha_desde: desde,
-      p_fecha_hasta: hasta,
-    });
+    const [{ data, error }, ticket] = await Promise.all([
+      this.supabase.admin.rpc('contratos_por_vencer', {
+        p_fecha_desde: desde,
+        p_fecha_hasta: hasta,
+      }),
+      this.nombresParquesTicket(),
+    ]);
     if (error) throw new InternalServerErrorException(error.message);
-    return data ?? [];
+    return (data ?? []).filter((r) => !r.parque || !ticket.has(r.parque));
   }
 
-  /** Contratos vencidos sin renovación (RPC `contratos_vencidos_sin_renovacion`). */
+  /** Contratos vencidos sin renovación (RPC `contratos_vencidos_sin_renovacion`). Excluye Tickets. */
   async contratosVencidos() {
-    const { data, error } = await this.supabase.admin.rpc('contratos_vencidos_sin_renovacion');
+    const [{ data, error }, ticket] = await Promise.all([
+      this.supabase.admin.rpc('contratos_vencidos_sin_renovacion'),
+      this.nombresParquesTicket(),
+    ]);
     if (error) throw new InternalServerErrorException(error.message);
-    return data ?? [];
+    return (data ?? []).filter((r) => !r.parque || !ticket.has(r.parque));
   }
 
   /** Depósitos bancarios sin aplicar (RPC `movbancarios_sin_aplicar`). */

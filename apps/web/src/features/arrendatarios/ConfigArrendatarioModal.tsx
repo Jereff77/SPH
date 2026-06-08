@@ -34,7 +34,7 @@ export function ConfigArrendatarioModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[92vh] w-full max-w-3xl overflow-auto rounded-2xl bg-white shadow-xl">
+      <div className="max-h-[92vh] w-full max-w-6xl overflow-auto rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b bg-[#1f2a4d] px-5 py-3 text-white">
           <h2 className="text-base font-semibold">
             Configuración · {nombreArrendatario(arrendatario)}

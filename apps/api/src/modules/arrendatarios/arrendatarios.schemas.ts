@@ -12,9 +12,11 @@ const FECHA = z
  * (`arre_pdp_widget`). Las cortesías son meses de gracia por concepto.
  */
 export const crearPlanRentaSchema = z.object({
-  /** PK de `arrenPropiedades` (la nave arrendada). */
-  idNavArrend: z.string().trim().min(1, 'Falta la nave arrendada.'),
-  /** idInversionista del arrendatario (gotcha: idArrendador = idInversionista). */
+  /**
+   * idInversionista del arrendatario (gotcha: idArrendador = idInversionista).
+   * El `idNavArrend` NO va en el body: viaja en la ruta
+   * (`/propiedades/:idNavArrend/planes`) y lo inyecta el controller.
+   */
   idArrendador: z.string().trim().min(1, 'Falta el arrendatario.'),
   fecInicio: FECHA,
   plazo: z.coerce.number().int().positive('El plazo debe ser mayor a 0.'),
@@ -59,6 +61,28 @@ export const conceptoFinanciadoSchema = z.object({
   dividir: z.coerce.boolean().default(true),
 });
 export type ConceptoFinanciadoDto = z.infer<typeof conceptoFinanciadoSchema>;
+
+/**
+ * Renovar un plan: crea un plan de renovación que sucede al actual (la
+ * `fecInicio` la calcula la BD = fin del actual + 1 día). Los valores se precargan
+ * con los del último mes del plan anterior y el usuario puede ajustarlos.
+ */
+export const renovarPlanSchema = z.object({
+  plazo: z.coerce.number().int().positive('El plazo debe ser mayor a 0.'),
+  m2Construccion: z.coerce.number().positive('La construcción (m²) debe ser mayor a 0.'),
+  deposito: z.coerce.number().min(0).default(0),
+  precioM2: z.coerce.number().min(0).default(0),
+  pm2Admin: z.coerce.number().min(0).default(0),
+  pm2Mtto: z.coerce.number().min(0).default(0),
+  pm2Vig: z.coerce.number().min(0).default(0),
+  inpcPlus: z.coerce.number().min(0).default(0),
+  moneda: z.enum(['MXN', 'USD']).default('MXN'),
+  cortesiaRenta: z.coerce.number().min(0).default(0),
+  cortesiaAdmin: z.coerce.number().min(0).default(0),
+  cortesiaMtto: z.coerce.number().min(0).default(0),
+  cortesiaVig: z.coerce.number().min(0).default(0),
+});
+export type RenovarPlanDto = z.infer<typeof renovarPlanSchema>;
 
 /** Vincular una nave a un arrendatario (Config → Propiedades). */
 export const vincularNaveArreSchema = z.object({

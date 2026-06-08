@@ -3,46 +3,74 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   arrendatariosApi,
   MESES,
-  moneda,
+  num,
   fechaCorta,
-  type PagoArreRow,
+  type ContratoPorVencer,
 } from './arrendatarios.api';
 import { AplicarPagoModal } from './AplicarPagoModal';
 import { useArrendatariosRealtime } from './useArrendatariosRealtime';
-import { SortableTh, THEAD_TR } from '@/components/tabla/SortableTh';
-import { useSort, type Accessors } from '@/components/tabla/useSort';
 
-const THEAD_DASHBOARD =
-  '[&>tr>th]:sticky [&>tr>th]:top-14 [&>tr>th]:z-10 [&>tr>th]:bg-[#1f2a4d]';
+type EstadoFiltro = 'all' | 'pend' | 'paid';
+type SortCol = 'nave' | 'parque' | 'razon_social';
 
-/** ¿La partida está pendiente (sin fecha de pago)? */
-const pendiente = (r: PagoArreRow): boolean => !r.fec_pago;
+interface ConceptoDesglose {
+  pend: number;
+  paid: number;
+  div: string;
+}
 
-const ACCESSORS: Accessors<PagoArreRow> = {
-  fecha: (r) => r.fecha,
-  nave: (r) => r.nave,
-  cliente: (r) => r.razon_social,
-  parque: (r) => r.parque,
-  concepto: (r) => r.concepto,
-  monto: (r) => r.monto,
-  divisa: (r) => r.divisa,
-  fec_pago: (r) => r.fec_pago,
+interface Grupo {
+  nave: string;
+  parque: string;
+  razon_social: string;
+  mxnPend: number;
+  mxnPaid: number;
+  usdPend: number;
+  usdPaid: number;
+  cntPend: number;
+  cntPaid: number;
+  conceptos: Record<string, ConceptoDesglose>;
+}
+
+interface TipState {
+  x: number;
+  y: number;
+  titulo: string;
+  filas: { conc: string; monto: number; div: string }[];
+}
+
+const esMXN = (d: string | null): boolean => d !== 'USD';
+
+/** Parsea YYYY-MM-DD como fecha local (evita el corrimiento UTC). */
+const parseLocal = (s: string | null): Date | null => {
+  if (!s) return null;
+  const [y, m, d] = String(s).slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
 };
 
-interface TotalDivisa {
-  total: number;
-  cobrado: number;
-  pendiente: number;
-}
+const addMonths = (date: Date, n: number): Date => {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + n);
+  return d;
+};
+
+const incluye = (v: string | null, q: string): boolean =>
+  !q || (v ?? '').toLowerCase().includes(q.toLowerCase());
 
 export function DashboardCobranzaPage() {
   const queryClient = useQueryClient();
   const ahora = new Date();
   const [anio, setAnio] = useState(ahora.getFullYear());
-  const [mes, setMes] = useState(ahora.getMonth() + 1);
-  const [parque, setParque] = useState('');
-  const [soloPendientes, setSoloPendientes] = useState(false);
-  const [aplicar, setAplicar] = useState(false);
+  const [mes, setMes] = useState<number>(ahora.getMonth() + 1); // 0 = Todos
+  const [estado, setEstado] = useState<EstadoFiltro>('all');
+  const [divisaFiltro, setDivisaFiltro] = useState<'ambos' | 'MXN' | 'USD'>('ambos');
+  const [cf, setCf] = useState({ nave: '', parque: '', rs: '', conc: '' });
+  const [sortCol, setSortCol] = useState<SortCol>('parque');
+  const [sortAsc, setSortAsc] = useState(true);
+  const [tip, setTip] = useState<TipState | null>(null);
+  const [modalRS, setModalRS] = useState<string | null>(null);
+  const [colapso, setColapso] = useState<Record<string, boolean>>({});
 
   const { data: filtros } = useQuery({
     queryKey: ['arre-cob-filtros'],
@@ -50,15 +78,11 @@ export function DashboardCobranzaPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Se carga TODO el periodo (sin filtro de estado/columna); el filtrado, la
+  // agrupación y el orden se hacen en cliente, como el dashboard de v1.
   const { data: filas = [], isLoading } = useQuery({
-    queryKey: ['arre-cob-pagos', anio, mes, parque, soloPendientes],
-    queryFn: () =>
-      arrendatariosApi.cobranza({
-        anio,
-        mes,
-        parque: parque || undefined,
-        soloPendientes,
-      }),
+    queryKey: ['arre-cob-pagos', anio, mes],
+    queryFn: () => arrendatariosApi.cobranza({ anio, mes: mes || undefined }),
   });
 
   const { data: porVencer = [] } = useQuery({
@@ -77,265 +101,555 @@ export function DashboardCobranzaPage() {
   }, [queryClient]);
   useArrendatariosRealtime(onCambio);
 
-  const { ordenados, sortKey, dir, toggle } = useSort(filas, ACCESSORS, {
-    key: 'fecha',
-    dir: 'asc',
-  });
+  // 1) Filtro por divisa + estado + columnas (sobre las filas individuales).
+  const filasFiltradas = useMemo(() => {
+    return filas.filter((r) => {
+      if (divisaFiltro !== 'ambos' && (r.divisa || 'MXN') !== divisaFiltro) return false;
+      if (estado === 'pend' && r.fec_pago) return false;
+      if (estado === 'paid' && !r.fec_pago) return false;
+      if (!incluye(r.nave, cf.nave)) return false;
+      if (!incluye(r.parque, cf.parque)) return false;
+      if (!incluye(r.razon_social, cf.rs)) return false;
+      if (!incluye(r.concepto, cf.conc)) return false;
+      return true;
+    });
+  }, [filas, divisaFiltro, estado, cf]);
 
-  // Totales SEPARADOS por divisa (nunca se mezclan MXN y USD).
-  const totales = useMemo(() => {
-    const map = new Map<string, TotalDivisa>();
-    for (const r of filas) {
-      const d = r.divisa || 'MXN';
-      const cur = map.get(d) ?? { total: 0, cobrado: 0, pendiente: 0 };
+  // 2) Agrupación por nave+parque+razón social, con desglose por concepto.
+  const grupos = useMemo(() => {
+    const map = new Map<string, Grupo>();
+    for (const r of filasFiltradas) {
+      const key = `${r.nave}||${r.parque}||${r.razon_social}`;
+      let g = map.get(key);
+      if (!g) {
+        g = {
+          nave: r.nave ?? '—',
+          parque: r.parque ?? '—',
+          razon_social: r.razon_social ?? '—',
+          mxnPend: 0,
+          mxnPaid: 0,
+          usdPend: 0,
+          usdPaid: 0,
+          cntPend: 0,
+          cntPaid: 0,
+          conceptos: {},
+        };
+        map.set(key, g);
+      }
       const m = r.monto ?? 0;
-      cur.total += m;
-      if (r.fec_pago) cur.cobrado += m;
-      else cur.pendiente += m;
-      map.set(d, cur);
+      const mxn = esMXN(r.divisa);
+      if (!r.fec_pago) {
+        if (mxn) g.mxnPend += m;
+        else g.usdPend += m;
+        g.cntPend++;
+      } else {
+        if (mxn) g.mxnPaid += m;
+        else g.usdPaid += m;
+        g.cntPaid++;
+      }
+      const conc = r.concepto || 'Sin concepto';
+      const c = g.conceptos[conc] ?? { pend: 0, paid: 0, div: r.divisa ?? 'MXN' };
+      if (!r.fec_pago) c.pend += m;
+      else c.paid += m;
+      g.conceptos[conc] = c;
     }
-    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [filas]);
+    return [...map.values()];
+  }, [filasFiltradas]);
+
+  // 3) Orden (por defecto parque, luego nave).
+  const gruposOrden = useMemo(() => {
+    const arr = [...grupos];
+    arr.sort((a, b) => {
+      const cmp =
+        a[sortCol].localeCompare(b[sortCol], 'es') ||
+        a.parque.localeCompare(b.parque, 'es') ||
+        a.nave.localeCompare(b.nave, 'es');
+      return sortAsc ? cmp : -cmp;
+    });
+    return arr;
+  }, [grupos, sortCol, sortAsc]);
+
+  // 4) Stats + totales del pie.
+  const stats = useMemo(() => {
+    const naves = new Set<string>();
+    const navesPend = new Set<string>();
+    let mxnPend = 0;
+    let mxnPaid = 0;
+    let usdPend = 0;
+    let usdPaid = 0;
+    for (const g of grupos) {
+      const key = `${g.nave}||${g.parque}||${g.razon_social}`;
+      naves.add(key);
+      if (g.cntPend > 0) navesPend.add(key);
+      mxnPend += g.mxnPend;
+      mxnPaid += g.mxnPaid;
+      usdPend += g.usdPend;
+      usdPaid += g.usdPaid;
+    }
+    return {
+      naves: naves.size,
+      navesPend: navesPend.size,
+      mxnPend,
+      mxnPaid,
+      usdPend,
+      usdPaid,
+      hayUsd: usdPend > 0 || usdPaid > 0,
+    };
+  }, [grupos]);
+
+  const sortBy = (col: SortCol) => {
+    if (sortCol === col) setSortAsc((s) => !s);
+    else {
+      setSortCol(col);
+      setSortAsc(true);
+    }
+  };
+
+  const ind = (col: SortCol) => (sortCol === col ? (sortAsc ? ' ↑' : ' ↓') : ' ↕');
+
+  function mostrarTip(e: React.MouseEvent, g: Grupo, tipo: 'pend' | 'paid') {
+    const filasTip = Object.entries(g.conceptos)
+      .filter(([, v]) => (tipo === 'pend' ? v.pend > 0 : v.paid > 0))
+      .sort((a, b) => (tipo === 'pend' ? b[1].pend - a[1].pend : b[1].paid - a[1].paid))
+      .map(([conc, v]) => ({ conc, monto: tipo === 'pend' ? v.pend : v.paid, div: v.div }));
+    if (filasTip.length === 0) {
+      setTip(null);
+      return;
+    }
+    // Posición fija en el punto de entrada, ajustada para no salir de la pantalla.
+    const w = 280;
+    const h = 44 + filasTip.length * 22;
+    let x = e.clientX + 12;
+    let y = e.clientY + 12;
+    if (x + w > window.innerWidth - 8) x = e.clientX - w - 12;
+    if (y + h > window.innerHeight - 8) y = e.clientY - h - 12;
+    setTip({
+      x,
+      y,
+      titulo: tipo === 'pend' ? 'Desglose pendiente' : 'Desglose cobrado',
+      filas: filasTip,
+    });
+  }
 
   const anios = filtros?.anios?.length ? filtros.anios : [anio];
 
+  // Filas pendientes de la razón social activa (para el modal).
+  const pendientesModal = useMemo(
+    () => (modalRS ? filas.filter((r) => r.razon_social === modalRS && !r.fec_pago) : []),
+    [filas, modalRS],
+  );
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-800">Arrendatarios · Cobranza</h1>
-        <button
-          type="button"
-          onClick={() => setAplicar(true)}
-          className="rounded-lg bg-[#1f2a4d] px-4 py-2 text-sm font-medium text-white hover:bg-[#2a376a]"
-        >
-          Aplicar pago
-        </button>
-      </div>
+    <div className="space-y-3">
+      <h1 className="text-2xl font-bold tracking-tight text-gray-800">Arrendatarios · Cobranza</h1>
 
-      {/* Filtros */}
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="text-xs text-gray-600">
-          Año
-          <select
-            value={anio}
-            onChange={(e) => setAnio(Number(e.target.value))}
-            className="mt-1 block rounded border px-2 py-1.5 text-sm"
-          >
-            {anios.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-xs text-gray-600">
-          Mes
-          <select
-            value={mes}
-            onChange={(e) => setMes(Number(e.target.value))}
-            className="mt-1 block rounded border px-2 py-1.5 text-sm"
-          >
-            {MESES.map((m, i) => (
-              <option key={m} value={i + 1}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-xs text-gray-600">
-          Parque
-          <select
-            value={parque}
-            onChange={(e) => setParque(e.target.value)}
-            className="mt-1 block rounded border px-2 py-1.5 text-sm"
-          >
-            <option value="">Todos</option>
-            {(filtros?.parques ?? []).map((p) => (
-              <option key={p.idParque} value={p.nomParque ?? p.idParque}>
-                {p.nomParque ?? p.idParque}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          onClick={() => setSoloPendientes((s) => !s)}
-          className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-            soloPendientes
-              ? 'border-[#1f2a4d] bg-[#1f2a4d] text-white'
-              : 'border-gray-300 text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          Solo pendientes
-        </button>
-      </div>
+      {/* Stats bar */}
+      <div className="flex flex-wrap items-stretch gap-2">
+        <Stat label="Naves" valor={stats.naves.toLocaleString('es-MX')} />
+        <Stat label="Naves pendientes" valor={stats.navesPend.toLocaleString('es-MX')} clase="text-red-600" />
+        <Stat label="Monto pendiente MXN" valor={num(stats.mxnPend)} clase="text-red-600" />
+        <Stat label="Cobrado MXN" valor={num(stats.mxnPaid)} clase="text-green-600" />
 
-      {/* Totales por divisa */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {totales.length === 0 ? (
-          <div className="rounded-xl border bg-white p-4 text-sm text-gray-400">
-            Sin movimientos en el periodo.
+        {/* Toggle estado */}
+        <div className="flex items-stretch overflow-hidden rounded-lg border">
+          {([
+            { v: 'all', label: 'Todos', activo: 'bg-[#1f2a4d] text-white' },
+            { v: 'pend', label: 'Pendientes', activo: 'bg-red-600 text-white' },
+            { v: 'paid', label: 'Pagados', activo: 'bg-green-600 text-white' },
+          ] as const).map((b) => (
+            <button
+              key={b.v}
+              type="button"
+              onClick={() => setEstado(b.v)}
+              className={`border-r px-3 text-xs font-semibold last:border-r-0 ${
+                estado === b.v ? b.activo : 'text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Periodo */}
+        <div className="ml-auto flex flex-col justify-center gap-1 rounded-lg border px-3 py-1.5">
+          <div className="flex items-center gap-2">
+            <span className="w-8 text-[11px] font-semibold text-gray-400">Mes</span>
+            <select
+              value={mes}
+              onChange={(e) => setMes(Number(e.target.value))}
+              className="rounded border px-2 py-0.5 text-sm font-semibold text-[#1f2a4d]"
+            >
+              <option value={0}>Todos</option>
+              {MESES.map((m, i) => (
+                <option key={m} value={i + 1}>
+                  {m}
+                </option>
+              ))}
+            </select>
           </div>
-        ) : (
-          totales.map(([divisa, t]) => (
-            <div key={divisa} className="rounded-xl border bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Cobranza {divisa}
-              </p>
-              <div className="mt-2 space-y-1 text-sm">
-                <Linea label="Objetivo" valor={moneda(t.total, divisa)} />
-                <Linea label="Cobrado" valor={moneda(t.cobrado, divisa)} clase="text-green-600" />
-                <Linea label="Pendiente" valor={moneda(t.pendiente, divisa)} clase="text-red-600" />
-              </div>
-            </div>
-          ))
-        )}
+          <div className="flex items-center gap-2">
+            <span className="w-8 text-[11px] font-semibold text-gray-400">Año</span>
+            <select
+              value={anio}
+              onChange={(e) => setAnio(Number(e.target.value))}
+              className="rounded border px-2 py-0.5 text-sm font-semibold text-[#1f2a4d]"
+            >
+              {anios.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Filtro divisa */}
+        <div className="flex items-stretch overflow-hidden rounded-lg border">
+          {(['ambos', 'MXN', 'USD'] as const).map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setDivisaFiltro(d)}
+              className={`border-r px-3 text-xs font-semibold last:border-r-0 ${
+                divisaFiltro === d ? 'bg-[#1f2a4d] text-white' : 'text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              {d === 'ambos' ? 'Ambos' : d}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-        {/* Tabla de pagos */}
-        <div className="rounded-xl border bg-white">
+      <div className="grid gap-3 lg:grid-cols-[1fr_250px]">
+        {/* Tabla agrupada */}
+        <div className="overflow-auto rounded-xl border bg-white" style={{ maxHeight: '70vh' }}>
           <table className="min-w-full border-collapse text-sm">
-            <thead className={THEAD_DASHBOARD}>
-              <tr className={THEAD_TR}>
-                <SortableTh campo="fecha" sortKey={sortKey} dir={dir} onSort={toggle}>
-                  Fecha
-                </SortableTh>
-                <SortableTh campo="nave" sortKey={sortKey} dir={dir} onSort={toggle}>
-                  Nave
-                </SortableTh>
-                <SortableTh campo="cliente" sortKey={sortKey} dir={dir} onSort={toggle}>
-                  Arrendatario
-                </SortableTh>
-                <SortableTh campo="parque" sortKey={sortKey} dir={dir} onSort={toggle}>
-                  Parque
-                </SortableTh>
-                <SortableTh campo="concepto" sortKey={sortKey} dir={dir} onSort={toggle}>
-                  Concepto
-                </SortableTh>
-                <SortableTh campo="monto" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
-                  Monto
-                </SortableTh>
-                <SortableTh campo="divisa" sortKey={sortKey} dir={dir} onSort={toggle} align="center">
-                  Divisa
-                </SortableTh>
-                <SortableTh campo="fec_pago" sortKey={sortKey} dir={dir} onSort={toggle}>
-                  Pago
-                </SortableTh>
+            <thead>
+              <tr className="bg-[#1f2a4d] text-left text-xs font-semibold uppercase tracking-wide text-white [&>th]:sticky [&>th]:top-0 [&>th]:z-20 [&>th]:bg-[#1f2a4d] [&>th]:px-3 [&>th]:py-2">
+                <th className="cursor-pointer hover:bg-[#2a376a]" onClick={() => sortBy('nave')}>
+                  Nave{ind('nave')}
+                </th>
+                <th className="cursor-pointer hover:bg-[#2a376a]" onClick={() => sortBy('parque')}>
+                  Parque{ind('parque')}
+                </th>
+                <th className="cursor-pointer hover:bg-[#2a376a]" onClick={() => sortBy('razon_social')}>
+                  Razón Social{ind('razon_social')}
+                </th>
+                <th className="text-right">Pendiente</th>
+                <th className="text-right">Cobrado</th>
+                <th className="text-center">Opciones</th>
+              </tr>
+              <tr className="bg-[#20456b] [&>th]:sticky [&>th]:top-[33px] [&>th]:z-20 [&>th]:bg-[#20456b] [&>th]:px-2 [&>th]:py-1">
+                <th>
+                  <FiltroCol valor={cf.nave} onChange={(v) => setCf({ ...cf, nave: v })} ph="nave…" />
+                </th>
+                <th>
+                  <FiltroCol valor={cf.parque} onChange={(v) => setCf({ ...cf, parque: v })} ph="parque…" />
+                </th>
+                <th>
+                  <FiltroCol valor={cf.rs} onChange={(v) => setCf({ ...cf, rs: v })} ph="razón social…" />
+                </th>
+                <th>
+                  <FiltroCol valor={cf.conc} onChange={(v) => setCf({ ...cf, conc: v })} ph="concepto…" />
+                </th>
+                <th />
+                <th />
               </tr>
             </thead>
             <tbody className="divide-y">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
-                    Cargando…
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                    Cargando datos…
                   </td>
                 </tr>
-              ) : ordenados.length === 0 ? (
+              ) : gruposOrden.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
-                    Sin partidas para el periodo seleccionado.
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                    Sin registros para los filtros seleccionados.
                   </td>
                 </tr>
               ) : (
-                ordenados.map((r) => (
-                  <tr
-                    key={r.id_detalle}
-                    className={pendiente(r) ? 'bg-[#FFE9E9] hover:bg-[#FFDCDC]' : 'hover:bg-gray-50'}
-                  >
-                    <td className="px-4 py-2 whitespace-nowrap">{fechaCorta(r.fecha)}</td>
-                    <td className="px-4 py-2">{r.nave ?? '—'}</td>
-                    <td className="px-4 py-2">{r.razon_social ?? '—'}</td>
-                    <td className="px-4 py-2">{r.parque ?? '—'}</td>
-                    <td className="px-4 py-2">{r.concepto ?? '—'}</td>
-                    <td className="px-4 py-2 text-right tabular-nums">{moneda(r.monto, r.divisa ?? 'MXN')}</td>
-                    <td className="px-4 py-2 text-center">{r.divisa ?? 'MXN'}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">
-                      {r.fec_pago ? (
-                        fechaCorta(r.fec_pago)
-                      ) : (
-                        <span className="text-red-500">Pendiente</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                gruposOrden.map((g) => {
+                  const allPend = g.cntPaid === 0;
+                  const allPaid = g.cntPend === 0;
+                  const bg = allPend ? 'bg-[#FDE8E8]' : allPaid ? 'bg-[#F0FAF1]' : '';
+                  return (
+                    <tr key={`${g.nave}|${g.parque}|${g.razon_social}`} className={`${bg} hover:bg-blue-50`}>
+                      <td className="px-3 py-1.5 font-bold text-[#1f2a4d]">{g.nave}</td>
+                      <td className="px-3 py-1.5">{g.parque}</td>
+                      <td className="px-3 py-1.5">{g.razon_social}</td>
+                      <td
+                        className="px-3 py-1.5 text-right"
+                        onMouseEnter={(e) => mostrarTip(e, g, 'pend')}
+                        onMouseLeave={() => setTip(null)}
+                      >
+                        <MontoDivisa mxn={g.mxnPend} usd={g.usdPend} clase="text-red-600" />
+                      </td>
+                      <td
+                        className="px-3 py-1.5 text-right"
+                        onMouseEnter={(e) => mostrarTip(e, g, 'paid')}
+                        onMouseLeave={() => setTip(null)}
+                      >
+                        <MontoDivisa mxn={g.mxnPaid} usd={g.usdPaid} clase="text-green-600" />
+                      </td>
+                      <td className="px-3 py-1.5 text-center">
+                        {g.cntPend > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => setModalRS(g.razon_social)}
+                            title="Aplicar pago"
+                            className="rounded bg-amber-500 px-2 py-0.5 text-xs text-white hover:bg-amber-600"
+                          >
+                            💲
+                          </button>
+                        ) : (
+                          <span className="text-xs text-gray-400">✓</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
+            {gruposOrden.length > 0 && (
+              <tfoot className="[&>tr>td]:sticky [&>tr>td]:bottom-0 [&>tr>td]:z-10 [&>tr>td]:bg-[#1f2a4d]">
+                <tr className="font-bold text-white">
+                  <td className="px-3 py-2 text-right text-[11px] opacity-85" colSpan={3}>
+                    TOTALES
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <MontoDivisa mxn={stats.mxnPend} usd={stats.usdPend} clase="text-white" />
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <MontoDivisa mxn={stats.mxnPaid} usd={stats.usdPaid} clase="text-white" />
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
 
-        {/* Vencimientos */}
-        <div className="space-y-4">
-          <Vencimientos
-            titulo="Por vencer"
-            vacio="Sin contratos por vencer."
-            filas={porVencer.map((c) => ({
-              nave: c.nave,
-              razon: c.razon_social,
-              fecha: c.fec_fin,
-              extra: null,
-            }))}
-          />
-          <Vencimientos
-            titulo="Vencidos sin renovación"
-            vacio="Sin contratos vencidos."
-            rojo
-            filas={vencidos.map((c) => ({
-              nave: c.nave,
-              razon: c.razon_social,
-              fecha: c.fec_fin,
-              extra: c.dias_vencido != null ? `${c.dias_vencido} días` : null,
-            }))}
-          />
+        {/* Sidebar de vencimientos */}
+        <div className="space-y-2">
+          <p className="px-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">
+            Contratos vencidos
+          </p>
+          <PanelVenc
+            id="venc"
+            titulo="Sin renovación"
+            color="bg-red-700"
+            count={vencidos.length}
+            colapsado={!!colapso.venc}
+            onToggle={() => setColapso((c) => ({ ...c, venc: !c.venc }))}
+          >
+            {vencidos.length === 0 ? (
+              <Vacio />
+            ) : (
+              vencidos.map((v, i) => (
+                <ItemVenc key={i} c={v} extra={`${v.dias_vencido ?? 0} día(s) vencido`} />
+              ))
+            )}
+          </PanelVenc>
+
+          <p className="px-1 pt-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">
+            Próximos vencimientos
+          </p>
+          <Vencimientos porVencer={porVencer} colapso={colapso} setColapso={setColapso} />
         </div>
       </div>
 
-      {aplicar && <AplicarPagoModal onClose={() => setAplicar(false)} onAplicado={onCambio} />}
+      {/* Tooltip desglose */}
+      {tip && (
+        <div
+          className="pointer-events-none fixed z-[9000] min-w-[200px] max-w-[280px] rounded-lg bg-[#1e2d3d] px-3.5 py-2.5 text-xs text-gray-100 shadow-xl"
+          style={{ left: tip.x, top: tip.y }}
+        >
+          <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-white/50">
+            {tip.titulo}
+          </div>
+          <table className="w-full">
+            <tbody>
+              {tip.filas.map((f, i) => (
+                <tr key={i} className="border-t border-white/10 first:border-t-0">
+                  <td className="py-0.5">{f.conc}</td>
+                  <td className="py-0.5 pl-3 text-right font-semibold tabular-nums">
+                    {num(f.monto)} <span className="text-[10px] opacity-60">{f.div}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {modalRS && (
+        <AplicarPagoModal
+          razonSocial={modalRS}
+          filasPendientes={pendientesModal}
+          anio={anio}
+          mes={mes}
+          onClose={() => setModalRS(null)}
+          onAplicado={onCambio}
+        />
+      )}
     </div>
   );
 }
 
-function Linea({ label, valor, clase }: { label: string; valor: string; clase?: string }) {
+/**
+ * Muestra el/los montos de una celda en una sola columna, con la moneda como
+ * etiqueta al lado. Si hay MXN y USD a la vez, se apilan; si no hay nada, "—".
+ */
+function MontoDivisa({ mxn, usd, clase }: { mxn: number; usd: number; clase?: string }) {
+  if (mxn <= 0 && usd <= 0) return <span className="text-gray-400">—</span>;
+  const linea = (monto: number, div: string) => (
+    <div className={`tabular-nums font-medium ${clase ?? 'text-gray-800'}`}>
+      {num(monto)} <span className="text-[10px] font-normal opacity-60">{div}</span>
+    </div>
+  );
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-gray-500">{label}</span>
-      <span className={`tabular-nums font-medium ${clase ?? 'text-gray-800'}`}>{valor}</span>
+    <div className="flex flex-col items-end gap-0.5">
+      {mxn > 0 && linea(mxn, 'MXN')}
+      {usd > 0 && linea(usd, 'USD')}
     </div>
   );
 }
 
-function Vencimientos({
-  titulo,
-  vacio,
-  filas,
-  rojo,
+function Stat({ label, valor, clase }: { label: string; valor: string; clase?: string }) {
+  return (
+    <div className="flex min-w-[130px] flex-col gap-0.5 rounded-lg border bg-white px-3.5 py-1.5">
+      <span className="text-[10px] uppercase tracking-wide text-gray-400">{label}</span>
+      <span className={`text-base font-bold ${clase ?? 'text-[#1f2a4d]'}`}>{valor}</span>
+    </div>
+  );
+}
+
+function FiltroCol({
+  valor,
+  onChange,
+  ph,
 }: {
-  titulo: string;
-  vacio: string;
-  filas: { nave: string | null; razon: string | null; fecha: string | null; extra: string | null }[];
-  rojo?: boolean;
+  valor: string;
+  onChange: (v: string) => void;
+  ph: string;
 }) {
   return (
-    <div className="rounded-xl border bg-white">
-      <div className={`rounded-t-xl px-4 py-2 text-sm font-semibold text-white ${rojo ? 'bg-red-500' : 'bg-[#1f2a4d]'}`}>
-        {titulo} ({filas.length})
+    <input
+      value={valor}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={ph}
+      className="w-full rounded border border-white/25 bg-white/10 px-1.5 py-0.5 text-[11px] text-white placeholder:text-white/40 outline-none focus:bg-white/20"
+    />
+  );
+}
+
+/** Agrupa los contratos por vencer en rangos 1m / 2m / 3m según `fec_fin`. */
+function Vencimientos({
+  porVencer,
+  colapso,
+  setColapso,
+}: {
+  porVencer: ContratoPorVencer[];
+  colapso: Record<string, boolean>;
+  setColapso: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+}) {
+  const { b1, b2, b3 } = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const m1 = addMonths(now, 1);
+    const m2 = addMonths(now, 2);
+    const m3 = addMonths(now, 3);
+    const en = (r: ContratoPorVencer, a: Date, b: Date) => {
+      const d = parseLocal(r.fec_fin);
+      return d ? d >= a && d < b : false;
+    };
+    return {
+      b1: porVencer.filter((r) => en(r, now, m1)),
+      b2: porVencer.filter((r) => en(r, m1, m2)),
+      b3: porVencer.filter((r) => en(r, m2, m3)),
+    };
+  }, [porVencer]);
+
+  const paneles = [
+    { id: '1m', titulo: '1 mes', color: 'bg-[#e67e22]', filas: b1 },
+    { id: '2m', titulo: '2 meses', color: 'bg-[#f39c12]', filas: b2 },
+    { id: '3m', titulo: '3 meses', color: 'bg-[#27ae60]', filas: b3 },
+  ];
+
+  return (
+    <>
+      {paneles.map((p) => (
+        <PanelVenc
+          key={p.id}
+          id={p.id}
+          titulo={p.titulo}
+          color={p.color}
+          count={p.filas.length}
+          colapsado={!!colapso[p.id]}
+          onToggle={() => setColapso((c) => ({ ...c, [p.id]: !c[p.id] }))}
+        >
+          {p.filas.length === 0 ? (
+            <Vacio />
+          ) : (
+            p.filas.map((c, i) => <ItemVenc key={i} c={c} extra={`${c.moneda ?? 'MXN'}`} />)
+          )}
+        </PanelVenc>
+      ))}
+    </>
+  );
+}
+
+function PanelVenc({
+  titulo,
+  color,
+  count,
+  colapsado,
+  onToggle,
+  children,
+}: {
+  id: string;
+  titulo: string;
+  color: string;
+  count: number;
+  colapsado: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border">
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`flex w-full items-center justify-between px-3 py-1.5 text-xs font-bold text-white ${color}`}
+      >
+        <span>
+          {titulo}{' '}
+          <span className="ml-1 rounded-full bg-white/30 px-1.5 text-[11px]">{count}</span>
+        </span>
+        <span className={`text-[10px] transition-transform ${colapsado ? '-rotate-90' : ''}`}>▼</span>
+      </button>
+      {!colapsado && <div className="max-h-56 overflow-auto bg-white">{children}</div>}
+    </div>
+  );
+}
+
+function ItemVenc({ c, extra }: { c: ContratoPorVencer & { dias_vencido?: number | null }; extra: string }) {
+  return (
+    <div className="border-b px-2 py-1.5 text-[11px] leading-tight last:border-b-0">
+      <div className="font-bold text-[#1f2a4d]">
+        {c.nave ?? '—'} · {c.parque ?? '—'}
       </div>
-      <div className="max-h-72 divide-y overflow-auto">
-        {filas.length === 0 ? (
-          <p className="px-4 py-4 text-center text-xs text-gray-400">{vacio}</p>
-        ) : (
-          filas.map((f, i) => (
-            <div key={`${f.nave}-${i}`} className="px-4 py-2 text-xs">
-              <p className="font-medium text-gray-700">{f.nave ?? '—'}</p>
-              <p className="text-gray-400">{f.razon ?? '—'}</p>
-              <p className="flex justify-between text-gray-500">
-                <span>{fechaCorta(f.fecha)}</span>
-                {f.extra && <span className={rojo ? 'text-red-500' : ''}>{f.extra}</span>}
-              </p>
-            </div>
-          ))
-        )}
+      <div className="truncate text-gray-600">{c.razon_social ?? '—'}</div>
+      <div className="flex justify-between text-gray-400">
+        <span>Vence: {fechaCorta(c.fec_fin)}</span>
+        <span className={c.dias_vencido != null ? 'font-bold text-red-700' : ''}>{extra}</span>
       </div>
     </div>
   );
+}
+
+function Vacio() {
+  return <p className="px-2 py-2.5 text-center text-[11px] text-gray-400">Sin vencimientos</p>;
 }

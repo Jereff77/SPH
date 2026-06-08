@@ -59,16 +59,30 @@
   - **Clientes** (clave 300, sección directa `/clientes`): padrón de la tabla `inversionista` (migra la
     pantalla "Clientes" del CRM de v1). Chips Inversionistas/Arrendatarios/Ticket/Usuario Final/Papelera +
     buscador + tabla ordenable + alta/edición + mover a papelera. Sin objetos nuevos en BD.
+  - **Arrendatarios** (grupo propio) — **módulo completo**: **Dashboard de cobranza** (clave 10, `/arrendatarios`)
+    réplica del de v1 (stats, toggle Todos/Pendientes/Pagados, filtro divisa, tabla agrupada por nave+parque+
+    razón social con filtros por columna + tooltip de desglose + montos en columna única con moneda al lado,
+    sidebar de vencimientos 1/2/3 meses + vencidos, aplicar pago Exacto/Sobrante/Insuficiente, SSE) — **sin
+    cliente Supabase ni anon key en el navegador** (se eliminó el WebView de v1). **Planes de Renta** (clave 20,
+    `/arrendatarios/planes`): selector arrendatario/propiedad, historial (solo activos/finalizados), corrida,
+    **Liberar nave** (baja lógica), **Configuración** (Datos solo-lectura, Documentos, Propiedades, **Plan de
+    Pagos** con layout 2 columnas: Generales con subtotales/Total Mes en vivo + Cargos KVA + Conceptos +
+    **Previsualización** de la corrida) y **Renovación** de plan con **activación automática** (pg_cron). Motor
+    de cálculo INPC delegado a las RPCs `arrepdp_*` existentes (vía `comoActor`). Ver `modulos/arrendatarios.md`.
 - **Objetos NUEVOS en BD (con autorización):** bucket `branding` + `v2_obtener_logo_url()`;
   `catClavesProdServ`; permisos 470/800/801 + enum `Modulos`+='Correo'; tablas `correo_*`; parámetro
-  `RFC_RECEPTORES_AUTORIZADOS`. Detalle por módulo en `base-conocimiento/`. Nada del sistema viejo fue tocado.
+  `RFC_RECEPTORES_AUTORIZADOS`; **Arrendatarios:** RPCs `v2_arrepdp_renovar` + `v2_arrepdp_activar_renovaciones`
+  + job pg_cron `v2-arrepdp-activar-renovaciones` (02:00). **Único objeto del sistema viejo modificado (con
+  autorización):** la columna generada `arrePdp."fecFin"` se redefinió a `fecInicio + plazo − 1 día` (antes no
+  restaba el día). Detalle por módulo en `base-conocimiento/`.
 - **Despliegue:** EasyPanel, 2 apps (api Dockerfile `apps/api/Dockerfile` :3001, web `apps/web/Dockerfile`
   :80). Guía: `DEPLOY-EASYPANEL.md`. Flujo: push a `erp_v2` → Implementar.
 - **Siguiente:** Ventas Etapa 2 (**Reportes 620**, **Escrituras 630**, creación de **Renta Garantizada**
   vía RPCs `rgpdp_insertar_registro`/`rgpdp_generar_plan_pagos` y **Renta Administrada** `rapdp_actualizar`,
   pasar las pestañas de rentas a cálculo propio); CxP Dashboard(440/441) y Reportes(460); conciliación
   bancaria avanzada; configurar la cuenta de Correo (`EMAIL_ENCRYPTION_KEY` en EasyPanel); migrar stubs
-  (Arrendatarios, Fideicomiso, resto del CRM). Ver pendientes completos en `../.sessions/contexto.md`.
+  (Fideicomiso, resto del CRM). **Arrendatarios ya migrado** (ver arriba). Ver pendientes completos en
+  `../.sessions/contexto.md`.
 
 > ⚠️ **Nota de UI:** el sidebar (`components/layout/menu.tsx` + `Sidebar.tsx`) soporta **grupos directos**
 > (un grupo con `to`/`clave` se renderiza como enlace sin submenú — así está "Clientes"). Componente
@@ -133,6 +147,16 @@
      de las columnas** (clic en el encabezado, asc/desc).
    - Patrón de implementación: usar los helpers compartidos `useSort` + `SortableTh` + `THEAD_STICKY`
      (`apps/web/src/components/tabla/`). No reinventar el encabezado en cada pantalla.
+
+7b. **📅 FORMATO DE FECHA (regla de diseño).** En **toda** la app, las fechas se **muestran y se capturan en
+   formato `dd/mm/aaaa`** (no ISO ni el formato del navegador), salvo indicación distinta del usuario.
+   - **Visualización:** usar un helper tipo `fechaCorta()` (devuelve `d/m/aaaa`). No mostrar `yyyy-MM-dd`.
+   - **Captura:** usar el componente compartido **`components/InputFecha.tsx`**, que combina un input de texto
+     con máscara `dd/mm/aaaa` (auto-inserta las `/`) **y conserva el selector de calendario** nativo (botón 📅
+     que abre el date picker del navegador vía `showPicker()`). Internamente trabaja en **ISO**
+     (`value`/`onChange` en `yyyy-MM-dd`) para el backend. No usar `<input type="date">` directo (su formato de
+     display lo decide el navegador y no es controlable). Migrar los `type="date"` existentes a `InputFecha`
+     cuando se toquen esas pantallas.
 
 8. **📚 BASE DE CONOCIMIENTO (regla de documentación para el agente de soporte).** Existe una KB en
    `version2/base-conocimiento/` pensada para un **futuro agente de IA de soporte** (explicar cómo usar

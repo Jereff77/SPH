@@ -182,6 +182,39 @@ export interface ConceptoInput {
   dividir: boolean;
 }
 
+/** Datos para precargar el formulario de renovación (último mes del plan anterior). */
+export interface RenovacionPrecarga {
+  idArrePdp: string;
+  fecInicio: string;
+  fecFinActual: string | null;
+  arrePdpVigente: ArrePdpVigente | null;
+  plazo: number;
+  m2Construccion: number;
+  deposito: number;
+  precioM2: number;
+  pm2Admin: number;
+  pm2Mtto: number;
+  pm2Vig: number;
+  inpcPlus: number;
+  moneda: 'MXN' | 'USD';
+}
+
+export interface RenovarInput {
+  plazo: number;
+  m2Construccion: number;
+  deposito: number;
+  precioM2: number;
+  pm2Admin: number;
+  pm2Mtto: number;
+  pm2Vig: number;
+  inpcPlus: number;
+  moneda: 'MXN' | 'USD';
+  cortesiaRenta: number;
+  cortesiaAdmin: number;
+  cortesiaMtto: number;
+  cortesiaVig: number;
+}
+
 // ============================ Cobranza ============================
 
 export interface FiltrosCobranza {
@@ -270,6 +303,13 @@ export const arrendatariosApi = {
     api.post<{ ok: true }>(`/arrendatarios/planes/${idArrePdp}/desactivar${dq({ idNavArrend })}`, {}),
   eliminarPlan: (idArrePdp: string) =>
     api.delete<{ mensaje: string }>(`/arrendatarios/planes/${idArrePdp}`),
+  renovacionPrecarga: (idArrePdp: string) =>
+    api.get<RenovacionPrecarga>(`/arrendatarios/planes/${idArrePdp}/renovacion-precarga`),
+  renovar: (idArrePdp: string, dto: RenovarInput) =>
+    api.post<{ idArrePdp: string; mensaje: string }>(
+      `/arrendatarios/planes/${idArrePdp}/renovar`,
+      dto,
+    ),
 
   // Config
   datos: (id: string) => api.get<DatosGeneralesArre>(`/arrendatarios/${id}/datos`),
@@ -289,6 +329,8 @@ export const arrendatariosApi = {
     api.get<NaveDisponible[]>(`/arrendatarios/naves-disponibles${dq({ idParque })}`),
   vincularNave: (dto: { idArrendador: string; idNave: string; idParque?: string }) =>
     api.post<{ idNavArrend: string }>('/arrendatarios/propiedades', dto),
+  liberarNave: (idNavArrend: string) =>
+    api.post<{ ok: true }>(`/arrendatarios/propiedades/${idNavArrend}/liberar`, {}),
   inpc: () => api.get<InpcRow[]>('/arrendatarios/inpc'),
 
   // Cobranza

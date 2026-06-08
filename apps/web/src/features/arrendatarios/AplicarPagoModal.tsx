@@ -3,86 +3,98 @@ import { useQuery } from '@tanstack/react-query';
 import {
   arrendatariosApi,
   hoyMexico,
-  moneda,
+  num,
   fechaCorta,
   type DepositoSinAplicar,
   type PagoArreRow,
 } from './arrendatarios.api';
 
+interface NavePendiente {
+  nave: string;
+  parque: string;
+  monto: number;
+}
+
 /**
- * Modal de aplicación de pago: elige un depósito sin aplicar y las partidas
- * pendientes a cubrir. Valida importe vs total seleccionado (Exacto/Sobrante/
- * Insuficiente) y aplica vía `aplicar_pago_arrendatario` (transaccional en el
- * backend). Reemplaza el modal del WebView de v1 (sin cliente Supabase).
+ * Modal de aplicación de pago, abierto **por razón social** (como v1): a la
+ * izquierda los depósitos sin aplicar (búsqueda por ordenante, precargada con la
+ * razón social), a la derecha las naves con pago pendiente de ese arrendatario
+ * (checkbox, marcadas por defecto). Valida importe vs total seleccionado
+ * (Exacto/Sobrante/Insuficiente) y aplica vía `aplicar_pago_arrendatario`.
  */
 export function AplicarPagoModal({
+  razonSocial,
+  filasPendientes,
+  anio,
+  mes,
   onClose,
   onAplicado,
 }: {
+  razonSocial: string;
+  filasPendientes: PagoArreRow[];
+  anio: number;
+  mes: number;
   onClose: () => void;
   onAplicado: () => void;
 }) {
-  const [busca, setBusca] = useState('');
+  const [busca, setBusca] = useState(razonSocial);
   const [deposito, setDeposito] = useState<DepositoSinAplicar | null>(null);
-  const [sel, setSel] = useState<Set<string>>(new Set());
-  const [fecPago, setFecPago] = useState(hoyMexico());
+  const [selNaves, setSelNaves] = useState<Set<string>>(
+    () => new Set(filasPendientes.map((r) => r.nave ?? '')),
+  );
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [aplicando, setAplicando] = useState(false);
 
   const { data: depositos = [], isLoading: cargandoDep } = useQuery({
-    queryKey: ['arre-depositos', busca],
-    queryFn: () => arrendatariosApi.depositosSinAplicar(busca || undefined),
+    queryKey: ['arre-depositos', busca, anio, mes],
+    queryFn: () => arrendatariosApi.depositosSinAplicar(busca || undefined, anio, mes),
   });
 
-  // Partidas pendientes (todas; se filtran por divisa del depósito al seleccionar).
-  const { data: pendientes = [], isLoading: cargandoPend } = useQuery({
-    queryKey: ['arre-pendientes-aplicar'],
-    queryFn: () => arrendatariosApi.cobranza({ soloPendientes: true }),
-    enabled: !!deposito,
-  });
-
-  const divisaDep = deposito?.moneda || 'MXN';
-  // Solo partidas de la misma divisa que el depósito (no se mezclan MXN/USD).
-  const candidatas = useMemo(
-    () => pendientes.filter((p) => (p.divisa || 'MXN') === divisaDep),
-    [pendientes, divisaDep],
-  );
+  // Naves pendientes de esta razón social (agrupadas, suma de monto).
+  const naves = useMemo<NavePendiente[]>(() => {
+    const map = new Map<string, NavePendiente>();
+    for (const r of filasPendientes) {
+      const nave = r.nave ?? '—';
+      const cur = map.get(nave) ?? { nave, parque: r.parque ?? '', monto: 0 };
+      cur.monto += r.monto ?? 0;
+      map.set(nave, cur);
+    }
+    return [...map.values()].sort((a, b) => a.nave.localeCompare(b.nave, 'es'));
+  }, [filasPendientes]);
 
   const totalSel = useMemo(
-    () => candidatas.filter((p) => sel.has(p.id_detalle)).reduce((s, p) => s + (p.monto ?? 0), 0),
-    [candidatas, sel],
+    () => naves.filter((n) => selNaves.has(n.nave)).reduce((s, n) => s + n.monto, 0),
+    [naves, selNaves],
   );
 
   const importe = deposito?.importe ?? 0;
+  const dif = importe - totalSel;
   const estado: 'Exacto' | 'Sobrante' | 'Insuficiente' | null =
-    !deposito || sel.size === 0
+    !deposito || totalSel === 0
       ? null
-      : importe + 0.005 < totalSel
+      : dif < -0.005
         ? 'Insuficiente'
-        : Math.abs(importe - totalSel) <= 0.005
+        : Math.abs(dif) <= 0.005
           ? 'Exacto'
           : 'Sobrante';
 
-  const toggle = (id: string) =>
-    setSel((s) => {
+  const toggleNave = (nave: string) =>
+    setSelNaves((s) => {
       const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
+      if (n.has(nave)) n.delete(nave);
+      else n.add(nave);
       return n;
     });
 
-  function elegirDeposito(d: DepositoSinAplicar) {
-    setDeposito(d);
-    setSel(new Set());
-    setError(null);
-    setMsg(null);
-  }
-
   async function aplicar() {
-    if (!deposito || sel.size === 0) return;
-    if (estado === 'Insuficiente') {
-      setError('El depósito es insuficiente para las partidas seleccionadas.');
+    if (!deposito || estado === 'Insuficiente' || selNaves.size === 0) return;
+    // ids de todas las partidas pendientes de las naves seleccionadas.
+    const idsDetalle = filasPendientes
+      .filter((r) => selNaves.has(r.nave ?? ''))
+      .map((r) => r.id_detalle);
+    if (idsDetalle.length === 0) {
+      setError('Sin partidas pendientes para las naves seleccionadas.');
       return;
     }
     setError(null);
@@ -90,13 +102,12 @@ export function AplicarPagoModal({
     try {
       const r = await arrendatariosApi.aplicarPago({
         idmov: deposito.idmov,
-        idsDetalle: [...sel],
-        fecPago,
+        idsDetalle,
+        fecPago: deposito.fec_operacion ?? hoyMexico(),
       });
-      setMsg(`Pago aplicado (${r.estado}). Importe ${moneda(r.importe, divisaDep)} / total ${moneda(r.total, divisaDep)}.`);
-      setDeposito(null);
-      setSel(new Set());
+      setMsg(`Pago aplicado (${r.estado}). Importe ${num(r.importe)} / total ${num(r.total)}.`);
       onAplicado();
+      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo aplicar el pago.');
     } finally {
@@ -113,46 +124,51 @@ export function AplicarPagoModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between bg-[#1f2a4d] px-5 py-3 text-white">
-          <h2 className="text-base font-semibold">Aplicar pago de renta</h2>
+          <h2 className="text-base font-semibold">Aplicar pago — {razonSocial}</h2>
           <button onClick={onClose} className="text-white/80 hover:text-white" aria-label="Cerrar">
             ✕
           </button>
         </div>
 
-        <div className="grid flex-1 grid-cols-1 gap-4 overflow-auto p-5 lg:grid-cols-2">
-          {/* Depósitos sin aplicar */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-gray-700">1. Depósito bancario</h3>
+        <div className="grid flex-1 grid-cols-1 gap-0 overflow-hidden md:grid-cols-2">
+          {/* Depósitos bancarios */}
+          <div className="flex flex-col gap-2 overflow-auto p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Depósito bancario
+            </div>
             <input
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por ordenante / rastreo…"
+              placeholder="Buscar por nombre del ordenante…"
               className="w-full rounded border px-2 py-1.5 text-sm"
             />
-            <div className="max-h-72 divide-y overflow-auto rounded-lg border">
+            <div className="flex flex-col gap-1">
               {cargandoDep ? (
-                <p className="px-3 py-4 text-center text-xs text-gray-400">Cargando…</p>
+                <p className="px-2 py-4 text-center text-xs text-gray-400">Buscando…</p>
               ) : depositos.length === 0 ? (
-                <p className="px-3 py-4 text-center text-xs text-gray-400">Sin depósitos por aplicar.</p>
+                <p className="px-2 py-4 text-center text-xs text-gray-400">
+                  Sin depósitos sin aplicar.
+                </p>
               ) : (
                 depositos.map((d) => (
                   <button
                     key={d.idmov}
                     type="button"
-                    onClick={() => elegirDeposito(d)}
-                    className={`block w-full px-3 py-2 text-left text-xs hover:bg-gray-50 ${
-                      deposito?.idmov === d.idmov ? 'bg-[#1f2a4d]/5' : ''
+                    onClick={() => setDeposito(d)}
+                    className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
+                      deposito?.idmov === d.idmov
+                        ? 'border-amber-500 bg-amber-50'
+                        : 'border-gray-200 hover:bg-gray-50'
                     }`}
                   >
-                    <div className="flex justify-between font-medium text-gray-700">
-                      <span>{d.ordenante ?? '—'}</span>
-                      <span className="tabular-nums">{moneda(d.importe, d.moneda ?? 'MXN')}</span>
+                    <div className="flex items-start justify-between">
+                      <span className="font-semibold text-gray-700">{d.ordenante ?? '—'}</span>
+                      <span className="font-bold text-[#1f2a4d]">{num(d.importe)}</span>
                     </div>
-                    <div className="flex justify-between text-gray-400">
-                      <span>{fechaCorta(d.fec_operacion)}</span>
-                      <span>{d.rastreo ?? ''} · {d.moneda ?? 'MXN'}</span>
+                    <div className="text-gray-400">
+                      {fechaCorta(d.fec_operacion)} · {d.rastreo ?? ''} · {d.moneda ?? 'MXN'}
                     </div>
                   </button>
                 ))
@@ -160,98 +176,77 @@ export function AplicarPagoModal({
             </div>
           </div>
 
-          {/* Partidas pendientes */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-gray-700">2. Partidas a cubrir</h3>
-            {!deposito ? (
-              <p className="rounded-lg border border-dashed px-3 py-8 text-center text-xs text-gray-400">
-                Selecciona primero un depósito.
-              </p>
-            ) : cargandoPend ? (
-              <p className="px-3 py-4 text-center text-xs text-gray-400">Cargando partidas…</p>
-            ) : candidatas.length === 0 ? (
-              <p className="rounded-lg border border-dashed px-3 py-8 text-center text-xs text-gray-400">
-                Sin partidas pendientes en {divisaDep}.
-              </p>
+          {/* Naves con pago pendiente */}
+          <div className="flex flex-col gap-2 overflow-auto border-t p-4 md:border-l md:border-t-0">
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Naves con pago pendiente
+            </div>
+            {naves.length === 0 ? (
+              <p className="px-2 py-4 text-center text-xs text-gray-400">Sin partidas pendientes.</p>
             ) : (
-              <div className="max-h-72 divide-y overflow-auto rounded-lg border">
-                {candidatas.map((p: PagoArreRow) => (
-                  <label
-                    key={p.id_detalle}
-                    className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={sel.has(p.id_detalle)}
-                      onChange={() => toggle(p.id_detalle)}
-                      className="h-4 w-4"
-                    />
-                    <div className="flex-1">
-                      <div className="flex justify-between font-medium text-gray-700">
-                        <span>
-                          {p.nave ?? '—'} · {p.concepto ?? '—'}
-                        </span>
-                        <span className="tabular-nums">{moneda(p.monto, p.divisa ?? 'MXN')}</span>
-                      </div>
-                      <div className="text-gray-400">
-                        {p.razon_social ?? '—'} · {fechaCorta(p.fecha)}
-                      </div>
-                    </div>
-                  </label>
-                ))}
-              </div>
+              naves.map((n) => (
+                <label
+                  key={n.nave}
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs hover:bg-gray-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selNaves.has(n.nave)}
+                    onChange={() => toggleNave(n.nave)}
+                    className="h-4 w-4 accent-amber-500"
+                  />
+                  <div className="flex-1">
+                    <div className="font-bold text-[#1f2a4d]">{n.nave}</div>
+                    <div className="text-gray-400">{n.parque}</div>
+                  </div>
+                  <span className="font-bold text-red-600">{num(n.monto)}</span>
+                </label>
+              ))
             )}
           </div>
         </div>
 
-        {/* Resumen / acciones */}
-        <div className="border-t px-5 py-3">
-          {deposito && (
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
-              <div className="flex items-center gap-4">
-                <span className="text-gray-500">
-                  Importe: <span className="font-medium text-gray-800">{moneda(importe, divisaDep)}</span>
-                </span>
-                <span className="text-gray-500">
-                  Seleccionado: <span className="font-medium text-gray-800">{moneda(totalSel, divisaDep)}</span>
-                </span>
-                {estado && (
-                  <span className={`font-semibold ${colorEstado}`}>
-                    {estado}
-                    {estado === 'Sobrante' && ` (+${moneda(importe - totalSel, divisaDep)})`}
-                  </span>
-                )}
-              </div>
-              <label className="text-xs text-gray-600">
-                Fecha de pago
-                <input
-                  type="date"
-                  value={fecPago}
-                  onChange={(e) => setFecPago(e.target.value)}
-                  className="ml-2 rounded border px-2 py-1 text-sm"
-                />
-              </label>
-            </div>
-          )}
-          {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
-          {msg && <p className="mb-2 text-xs text-green-700">{msg}</p>}
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border px-4 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
-            >
-              Cerrar
-            </button>
-            <button
-              type="button"
-              onClick={aplicar}
-              disabled={aplicando || !deposito || sel.size === 0 || estado === 'Insuficiente'}
-              className="rounded-lg bg-[#1f2a4d] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#2a376a] disabled:opacity-50"
-            >
-              {aplicando ? 'Aplicando…' : 'Aplicar pago'}
-            </button>
+        {/* Resumen */}
+        <div className="flex flex-wrap items-center gap-6 border-t bg-gray-50 px-5 py-3 text-sm">
+          <div>
+            <span className="block text-[10px] uppercase text-gray-400">Depósito</span>
+            <span className="font-bold text-[#1f2a4d]">{deposito ? num(importe) : '—'}</span>
           </div>
+          <div>
+            <span className="block text-[10px] uppercase text-gray-400">Seleccionado</span>
+            <span className="font-bold text-[#1f2a4d]">{totalSel > 0 ? num(totalSel) : '—'}</span>
+          </div>
+          <div>
+            <span className="block text-[10px] uppercase text-gray-400">Diferencia</span>
+            <span className={`font-bold ${estado ? colorEstado : 'text-gray-400'}`}>
+              {estado ? `${estado} ${num(Math.abs(dif))}` : '—'}
+            </span>
+          </div>
+        </div>
+
+        {(error || msg) && (
+          <div className="px-5 pb-1">
+            {error && <p className="text-xs text-red-600">{error}</p>}
+            {msg && <p className="text-xs text-green-700">{msg}</p>}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 border-t px-5 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border px-4 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={aplicar}
+            disabled={aplicando || !deposito || selNaves.size === 0 || estado === 'Insuficiente'}
+            className="rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-gray-300"
+          >
+            {aplicando ? 'Aplicando…' : 'Aplicar pago'}
+          </button>
         </div>
       </div>
     </div>

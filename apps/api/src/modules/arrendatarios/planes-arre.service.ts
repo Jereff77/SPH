@@ -12,6 +12,7 @@ import type {
   CrearPlanRentaDto,
   DocArreDto,
   EditarCampoDto,
+  RenovarPlanDto,
   VincularNaveArreDto,
 } from './arrendatarios.schemas.js';
 
@@ -71,18 +72,30 @@ export class PlanesArreService {
 
   /**
    * Propiedades (naves) arrendadas de un arrendatario, desde la vista
-   * `v_arrendadasNaves` (idArrendatario), ordenadas por nombre descriptivo.
+   * `v_arrendadasNaves` (idArrendatario), ordenadas por nombre descriptivo. Solo
+   * **vínculos activos**: la vista no expone `arrenPropiedades.status`, así que se
+   * filtran los `idNavArrend` con `status=true` (las naves liberadas no aparecen).
    */
   async propiedadesDe(idArrendador: string) {
-    const { data, error } = await this.supabase.admin
-      .from('v_arrendadasNaves')
-      .select(
-        'idNavArrend, idArrendadoPdp, nomDescriptivo, idParque, idNave, nomParque, numNave, numNaveNAME, tienePdp, pdpActivo',
-      )
-      .eq('idArrendatario', idArrendador)
-      .order('nomDescriptivo', { ascending: true, nullsFirst: false });
+    const [{ data, error }, { data: activos, error: actErr }] = await Promise.all([
+      this.supabase.admin
+        .from('v_arrendadasNaves')
+        .select(
+          'idNavArrend, idArrendadoPdp, nomDescriptivo, idParque, idNave, nomParque, numNave, numNaveNAME, tienePdp, pdpActivo',
+        )
+        .eq('idArrendatario', idArrendador)
+        .eq('esTicket', false)
+        .order('nomDescriptivo', { ascending: true, nullsFirst: false }),
+      this.supabase.admin
+        .from('arrenPropiedades')
+        .select('idNavArrend')
+        .eq('idArrendador', idArrendador)
+        .eq('status', true),
+    ]);
     if (error) throw new InternalServerErrorException(error.message);
-    return data ?? [];
+    if (actErr) throw new InternalServerErrorException(actErr.message);
+    const activosSet = new Set((activos ?? []).map((a) => a.idNavArrend));
+    return (data ?? []).filter((r) => !!r.idNavArrend && activosSet.has(r.idNavArrend));
   }
 
   /**
@@ -227,13 +240,14 @@ export class PlanesArreService {
     return data ?? [];
   }
 
-  /** Naves de un parque que aún no están arrendadas (`Arrendada = false`). */
+  /** Naves de un parque que aún no están arrendadas (`Arrendada = false`). Excluye Tickets. */
   async navesDisponibles(idParque?: string) {
     let q = this.supabase.admin
       .from('naves')
       .select('idNave, idParque, numNave, numNaveNAME, lote, mza, terreno, construccion, precio')
       .eq('status', true)
-      .eq('Arrendada', false);
+      .eq('Arrendada', false)
+      .eq('esTicket', false);
     if (idParque) q = q.eq('idParque', idParque);
     const { data, error } = await q.order('numNave', { ascending: true });
     if (error) throw new InternalServerErrorException(error.message);
@@ -281,6 +295,65 @@ export class PlanesArreService {
     return { idNavArrend };
   }
 
+  /**
+   * Libera una nave arrendada para volver a rentarla (baja lógica que conserva el
+   * histórico). Solo si la nave NO tiene plan vigente ni activo: todos sus planes
+   * deben estar vencidos (`arrePdpVigente='No'`) y `pdpActivo=false`. Marca
+   * `arrenPropiedades.status=false` y `naves.Arrendada=false`; los planes
+   * (`arrePdp`/`arrePdpDetalle`) y sus pagos se conservan. No existía en v1.
+   */
+  async liberarNave(idNavArrend: string, actorUid: string): Promise<void> {
+    const { data: prop, error: propErr } = await this.supabase.admin
+      .from('arrenPropiedades')
+      .select('idNavArrend, idNave, pdpActivo, status')
+      .eq('idNavArrend', idNavArrend)
+      .maybeSingle();
+    if (propErr) throw new InternalServerErrorException(propErr.message);
+    if (!prop || prop.status === false)
+      throw new NotFoundException('Propiedad arrendada no encontrada o ya liberada.');
+    if (prop.pdpActivo)
+      throw new BadRequestException('Desactiva el plan antes de liberar la nave.');
+
+    // No debe haber ningún plan vigente (todos deben estar 'No').
+    const { count, error: vigErr } = await this.supabase.admin
+      .from('arrePdp')
+      .select('idArrePdp', { count: 'exact', head: true })
+      .eq('idNavArrend', idNavArrend)
+      .eq('status', true)
+      .neq('arrePdpVigente', 'No');
+    if (vigErr) throw new InternalServerErrorException(vigErr.message);
+    if ((count ?? 0) > 0)
+      throw new BadRequestException('La nave tiene un plan vigente; no se puede liberar.');
+
+    const db = this.supabase.comoActor(actorUid);
+    const { error: upPropErr } = await db
+      .from('arrenPropiedades')
+      .update({
+        status: false,
+        tienePdp: false,
+        pdpActivo: false,
+        pdpVigente: false,
+        idArrePdp: null,
+      })
+      .eq('idNavArrend', idNavArrend);
+    if (upPropErr) throw new InternalServerErrorException(upPropErr.message);
+
+    if (prop.idNave) {
+      const { error: upNaveErr } = await db
+        .from('naves')
+        .update({ Arrendada: false })
+        .eq('idNave', prop.idNave);
+      if (upNaveErr) throw new InternalServerErrorException(upNaveErr.message);
+    }
+
+    await this.registrarActividad(db, {
+      pantalla: 'Arrendatarios',
+      nomwidget: 'LiberarNave',
+      comentario: `Se liberó la nave ${prop.idNave ?? '-'} (vínculo ${idNavArrend}); queda disponible para renta.`,
+      actorUid,
+    });
+  }
+
   // ----------------------------- Plan de Pago (crear/editar/conceptos/activar/eliminar) -----------------------------
 
   /**
@@ -289,12 +362,16 @@ export class PlanesArreService {
    *  2. `arrepdp_generar_corrida_desde_plan_simple` → detalle/corrida.
    *  3. `arrepdpdetalle_aplicar_meses_gracia` → marca meses de gracia.
    */
-  async crearPlan(dto: CrearPlanRentaDto, actorUid: string): Promise<{ idArrePdp: string; mensaje: string }> {
+  async crearPlan(
+    idNavArrend: string,
+    dto: CrearPlanRentaDto,
+    actorUid: string,
+  ): Promise<{ idArrePdp: string; mensaje: string }> {
     // La nave-arrendatario no debe tener ya un plan.
     const { data: prop, error: propErr } = await this.supabase.admin
       .from('arrenPropiedades')
       .select('idNavArrend, tienePdp')
-      .eq('idNavArrend', dto.idNavArrend)
+      .eq('idNavArrend', idNavArrend)
       .maybeSingle();
     if (propErr) throw new InternalServerErrorException(propErr.message);
     if (!prop) throw new NotFoundException('Propiedad arrendada no encontrada.');
@@ -306,7 +383,7 @@ export class PlanesArreService {
     const { data: creado, error: crearErr } = await db.rpc('arrepdp_crear_plan_simple_rpc', {
       p_uid: actorUid,
       p_id_arrendador: dto.idArrendador,
-      p_id_nav_arrend: dto.idNavArrend,
+      p_id_nav_arrend: idNavArrend,
       p_fec_inicio: dto.fecInicio,
       p_plazo: dto.plazo,
       p_deposito: dto.deposito,
@@ -351,10 +428,13 @@ export class PlanesArreService {
     if (graciaErr)
       this.logger.warn(`No se pudieron aplicar meses de gracia en ${idArrePdp}: ${graciaErr.message}`);
 
+    // Nota: `fecFin` es una columna GENERADA en `arrePdp` (no se inserta/actualiza);
+    // su fórmula vive en la definición de la columna.
+
     await this.registrarActividad(db, {
       pantalla: 'Arrendatarios',
       nomwidget: 'CrearPlan',
-      comentario: `Se creó plan de renta ${idArrePdp} para la nave ${dto.idNavArrend} (arrendatario ${dto.idArrendador}).`,
+      comentario: `Se creó plan de renta ${idArrePdp} para la nave ${idNavArrend} (arrendatario ${dto.idArrendador}).`,
       actorUid,
     });
 
@@ -446,6 +526,115 @@ export class PlanesArreService {
       actorUid,
     });
     return { mensaje: res?.mensaje ?? 'Plan eliminado.' };
+  }
+
+  // ----------------------------- Renovación -----------------------------
+
+  /**
+   * Datos para precargar el formulario de renovación: fecha de inicio sugerida
+   * (fin del plan actual + 1 día) y los precios del **último mes** de cada concepto
+   * base (la renta ya incrementada por INPC), además de plazo/depósito/moneda/INPC+.
+   */
+  async precargaRenovacion(idArrePdp: string) {
+    const { data: plan, error: planErr } = await this.supabase.admin
+      .from('arrePdp')
+      .select('idArrePdp, fecFin, plazo, deposito, construccionM2, INPCPlus, Moneda, arrePdpVigente')
+      .eq('idArrePdp', idArrePdp)
+      .maybeSingle();
+    if (planErr) throw new InternalServerErrorException(planErr.message);
+    if (!plan) throw new NotFoundException('Plan no encontrado.');
+    if (!plan.fecFin) throw new BadRequestException('El plan no tiene fecha de fin.');
+
+    const { data: det, error: detErr } = await this.supabase.admin
+      .from('arrePdpDetalle')
+      .select('concepto, pm2, constM2, numPartida')
+      .eq('idArrePdp', idArrePdp)
+      .eq('status', true)
+      .order('numPartida', { ascending: false });
+    if (detErr) throw new InternalServerErrorException(detErr.message);
+
+    // pm2 del último mes (mayor numPartida) por concepto base.
+    const ultimo = (concepto: string): number => {
+      const fila = (det ?? []).find((d) => d.concepto === concepto);
+      return fila?.pm2 != null ? Number(fila.pm2) : 0;
+    };
+    const constM2 =
+      (det ?? []).find((d) => d.concepto === 'Renta')?.constM2 ?? plan.construccionM2 ?? 0;
+
+    // fecInicio sugerida = fecFin + 1 día (en UTC para no desfasar).
+    const f = new Date(`${plan.fecFin}T00:00:00Z`);
+    f.setUTCDate(f.getUTCDate() + 1);
+    const fecInicio = f.toISOString().slice(0, 10);
+
+    return {
+      idArrePdp,
+      fecInicio,
+      fecFinActual: plan.fecFin,
+      arrePdpVigente: plan.arrePdpVigente,
+      plazo: plan.plazo ?? 12,
+      m2Construccion: Number(constM2) || 0,
+      deposito: Number(plan.deposito) || 0,
+      precioM2: ultimo('Renta'),
+      pm2Admin: ultimo('Administración'),
+      pm2Mtto: ultimo('Mantenimiento'),
+      pm2Vig: ultimo('Vigilancia'),
+      inpcPlus: Number(plan.INPCPlus) || 0,
+      moneda: (plan.Moneda as 'MXN' | 'USD') ?? 'MXN',
+    };
+  }
+
+  /**
+   * Registra el plan de renovación (RPC `v2_arrepdp_renovar`): crea el nuevo plan
+   * que sucede al actual (fecInicio = fin + 1 día) sin tocar el vigente, valida que
+   * sea renovable (≤3 meses o vencido) y que no exista ya una renovación.
+   */
+  async renovar(
+    idArrePdp: string,
+    dto: RenovarPlanDto,
+    actorUid: string,
+  ): Promise<{ idArrePdp: string; mensaje: string }> {
+    const db = this.supabase.comoActor(actorUid);
+    // RPC nueva v2_ (aún no tipada en @erp/types); cast localizado.
+    const { data, error } = await (
+      db.rpc as unknown as (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message: string } | null }>
+    )('v2_arrepdp_renovar', {
+      p_id_arre_pdp_actual: idArrePdp,
+      p_uid: actorUid,
+      p_plazo: dto.plazo,
+      p_precio_m2: dto.precioM2,
+      p_construccion_m2: dto.m2Construccion,
+      p_deposito: dto.deposito,
+      p_pm2_admin: dto.pm2Admin,
+      p_pm2_mtto: dto.pm2Mtto,
+      p_pm2_vig: dto.pm2Vig,
+      p_inpc_plus: dto.inpcPlus,
+      p_moneda: dto.moneda,
+      p_mes_gracia_renta: dto.cortesiaRenta,
+      p_mes_gracia_administracion: dto.cortesiaAdmin,
+      p_mes_gracia_mantenimiento: dto.cortesiaMtto,
+      p_mes_gracia_vigilancia: dto.cortesiaVig,
+    });
+    if (error) {
+      this.logger.error(`Error renovando plan ${idArrePdp}: ${error.message}`);
+      throw new InternalServerErrorException('No se pudo registrar la renovación.');
+    }
+    const res = data as RpcResultado;
+    if (res?.exito === false)
+      throw new BadRequestException(res.mensaje ?? 'No se pudo registrar la renovación.');
+    const idNuevo = res?.detalles?.id_plan;
+    if (!idNuevo)
+      throw new InternalServerErrorException('La RPC no devolvió el id de la renovación.');
+
+    await this.registrarActividad(db, {
+      pantalla: 'Arrendatarios',
+      nomwidget: 'RenovarPlan',
+      comentario: `Se registró la renovación ${idNuevo} del plan ${idArrePdp}.`,
+      actorUid,
+    });
+    return { idArrePdp: idNuevo, mensaje: res?.mensaje ?? 'Renovación registrada.' };
   }
 
   /** Bitácora de actividad (entorno 3 = web/servidor), como v1. */

@@ -21,12 +21,14 @@ import {
   crearPlanRentaSchema,
   docArreSchema,
   editarCampoSchema,
+  renovarPlanSchema,
   vincularNaveArreSchema,
   type AplicarPagoDto,
   type ConceptoFinanciadoDto,
   type CrearPlanRentaDto,
   type DocArreDto,
   type EditarCampoDto,
+  type RenovarPlanDto,
   type VincularNaveArreDto,
 } from './arrendatarios.schemas.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
@@ -111,8 +113,7 @@ export class ArrendatariosController {
     @Param('idNavArrend') idNavArrend: string,
     @Body(new ZodValidationPipe(crearPlanRentaSchema)) dto: CrearPlanRentaDto,
   ) {
-    // El idNavArrend de la ruta manda sobre el del body.
-    return this.planes.crearPlan({ ...dto, idNavArrend }, actor.uid);
+    return this.planes.crearPlan(idNavArrend, dto, actor.uid);
   }
 
   @Patch('planes/:idArrePdp/detalle')
@@ -174,6 +175,23 @@ export class ArrendatariosController {
   @RequierePermiso(20)
   eliminarPlan(@CurrentUser() actor: AuthUser, @Param('idArrePdp') idArrePdp: string) {
     return this.planes.eliminarPlan(idArrePdp, actor.uid);
+  }
+
+  // ----- Renovación -----
+  @Get('planes/:idArrePdp/renovacion-precarga')
+  @RequierePermiso(20)
+  renovacionPrecarga(@Param('idArrePdp') idArrePdp: string) {
+    return this.planes.precargaRenovacion(idArrePdp);
+  }
+
+  @Post('planes/:idArrePdp/renovar')
+  @RequierePermiso(20)
+  renovar(
+    @CurrentUser() actor: AuthUser,
+    @Param('idArrePdp') idArrePdp: string,
+    @Body(new ZodValidationPipe(renovarPlanSchema)) dto: RenovarPlanDto,
+  ) {
+    return this.planes.renovar(idArrePdp, dto, actor.uid);
   }
 
   // ----- Config: Datos generales (solo lectura) -----
@@ -240,6 +258,16 @@ export class ArrendatariosController {
     @Body(new ZodValidationPipe(vincularNaveArreSchema)) dto: VincularNaveArreDto,
   ) {
     return this.planes.vincularNave(dto, actor.uid);
+  }
+
+  @Post('propiedades/:idNavArrend/liberar')
+  @RequierePermiso(20)
+  async liberarNave(
+    @CurrentUser() actor: AuthUser,
+    @Param('idNavArrend') idNavArrend: string,
+  ) {
+    await this.planes.liberarNave(idNavArrend, actor.uid);
+    return { ok: true };
   }
 
   @Get('inpc')

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   arrendatariosApi,
   nombreArrendatario,
@@ -14,6 +14,7 @@ import {
 import { DetallePartida } from './DetallePartida';
 import { ConfigArrendatarioModal } from './ConfigArrendatarioModal';
 import { ConsultaInpcModal } from './ConsultaInpcModal';
+import { RenovarPlanModal } from './RenovarPlanModal';
 import { SearchSelect } from '@/components/SearchSelect';
 import { THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
 import { IconGear } from '@/components/icons';
@@ -28,11 +29,14 @@ const BADGE_VIGENCIA: Record<ArrePdpVigente, string> = {
 };
 
 export function ArrendatariosPage() {
+  const queryClient = useQueryClient();
   const [idArrendador, setIdArrendador] = useState('');
   const [idNavArrend, setIdNavArrend] = useState('');
   const [idArrePdp, setIdArrePdp] = useState('');
   const [config, setConfig] = useState<ArrendatarioOpt | null>(null);
   const [verInpc, setVerInpc] = useState(false);
+  const [liberando, setLiberando] = useState(false);
+  const [renovarDe, setRenovarDe] = useState<string | null>(null);
 
   const { data: arrendatarios = [] } = useQuery({
     queryKey: ['arre-lista'],
@@ -63,6 +67,60 @@ export function ArrendatariosPage() {
   );
 
   const planSel = planes.find((p) => p.idArrePdp === idArrePdp) ?? null;
+  const propSel = propiedades.find((p) => p.idNavArrend === idNavArrend) ?? null;
+
+  // En esta pantalla solo se muestran planes **activos** (el vinculado con
+  // pdpActivo) o **finalizados** (vencidos, arrePdpVigente='No'). Los planes "en
+  // diseño" (creados pero aún no activados y todavía vigentes) se gestionan en
+  // Configuración y no se listan aquí.
+  const esPlanActivo = (p: PlanRenta) =>
+    !!propSel?.pdpActivo && p.idArrePdp === propSel?.idArrendadoPdp;
+  const planesVisibles = useMemo(
+    () => planes.filter((p) => p.arrePdpVigente === 'No' || esPlanActivo(p)),
+    [planes, propSel],
+  );
+
+  // Se puede liberar la nave si todos sus planes están vencidos ('No') y ninguno
+  // está activo. El backend revalida esta condición.
+  const liberable =
+    planes.length > 0 && planes.every((p) => p.arrePdpVigente === 'No') && !propSel?.pdpActivo;
+
+  // Plan renovable: alguno por vencer (≤3 meses) o vencido que aún NO tenga una
+  // renovación (otro plan que inicie después de su fin). El backend revalida.
+  const planRenovable = useMemo(() => {
+    const renovables: ArrePdpVigente[] = ['3 Meses', '2 Meses', '1 Mes', 'No'];
+    for (const p of planes) {
+      if (!p.arrePdpVigente || !renovables.includes(p.arrePdpVigente) || !p.fecFin) continue;
+      const yaRenovado = planes.some(
+        (o) => o.idArrePdp !== p.idArrePdp && !!o.fecInicio && o.fecInicio > p.fecFin!,
+      );
+      if (!yaRenovado) return p;
+    }
+    return null;
+  }, [planes]);
+
+  async function liberar() {
+    if (
+      !window.confirm(
+        '¿Liberar esta nave? Quedará disponible para rentar de nuevo. El historial de contratos se conserva.',
+      )
+    )
+      return;
+    setLiberando(true);
+    try {
+      await arrendatariosApi.liberarNave(idNavArrend);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['arre-propiedades', idArrendador] }),
+        queryClient.invalidateQueries({ queryKey: ['arre-planes'] }),
+      ]);
+      setIdNavArrend('');
+      setIdArrePdp('');
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'No se pudo liberar la nave.');
+    } finally {
+      setLiberando(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -130,14 +188,39 @@ export function ArrendatariosPage() {
       {/* Historial de planes */}
       {idNavArrend && (
         <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-gray-600">Planes de esta propiedad</h2>
-          {planes.length === 0 ? (
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-gray-600">Planes de esta propiedad</h2>
+            <div className="flex gap-2">
+              {planRenovable && (
+                <button
+                  type="button"
+                  onClick={() => setRenovarDe(planRenovable.idArrePdp)}
+                  title="El plan está por vencer: registra su renovación"
+                  className="rounded-lg border border-sky-500 px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50"
+                >
+                  🔄 Renovar
+                </button>
+              )}
+              {liberable && (
+                <button
+                  type="button"
+                  onClick={liberar}
+                  disabled={liberando}
+                  title="Todos los planes están vencidos: libera la nave para volver a rentarla"
+                  className="rounded-lg border border-amber-500 px-3 py-1.5 text-xs font-medium text-amber-600 hover:bg-amber-50 disabled:opacity-50"
+                >
+                  {liberando ? 'Liberando…' : '🔓 Liberar nave'}
+                </button>
+              )}
+            </div>
+          </div>
+          {planesVisibles.length === 0 ? (
             <div className="rounded-xl border border-dashed bg-white p-6 text-center text-sm text-gray-400">
-              Esta propiedad no tiene planes. Usa Configuración para crear uno.
+              Esta propiedad no tiene planes activos ni finalizados. Los planes en diseño se ven en Configuración.
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {planes.map((p) => (
+              {planesVisibles.map((p) => (
                 <PlanChip
                   key={p.idArrePdp}
                   plan={p}
@@ -157,6 +240,17 @@ export function ArrendatariosPage() {
         <ConfigArrendatarioModal arrendatario={config} onClose={() => setConfig(null)} />
       )}
       {verInpc && <ConsultaInpcModal onClose={() => setVerInpc(false)} />}
+      {renovarDe && (
+        <RenovarPlanModal
+          idArrePdp={renovarDe}
+          nombre={`${arreSel ? nombreArrendatario(arreSel) : ''} · ${propSel?.nomDescriptivo ?? ''}`}
+          onClose={() => setRenovarDe(null)}
+          onRenovado={() => {
+            void queryClient.invalidateQueries({ queryKey: ['arre-planes'] });
+            void queryClient.invalidateQueries({ queryKey: ['arre-propiedades', idArrendador] });
+          }}
+        />
+      )}
     </div>
   );
 }
