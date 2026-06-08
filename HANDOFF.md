@@ -38,7 +38,8 @@
   - **Correo** (sección propia): buzón de facturas IMAP/SMTP en el backend (sin N8N).
   - **Ventas** (Inversionistas/Propietarios) — **Etapa 1**: **Dashboard** (clave 600) y **Planes** (clave
     610). **Cálculos sin vistas** (desde tablas base) con un **único universo**: propiedades con
-    `propiedades.pdpActivo=<filtro>` e inversionista `inversionista=true` y `pruebas=false` (NO tipoCliente;
+    `propiedades.pdpActivo=<filtro>`, **`propiedades.esTicket=false`** (el parque de Tickets se excluye de
+    TODO el módulo de Ventas) e inversionista `inversionista=true` y `pruebas=false` (NO tipoCliente;
     la bandera de "activo" vigente es `propiedades.pdpActivo`, no `pdp.pdpactivo`). Dashboard: 3 tarjetas
     (objetivo/cobranza/balance — año, mes por vencimiento, cobranza real por fecha de pago), tabla con C/T
     apilado + fila de totales + un solo scroll, pestañas separadas de Renta Garantizada/Administrada
@@ -46,6 +47,15 @@
     fechas en horario MX, tiempo real SSE. Planes: selector con búsqueda, tab Plan de Pagos detallado
     (Movimiento C/T, % avance, saldo a favor, totales) con $ (pago) y 💬 (comentarios), Config (Datos,
     Documentos, Propiedades, crear Plan de Pagos). Sin objetos nuevos en BD.
+    **Config→Propiedades (jun-7):** alta con **2 combos** (Parque sin Tickets → Nave); la disponibilidad
+    sale de **`naves.situacion`** (solo 'Disponible'; al vincular se marca **'Vendida'** + `fum`/`fumUser`,
+    anti-carrera). Lista en **tarjetas estilo v1** (franja **rosa=Vendida/verde=Disponible**, número de nave,
+    Mza/Lote/Terreno/Const./Precio/Fecha, **KVAs Alta/Media desde `kvasAsignados`** por `tipoTension`
+    [1=Alta/2=Media, **supuesto a confirmar**], chips PDP/RtaG/RtaA). Todo el módulo muestra al cliente por
+    **razón social** (`nombreInversionista()`). Endpoints nuevos `GET planes/parques` y `DELETE
+    planes/propiedades/:idPropiedad` (**desvincular**: borra la propiedad y regresa la nave a 'Disponible';
+    solo si `tienenPdp=false` — el botón 🗑 aparece solo cuando se puede). **Nota:** vincular/desvincular
+    ahora **escriben `naves.situacion`** (tabla compartida, autorizado; idéntico a v1).
   - **Clientes** (clave 300, sección directa `/clientes`): padrón de la tabla `inversionista` (migra la
     pantalla "Clientes" del CRM de v1). Chips Inversionistas/Arrendatarios/Ticket/Usuario Final/Papelera +
     buscador + tabla ordenable + alta/edición + mover a papelera. Sin objetos nuevos en BD.

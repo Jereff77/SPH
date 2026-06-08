@@ -71,7 +71,9 @@ export class DashboardService {
 
   /**
    * Propiedades en alcance: `pdpActivo = activo` e inversionista marcado como
-   * `inversionista = true` y `pruebas = false`. Devuelve un mapa idPropiedad →
+   * `inversionista = true` y `pruebas = false`. Se **excluye el parque de
+   * Tickets** (`propiedades.esTicket = false`): los tickets no son ventas y no
+   * deben aparecer en el módulo de Ventas. Devuelve un mapa idPropiedad →
    * datos para enriquecer.
    */
   private async scopePropiedades(activo: boolean): Promise<Map<string, PropScope>> {
@@ -81,6 +83,7 @@ export class DashboardService {
         'idPropiedad, idNave, idParque, nomDescriptivo, idInversionista, inversionista!inner(razonsocial)',
       )
       .eq('pdpActivo', activo)
+      .eq('esTicket', false)
       .eq('inversionista.inversionista', true)
       .eq('inversionista.pruebas', false);
     if (error) throw new InternalServerErrorException(error.message);

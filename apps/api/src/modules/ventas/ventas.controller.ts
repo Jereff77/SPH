@@ -259,6 +259,12 @@ export class VentasController {
   }
 
   // ----- Config: Propiedades -----
+  @Get('planes/parques')
+  @RequierePermiso(610)
+  parques() {
+    return this.planes.parquesDisponibles();
+  }
+
   @Get('planes/naves-disponibles')
   @RequierePermiso(610)
   navesDisponibles(@Query('idParque') idParque?: string) {
@@ -272,6 +278,15 @@ export class VentasController {
     @Body(new ZodValidationPipe(propiedadSchema)) dto: PropiedadDto,
   ) {
     return this.planes.vincularNave(dto, actor.uid);
+  }
+
+  @Delete('planes/propiedades/:idPropiedad')
+  @RequierePermiso(610)
+  async desvincularNave(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPropiedad') idPropiedad: string,
+  ) {
+    return this.planes.desvincularNave(idPropiedad, actor.uid);
   }
 
   // ----- Config: Crear Plan de Pagos -----

@@ -1,6 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ventasApi, type InversionistaOpt, type PagoVentaRow } from './ventas.api';
+import {
+  ventasApi,
+  nombreInversionista,
+  type InversionistaOpt,
+  type PagoVentaRow,
+} from './ventas.api';
 import { ConfigPropietarioModal } from './ConfigPropietarioModal';
 import { PagoDetalleModal } from './PagoDetalleModal';
 import { ComentariosModal } from './ComentariosModal';
@@ -24,11 +29,6 @@ const fechaCorta = (iso: string | null): string => {
 /** Encabezado fijo bajo la barra de la app (scroll del documento, como el Dashboard). */
 const THEAD_PLAN =
   '[&>tr>th]:sticky [&>tr>th]:top-14 [&>tr>th]:z-10 [&>tr>th]:bg-[#1f2a4d]';
-
-const nombreInv = (i: InversionistaOpt): string =>
-  i.razonsocial?.trim()
-    ? i.razonsocial
-    : [i.nombre, i.apellido1, i.apellido2].filter(Boolean).join(' ');
 
 const TABS: TabDef[] = [
   { id: 'plan', label: 'Plan de Pagos' },
@@ -61,7 +61,7 @@ export function PlanesPage() {
 
   const opcionesInv = useMemo(
     () =>
-      inversionistas.map((i) => ({ value: i.idInversionista, label: nombreInv(i) })),
+      inversionistas.map((i) => ({ value: i.idInversionista, label: nombreInversionista(i) })),
     [inversionistas],
   );
 

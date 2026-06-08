@@ -98,10 +98,27 @@ export interface InversionistaOpt {
   razonsocial: string | null;
 }
 
+/**
+ * Nombre a mostrar de un inversionista/propietario en los módulos de Ventas.
+ * En estos módulos todo se maneja por la **razón social**; solo si está vacía
+ * se recurre al nombre + apellidos como respaldo.
+ */
+export function nombreInversionista(i: {
+  nombre?: string | null;
+  apellido1?: string | null;
+  apellido2?: string | null;
+  razonsocial?: string | null;
+}): string {
+  return i.razonsocial?.trim()
+    ? i.razonsocial
+    : [i.nombre, i.apellido1, i.apellido2].filter(Boolean).join(' ');
+}
+
 export interface PropiedadRow {
   idPropiedad: string;
   idNave: string | null;
   idParque: string | null;
+  nomParque: string | null;
   nomDescriptivo: string | null;
   tienenPdp: boolean;
   idPdp: string | null;
@@ -109,7 +126,19 @@ export interface PropiedadRow {
   esTicket: boolean | null;
   tieneRgPdp: boolean;
   tieneRaPdp: boolean;
-  nave: { numNaveNAME: string | null; lote: number; mza: number } | null;
+  nave: {
+    numNave: number | null;
+    numNaveNAME: string | null;
+    lote: number | null;
+    mza: number | null;
+    terreno: number | null;
+    construccion: number | null;
+    precio: number | null;
+    fecEntrega: string | null;
+    situacion: string | null;
+  } | null;
+  /** KVAs asignados a la nave, separados por tipo de tensión. */
+  kvas: { alta: number; media: number } | null;
 }
 
 export interface Inversionista {
@@ -133,6 +162,11 @@ export interface DocRow {
   titulo: string | null;
   descripcion: string | null;
   urldoc: string | null;
+}
+
+export interface ParqueOpcion {
+  idParque: string;
+  nomParque: string | null;
 }
 
 export interface NaveDisponible {
@@ -271,6 +305,7 @@ export const ventasApi = {
   },
   eliminarDoc: (idDocumento: string) =>
     api.delete<{ ok: true }>(`/ventas/planes/docs/${idDocumento}`),
+  parques: () => api.get<ParqueOpcion[]>('/ventas/planes/parques'),
   navesDisponibles: (idParque?: string) =>
     api.get<NaveDisponible[]>(`/ventas/planes/naves-disponibles${dq({ idParque })}`),
   vincularNave: (dto: {
@@ -279,6 +314,8 @@ export const ventasApi = {
     nomDescriptivo?: string;
     idParque?: string;
   }) => api.post<{ idPropiedad: string }>('/ventas/planes/propiedades', dto),
+  desvincularNave: (idPropiedad: string) =>
+    api.delete<{ ok: true }>(`/ventas/planes/propiedades/${idPropiedad}`),
   crearPlanPagos: (dto: CrearPlanInput) =>
     api.post<{ idPdp: string }>('/ventas/planes/plan-pagos', dto),
 };

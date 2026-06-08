@@ -59,7 +59,8 @@ export class PlanesService {
    * Inversionistas para el selector de Planes: los marcados como `inversionista`
    * (no de prueba) que tengan al menos una propiedad con `propiedades.pdpActivo=true`
    * (la bandera vigente es la de `propiedades`, no la de `pdp`). Ordenados por
-   * razón social.
+   * razón social. Se **excluye el parque de Tickets** (`propiedades.esTicket=false`):
+   * un inversionista que solo tenga propiedades de tickets no aparece en Ventas.
    */
   async inversionistas() {
     const { data, error } = await this.supabase.admin
@@ -71,6 +72,7 @@ export class PlanesService {
       .eq('inversionista', true)
       .eq('pruebas', false)
       .eq('propiedades.pdpActivo', true)
+      .eq('propiedades.esTicket', false)
       .order('razonsocial', { ascending: true, nullsFirst: false });
     if (error) throw new InternalServerErrorException(error.message);
 
@@ -105,22 +107,87 @@ export class PlanesService {
       )
       .eq('idInversionista', idInversionista)
       .eq('status', true)
+      // El parque de Tickets no es venta: se excluye del módulo de Ventas.
+      .eq('esTicket', false)
       .order('nomDescriptivo', { ascending: true });
     if (error) throw new InternalServerErrorException(error.message);
     if (!data || data.length === 0) return [];
 
-    // Enriquecer con datos de la nave (lote/mza/numNaveNAME).
+    // Enriquecer con datos de la nave (para las tarjetas estilo v1).
     const idsNave = [...new Set(data.map((p) => p.idNave).filter((x): x is string => !!x))];
-    const navesMap = new Map<string, { numNaveNAME: string | null; lote: number; mza: number }>();
+    const navesMap = new Map<
+      string,
+      {
+        numNave: number | null;
+        numNaveNAME: string | null;
+        lote: number | null;
+        mza: number | null;
+        terreno: number | null;
+        construccion: number | null;
+        precio: number | null;
+        fecEntrega: string | null;
+        situacion: string | null;
+      }
+    >();
     if (idsNave.length > 0) {
       const { data: naves } = await this.supabase.admin
         .from('naves')
-        .select('idNave, numNaveNAME, lote, mza')
+        .select(
+          'idNave, numNave, numNaveNAME, lote, mza, terreno, construccion, precio, fecEntrega, situacion',
+        )
         .in('idNave', idsNave);
       for (const n of naves ?? [])
-        navesMap.set(n.idNave, { numNaveNAME: n.numNaveNAME, lote: n.lote, mza: n.mza });
+        navesMap.set(n.idNave, {
+          numNave: n.numNave,
+          numNaveNAME: n.numNaveNAME,
+          lote: n.lote,
+          mza: n.mza,
+          terreno: n.terreno,
+          construccion: n.construccion,
+          precio: n.precio,
+          fecEntrega: n.fecEntrega,
+          situacion: n.situacion,
+        });
     }
-    return data.map((p) => ({ ...p, nave: p.idNave ? (navesMap.get(p.idNave) ?? null) : null }));
+
+    // KVAs asignados por nave (tabla kvasAsignados). Se separan por tipo de
+    // tensión: tipoTension=1 → Alta, tipoTension=2 → Media (convención
+    // eléctrica estándar). Se suma cantKvas de los registros activos.
+    // TODO (por confirmar): no hay catálogo de tipoTension en BD; este mapeo
+    // (1=Alta, 2=Media) es un supuesto acordado provisionalmente. Validar con
+    // el negocio y, si aplica, contemplar un tercer valor (p. ej. 3=Baja).
+    const kvasMap = new Map<string, { alta: number; media: number }>();
+    if (idsNave.length > 0) {
+      const { data: kvas } = await this.supabase.admin
+        .from('kvasAsignados')
+        .select('idNave, tipoTension, cantKvas')
+        .in('idNave', idsNave)
+        .eq('status', true);
+      for (const k of kvas ?? []) {
+        const acc = kvasMap.get(k.idNave) ?? { alta: 0, media: 0 };
+        if (k.tipoTension === 1) acc.alta += k.cantKvas ?? 0;
+        else if (k.tipoTension === 2) acc.media += k.cantKvas ?? 0;
+        kvasMap.set(k.idNave, acc);
+      }
+    }
+
+    // Enriquecer con el nombre del parque.
+    const idsParque = [...new Set(data.map((p) => p.idParque).filter((x): x is string => !!x))];
+    const parquesMap = new Map<string, string | null>();
+    if (idsParque.length > 0) {
+      const { data: parques } = await this.supabase.admin
+        .from('parques')
+        .select('idParque, nomParque')
+        .in('idParque', idsParque);
+      for (const p of parques ?? []) parquesMap.set(p.idParque, p.nomParque);
+    }
+
+    return data.map((p) => ({
+      ...p,
+      nave: p.idNave ? (navesMap.get(p.idNave) ?? null) : null,
+      kvas: p.idNave ? (kvasMap.get(p.idNave) ?? { alta: 0, media: 0 }) : null,
+      nomParque: p.idParque ? (parquesMap.get(p.idParque) ?? null) : null,
+    }));
   }
 
   private chunk<T>(arr: T[], size: number): T[][] {
@@ -390,26 +457,75 @@ export class PlanesService {
 
   // ----------------------------- Config: Propiedades -----------------------------
 
-  /** Naves disponibles (no arrendadas) de un parque, para vincular. */
+  /**
+   * Parques para el selector de vinculación de naves. Excluye los de tipo
+   * Tickets (esTicket=true, p. ej. "A3 (Tickets)"), igual que en v1.
+   */
+  async parquesDisponibles() {
+    const { data, error } = await this.supabase.admin
+      .from('parques')
+      .select('idParque, nomParque')
+      .eq('status', true)
+      .eq('esTicket', false)
+      .order('nomParque', { ascending: true });
+    if (error) throw new InternalServerErrorException(error.message);
+    return data ?? [];
+  }
+
+  /**
+   * Naves disponibles de un parque para vincular. La disponibilidad vive en
+   * `naves.situacion`: solo se muestran las que están en 'Disponible' (al
+   * asignarse pasan a 'Vendida' y dejan de listarse). Réplica de v1
+   * (config_propietario): status=true, idParque y situacion='Disponible',
+   * ordenadas por número de nave.
+   */
   async navesDisponibles(idParque?: string) {
     let q = this.supabase.admin
       .from('naves')
       .select('idNave, idParque, numNaveNAME, lote, mza, terreno, construccion, precio, situacion')
-      .eq('status', true);
+      .eq('status', true)
+      .eq('situacion', 'Disponible');
     if (idParque) q = q.eq('idParque', idParque);
-    const { data, error } = await q.order('numNaveNAME', { ascending: true });
+    const { data, error } = await q.order('numNave', { ascending: true });
     if (error) throw new InternalServerErrorException(error.message);
     return data ?? [];
   }
 
   async vincularNave(dto: PropiedadDto, actorUid: string): Promise<{ idPropiedad: string }> {
+    // La nave debe existir y seguir 'Disponible' (una nave solo se vincula una vez).
+    const { data: nave, error: naveErr } = await this.supabase.admin
+      .from('naves')
+      .select('idNave, idParque, numNaveNAME, situacion')
+      .eq('idNave', dto.idNave)
+      .maybeSingle();
+    if (naveErr) throw new InternalServerErrorException(naveErr.message);
+    if (!nave) throw new NotFoundException('Nave no encontrada.');
+    if (nave.situacion !== 'Disponible')
+      throw new BadRequestException('La nave ya no está disponible.');
+
+    // Nombre descriptivo derivado como en v1: "{nomParque} - {numNaveNAME}".
+    const idParque = dto.idParque || nave.idParque || null;
+    let nomParque: string | null = null;
+    if (idParque) {
+      const { data: parque } = await this.supabase.admin
+        .from('parques')
+        .select('nomParque')
+        .eq('idParque', idParque)
+        .maybeSingle();
+      nomParque = parque?.nomParque ?? null;
+    }
+    const nomDescriptivo =
+      [nomParque, nave.numNaveNAME].filter(Boolean).join(' - ') || null;
+
+    const actor = this.supabase.comoActor(actorUid);
     const idPropiedad = this.generarId(15);
-    const { error } = await this.supabase.comoActor(actorUid).from('propiedades').insert({
+    const { error } = await actor.from('propiedades').insert({
       idPropiedad,
+      idUser: actorUid,
       idInversionista: dto.idInversionista,
       idNave: dto.idNave,
-      idParque: dto.idParque || null,
-      nomDescriptivo: dto.nomDescriptivo || null,
+      idParque,
+      nomDescriptivo,
       tienenPdp: false,
       pdpActivo: false,
       tieneRgPdp: false,
@@ -419,7 +535,60 @@ export class PlanesService {
       status: true,
     });
     if (error) throw new InternalServerErrorException(error.message);
+
+    // Marcar la nave como 'Vendida' (deja de estar disponible para vincular).
+    const { error: naveUpdErr } = await actor
+      .from('naves')
+      .update({
+        situacion: 'Vendida',
+        fumUser: actorUid,
+        fum: new Date().toISOString(),
+      })
+      .eq('idNave', dto.idNave);
+    if (naveUpdErr) throw new InternalServerErrorException(naveUpdErr.message);
+
     return { idPropiedad };
+  }
+
+  /**
+   * Desvincula una nave de un inversionista (elimina la propiedad) y regresa la
+   * nave a 'Disponible'. Réplica de v1 (dat_naves): NO se permite si la
+   * propiedad tiene un plan de pagos (`tienenPdp=true`).
+   */
+  async desvincularNave(idPropiedad: string, actorUid: string): Promise<{ ok: true }> {
+    const { data: prop, error: propErr } = await this.supabase.admin
+      .from('propiedades')
+      .select('idPropiedad, idNave, tienenPdp')
+      .eq('idPropiedad', idPropiedad)
+      .maybeSingle();
+    if (propErr) throw new InternalServerErrorException(propErr.message);
+    if (!prop) throw new NotFoundException('Propiedad no encontrada.');
+    if (prop.tienenPdp)
+      throw new BadRequestException(
+        'No se puede desvincular: la nave tiene un plan de pagos activo.',
+      );
+
+    const actor = this.supabase.comoActor(actorUid);
+    const { error: delErr } = await actor
+      .from('propiedades')
+      .delete()
+      .eq('idPropiedad', idPropiedad);
+    if (delErr) throw new InternalServerErrorException(delErr.message);
+
+    // Regresar la nave a 'Disponible' para que pueda volver a vincularse.
+    if (prop.idNave) {
+      const { error: naveErr } = await actor
+        .from('naves')
+        .update({
+          situacion: 'Disponible',
+          fumUser: actorUid,
+          fum: new Date().toISOString(),
+        })
+        .eq('idNave', prop.idNave);
+      if (naveErr) throw new InternalServerErrorException(naveErr.message);
+    }
+
+    return { ok: true };
   }
 
   // ----------------------------- Config: Crear Plan de Pagos -----------------------------

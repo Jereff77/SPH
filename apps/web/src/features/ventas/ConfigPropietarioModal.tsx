@@ -3,8 +3,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ventasApi,
   hoyMexico,
+  nombreInversionista,
   type InversionistaInput,
   type InversionistaOpt,
+  type PropiedadRow,
 } from './ventas.api';
 import { Tabs, type TabDef } from '@/components/Tabs';
 
@@ -38,7 +40,7 @@ export function ConfigPropietarioModal({
       <div className="max-h-[92vh] w-full max-w-3xl overflow-auto rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b bg-[#1f2a4d] px-5 py-3 text-white">
           <h2 className="text-base font-semibold">
-            Configuración · {inversionista.nombre} {inversionista.apellido1 ?? ''}
+            Configuración · {nombreInversionista(inversionista)}
           </h2>
           <button onClick={onClose} className="text-white/80 hover:text-white" aria-label="Cerrar">
             ✕
@@ -52,7 +54,11 @@ export function ConfigPropietarioModal({
             )}
             {sub === 'docs' && <DocumentosTab id={inversionista.idInversionista} />}
             {sub === 'propiedades' && (
-              <PropiedadesTab id={inversionista.idInversionista} onCambio={onCambio} />
+              <PropiedadesTab
+                id={inversionista.idInversionista}
+                nombre={nombreInversionista(inversionista)}
+                onCambio={onCambio}
+              />
             )}
             {sub === 'plan' && (
               <PlanPagosTab id={inversionista.idInversionista} onCambio={onCambio} />
@@ -290,18 +296,55 @@ function DocumentosTab({ id }: { id: string }) {
 
 // ----------------------------- Propiedades -----------------------------
 
-function PropiedadesTab({ id, onCambio }: { id: string; onCambio: () => void }) {
+/** Número con separador de miles y hasta 3 decimales (m², etc.). */
+const fmtNum = (n: number | null | undefined): string =>
+  n == null ? '-' : n.toLocaleString('es-MX', { maximumFractionDigits: 3 });
+
+/** Fecha ISO → dd/MM/aaaa (o '-' si no hay). */
+const fmtFecha = (iso: string | null | undefined): string => {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+/** Campo etiqueta + valor en caja gris, como en las tarjetas de v1. */
+function CampoNave({ label, valor }: { label: string; valor: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="shrink-0 text-xs font-medium text-gray-600">{label}</span>
+      <span className="flex-1 rounded bg-gray-100 px-2 py-1 text-right text-sm text-gray-800">
+        {valor}
+      </span>
+    </div>
+  );
+}
+
+function PropiedadesTab({
+  id,
+  nombre,
+  onCambio,
+}: {
+  id: string;
+  nombre: string;
+  onCambio: () => void;
+}) {
   const queryClient = useQueryClient();
   const { data: props = [], isLoading } = useQuery({
     queryKey: ['ventas-propiedades', id],
     queryFn: () => ventasApi.propiedades(id),
   });
+  const { data: parques = [] } = useQuery({
+    queryKey: ['ventas-parques'],
+    queryFn: () => ventasApi.parques(),
+  });
+  const [idParque, setIdParque] = useState('');
   const { data: naves = [] } = useQuery({
-    queryKey: ['ventas-naves-disp'],
-    queryFn: () => ventasApi.navesDisponibles(),
+    queryKey: ['ventas-naves-disp', idParque],
+    queryFn: () => ventasApi.navesDisponibles(idParque),
+    enabled: !!idParque,
   });
   const [idNave, setIdNave] = useState('');
-  const [nom, setNom] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -315,15 +358,19 @@ function PropiedadesTab({ id, onCambio }: { id: string; onCambio: () => void }) 
     setGuardando(true);
     try {
       const nave = naves.find((n) => n.idNave === idNave);
+      // El nombre descriptivo lo arma el backend ("{parque} - {nave}"); aquí
+      // solo enviamos nave y parque.
       await ventasApi.vincularNave({
         idInversionista: id,
         idNave,
-        nomDescriptivo: nom || nave?.numNaveNAME || '',
         idParque: nave?.idParque ?? undefined,
       });
       setIdNave('');
-      setNom('');
-      await queryClient.invalidateQueries({ queryKey: ['ventas-propiedades', id] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['ventas-propiedades', id] }),
+        // Refrescar naves disponibles: la recién vinculada ya no debe aparecer.
+        queryClient.invalidateQueries({ queryKey: ['ventas-naves-disp', idParque] }),
+      ]);
       onCambio();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo vincular la nave.');
@@ -332,78 +379,176 @@ function PropiedadesTab({ id, onCambio }: { id: string; onCambio: () => void }) 
     }
   }
 
+  const [borrando, setBorrando] = useState<string | null>(null);
+
+  async function desvincular(p: PropiedadRow) {
+    const etiqueta = p.nomDescriptivo ?? p.nave?.numNaveNAME ?? 'esta nave';
+    if (!window.confirm(`¿Desvincular ${etiqueta} del propietario?`)) return;
+    setError(null);
+    setBorrando(p.idPropiedad);
+    try {
+      await ventasApi.desvincularNave(p.idPropiedad);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['ventas-propiedades', id] }),
+        // La nave vuelve a estar disponible para vincular.
+        queryClient.invalidateQueries({ queryKey: ['ventas-naves-disp', idParque] }),
+      ]);
+      onCambio();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo desvincular la nave.');
+    } finally {
+      setBorrando(null);
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <form onSubmit={vincular} className="grid grid-cols-1 gap-3 rounded-lg border bg-gray-50 p-4 sm:grid-cols-4">
+      <form onSubmit={vincular} className="grid grid-cols-1 gap-3 rounded-lg border bg-gray-50 p-4 sm:grid-cols-3">
+        <select
+          value={idParque}
+          onChange={(e) => {
+            setIdParque(e.target.value);
+            setIdNave('');
+          }}
+          className="rounded border px-2 py-1.5 text-sm"
+        >
+          <option value="">Selecciona un parque…</option>
+          {parques.map((p) => (
+            <option key={p.idParque} value={p.idParque}>
+              {p.nomParque ?? p.idParque}
+            </option>
+          ))}
+        </select>
         <select
           value={idNave}
           onChange={(e) => setIdNave(e.target.value)}
-          className="rounded border px-2 py-1.5 text-sm sm:col-span-2"
+          disabled={!idParque}
+          className="rounded border px-2 py-1.5 text-sm disabled:opacity-50"
         >
-          <option value="">Selecciona una nave…</option>
+          <option value="">
+            {idParque ? 'Selecciona una nave…' : 'Primero el parque'}
+          </option>
           {naves.map((n) => (
             <option key={n.idNave} value={n.idNave}>
               {n.numNaveNAME ?? n.idNave} (Mz {n.mza} Lt {n.lote})
             </option>
           ))}
         </select>
-        <input
-          value={nom}
-          onChange={(e) => setNom(e.target.value)}
-          placeholder="Nombre descriptivo"
-          className="rounded border px-2 py-1.5 text-sm"
-        />
         <button
           type="submit"
-          disabled={guardando}
+          disabled={guardando || !idNave}
           className="rounded-lg bg-[#1f2a4d] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#2a376a] disabled:opacity-50"
         >
           {guardando ? 'Vinculando…' : 'Vincular nave'}
         </button>
-        {error && <p className="text-xs text-red-600 sm:col-span-4">{error}</p>}
+        {error && <p className="text-xs text-red-600 sm:col-span-3">{error}</p>}
       </form>
 
-      <div className="overflow-hidden rounded-lg border">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-            <tr>
-              <th className="px-3 py-2">Propiedad</th>
-              <th className="px-3 py-2">Nave</th>
-              <th className="px-3 py-2 text-center">PDP</th>
-              <th className="px-3 py-2 text-center">Rta. G.</th>
-              <th className="px-3 py-2 text-center">Rta. A.</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {isLoading ? (
-              <tr>
-                <td colSpan={5} className="px-3 py-4 text-center text-gray-400">
-                  Cargando…
-                </td>
-              </tr>
-            ) : props.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-3 py-4 text-center text-gray-400">
-                  Sin propiedades.
-                </td>
-              </tr>
-            ) : (
-              props.map((p) => (
-                <tr key={p.idPropiedad}>
-                  <td className="px-3 py-2">{p.nomDescriptivo ?? '—'}</td>
-                  <td className="px-3 py-2">
-                    {p.nave?.numNaveNAME ?? p.idNave ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 text-center">{p.tienenPdp ? '✓' : '—'}</td>
-                  <td className="px-3 py-2 text-center">{p.tieneRgPdp ? '✓' : '—'}</td>
-                  <td className="px-3 py-2 text-center">{p.tieneRaPdp ? '✓' : '—'}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      {isLoading ? (
+        <p className="py-6 text-center text-sm text-gray-400">Cargando…</p>
+      ) : props.length === 0 ? (
+        <p className="py-6 text-center text-sm text-gray-400">Sin propiedades vinculadas.</p>
+      ) : (
+        <div className="space-y-3">
+          {props.map((p) => {
+            // El color de la franja indica la disponibilidad de la nave:
+            // rosa = Vendida, verde = Disponible, gris = otra/desconocida.
+            const sit = p.nave?.situacion;
+            const franja =
+              sit === 'Vendida'
+                ? 'border-l-pink-400'
+                : sit === 'Disponible'
+                  ? 'border-l-green-500'
+                  : 'border-l-gray-300';
+            const colorSit =
+              sit === 'Vendida'
+                ? 'text-pink-500'
+                : sit === 'Disponible'
+                  ? 'text-green-600'
+                  : 'text-gray-400';
+            return (
+              <div
+                key={p.idPropiedad}
+                className={`overflow-hidden rounded-xl border border-l-4 ${franja} bg-white shadow-sm`}
+              >
+                {/* Encabezado: inversionista + indicadores */}
+                <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3">
+                  <p className="text-sm">
+                    <span className="text-gray-500">Inversionista: </span>
+                    <span className="font-semibold text-[#3f5b87]">{nombre}</span>
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    {p.tienenPdp && <Chip texto="PDP" />}
+                    {p.tieneRgPdp && <Chip texto="Rta. G." />}
+                    {p.tieneRaPdp && <Chip texto="Rta. A." />}
+                    {/* Desvincular: solo si la nave NO tiene plan de pagos. */}
+                    {!p.tienenPdp && (
+                      <button
+                        type="button"
+                        onClick={() => desvincular(p)}
+                        disabled={borrando === p.idPropiedad}
+                        title="Desvincular nave del propietario"
+                        aria-label="Desvincular nave"
+                        className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                      >
+                        {borrando === p.idPropiedad ? '…' : '🗑'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-4 p-4">
+                  {/* Columna: número grande + nombre + situación de la nave */}
+                  <div className="flex w-24 shrink-0 flex-col items-center justify-center text-center">
+                    <span className="text-4xl font-bold leading-none text-[#1f2a4d]">
+                      {p.nave?.numNave ?? '—'}
+                    </span>
+                    <span className="mt-1 text-xs text-gray-500">Nave</span>
+                    <span className="text-sm font-semibold text-[#3f5b87]">
+                      {p.nave?.numNaveNAME ?? '—'}
+                    </span>
+                    {sit && (
+                      <span className={`mt-0.5 text-[11px] font-medium ${colorSit}`}>{sit}</span>
+                    )}
+                    {p.nomParque && (
+                      <span className="mt-1 text-[11px] text-gray-400">{p.nomParque}</span>
+                    )}
+                  </div>
+
+                  {/* Grilla de datos de la nave */}
+                  <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-3">
+                    <CampoNave label="Mza:" valor={p.nave?.mza ?? '-'} />
+                    <CampoNave label="Lote:" valor={p.nave?.lote ?? '-'} />
+                    <CampoNave label="Terreno:" valor={fmtNum(p.nave?.terreno)} />
+                    <CampoNave label="Const.:" valor={fmtNum(p.nave?.construccion)} />
+                    <CampoNave label="Precio:" valor={fmtNum(p.nave?.precio)} />
+                    <CampoNave label="Fecha estimada:" valor={fmtFecha(p.nave?.fecEntrega)} />
+                    {/* KVAs asignados a la nave (tabla kvasAsignados). */}
+                    <CampoNave
+                      label="KVAs Alta:"
+                      valor={p.kvas?.alta ? fmtNum(p.kvas.alta) : '-'}
+                    />
+                    <CampoNave
+                      label="KVAs Media:"
+                      valor={p.kvas?.media ? fmtNum(p.kvas.media) : '-'}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Indicador pequeño (PDP / Rta. G. / Rta. A.) para las tarjetas de propiedad. */
+function Chip({ texto }: { texto: string }) {
+  return (
+    <span className="rounded-full bg-[#1f2a4d]/10 px-2 py-0.5 text-[11px] font-medium text-[#1f2a4d]">
+      {texto}
+    </span>
   );
 }
 
