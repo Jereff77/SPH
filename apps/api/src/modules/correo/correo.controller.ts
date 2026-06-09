@@ -102,8 +102,16 @@ export class CorreoController {
   }
 
   @Get('bandeja')
-  bandeja(@Query('idCuenta') idCuenta: string) {
-    return this.correo.bandeja(idCuenta);
+  bandeja(
+    @Query('idCuenta') idCuenta: string,
+    @Query('folder') folder?: string,
+  ) {
+    return this.correo.bandeja(idCuenta, folder || undefined);
+  }
+
+  @Get('carpetas')
+  carpetas(@Query('idCuenta') idCuenta: string) {
+    return this.correo.carpetas(idCuenta);
   }
 
   @Get('hilo/:conversationId')

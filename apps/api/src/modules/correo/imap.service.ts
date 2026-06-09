@@ -1,17 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ImapFlow } from 'imapflow';
+import { ImapFlow, type ListResponse } from 'imapflow';
 import { simpleParser, type ParsedMail } from 'mailparser';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { Credenciales } from './cuentas.service.js';
 
 const BUCKET = 'email_attachments';
-/** Carpetas a sincronizar: recibidos y enviados (Hostinger usa INBOX.Sent). */
-const CARPETAS: { folder: string; tipo: 'received' | 'sent' }[] = [
-  { folder: 'INBOX', tipo: 'received' },
-  { folder: 'INBOX.Sent', tipo: 'sent' },
-];
 /** En la primera sincronización de una carpeta, traer a lo más estos correos. */
 const MAX_PRIMERA = 40;
+/** Carpetas especiales que NO se sincronizan (papelera, spam, borradores, "todos"). */
+const SPECIAL_EXCLUIDAS = new Set(['\\Trash', '\\Junk', '\\Drafts', '\\All']);
+/** Nombres (último segmento) que tampoco se sincronizan, por si el servidor no los marca. */
+const NOMBRES_EXCLUIDOS = /(trash|papelera|spam|junk|drafts|borradores)/i;
 
 /**
  * Sincroniza correos por IMAP (imapflow) hacia las tablas `correo_*`. Deduplica
@@ -38,6 +37,62 @@ export class ImapService {
     return (nombre || 'archivo').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
   }
 
+  /** ¿Esta carpeta NO debe sincronizarse? (no seleccionable, papelera, spam, borradores). */
+  private carpetaExcluida(b: {
+    specialUse?: string;
+    flags?: Set<string>;
+    name?: string;
+  }): boolean {
+    if (b.flags?.has('\\Noselect')) return true;
+    if (b.specialUse && SPECIAL_EXCLUIDAS.has(b.specialUse)) return true;
+    return NOMBRES_EXCLUIDOS.test(b.name ?? '');
+  }
+
+  /** Clasifica la carpeta como enviados o recibidos (para el campo `tipo`). */
+  private tipoDeCarpeta(b: {
+    specialUse?: string;
+    name?: string;
+  }): 'received' | 'sent' {
+    if (b.specialUse === '\\Sent') return 'sent';
+    return /sent|enviad/i.test(b.name ?? '') ? 'sent' : 'received';
+  }
+
+  /** De la lista cruda de buzones, deja solo las carpetas sincronizables (path + tipo). */
+  private filtrarSincronizables(
+    buzones: ListResponse[],
+  ): { folder: string; tipo: 'received' | 'sent' }[] {
+    return buzones
+      .filter((b) => !this.carpetaExcluida(b))
+      .map((b) => ({ folder: b.path, tipo: this.tipoDeCarpeta(b) }));
+  }
+
+  /**
+   * Lista EN VIVO (IMAP) las carpetas sincronizables de la cuenta. Refleja la
+   * estructura real del buzón: incluye carpetas personalizadas y las recién creadas
+   * (aunque estén vacías). No descarga correos, solo el árbol de carpetas.
+   */
+  async listarCarpetas(
+    cred: Credenciales,
+  ): Promise<{ folder: string; tipo: 'received' | 'sent' }[]> {
+    const client = new ImapFlow({
+      host: cred.imapHost,
+      port: cred.imapPort,
+      secure: cred.imapPort === 993,
+      auth: { user: cred.usuario, pass: cred.password },
+      logger: false,
+    });
+    try {
+      await client.connect();
+      return this.filtrarSincronizables(await client.list());
+    } finally {
+      try {
+        await client.logout();
+      } catch {
+        /* noop */
+      }
+    }
+  }
+
   /** Sincroniza una cuenta. Devuelve cuántos correos nuevos se guardaron. */
   async sincronizar(cred: Credenciales): Promise<{ nuevos: number }> {
     // Estado de sincronización (último UID por carpeta).
@@ -60,7 +115,15 @@ export class ImapService {
     let nuevos = 0;
     try {
       await client.connect();
-      for (const { folder, tipo } of CARPETAS) {
+      // Descubre TODAS las carpetas de la cuenta y sincroniza las relevantes.
+      // Así, si un correo se mueve a otra carpeta tras procesarlo, sigue apareciendo.
+      const aSincronizar = this.filtrarSincronizables(await client.list());
+      this.logger.log(
+        `${cred.email}: ${aSincronizar.length} carpeta(s) a sincronizar: ${aSincronizar
+          .map((c) => c.folder)
+          .join(', ')}`,
+      );
+      for (const { folder, tipo } of aSincronizar) {
         try {
           nuevos += await this.sincronizarCarpeta(client, cred, folder, tipo, estado);
         } catch (e) {
@@ -138,6 +201,30 @@ export class ImapService {
     return nuevos;
   }
 
+  /**
+   * Refleja el MOVIMIENTO de un correo entre carpetas: si ya existe en la BD pero
+   * ahora se encontró en otra carpeta, actualiza `folder` (y `tipo`). Solo escribe
+   * cuando realmente cambió de carpeta (`neq`), para no generar UPDATEs/auditoría inútiles.
+   */
+  private async actualizarUbicacion(
+    idCuenta: string,
+    messageId: string | null,
+    folder: string,
+    tipo: 'received' | 'sent',
+  ): Promise<void> {
+    if (!messageId) return; // sin messageId no se puede identificar con fiabilidad
+    const { error } = await this.supabase.admin
+      .from('correo_mensajes')
+      .update({ folder, tipo })
+      .eq('idCuenta', idCuenta)
+      .eq('messageId', messageId)
+      .neq('folder', folder);
+    if (error)
+      this.logger.warn(
+        `No se pudo reubicar el correo ${messageId} a ${folder}: ${error.message}`,
+      );
+  }
+
   /** Parsea e inserta un mensaje (si no existe). Devuelve true si era nuevo. */
   private async guardarMensaje(
     cred: Credenciales,
@@ -170,8 +257,13 @@ export class ImapService {
       .single();
 
     if (error) {
-      // 23505 = duplicado (ya sincronizado): no es error.
-      if (error.code === '23505') return false;
+      // 23505 = duplicado (ya sincronizado). El correo pudo MOVERSE de carpeta (p. ej.
+      // un proceso externo lo cataloga en Procesado/BanBajio tras registrar la
+      // transferencia): reflejamos su ubicación actual en lugar de ignorarlo.
+      if (error.code === '23505') {
+        await this.actualizarUbicacion(cred.id, messageId, folder, tipo);
+        return false;
+      }
       throw new Error(error.message);
     }
 

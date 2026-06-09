@@ -1,8 +1,8 @@
 ---
 modulo: Correo (buzón de facturas)
 estado: desarrollado
-version_doc: 1.0
-ultima_actualizacion: 2026-06-06
+version_doc: 1.1
+ultima_actualizacion: 2026-06-09
 submodulos: [Bandeja, Cuenta]
 rutas: [/correo]
 claves_permiso: [800, 801]
@@ -25,14 +25,29 @@ relacionado_con: [cxp, configuraciones]
   tablas `emails`/`email_attachments` — eso es OTRO sistema).
 - **Multi-cuenta**: tablas propias `correo_*` (no se mezclan con las de soporte).
 - **Sincronización**: cron cada 5 min (`@nestjs/schedule`) + botón **Sincronizar** manual. Deduplica por
-  `messageId` (UNIQUE por cuenta). Trae INBOX (recibidos) e INBOX.Sent (enviados). En la primera sync de
-  una carpeta trae los últimos ~40; luego solo UID nuevos (`ultimoUidSync` por carpeta en `correo_cuentas`).
+  `messageId` (UNIQUE por cuenta). **Descubre TODAS las carpetas** de la cuenta vía `client.list()` (IMAP) y
+  las sincroniza, **excepto** Papelera/Spam/Borradores/"Todos" (por `specialUse` `\Trash`/`\Junk`/`\Drafts`/
+  `\All`, flag `\Noselect`, o por nombre). Así, si un proceso externo (reglas del servidor, N8N viejo, manual)
+  **mueve un correo a otra carpeta** tras procesarlo, sigue apareciendo. El `tipo` (received/sent) se deduce
+  de `specialUse=\Sent` o del nombre. En la primera sync de cada carpeta trae los últimos ~40; luego solo UID
+  nuevos (`ultimoUidSync` es un mapa `carpeta→uid` en `correo_cuentas`, soporta N carpetas sin cambio de
+  esquema). El **path real** de la carpeta se guarda en `correo_mensajes.folder`.
+- **Sigue los MOVIMIENTOS entre carpetas**: si un correo ya sincronizado reaparece en otra carpeta (p. ej. un
+  **proceso externo en otro servidor** que **cada 60 s** revisa la cuenta, procesa las transferencias, las
+  registra en `movbancarios` y mueve el correo a `BanBajio`/`Procesado`/…), el sync detecta el duplicado por
+  `messageId` y **actualiza su `folder`/`tipo`** (`actualizarUbicacion`, solo si cambió) en vez de ignorarlo.
+  Así la vista refleja la carpeta actual del buzón. Funciona porque al mover un correo el servidor le asigna un
+  UID nuevo (> último), y el sync incremental lo vuelve a ver (latencia: hasta el siguiente ciclo del cron de
+  5 min, o al pulsar Sincronizar).
 - **Hilos**: se agrupan por `conversationId` (raíz de `References`/`In-Reply-To`, o el propio Message-ID).
 
 ## 3. Pantalla (`/correo`, 2 pestañas)
-- **Bandeja**: lista de conversaciones (remitente, asunto, fecha, no leídos, 📎) + botón Sincronizar; al
+- **Bandeja**: lista de conversaciones (remitente, asunto, fecha, no leídos, 📎, **etiqueta de carpeta**) +
+  **selector de carpeta** ("Todas las carpetas" + cada carpeta con su nº de no leídos) + botón Sincronizar; al
   abrir una → **hilo** de mensajes (recibidos/enviados) con **adjuntos** (descargar) y **responder**
-  (texto + adjuntar archivos). Al abrir un hilo, los recibidos se marcan leídos.
+  (texto + adjuntar archivos). Al abrir un hilo, los recibidos se marcan leídos. El **cuerpo HTML** se
+  renderiza en un **`<iframe sandbox>` sin `allow-scripts`** (XSS bloqueado; el JS del correo no se ejecuta) y
+  cae a texto plano si no hay HTML.
 - **Cuenta** (solo permiso **801**): configurar la cuenta (nombre, correo, usuario, contraseña, IMAP/SMTP
   host+puerto), **Probar conexión** (IMAP login + SMTP verify), activar/desactivar. La contraseña se guarda
   **cifrada** y nunca se muestra/devuelve. Quien no tenga 801 solo ve la Bandeja.
@@ -54,7 +69,11 @@ relacionado_con: [cxp, configuraciones]
 
 ## 5. Endpoints (backend, `@RequierePermiso(800)`)
 `GET/POST/PATCH /correo/cuentas`, `PATCH /correo/cuentas/:id/activo`, `POST /correo/cuentas/probar`,
-`POST /correo/cuentas/:id/probar`, `POST /correo/sincronizar?idCuenta=`, `GET /correo/bandeja?idCuenta=`,
+`POST /correo/cuentas/:id/probar`, `POST /correo/sincronizar?idCuenta=`,
+`GET /correo/bandeja?idCuenta=&folder=` (folder opcional para filtrar por carpeta),
+`GET /correo/carpetas?idCuenta=` (lista la estructura REAL del buzón **en vivo por IMAP** —incluye carpetas
+personalizadas y recién creadas, aun vacías— + conteos no leídos desde BD; alimenta el selector. Frontend
+cachea 5 min y refresca tras Sincronizar),
 `GET /correo/hilo/:conversationId?idCuenta=`, `POST /correo/responder/:idMensaje` (multipart adjuntos).
 
 ## 6. Seguridad
@@ -71,5 +90,7 @@ relacionado_con: [cxp, configuraciones]
 | "No veo Correo en el menú." | Falta permiso 800. | Asignar el permiso en Configuraciones → Permisos. |
 
 ## 8. Pendiente / fuera del MVP
-- Redactar correos nuevos (no solo responder), búsqueda, etiquetas/carpetas, IMAP IDLE (tiempo real),
-  paginación de grandes volúmenes. El correo de **soporte** podría migrarse aquí (es multi-cuenta).
+- Redactar correos nuevos (no solo responder), búsqueda, IMAP IDLE (tiempo real), paginación de grandes
+  volúmenes, traer **más de ~40** correos históricos por carpeta en el primer sync (hoy el tope `MAX_PRIMERA`
+  aplica por carpeta), bloqueo opcional de imágenes remotas (tracking pixels). El correo de **soporte** podría
+  migrarse aquí (es multi-cuenta).

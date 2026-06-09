@@ -30,9 +30,16 @@ export interface Conversacion {
   subject: string | null;
   ultimoFrom: string | null;
   ultimaFecha: string | null;
+  folder: string | null;
   total: number;
   noLeidos: number;
   tieneAdjuntos: boolean;
+}
+
+export interface Carpeta {
+  folder: string;
+  total: number;
+  noLeidos: number;
 }
 
 export interface AdjuntoCorreo {
@@ -54,6 +61,7 @@ export interface MensajeCorreo {
   bodyHtml: string | null;
   fecha: string | null;
   tipo: string;
+  folder: string | null;
   leido: boolean;
   tieneAdjuntos: boolean;
   adjuntos: AdjuntoCorreo[];
@@ -81,8 +89,13 @@ export const correoApi = {
     api.post<{ nuevos: number }>(
       `/correo/sincronizar?idCuenta=${encodeURIComponent(idCuenta)}`,
     ),
-  bandeja: (idCuenta: string) =>
-    api.get<Conversacion[]>(`/correo/bandeja?idCuenta=${encodeURIComponent(idCuenta)}`),
+  bandeja: (idCuenta: string, folder?: string) =>
+    api.get<Conversacion[]>(
+      `/correo/bandeja?idCuenta=${encodeURIComponent(idCuenta)}` +
+        (folder ? `&folder=${encodeURIComponent(folder)}` : ''),
+    ),
+  carpetas: (idCuenta: string) =>
+    api.get<Carpeta[]>(`/correo/carpetas?idCuenta=${encodeURIComponent(idCuenta)}`),
   hilo: (idCuenta: string, conversationId: string) =>
     api.get<MensajeCorreo[]>(
       `/correo/hilo/${encodeURIComponent(conversationId)}?idCuenta=${encodeURIComponent(idCuenta)}`,

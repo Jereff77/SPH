@@ -5,7 +5,7 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-06. Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-09. Autor: Claude (Opus 4.8).
 >
 > 📌 **El estado detallado y al día por módulo está en `base-conocimiento/INDICE.md`** (router) y los
 > `base-conocimiento/modulos/*.md`. El **handoff operativo** (despliegue EasyPanel, rama, variables,
@@ -35,7 +35,14 @@
   - **CxP** casi completo: Proveedores, Bancos, **Solicitudes de pago** (alta de CFDI con parser propio +
     validaciones fiscales), **Aprobar Solicitudes** (presupuesto + fuera de presupuesto), **Pagar
     solicitudes** (3 vías de pago + tiempo real SSE), **Solicitudes pendientes**.
-  - **Correo** (sección propia): buzón de facturas IMAP/SMTP en el backend (sin N8N).
+  - **Correo** (sección propia): buzón de facturas IMAP/SMTP en el backend (sin N8N). Sincroniza **todas las
+    carpetas** del buzón dinámicamente (descubiertas vía `client.list()`, excluye Papelera/Spam/Borradores),
+    **selector de carpeta** en la bandeja (estructura real del buzón en vivo, aparecen carpetas nuevas/
+    personalizadas), **sigue los movimientos** de un correo entre carpetas (un proceso externo cada 60 s procesa
+    transferencias→`movbancarios` y mueve el correo a `BanBajio`/`Procesado`; v2 actualiza su `folder` al
+    reubicarlo) y renderiza el **cuerpo HTML** en un `<iframe sandbox>` sin scripts (anti-XSS). Requiere
+    `EMAIL_ENCRYPTION_KEY` (env del api, AES-256-GCM) — **debe ser idéntica en todos los entornos** que usen la
+    misma BD o no se descifran las contraseñas guardadas.
   - **Ventas** (Inversionistas/Propietarios) — **Etapa 1**: **Dashboard** (clave 600) y **Planes** (clave
     610). **Cálculos sin vistas** (desde tablas base) con un **único universo**: propiedades con
     `propiedades.pdpActivo=<filtro>`, **`propiedades.esTicket=false`** (el parque de Tickets se excluye de
@@ -77,6 +84,15 @@
   restaba el día). Detalle por módulo en `base-conocimiento/`.
 - **Despliegue:** EasyPanel, 2 apps (api Dockerfile `apps/api/Dockerfile` :3001, web `apps/web/Dockerfile`
   :80). Guía: `DEPLOY-EASYPANEL.md`. Flujo: push a `erp_v2` → Implementar.
+- **⚠️ Hotfix activo en BD (CxP, 2026-06-09): trigger `trigger_cxp_validar_fecha_cfdi` DESACTIVADO.**
+  El trigger `cxp_validar_fecha_cfdi_estado` re-rechazaba (`idEstado=3`) facturas con CFDI de un mes
+  anterior a `fc` en **cualquier UPDATE**, corrompiendo incluso **pagadas/aprobadas**. Se **desactivó**
+  (`DISABLE TRIGGER`, reversible, no eliminado) y el usuario corrigió los registros afectados (verificado:
+  0 inconsistencias). **Pendiente:** aplicar la corrección y reactivarlo según
+  `base-conocimiento/PLAN-correccion-trigger-cxp-fecha-cfdi.md` (Fase 1: validar solo en INSERT y en
+  UPDATE con `OLD.idEstado IN (1,2)`; Fase 2: PPD⇒`diferido` automático en el alta — **bloqueada hasta
+  que se defina cómo se trabajará el PPD**). Mientras el trigger esté off, las PUE de meses anteriores
+  no se auto-rechazan.
 - **Siguiente:** Ventas Etapa 2 (**Reportes 620**, **Escrituras 630**, creación de **Renta Garantizada**
   vía RPCs `rgpdp_insertar_registro`/`rgpdp_generar_plan_pagos` y **Renta Administrada** `rapdp_actualizar`,
   pasar las pestañas de rentas a cálculo propio); CxP Dashboard(440/441) y Reportes(460); conciliación
