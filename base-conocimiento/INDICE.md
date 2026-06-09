@@ -29,6 +29,7 @@ futuro, en una tabla vectorial `pgvector` para búsqueda semántica).
 | Parques | ✅ desarrollado | `modulos/parques.md` | /parques, /parques/disponibilidad | 700, 701, 702, 710 | parque, nave, bodega, KVA, disponibilidad, manzana, lote, GYM |
 | Landing / Indicadores | ✅ desarrollado | `modulos/landing-indicadores.md` | / | — | inicio, tipo de cambio, dólar, INPC, indicadores, Banxico |
 | Auditoría / Ver como | ✅ desarrollado | `modulos/auditoria-y-ver-como.md` | (transversal) | 200 | historial, bitácora, auditoría, trazabilidad, ver como, quién cambió |
+| Changelog / Novedades | ✅ desarrollado | `modulos/changelog.md` | /configuraciones/novedades | — (sin permiso) | novedades, changelog, versión, versiones, actualización, qué cambió, notas de la versión, SemVer |
 | Clientes | ✅ desarrollado | `modulos/clientes.md` | /clientes | 300 | cliente, clientes, inversionista, arrendatario, ticket, usuario final, papelera, prueba, razón social, RFC, CURP, contpaq, personalidad, alta cliente, CRM |
 | Inversionistas / Propietarios (Ventas) | 🟠 parcial | `modulos/inversionistas.md` | /ventas, /ventas/planes | 600, 610 | inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, % avance, renta garantizada, renta administrada, configuración, documentos, escrituración, comentarios, razón social |
 | Arrendatarios | ✅ desarrollado | `modulos/arrendatarios.md` | /arrendatarios, /arrendatarios/planes | 10, 20 | arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, INPC, mes de gracia, cortesía, concepto financiado, KVA, vigencia, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, m² construcción, liberar nave, renovación, renovar plan, fecha fin |
@@ -56,6 +57,7 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `inpc`, `PresCategorias`, `PresDetalle`, `cxp_fechas_habilitadas`, `catClavesProdServ` | Configuraciones (Parámetros: INPC/Cuentas/Fechas/**Claves SAT**) |
 | `SPHConfiguraciones` | Configuraciones (Sistema) · `RFC_RECEPTORES_AUTORIZADOS` lo usa CxP |
 | `auditoria`, `actividad` | Auditoría |
+| `v2_changelog` | Changelog / Novedades |
 | `cxp`, `cxpComentarios`, `catProveedores`, `catBancos`, `catClavesProdServ`, `movbancarios` | CxP |
 | `correo_cuentas`, `correo_mensajes`, `correo_adjuntos` | Correo (buzón de facturas) |
 | `emails`, `email_attachments` | Soporte/CRM (vía N8N — NO es el módulo Correo) |
@@ -81,3 +83,4 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `/configuraciones/permisos` | Configuraciones (Permisos) |
 | `/configuraciones/sistema` | Configuraciones (Sistema) |
 | `/configuraciones/cambiar-contrasena` | Autenticación / Configuraciones |
+| `/configuraciones/novedades` | Changelog / Novedades |

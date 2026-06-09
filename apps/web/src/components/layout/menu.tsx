@@ -101,6 +101,8 @@ export const MENU: MenuGrupo[] = [
       { label: 'Sistema', to: '/configuraciones/sistema', clave: 221 },
       // Cambiar contraseña: disponible para todos (sin clave).
       { label: 'Cambiar contraseña', to: '/configuraciones/cambiar-contrasena' },
+      // Novedades (changelog): disponible para todos (sin clave).
+      { label: 'Novedades', to: '/configuraciones/novedades' },
     ],
   },
 ];

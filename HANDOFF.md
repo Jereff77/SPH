@@ -76,10 +76,17 @@
     Pagos** con layout 2 columnas: Generales con subtotales/Total Mes en vivo + Cargos KVA + Conceptos +
     **Previsualización** de la corrida) y **Renovación** de plan con **activación automática** (pg_cron). Motor
     de cálculo INPC delegado a las RPCs `arrepdp_*` existentes (vía `comoActor`). Ver `modulos/arrendatarios.md`.
+- **Changelog / Novedades** (Configuraciones, **sin permiso** → todos): bitácora de versiones SemVer
+  (`GET /api/changelog`, solo lectura). El Sidebar muestra la versión desde aquí. Fuente: tabla nueva
+  `v2_changelog` + función `v2_changelog_registrar` (asigna el SemVer desde la BD con lock, **a prueba de
+  concurrencia entre agentes**) — **ambas aplicadas** (seed 2.0.0→2.10.0). Regla de proceso + comando
+  **«documenta todo»** en **sección 1, regla 9** y procedimiento en **sección 5e**.
 - **Objetos NUEVOS en BD (con autorización):** bucket `branding` + `v2_obtener_logo_url()`;
   `catClavesProdServ`; permisos 470/800/801 + enum `Modulos`+='Correo'; tablas `correo_*`; parámetro
   `RFC_RECEPTORES_AUTORIZADOS`; **Arrendatarios:** RPCs `v2_arrepdp_renovar` + `v2_arrepdp_activar_renovaciones`
-  + job pg_cron `v2-arrepdp-activar-renovaciones` (02:00). **Único objeto del sistema viejo modificado (con
+  + job pg_cron `v2-arrepdp-activar-renovaciones` (02:00); **Changelog:** tabla `v2_changelog` + función
+  `v2_changelog_registrar(salto,titulo,cambios,publicada)` (asigna SemVer con `advisory lock`). **Único objeto
+  del sistema viejo modificado (con
   autorización):** la columna generada `arrePdp."fecFin"` se redefinió a `fecInicio + plazo − 1 día` (antes no
   restaba el día). Detalle por módulo en `base-conocimiento/`.
 - **Despliegue:** EasyPanel, 2 apps (api Dockerfile `apps/api/Dockerfile` :3001, web `apps/web/Dockerfile`
@@ -186,6 +193,30 @@
    - Por ahora la KB son **solo archivos `.md`** (fuente de verdad versionable). La indexación para el
      agente (tabla vectorial `pgvector` en Supabase) es una **fase posterior** que se derivará de estos
      documentos, con su autorización de DDL.
+
+9. **📋 CHANGELOG, VERSIONADO Y «DOCUMENTA TODO» (regla de proceso — OBLIGATORIA).** El sistema mantiene un
+   **changelog versionado** visible en **Configuraciones → Novedades** (sin permiso, para **todos** los
+   usuarios). Es la bitácora oficial de **qué cambió y cuándo**, y la fuente de la **versión del sistema** que
+   ve el usuario. En consecuencia:
+   - **Versionado SemVer** `MAJOR.MINOR.PATCH`: **PATCH** = corrección/bugfix; **MINOR** = funcionalidad nueva
+     (retrocompatible); **MAJOR** = cambio grande/rompedor. La "versión del sistema" (Sidebar incluido) es la
+     **versión publicada más reciente** de `public.v2_changelog`. El salto lo decide el cambio de **mayor peso**
+     del lote (un MINOR + tres PATCH ⇒ MINOR).
+   - **⚠️ CONCURRENCIA (varios agentes a la vez):** **NUNCA** hardcodees el número de versión ni lo calcules
+     desde tu memoria — otro agente pudo haber publicado una versión después de la última que tú viste. El
+     número lo **asigna la BD**: se registra **siempre** llamando a la función nueva
+     `public.v2_changelog_registrar(p_salto, p_titulo, p_cambios)` (lee el máximo con *advisory lock* y
+     calcula el siguiente SemVer atómicamente; devuelve la versión asignada). Así dos agentes simultáneos
+     **no se tropiezan**. Detalle en la sección 5e.
+   - **🗣️ Comando «documenta todo».** Cuando el usuario diga **«documenta todo»**, el agente ejecuta el
+     procedimiento completo de cierre (registrar versión → alinear front → KB → HANDOFF → contexto → commit+push
+     en `erp_v2`). **Pasos exactos en la sección 5e.** Cada «documenta todo» = **una versión nueva**.
+   - **Qué SÍ se registra** en el changelog: features, fixes, cambios de comportamiento o de seguridad
+     **visibles para el usuario**. **Qué NO:** refactors internos, cambios de documentación/KB, ajustes de
+     tipos — nada que el usuario perciba. Categorías: `Agregado`, `Cambiado`, `Corregido`, `Eliminado`,
+     `Obsoleto`, `Seguridad`.
+   - La pantalla es de **solo lectura** (`GET /api/changelog`, `JwtAuthGuard` **sin** `PermisoGuard`). No hay
+     UI de edición: el changelog lo escribe el agente que desarrolla, no el usuario final.
 
 ---
 
@@ -400,6 +431,68 @@ Backend: `apps/api/src/modules/usuarios/`. Frontend: `apps/web/src/features/usua
 
 ---
 
+## 5e. Módulo Changelog / Novedades (✅ HECHO) — y cómo registrar versiones
+
+**Qué es:** la bitácora oficial de versiones del sistema (SemVer), visible en **Configuraciones → Novedades**
+para **todos** los usuarios (ítem de menú **sin `clave`**, igual que "Cambiar contraseña"). Implementa la
+**regla 9**.
+
+**Arquitectura (objeto nuevo de v2, no toca nada del sistema viejo):**
+- **Backend** `apps/api/src/modules/changelog/`: `GET /api/changelog` → `{ versionActual, versiones[] }`
+  (versiones publicadas, ordenadas SemVer desc). Protegido por `JwtAuthGuard` **sin** `PermisoGuard`
+  (solo lectura, para todos). El service lee la tabla `v2_changelog`, valida los `cambios` (JSONB) y ordena.
+- **Frontend** `apps/web/src/features/changelog/`: `ChangelogPage` (línea de tiempo de versiones con chips
+  por tipo + buscador), `useChangelog` (TanStack Query, `staleTime` 5 min). El **Sidebar** muestra la versión
+  leyéndola de aquí (con *fallback* a `APP_VERSION` de `constants.ts`) y es un **enlace** a `/configuraciones/
+  novedades`. Ruta nueva en `router.tsx`; ítem nuevo en `components/layout/menu.tsx`.
+- **Tabla** `public.v2_changelog` (✅ aplicada; DDL + seed en
+  `base-conocimiento/migraciones/2026-06-09-v2_changelog.sql`): una fila por versión; `cambios` es JSONB
+  `[{tipo, descripcion}]`; **RLS ON sin políticas** (solo backend `service_role`); **`trg_auditoria`**
+  (`fn_auditoria('id')`). Sembrada con el historial 2.0.0 → **2.10.0**.
+- **Función** `public.v2_changelog_registrar(p_salto, p_titulo, p_cambios, p_publicada=true)` (✅ aplicada;
+  objeto nuevo v2_, `SECURITY DEFINER`, `EXECUTE` solo a `service_role`): **asigna el número de versión desde
+  la BD** con `pg_advisory_xact_lock` (a prueba de concurrencia) y devuelve la versión creada. **Es la ÚNICA
+  vía correcta de registrar** (no usar `INSERT` manual con versión hardcodeada).
+
+**📌 Cómo registra un agente una versión (a prueba de concurrencia):** llama a la función pasando el salto
+(`major`|`minor`|`patch`) — el número lo calcula la BD:
+
+```sql
+-- Devuelve la versión asignada (p. ej. '2.11.0'); úsala en el mensaje de commit.
+SELECT public.v2_changelog_registrar(
+  'minor',                       -- major | minor | patch (según el cambio de mayor peso)
+  'Título corto de la versión',
+  '[
+     {"tipo":"Agregado","descripcion":"Qué se agregó, en lenguaje de usuario."},
+     {"tipo":"Corregido","descripcion":"Qué se corrigió."}
+   ]'::jsonb
+);
+```
+
+Tipos válidos: `Agregado`, `Cambiado`, `Corregido`, `Eliminado`, `Obsoleto`, `Seguridad`. Redacta las
+descripciones **para el usuario final** (qué cambió, no detalles internos). Para preparar una versión sin
+mostrarla aún, pasa `p_publicada => false` (4.º argumento).
+
+**🗣️ Procedimiento del comando «DOCUMENTA TODO» (ejecutar EN ORDEN al recibir esa instrucción):**
+1. **Registra la versión** con `v2_changelog_registrar(salto, título, cambios)`. Guarda la versión `N` que
+   devuelve (la BD garantiza que es la siguiente real, aunque otro agente haya publicado en paralelo).
+2. **Alinea el front:** pon `APP_VERSION = 'v. N'` en `apps/web/src/lib/constants.ts` (el Sidebar ya lee la
+   versión de la BD en vivo; esto mantiene el *fallback* del bundle coherente con `N`).
+3. **Actualiza la Base de Conocimiento** (regla 8): el/los `base-conocimiento/modulos/<modulo>.md` tocados +
+   `INDICE.md`.
+4. **Actualiza el HANDOFF** (lo que cambió) y **`../.sessions/contexto.md`** (entrada de sesión).
+5. **Commit + push en el repo `erp_v2`** — `github.com/Jereff77/SPH`, rama **`erp_v2`**
+   (https://github.com/Jereff77/SPH/tree/erp_v2) — **NO** en la carpeta temporal `version2/` (que solo existe
+   para dar acceso al código de v1). El mensaje del commit **DEBE empezar con `vN.N.N: …`** para identificarlo.
+   El push dispara el deploy en EasyPanel. *(Mientras trabajemos desde `version2/`: si el repo `erp_v2` no está
+   montado en el entorno, deja preparado el mensaje `vN: …` y avísale al usuario para que sincronice y haga
+   push.)*
+
+> Resultado: la versión queda registrada una sola vez (sin choques entre agentes), el commit es rastreable por
+> versión, y el Sidebar la muestra siempre (la lee de la BD).
+
+---
+
 ## 6. Cómo arrancar y verificar
 
 ```bash
@@ -524,8 +617,19 @@ PostgREST persiste mientras Flutter siga vivo; se cierra al final de la transici
 ## 10. Convenciones y notas
 
 - **Idioma:** español en todo (identificadores de dominio, comentarios, mensajes de error de la API).
-- **Commits/Git:** el monorepo `version2/` aún no es un repo git propio (el repo raíz no es git). Coordinar
-  con el usuario antes de inicializar git o hacer commits.
+- **⛔ Commits/Git (REGLA INVIOLABLE):**
+  - **Lo que se sube a `erp_v2` ES el contenido de `version2/`.** La carpeta `version2/` es el **working copy**
+    del repositorio **`github.com/Jereff77/SPH`** rama **`erp_v2`** → https://github.com/Jereff77/SPH/tree/erp_v2
+    (de ahí despliega EasyPanel: push a `erp_v2` → Implementar). Existe en este entorno para dar acceso al
+    código de v1 durante la migración; al subir, su contenido se publica tal cual en `erp_v2`.
+  - **🚫 NO TOCAR otros repositorios.** En el grupo hay **otros repos que son proyectos distintos** (p. ej.
+    `ERP-RLS` — análisis/reportes — en el **mismo** remote `Jereff77/SPH`). **Está prohibido** modificar,
+    commitear o empujar a cualquier repo/rama que no sea **`erp_v2`**. No confundir `ERP-RLS` con `erp_v2`.
+  - **Cómo subir** (sin clonar a otra carpeta): `git init` dentro de `version2/`, `remote add origin`,
+    `fetch origin erp_v2`, `reset --soft origin/erp_v2`, `add -A`, `commit`, `push origin HEAD:erp_v2`. Usar
+    `core.autocrlf=input` para evitar falsos cambios por fin de línea. El `.gitignore` de `version2/` ya
+    excluye `node_modules`, `dist`, `.env*` (nunca subir secretos).
+  - **Mensaje de commit:** SIEMPRE empieza con la versión publicada → `vN.N.N: …` (regla 9 / sección 5e).
 - **Gestor de paquetes:** pnpm 10.12. Node 22. No usar npm/yarn dentro de `version2/`.
 - **`.env`:** nunca commitear secretos. El `service_role` y el `jwt_secret` solo en `apps/api/.env`.
 - **Memoria de sesión:** el contexto histórico del proyecto está en `../.sessions/contexto.md` (actualizarlo

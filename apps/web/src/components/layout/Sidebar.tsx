@@ -6,6 +6,7 @@ import { useAuth } from '@/features/auth/useAuth';
 import { VerComoModal } from '@/features/auth/VerComoModal';
 import { nombreUsuario } from '@/features/auth/format';
 import { APP_VERSION } from '@/lib/constants';
+import { useChangelog } from '@/features/changelog/useChangelog';
 import { MENU } from './menu';
 
 /** Grupo del menú al que pertenece una ruta (null en el landing/otras). */
@@ -32,6 +33,11 @@ interface SidebarProps {
 export function Sidebar({ colapsado, onNavegar }: SidebarProps) {
   const { usuario, tienePermiso, esSoporte, activarVerComo } = useAuth();
   const { pathname } = useLocation();
+  // Versión del sistema desde el changelog (fallback a la constante del bundle).
+  const { data: changelog } = useChangelog();
+  const version = changelog?.versionActual
+    ? `v. ${changelog.versionActual}`
+    : APP_VERSION;
   // Al cargar/recargar: abre el grupo de la ruta actual (ninguno en el landing).
   const [grupoAbierto, setGrupoAbierto] = useState<string | null>(() =>
     grupoDeRuta(pathname),
@@ -107,7 +113,14 @@ export function Sidebar({ colapsado, onNavegar }: SidebarProps) {
             <p className="truncate text-sm font-semibold text-white">
               {nombreUsuario(usuario)}
             </p>
-            <p className="text-xs font-medium text-[#8cc63f]">{APP_VERSION}</p>
+            <Link
+              to="/configuraciones/novedades"
+              onClick={onNavegar}
+              title="Ver novedades del sistema"
+              className="text-xs font-medium text-[#8cc63f] transition hover:underline"
+            >
+              {version}
+            </Link>
           </div>
         )}
       </div>

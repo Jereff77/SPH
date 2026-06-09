@@ -153,9 +153,18 @@ parametrizadas desde el backend.
    o al intentar **enviarla** (no se puede enviar a aprobación sin categoría válida). El backend además
    bloquea el envío con mensaje claro. Los ya **Pagados** no se tocan.
 7. **Al enviar**, el CFDI debe ser **del mes en curso** (misma regla que el alta): no se puede enviar a
-   aprobación una factura de un mes anterior.
+   aprobación una factura de un mes anterior. ⚠️ Esta regla la imponía el trigger
+   `cxp_validar_fecha_cfdi_estado`, **hoy DESACTIVADO** por el bug del punto 9.
 8. **Movimientos para pagar:** solo `tipo='Transferencia SPEI'` sin aplicar, filtrados por proveedor
    (nombre **o** importe = total). Los **depósitos** no aparecen (son entradas).
+9. **🔴 Trigger `trigger_cxp_validar_fecha_cfdi` DESACTIVADO (incidente 2026-06-09).** La función
+   `cxp_validar_fecha_cfdi_estado` (BEFORE INSERT OR UPDATE) ponía `idEstado=3` (Rechazado) cuando el
+   CFDI era de un mes anterior a `fc`, **en cualquier UPDATE** — corrompiendo incluso facturas
+   **pagadas/aprobadas** y re-rechazando al intentar "Devolver a Guardado". Se **desactivó** (reversible,
+   no eliminado) y se corrigieron los registros afectados. **Corrección pendiente** (validar solo en
+   INSERT y en UPDATE con `OLD.idEstado IN (1,2)`; PPD⇒`diferido` automático) en
+   `base-conocimiento/PLAN-correccion-trigger-cxp-fecha-cfdi.md`, **bloqueada hasta definir el manejo de
+   PPD**. Mientras esté off, las PUE de meses anteriores **no** se auto-rechazan.
 
 ## 8. 🩺 Diagnóstico / problemas comunes
 

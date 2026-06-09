@@ -8,6 +8,7 @@ import { UsuariosPage } from '@/features/usuarios/UsuariosPage';
 import { ParametrosPage } from '@/features/parametros/ParametrosPage';
 import { PermisosPage } from '@/features/permisos/PermisosPage';
 import { CambiarContrasenaPage } from '@/features/auth/CambiarContrasenaPage';
+import { ChangelogPage } from '@/features/changelog/ChangelogPage';
 import { ParquesPage } from '@/features/parques/ParquesPage';
 import { DisponibilidadPage } from '@/features/parques/DisponibilidadPage';
 import { ProveedoresPage } from '@/features/cxp/ProveedoresPage';
@@ -62,6 +63,7 @@ export const router = createBrowserRouter([
             path: '/configuraciones/cambiar-contrasena',
             element: <CambiarContrasenaPage />,
           },
+          { path: '/configuraciones/novedades', element: <ChangelogPage /> },
         ],
       },
     ],

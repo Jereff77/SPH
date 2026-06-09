@@ -1,6 +1,11 @@
 /** Constantes de la aplicación. */
 
-export const APP_VERSION = 'v. 2.0.0';
+/**
+ * Versión del bundle (solo *fallback*). La versión REAL del sistema se lee en vivo
+ * del changelog (`GET /api/changelog` → Sidebar). Mantener alineada con la última
+ * versión publicada al ejecutar «documenta todo» (ver HANDOFF, regla 9 / sección 5e).
+ */
+export const APP_VERSION = 'v. 2.10.0';
 
 /** Paleta de marca SPH (provisional, ajustable al manual de marca). */
 export const COLORS = {

@@ -19,6 +19,7 @@ import { CorreoModule } from './modules/correo/correo.module.js';
 import { VentasModule } from './modules/ventas/ventas.module.js';
 import { ClientesModule } from './modules/clientes/clientes.module.js';
 import { ArrendatariosModule } from './modules/arrendatarios/arrendatarios.module.js';
+import { ChangelogModule } from './modules/changelog/changelog.module.js';
 
 /**
  * Módulo raíz. Aquí se registran los módulos de dominio del ERP a medida que se
@@ -56,6 +57,7 @@ import { ArrendatariosModule } from './modules/arrendatarios/arrendatarios.modul
     VentasModule,
     ClientesModule,
     ArrendatariosModule,
+    ChangelogModule,
     // InversionistasModule,
     // CxpModule,
     // FideicomisoModule,
