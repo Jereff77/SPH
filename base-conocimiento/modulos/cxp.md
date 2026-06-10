@@ -43,6 +43,7 @@ Captura/Solicitud  →  Autorización  →  Pago/Transferencia  →  Conciliaci�
 | Proveedores | `/cxp/proveedores` | **410** | ✅ desarrollado |
 | Bancos | `/cxp/bancos` | **470** | ✅ desarrollado |
 | Solicitudes de pago | `/cxp/solicitudes` | 420 | ✅ listado (4 etapas) + **alta de los 5 tipos** (Solicitud de Pago CFDI, Urgentes, Línea de Captura, Devoluciones, Sin XML) + editar/enviar/eliminar |
+| **Solicitudes de Pago PPD** | `/cxp/ppd` | 420 | ✅ desarrollado (estado de cuenta por factura PPD + dosificación de pagos parciales con control de saldo) |
 | **Pagar solicitudes** | `/cxp/pagar` | **400** | ✅ desarrollado (tesorería: listado + registrar pago/conciliación + tiempo real) |
 | Claves SAT | `/configuraciones/parametros` (pestaña) | 210 | ✅ desarrollado |
 | **Aprobar Solicitudes** | `/cxp/aprobar` | **430** | ✅ desarrollado (bandeja del aprobador: regresar/rechazar/aprobar con presupuesto) |
@@ -450,3 +451,76 @@ Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un mod
   de corrección del trigger debe contemplar `tipoOperacion=6`.
 - Sin objetos nuevos en BD: todo se construye sobre `cxp`/`cxpComentarios`/`PresCategorias`/`catProveedores`/
   `inversionista` existentes.
+
+## Solicitudes de Pago PPD (facturas en parcialidades) — v2  ✅
+
+**Qué es.** Sección dedicada (`/cxp/ppd`, **clave 420**) para facturas con **MetodoPago = PPD** (Pago en
+Parcialidades o Diferido): una factura grande (p. ej. $1,000,000) se **dosifica** en varios pagos a lo largo
+del tiempo, llevando el control del **saldo disponible** para que **nunca se solicite más de lo que queda**.
+Las solicitudes normales (`/cxp/solicitudes`) siguen siendo **solo PUE**; el PPD se rechaza ahí y se trabaja
+aquí.
+
+### Modelo (reutiliza tablas EXISTENTES de v1, autorizado por el cliente)
+- **`cxp_ppd`** = maestro de la factura PPD (una fila por CFDI). Campos clave: `idCxpPPD` (PK), `folio`
+  (UUID del CFDI), `total`/`subtotal` (de la factura), `montoAplicado` (Σ pagado, se sincroniza al pagar),
+  `numPagos` (nº de parcialidades), `urlXLM`/`urlCFDI`, `idProveedor`, `idCategoria`. Tiene `trg_auditoria`.
+- **`cxp`** = cada **solicitud parcial** (un abono), ligada al maestro por **`idCxpPPD`** (FK
+  `cxp_idCxpPPD_fkey`) y por **`idFolioDif`** = UUID del CFDI. Marca **`diferido=true`**, `total` = monto del
+  abono, `tipoOperacion=1`. **Nace en `idEstado=2` (Enviado)** → entra directo a la bandeja del aprobador
+  (igual que las Urgentes). Al ser filas `cxp` normales, **fluyen por Aprobar (430) y Pagar (400)** sin cambios.
+
+### Control de saldo (la regla central)
+`Disponible = cxp_ppd.total − Σ(cxp.total de las parciales NO rechazadas)`. Es decir, se descuenta **todo lo
+comprometido** (Guardado/Enviado/Aprobado/Pagado), no solo lo pagado, para no sobre-comprometer. Si una parcial
+se **rechaza** (`idEstado=3`), su monto **vuelve** a estar disponible. El cálculo es **server-side y
+parametrizado** (`PpdService.saldoDe`), sin el SQL crudo inseguro de v1.
+
+### Flujo
+1. **Nueva factura PPD** (`NuevaFacturaPpd`): sube XML+PDF → "Analizar" (valida PPD, receptor, proveedor,
+   retenciones; **se relaja la regla de "mes en curso"** porque las PPD se abonan en meses posteriores) →
+   captura el **monto del primer pago** (≤ total) + categoría + justificación → crea el maestro `cxp_ppd` + la
+   **primera parcial**. Si la factura ya estaba registrada, avisa para usar "Solicitar otro pago".
+2. **Solicitar otro pago** (`NuevaParcialPpd`): sobre una factura existente, **sin re-subir XML**; captura
+   monto (validado ≤ disponible) + categoría + justificación → nueva parcial Enviada.
+3. **Estado de cuenta** (`PpdPage`): tabla con Total / Solicitado / Pagado / **Disponible** / % avance por
+   factura + detalle con las parcialidades y su estatus.
+
+### Sincronización de saldo al pagar
+`pagos.service.ts` (`registrarPago`, `asignarMovimiento`, `desaplicarPago`): tras actualizar `cxp`, si la fila
+tiene `idCxpPPD` llama a `sincronizarMaestroPpd()` que recalcula `cxp_ppd.montoAplicado` = Σ pagado de las
+parciales (idEstado 6/7). El estado de cuenta de v2 se calcula on-the-fly; esto mantiene el maestro coherente
+con v1.
+
+### Detalle no obvio (clave para entender por qué funciona)
+`cxp.numAnio`/`numMes` son **columnas GENERADAS desde `fc`** (= `now()` al crear), y `numSem`/`rangoSemana` los
+pone el trigger `update_week_info` desde **`fecSolicitud`** (= hoy). Por eso, aunque el CFDI PPD sea de un mes
+anterior, **cada parcial aparece en el periodo ACTUAL** en "Pagar". Ambos triggers de validación de fecha
+(`trigger_cxp_validar_fecha_cfdi`, `trigger_cxp_validar_fecha_insert`) están **DISABLED**, así que la relajación
+de "mes en curso" en el backend no choca con la BD.
+
+### Validación CFDI reutilizada
+`SolicitudesService.validarCfdi(xml, pdf, opts)` se parametrizó: para PPD se invoca con
+`{ metodoPago:'PPD', exigirMesActual:false, verificarDuplicado:false }` (el control de duplicado del maestro lo
+hace `PpdService` contra `cxp_ppd.folio`). El resto de validaciones (tipo Ingreso, receptor autorizado, UUID,
+proveedor registrado, retenciones, XML↔PDF) se mantienen iguales.
+
+### Archivos
+- Backend: `apps/api/src/modules/cxp/ppd.service.ts`, `ppd.controller.ts`, `ppd.schemas.ts` (registrados en
+  `cxp.module.ts`); cambios en `solicitudes.service.ts` (validarCfdi parametrizable + helpers públicos) y
+  `pagos.service.ts` (sincronización del maestro).
+- Frontend: `apps/web/src/features/cxp/ppd.api.ts`, `PpdPage.tsx`, `NuevaFacturaPpd.tsx`, `NuevaParcialPpd.tsx`;
+  ruta en `routes/router.tsx`; ítem de menú en `components/layout/menu.tsx`.
+
+### Endpoints
+- `GET /api/cxp/ppd` — estado de cuenta (facturas PPD con saldos).
+- `GET /api/cxp/ppd/:idCxpPPD` — detalle + parcialidades.
+- `POST /api/cxp/ppd/analizar` — analiza el CFDI PPD (multipart xml+pdf).
+- `POST /api/cxp/ppd` — crea factura + primera parcial (multipart).
+- `POST /api/cxp/ppd/:idCxpPPD/parcial` — nueva solicitud parcial (JSON).
+
+### Pendiente / notas
+- **Complemento de Pago (REP):** fuera de alcance en esta etapa (se capturará el REP al pagar cada parcialidad
+  en una fase posterior).
+- **Supuesto:** el PPD se trabaja **solo desde v2** de aquí en adelante (no en paralelo desde Flutter), para no
+  duplicar maestros `cxp_ppd`.
+- Sin objetos nuevos en BD: se reutilizan `cxp` + `cxp_ppd` (ambas con `trg_auditoria`) existentes.

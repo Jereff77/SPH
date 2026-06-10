@@ -70,6 +70,7 @@ export const MENU: MenuGrupo[] = [
     Icon: IconCxP,
     items: [
       { label: 'Solicitudes de pago', to: '/cxp/solicitudes', clave: 420 },
+      { label: 'Solicitudes de Pago PPD', to: '/cxp/ppd', clave: 420 },
       { label: 'Aprobar Solicitudes', to: '/cxp/aprobar', clave: 430 },
       { label: 'Pagar solicitudes', to: '/cxp/pagar', clave: 400 },
       { label: 'Solicitudes pendientes', to: '/cxp/pendientes', clave: 450 },

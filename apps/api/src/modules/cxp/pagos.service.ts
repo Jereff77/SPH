@@ -215,7 +215,7 @@ export class PagosService {
   private async pagable(idCxp: string) {
     const { data, error } = await this.supabase.admin
       .from('cxp')
-      .select('idCxp, status, idEstado, total, folio, montoAplicado, idMovBancarios, numAnio, numMes')
+      .select('idCxp, status, idEstado, total, folio, montoAplicado, idMovBancarios, numAnio, numMes, idCxpPPD')
       .eq('idCxp', idCxp)
       .maybeSingle();
     if (error) throw new InternalServerErrorException(error.message);
@@ -228,6 +228,37 @@ export class PagosService {
         'Solo se pueden pagar solicitudes en estado Aprobado.',
       );
     return data;
+  }
+
+  /**
+   * Si la solicitud pertenece a una factura PPD, recalcula y persiste el
+   * `montoAplicado` del maestro (`cxp_ppd`) = Σ de lo pagado por sus
+   * parcialidades (idEstado 6/7). Mantiene el saldo del maestro coherente con v1
+   * tras pagar/asignar/desaplicar. No-op si la solicitud no es PPD.
+   */
+  private async sincronizarMaestroPpd(
+    idCxpPPD: string | null | undefined,
+    db: ReturnType<SupabaseService['comoActor']>,
+  ): Promise<void> {
+    if (!idCxpPPD) return;
+    const { data, error } = await this.supabase.admin
+      .from('cxp')
+      .select('montoAplicado, idEstado')
+      .eq('idCxpPPD', idCxpPPD)
+      .eq('status', true);
+    if (error) {
+      this.logger.error(`No se pudo recalcular el saldo PPD: ${error.message}`);
+      return;
+    }
+    const pagado = (data ?? [])
+      .filter((r) => r.idEstado === 6 || r.idEstado === 7)
+      .reduce((s, r) => s + (r.montoAplicado ?? 0), 0);
+    const { error: upErr } = await db
+      .from('cxp_ppd')
+      .update({ montoAplicado: Math.round(pagado * 100) / 100 })
+      .eq('idCxpPPD', idCxpPPD);
+    if (upErr)
+      this.logger.error(`No se pudo actualizar el maestro PPD: ${upErr.message}`);
   }
 
   /** Registra un pago manual: inserta el movimiento bancario y aplica el pago. */
@@ -312,6 +343,7 @@ export class PagosService {
       this.logger.error(`Error aplicando pago a cxp ${idCxp}: ${cxpErr.message}`);
       throw new InternalServerErrorException('No se pudo aplicar el pago a la solicitud.');
     }
+    await this.sincronizarMaestroPpd(sol.idCxpPPD, db);
 
     await db.from('cxpComentarios').insert({
       idCxpComentarios: this.generarId(10),
@@ -417,6 +449,7 @@ export class PagosService {
       this.logger.error(`Error asignando mov a cxp ${idCxp}: ${cxpErr.message}`);
       throw new InternalServerErrorException('No se pudo asignar el movimiento.');
     }
+    await this.sincronizarMaestroPpd(sol.idCxpPPD, db);
     await db.from('cxpComentarios').insert({
       idCxpComentarios: this.generarId(10),
       idCxP: idCxp,
@@ -548,7 +581,7 @@ export class PagosService {
   async desaplicarPago(idCxp: string, actorUid: string): Promise<void> {
     const { data: sol, error } = await this.supabase.admin
       .from('cxp')
-      .select('idCxp, idMovBancarios, idEstado')
+      .select('idCxp, idMovBancarios, idEstado, idCxpPPD')
       .eq('idCxp', idCxp)
       .maybeSingle();
     if (error) throw new InternalServerErrorException(error.message);
@@ -578,6 +611,7 @@ export class PagosService {
       this.logger.error(`Error desaplicando pago ${idCxp}: ${cxpErr.message}`);
       throw new InternalServerErrorException('No se pudo desaplicar el pago.');
     }
+    await this.sincronizarMaestroPpd(sol.idCxpPPD, db);
     await db.from('cxpComentarios').insert({
       idCxpComentarios: this.generarId(10),
       idCxP: idCxp,

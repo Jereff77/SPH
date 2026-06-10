@@ -1,0 +1,128 @@
+import { api } from '@/lib/api';
+import type { ConceptoCfdi } from './solicitudes.api';
+
+/** Saldo de una factura PPD (todo en su moneda). */
+export interface SaldoPpd {
+  total: number;
+  solicitado: number; // comprometido (parciales no rechazadas)
+  pagado: number; // realmente pagado (idEstado 6/7)
+  disponible: number; // total − solicitado
+}
+
+/** Fila del estado de cuenta (una factura PPD). */
+export interface FacturaPpd {
+  idCxpPPD: string;
+  folio: string;
+  idProveedor: string | null;
+  nombreProveedor: string | null;
+  nomCFDI: string;
+  concepto: string | null;
+  total: number | null;
+  subtotal: number | null;
+  fecCFDI: string | null;
+  fecInicio: string;
+  fecSolicitud: string | null;
+  idCategoria: string;
+  moneda: string;
+  solicitado: number;
+  pagado: number;
+  disponible: number;
+  numParcialidades: number;
+  avance: number; // % pagado del total
+}
+
+/** Una solicitud parcial (abono) de una factura PPD. */
+export interface ParcialidadPpd {
+  idCxp: string;
+  total: number;
+  montoAplicado: number;
+  idEstado: number | null;
+  estado: string | null;
+  moneda: string;
+  fecSolicitud: string | null;
+  fecPago: string | null;
+  idCategoria: string;
+  ultimoComentario: string | null;
+  nomGerente: string | null;
+  categoria: string | null;
+  clasificacion: string | null;
+}
+
+export interface DetallePpd {
+  maestro: {
+    idCxpPPD: string;
+    folio: string;
+    idProveedor: string | null;
+    nombreProveedor: string | null;
+    nomCFDI: string;
+    concepto: string | null;
+    total: number | null;
+    subtotal: number | null;
+    fecCFDI: string | null;
+    fecInicio: string;
+    fecSolicitud: string | null;
+    idCategoria: string;
+    urlCFDI: string | null;
+    urlXLM: string | null;
+    categoria: string | null;
+    clasificacion: string | null;
+  };
+  saldo: SaldoPpd;
+  parcialidades: ParcialidadPpd[];
+}
+
+/** Resultado del análisis del CFDI PPD (XML + PDF). */
+export interface AnalisisPpd {
+  proveedor: { idProveedor: string; razonSocial: string | null; rfc: string | null };
+  yaRegistrada: boolean;
+  idCxpPPD: string | null;
+  saldo: SaldoPpd | null;
+  cfdi: {
+    uuid: string | null;
+    folio: string | null;
+    fechaCFDI: string;
+    emisorRfc: string;
+    emisorNombre: string;
+    receptorRfc: string;
+    moneda: string;
+    metodoPago: string | null;
+    subtotal: number;
+    total: number;
+    conceptoResumen: string;
+    conceptos: ConceptoCfdi[];
+    impuestos: { traslIVA: number; retIVA: number; retISR: number };
+  };
+}
+
+export const ppdApi = {
+  /** Estado de cuenta: facturas PPD con sus saldos. */
+  listar: () => api.get<FacturaPpd[]>('/cxp/ppd'),
+  /** Detalle de una factura PPD + sus parcialidades. */
+  detalle: (idCxpPPD: string) => api.get<DetallePpd>(`/cxp/ppd/${idCxpPPD}`),
+  /** Analiza el CFDI PPD (XML + PDF). */
+  analizar: (xml: File, pdf: File) => {
+    const fd = new FormData();
+    fd.append('xml', xml);
+    fd.append('pdf', pdf);
+    return api.postForm<AnalisisPpd>('/cxp/ppd/analizar', fd);
+  },
+  /** Registra la factura PPD + su primera solicitud parcial. */
+  crear: (
+    xml: File,
+    pdf: File,
+    dto: { idCategoria: string; justificacion: string; monto: number },
+  ) => {
+    const fd = new FormData();
+    fd.append('xml', xml);
+    fd.append('pdf', pdf);
+    fd.append('idCategoria', dto.idCategoria);
+    fd.append('justificacion', dto.justificacion);
+    fd.append('monto', String(dto.monto));
+    return api.postForm<{ idCxpPPD: string; idCxp: string }>('/cxp/ppd', fd);
+  },
+  /** Nueva solicitud parcial sobre una factura PPD existente. */
+  nuevaParcial: (
+    idCxpPPD: string,
+    dto: { idCategoria: string; justificacion: string; monto: number },
+  ) => api.post<{ idCxp: string }>(`/cxp/ppd/${idCxpPPD}/parcial`, dto),
+};

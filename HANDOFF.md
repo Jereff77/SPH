@@ -37,6 +37,14 @@
     monto manual, sin XML; el aprobador sale de `PresCategorias.uidResponsable`; Urgentes/Captura nacen en
     "Enviado", Devoluciones/Sin XML en "Guardado"; ver `modulos/cxp.md`), **Aprobar Solicitudes** (presupuesto +
     fuera de presupuesto), **Pagar solicitudes** (3 vías de pago + tiempo real SSE), **Solicitudes pendientes**.
+    **Solicitudes de Pago PPD** (`/cxp/ppd`, clave 420): sección dedicada a facturas **PPD** (pago en
+    parcialidades/diferido). Subes el CFDI PPD una vez → maestro `cxp_ppd` + primera **solicitud parcial**;
+    luego "Solicitar otro pago" crea más parciales **sin re-subir XML**, con **control de saldo** (`Disponible =
+    total − Σ parciales no rechazadas`; no deja exceder). **Estado de cuenta** por factura (Total/Solicitado/
+    Pagado/Disponible/% avance). Cada parcial es una fila `cxp` (`diferido=true`, `idCxpPPD`→`cxp_ppd`) que nace
+    **Enviada** y fluye por Aprobar/Pagar; al pagar se sincroniza `cxp_ppd.montoAplicado`. **Reutiliza las tablas
+    EXISTENTES `cxp` + `cxp_ppd`** (autorizado; ambas con `trg_auditoria`) — **sin objetos nuevos en BD, sin
+    RPCs, sin SQL crudo**. `validarCfdi` se parametrizó (acepta PPD, relaja "mes en curso"). Ver `modulos/cxp.md`.
   - **Correo** (sección propia): buzón de facturas IMAP/SMTP en el backend (sin N8N). Sincroniza **todas las
     carpetas** del buzón dinámicamente (descubiertas vía `client.list()`, excluye Papelera/Spam/Borradores),
     **selector de carpeta** en la bandeja (estructura real del buzón en vivo, aparecen carpetas nuevas/

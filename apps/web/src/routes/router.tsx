@@ -14,6 +14,7 @@ import { DisponibilidadPage } from '@/features/parques/DisponibilidadPage';
 import { ProveedoresPage } from '@/features/cxp/ProveedoresPage';
 import { BancosPage } from '@/features/cxp/BancosPage';
 import { SolicitudesPage } from '@/features/cxp/SolicitudesPage';
+import { PpdPage } from '@/features/cxp/PpdPage';
 import { PendientesPage } from '@/features/cxp/PendientesPage';
 import { PagarSolicitudesPage } from '@/features/cxp/PagarSolicitudesPage';
 import { AprobarSolicitudesPage } from '@/features/cxp/AprobarSolicitudesPage';
@@ -82,6 +83,7 @@ export const router = createBrowserRouter([
           { path: '/cxp/pagar', element: <PagarSolicitudesPage /> },
           { path: '/cxp/aprobar', element: <AprobarSolicitudesPage /> },
           { path: '/cxp/solicitudes', element: <SolicitudesPage /> },
+          { path: '/cxp/ppd', element: <PpdPage /> },
           { path: '/cxp/pendientes', element: <PendientesPage /> },
           { path: '/cxp/proveedores', element: <ProveedoresPage /> },
           { path: '/cxp/bancos', element: <BancosPage /> },

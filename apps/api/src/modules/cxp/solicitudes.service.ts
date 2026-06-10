@@ -323,15 +323,34 @@ export class SolicitudesService {
    * Ejecuta TODAS las validaciones de negocio sobre el CFDI. Lanza
    * BadRequestException con un mensaje claro en el primer fallo. Devuelve los
    * datos del CFDI y el proveedor detectado. No sube archivos ni inserta.
+   *
+   * `opts` permite reutilizar la misma validación para PPD (módulo `ppd`):
+   * - `metodoPago` (def. 'PUE'): método de pago exigido al CFDI.
+   * - `exigirMesActual` (def. true): si false, acepta CFDI de meses anteriores
+   *   (las PPD se emiten en un mes y se abonan en meses posteriores).
+   * - `verificarDuplicado` (def. true): si false, NO valida el folio contra `cxp`
+   *   (en PPD el mismo folio se repite en cada parcialidad; el control de
+   *   duplicado del maestro lo hace `PpdService`).
    */
-  private async validarCfdi(
+  async validarCfdi(
     xmlText: string,
     pdf: Buffer | null,
+    opts: {
+      metodoPago?: 'PUE' | 'PPD';
+      exigirMesActual?: boolean;
+      verificarDuplicado?: boolean;
+    } = {},
   ): Promise<{
     cfdi: CfdiData;
     proveedor: { idProveedor: string; razonSocial: string | null; rfc: string | null };
     totalEsperado: number;
   }> {
+    const {
+      metodoPago: metodoEsperado = 'PUE',
+      exigirMesActual = true,
+      verificarDuplicado = true,
+    } = opts;
+
     // 1) Parseo del XML
     let cfdi: CfdiData;
     try {
@@ -355,15 +374,15 @@ export class SolicitudesService {
       );
     }
 
-    // 4) Método de pago PUE
-    if (cfdi.metodoPago !== 'PUE') {
+    // 4) Método de pago (PUE para solicitudes normales; PPD para el módulo PPD)
+    if (cfdi.metodoPago !== metodoEsperado) {
       throw new BadRequestException(
-        `Solo se aceptan facturas con método de pago PUE (esta es ${cfdi.metodoPago ?? 'desconocido'}).`,
+        `Solo se aceptan facturas con método de pago ${metodoEsperado} (esta es ${cfdi.metodoPago ?? 'desconocido'}).`,
       );
     }
 
-    // 5) Fecha del mes actual
-    if (!this.esMesActual(cfdi.fechaCFDI)) {
+    // 5) Fecha del mes actual (no aplica a PPD)
+    if (exigirMesActual && !this.esMesActual(cfdi.fechaCFDI)) {
       throw new BadRequestException(
         `Solo se aceptan facturas del mes en curso. La factura es del ${cfdi.fechaCFDI || 'fecha desconocida'}.`,
       );
@@ -374,18 +393,20 @@ export class SolicitudesService {
       throw new BadRequestException('El XML no contiene el folio fiscal (UUID/Timbre).');
     }
 
-    // 7) Folio fiscal no duplicado
-    const { data: dup, error: dupErr } = await this.supabase.admin
-      .from('cxp')
-      .select('idCxp')
-      .eq('status', true)
-      .eq('folio', cfdi.uuid)
-      .limit(1);
-    if (dupErr) throw new InternalServerErrorException(dupErr.message);
-    if (dup && dup.length > 0) {
-      throw new BadRequestException(
-        `Ya existe una solicitud registrada con este CFDI (folio fiscal ${cfdi.uuid}).`,
-      );
+    // 7) Folio fiscal no duplicado (no aplica a PPD: el folio se repite por parcialidad)
+    if (verificarDuplicado) {
+      const { data: dup, error: dupErr } = await this.supabase.admin
+        .from('cxp')
+        .select('idCxp')
+        .eq('status', true)
+        .eq('folio', cfdi.uuid)
+        .limit(1);
+      if (dupErr) throw new InternalServerErrorException(dupErr.message);
+      if (dup && dup.length > 0) {
+        throw new BadRequestException(
+          `Ya existe una solicitud registrada con este CFDI (folio fiscal ${cfdi.uuid}).`,
+        );
+      }
     }
 
     // 8) Periodo de captura abierto
@@ -614,7 +635,7 @@ export class SolicitudesService {
   }
 
   /** Valida la clasificación y devuelve su aprobador (`uidResponsable`). */
-  private async responsableDeCategoria(idCategoria: string): Promise<string> {
+  async responsableDeCategoria(idCategoria: string): Promise<string> {
     if (!idCategoria || idCategoria === '-')
       throw new BadRequestException('Seleccione una clasificación válida.');
     const { data, error } = await this.supabase.admin
@@ -633,7 +654,7 @@ export class SolicitudesService {
   }
 
   /** Razón social del proveedor (para desnormalizar `nombreProveedor`). */
-  private async razonSocialProveedor(idProveedor: string): Promise<string | null> {
+  async razonSocialProveedor(idProveedor: string): Promise<string | null> {
     const { data } = await this.supabase.admin
       .from('catProveedores')
       .select('razonSocial')
