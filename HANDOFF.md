@@ -33,8 +33,10 @@
     (Usuarios, **Parámetros** con INPC/Cuentas/Fechas CxP/**Claves SAT**, Permisos, Sistema).
   - **Parques** (parques + disponibilidad).
   - **CxP** casi completo: Proveedores, Bancos, **Solicitudes de pago** (alta de CFDI con parser propio +
-    validaciones fiscales), **Aprobar Solicitudes** (presupuesto + fuera de presupuesto), **Pagar
-    solicitudes** (3 vías de pago + tiempo real SSE), **Solicitudes pendientes**.
+    validaciones fiscales **y los 4 tipos especiales: Urgentes / Línea de Captura / Devoluciones / Sin XML** —
+    monto manual, sin XML; el aprobador sale de `PresCategorias.uidResponsable`; Urgentes/Captura nacen en
+    "Enviado", Devoluciones/Sin XML en "Guardado"; ver `modulos/cxp.md`), **Aprobar Solicitudes** (presupuesto +
+    fuera de presupuesto), **Pagar solicitudes** (3 vías de pago + tiempo real SSE), **Solicitudes pendientes**.
   - **Correo** (sección propia): buzón de facturas IMAP/SMTP en el backend (sin N8N). Sincroniza **todas las
     carpetas** del buzón dinámicamente (descubiertas vía `client.list()`, excluye Papelera/Spam/Borradores),
     **selector de carpeta** en la bandeja (estructura real del buzón en vivo, aparecen carpetas nuevas/
