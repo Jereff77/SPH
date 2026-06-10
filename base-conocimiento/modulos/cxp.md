@@ -1,7 +1,7 @@
 ---
 modulo: CxP (Cuentas por Pagar)
 estado: parcial              # Proveedores, Bancos, Solicitudes (alta+listado), Pendientes y Pagar en v2; resto por fases
-version_doc: 0.4
+version_doc: 0.5
 ultima_actualizacion: 2026-06-10
 submodulos: [Proveedores, Bancos, Solicitudes, "Pagar solicitudes", Aprobación, Pago/Conciliación, Reportes, "Claves SAT"]
 rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes, /cxp/pagar]
@@ -105,7 +105,9 @@ aprobar fuera de presupuesto · **440/441** dashboard · **450** pendientes · *
 
 - **Ruta:** `/cxp/pendientes` · **Permiso:** **450** (en v1 la pantalla usaba 430 por inconsistencia; en
   v2 se usa la clave dedicada 450). Muestra **TODAS** las solicitudes (no solo las del usuario).
-- **Filtros:** Año, Mes, Estado, Semana, Responsable (uidGerente).
+- **Filtros:** Año, Mes, Estado, Semana, Responsable (uidGerente) + **buscador de texto** (Nombre CFDI,
+  Solicitado por, Cuenta, Clasificación; sin acentos/mayúsculas; el total y el conteo se ajustan a lo
+  encontrado). La tabla es **ordenable por columna** (clic en el encabezado, `useSort`/`SortableTh`).
 - **Columnas:** Acciones (Devolver ↩, PDF, XML) · Estado · Fecha sol. · Semana · Folio · Nombre CFDI ·
   Fecha CFDI · Concepto · **Monto** · Cuenta · Sección · Solicitado por (`uidr`→nombre) · **Responsable**
   (dropdown editable). Total al pie (suma `total`, o `montoAplicado` si el filtro es Pagada).

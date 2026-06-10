@@ -7,6 +7,20 @@ import {
 } from './pendientes.api';
 import { ESTADOS_CXP } from './solicitudes.api';
 import { ApiRequestError } from '@/lib/api';
+import { useSort, type Accessors } from '@/components/tabla/useSort';
+import {
+  SortableTh,
+  THEAD_STICKY,
+  THEAD_TR,
+} from '@/components/tabla/SortableTh';
+
+/** Normaliza para buscar sin acentos ni mayúsculas. */
+const norm = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -34,6 +48,7 @@ export function PendientesPage() {
   const [idEstado, setIdEstado] = useState<number | ''>('');
   const [numSem, setNumSem] = useState<number | ''>('');
   const [uidGerente, setUidGerente] = useState('');
+  const [busca, setBusca] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const { data: anios = [] } = useQuery({
@@ -93,20 +108,51 @@ export function PendientesPage() {
     onError: onErr,
   });
 
-  // Semanas presentes en los resultados (para el filtro).
+  // Semanas presentes en los resultados (para el filtro). Se basa en todos los
+  // resultados del query (no en el texto buscado).
   const semanas = useMemo(() => {
     const m = new Map<number, string>();
     for (const r of data) if (r.numSem != null) m.set(r.numSem, r.rangoSemana ?? `Sem ${r.numSem}`);
     return [...m.entries()].sort((a, b) => b[0] - a[0]);
   }, [data]);
 
+  // Buscador por Nombre CFDI, Solicitado por, Cuenta y Clasificación (Sección).
+  const filtrados = useMemo(() => {
+    const q = norm(busca);
+    if (!q) return data;
+    return data.filter((r) =>
+      [r.nomCFDI, r.nombreProveedor, r.nomSolicitante, r.cuenta, r.seccion]
+        .filter(Boolean)
+        .some((v) => norm(String(v)).includes(q)),
+    );
+  }, [data, busca]);
+
+  // Ordenamiento por columnas (regla de diseño 7).
+  const accessors = useMemo<Accessors<PendienteCxP>>(
+    () => ({
+      estado: (r) => r.idEstado,
+      fechaSol: (r) => r.fecSolicitud,
+      semana: (r) => r.numSem,
+      folio: (r) => r.folio,
+      nomCFDI: (r) => r.nomCFDI || r.nombreProveedor,
+      fechaCFDI: (r) => r.fecCFDI,
+      concepto: (r) => r.concepto,
+      monto: (r) => (idEstado === 6 ? r.montoAplicado : r.total),
+      cuenta: (r) => r.cuenta,
+      seccion: (r) => r.seccion,
+      solicitante: (r) => r.nomSolicitante,
+    }),
+    [idEstado],
+  );
+  const { ordenados, sortKey, dir, toggle } = useSort(filtrados, accessors);
+
   const totalMostrado = useMemo(
     () =>
-      data.reduce(
+      filtrados.reduce(
         (acc, r) => acc + (idEstado === 6 ? r.montoAplicado || 0 : r.total || 0),
         0,
       ),
-    [data, idEstado],
+    [filtrados, idEstado],
   );
 
   const selCls =
@@ -119,7 +165,9 @@ export function PendientesPage() {
           Solicitudes pendientes
         </h1>
         <span className="text-sm text-gray-500">
-          {data.length} solicitudes · Total{' '}
+          {filtrados.length}
+          {busca && filtrados.length !== data.length ? ` de ${data.length}` : ''}{' '}
+          solicitudes · Total{' '}
           <strong className="text-gray-700">{moneda(totalMostrado)}</strong>
         </span>
       </div>
@@ -154,6 +202,24 @@ export function PendientesPage() {
             <option key={r.uid} value={r.uid}>{r.nombre}</option>
           ))}
         </select>
+        <div className="relative min-w-[18rem] flex-1">
+          <input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por CFDI, solicitante, cuenta o clasificación…"
+            className={`${selCls} w-full pr-8`}
+          />
+          {busca && (
+            <button
+              type="button"
+              onClick={() => setBusca('')}
+              aria-label="Limpiar búsqueda"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {(error || isError) && (
@@ -164,31 +230,33 @@ export function PendientesPage() {
 
       <div className="max-h-[calc(100vh-14rem)] overflow-auto rounded-xl border bg-white shadow-sm">
         <table className="w-full min-w-[1500px] text-sm">
-          <thead>
-            <tr className="sticky top-0 z-10 bg-[#1f2a4d] text-left text-xs font-semibold uppercase tracking-wide text-white [&>th]:bg-[#1f2a4d] [&>th]:px-3 [&>th]:py-2.5">
-              <th>Acciones</th>
-              <th>Estado</th>
-              <th>Fecha sol.</th>
-              <th>Semana</th>
-              <th>Folio</th>
-              <th>Nombre CFDI</th>
-              <th>Fecha CFDI</th>
-              <th>Concepto</th>
-              <th className="text-right">Monto</th>
-              <th>Cuenta</th>
-              <th>Sección</th>
-              <th>Solicitado por</th>
-              <th>Responsable</th>
+          <thead className={THEAD_STICKY}>
+            <tr className={THEAD_TR}>
+              <SortableTh>Acciones</SortableTh>
+              <SortableTh campo="estado" sortKey={sortKey} dir={dir} onSort={toggle}>Estado</SortableTh>
+              <SortableTh campo="fechaSol" sortKey={sortKey} dir={dir} onSort={toggle}>Fecha sol.</SortableTh>
+              <SortableTh campo="semana" sortKey={sortKey} dir={dir} onSort={toggle}>Semana</SortableTh>
+              <SortableTh campo="folio" sortKey={sortKey} dir={dir} onSort={toggle}>Folio</SortableTh>
+              <SortableTh campo="nomCFDI" sortKey={sortKey} dir={dir} onSort={toggle}>Nombre CFDI</SortableTh>
+              <SortableTh campo="fechaCFDI" sortKey={sortKey} dir={dir} onSort={toggle}>Fecha CFDI</SortableTh>
+              <SortableTh campo="concepto" sortKey={sortKey} dir={dir} onSort={toggle}>Concepto</SortableTh>
+              <SortableTh campo="monto" align="right" sortKey={sortKey} dir={dir} onSort={toggle}>Monto</SortableTh>
+              <SortableTh campo="cuenta" sortKey={sortKey} dir={dir} onSort={toggle}>Cuenta</SortableTh>
+              <SortableTh campo="seccion" sortKey={sortKey} dir={dir} onSort={toggle}>Sección</SortableTh>
+              <SortableTh campo="solicitante" sortKey={sortKey} dir={dir} onSort={toggle}>Solicitado por</SortableTh>
+              <SortableTh>Responsable</SortableTh>
             </tr>
           </thead>
           <tbody className="divide-y">
             {isLoading && (
               <tr><td colSpan={13} className="px-3 py-6 text-center text-gray-400">Cargando…</td></tr>
             )}
-            {!isLoading && data.length === 0 && (
-              <tr><td colSpan={13} className="px-3 py-6 text-center text-gray-400">Sin solicitudes para los filtros.</td></tr>
+            {!isLoading && ordenados.length === 0 && (
+              <tr><td colSpan={13} className="px-3 py-6 text-center text-gray-400">
+                {busca ? 'Sin coincidencias para la búsqueda.' : 'Sin solicitudes para los filtros.'}
+              </td></tr>
             )}
-            {data.map((r) => {
+            {ordenados.map((r) => {
               const est = r.idEstado != null ? ESTADOS_CXP[r.idEstado] : undefined;
               const devolvible = (r.idEstado ?? 0) > 1 && (r.idEstado ?? 0) <= 4;
               return (
