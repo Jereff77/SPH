@@ -591,6 +591,46 @@ export class PlanesService {
     return { ok: true };
   }
 
+  /**
+   * Cambia el tipo de pago de una parcialidad (`pdpDetalle.tipoPago`). Réplica
+   * de `editar_tipo_pago` de v1: registra el cambio en `actividad` (auditoría).
+   */
+  async actualizarTipoPago(
+    idPdpDet: string,
+    tipoPago: string,
+    actorUid: string,
+  ): Promise<{ ok: true }> {
+    const { data: det, error: e0 } = await this.supabase.admin
+      .from('pdpDetalle')
+      .select('idPdpDet, tipoPago, status')
+      .eq('idPdpDet', idPdpDet)
+      .maybeSingle();
+    if (e0) throw new InternalServerErrorException(e0.message);
+    if (!det || det.status === false)
+      throw new NotFoundException('Parcialidad no encontrada.');
+
+    const db = this.supabase.comoActor(actorUid);
+    const { error } = await db
+      .from('pdpDetalle')
+      .update({ tipoPago })
+      .eq('idPdpDet', idPdpDet);
+    if (error) throw new InternalServerErrorException(error.message);
+
+    // Bitácora de actividad (secundaria; no interrumpe el cambio si falla).
+    await db.from('actividad').insert({
+      uid: actorUid,
+      entorno: 3,
+      logeado: true,
+      pantalla: 'Planes',
+      widget: 'select',
+      nomwidget: 'Modificar Tipo de Pago',
+      comentario: `Se actualiza tipo de Pago de ${det.tipoPago ?? '-'} a ${tipoPago} | idPdpDet${idPdpDet}`,
+      version: 'erp-v2',
+    });
+
+    return { ok: true };
+  }
+
   // ----------------------------- Config: Crear Plan de Pagos -----------------------------
 
   /**

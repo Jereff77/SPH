@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ventasApi,
   nombreInversionista,
+  TIPOS_PAGO,
   type InversionistaOpt,
   type PagoVentaRow,
+  type TipoPago,
 } from './ventas.api';
+import { ApiRequestError } from '@/lib/api';
 import { ConfigPropietarioModal } from './ConfigPropietarioModal';
 import { PagoDetalleModal } from './PagoDetalleModal';
 import { ComentariosModal } from './ComentariosModal';
@@ -155,6 +158,29 @@ function PlanTab({ idPropiedad }: { idPropiedad: string }) {
   const refrescar = () =>
     queryClient.invalidateQueries({ queryKey: ['ventas-plan', idPropiedad] });
 
+  // Edición del tipo de pago (doble clic en la celda → select + confirmar).
+  const [editTipo, setEditTipo] = useState<{ id: string; valor: TipoPago } | null>(null);
+  const [errorTipo, setErrorTipo] = useState<string | null>(null);
+  const mTipo = useMutation({
+    mutationFn: ({ id, tipoPago }: { id: string; tipoPago: TipoPago }) =>
+      ventasApi.actualizarTipoPago(id, tipoPago),
+    onSuccess: () => {
+      setErrorTipo(null);
+      setEditTipo(null);
+      refrescar();
+    },
+    onError: (e: unknown) =>
+      setErrorTipo(e instanceof ApiRequestError ? e.message : 'No se pudo cambiar el tipo de pago.'),
+  });
+  function confirmarTipo(r: PagoVentaRow) {
+    if (!editTipo) return;
+    if (editTipo.valor !== r.tipoPago) {
+      mTipo.mutate({ id: r.idPdpDet, tipoPago: editTipo.valor });
+    } else {
+      setEditTipo(null);
+    }
+  }
+
   const totales = useMemo(
     () =>
       data.reduce(
@@ -184,6 +210,9 @@ function PlanTab({ idPropiedad }: { idPropiedad: string }) {
 
   return (
     <div className="space-y-2">
+      {errorTipo && (
+        <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{errorTipo}</div>
+      )}
       <div className="rounded-xl border bg-white">
         <table className="min-w-full border-collapse text-sm">
           <thead className={THEAD_PLAN}>
@@ -214,7 +243,65 @@ function PlanTab({ idPropiedad }: { idPropiedad: string }) {
                 return (
                   <tr key={r.idPdpDet} className="hover:bg-gray-50">
                     <td className="px-3 py-2 text-center">{r.numPago ?? '—'}</td>
-                    <td className="px-3 py-2">{r.tipoPago ?? '—'}</td>
+                    <td className="px-3 py-2">
+                      {editTipo?.id === r.idPdpDet ? (
+                        <div className="flex items-center gap-1">
+                          <select
+                            autoFocus
+                            value={editTipo.valor}
+                            disabled={mTipo.isPending}
+                            onChange={(e) =>
+                              setEditTipo({ id: r.idPdpDet, valor: e.target.value as TipoPago })
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') confirmarTipo(r);
+                              if (e.key === 'Escape') setEditTipo(null);
+                            }}
+                            className="rounded border border-[#3f5b87] px-1 py-0.5 text-sm focus:outline-none"
+                          >
+                            {TIPOS_PAGO.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => confirmarTipo(r)}
+                            disabled={mTipo.isPending}
+                            title="Confirmar cambio"
+                            aria-label="Confirmar"
+                            className="rounded bg-[#90BF32]/20 px-1.5 py-0.5 text-sm font-bold text-[#3f5b1a] hover:bg-[#90BF32]/40 disabled:opacity-50"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditTipo(null)}
+                            title="Cancelar"
+                            aria-label="Cancelar"
+                            className="rounded bg-gray-100 px-1.5 py-0.5 text-sm font-bold text-gray-500 hover:bg-gray-200"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <span
+                          onDoubleClick={() =>
+                            setEditTipo({
+                              id: r.idPdpDet,
+                              valor: (TIPOS_PAGO.includes(r.tipoPago as TipoPago)
+                                ? r.tipoPago
+                                : 'Parcialidad') as TipoPago,
+                            })
+                          }
+                          title="Doble clic para cambiar el tipo de pago"
+                          className="cursor-pointer rounded px-1 py-0.5 hover:bg-gray-100"
+                        >
+                          {r.tipoPago ?? '—'}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 whitespace-nowrap">{fechaCorta(r.fecha)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       {conDescuento && (

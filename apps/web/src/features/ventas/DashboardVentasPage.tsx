@@ -147,7 +147,7 @@ export function DashboardVentasPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold tracking-tight text-gray-800">Ventas · Dashboard</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-gray-800">Ventas · Gestión de Cobranza</h1>
 
       {/* Filtros */}
       <div className="flex flex-wrap items-end gap-3">

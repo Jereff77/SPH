@@ -7,15 +7,21 @@ import {
 } from './solicitudes.api';
 import { EditarSolicitudModal } from './EditarSolicitudModal';
 import { NuevaSolicitudPago } from './NuevaSolicitudPago';
+import {
+  NuevaUrgente,
+  NuevaLineaCaptura,
+  NuevaDevolucion,
+  NuevaSinXml,
+} from './NuevaSolicitudEspecial';
 import { ApiRequestError } from '@/lib/api';
 
-/** Tipos de solicitud (menú lateral). Por ahora solo "pago" está operativo. */
+/** Tipos de solicitud (menú lateral). */
 const TIPOS_SOLICITUD: { id: string; label: string; disponible: boolean }[] = [
   { id: 'pago', label: 'Solicitud de Pago', disponible: true },
-  { id: 'urgente', label: 'Solicitudes Urgentes', disponible: false },
-  { id: 'captura', label: 'Línea de Captura', disponible: false },
-  { id: 'devolucion', label: 'Devoluciones', disponible: false },
-  { id: 'sinxml', label: 'Facturas sin XML', disponible: false },
+  { id: 'urgente', label: 'Solicitudes Urgentes', disponible: true },
+  { id: 'captura', label: 'Línea de Captura', disponible: true },
+  { id: 'devolucion', label: 'Devoluciones', disponible: true },
+  { id: 'sinxml', label: 'Facturas sin XML', disponible: true },
 ];
 
 function fecha(iso: string | null): string {
@@ -164,15 +170,27 @@ export function SolicitudesPage() {
         />
       )}
 
-      {tipoAlta === 'pago' && (
-        <NuevaSolicitudPago
-          onClose={() => setTipoAlta(null)}
-          onCreada={() => {
-            setTipoAlta(null);
-            invalidar();
-          }}
-        />
-      )}
+      {tipoAlta && (() => {
+        const cerrar = () => setTipoAlta(null);
+        const creada = () => {
+          setTipoAlta(null);
+          invalidar();
+        };
+        switch (tipoAlta) {
+          case 'pago':
+            return <NuevaSolicitudPago onClose={cerrar} onCreada={creada} />;
+          case 'urgente':
+            return <NuevaUrgente onClose={cerrar} onCreada={creada} />;
+          case 'captura':
+            return <NuevaLineaCaptura onClose={cerrar} onCreada={creada} />;
+          case 'devolucion':
+            return <NuevaDevolucion onClose={cerrar} onCreada={creada} />;
+          case 'sinxml':
+            return <NuevaSinXml onClose={cerrar} onCreada={creada} />;
+          default:
+            return null;
+        }
+      })()}
     </div>
   );
 }

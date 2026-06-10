@@ -36,6 +36,20 @@ interface AggPagos {
   descuentos: number;
 }
 
+/** Salida del Dashboard gráfico (clave 620). */
+export interface ReporteGrafico {
+  kpis: { monto: number; pagos: number; balance: number };
+  meses: { mes: number; monto: number; pagos: number; balance: number }[];
+  atrasos: {
+    idNave: string | null;
+    nave: string | null;
+    razonsocial: string | null;
+    montoVencido: number;
+    diasAtraso: number;
+  }[];
+  totalVencido: number;
+}
+
 const resumenVacio = () => ({ objetivo: 0, cobranza: 0, balance: 0 });
 
 /**
@@ -318,6 +332,111 @@ export class DashboardService {
       mes: t(objetivoMes, cobranzaMes),
       mesReal: t(objetivoMes, cobranzaReal),
     };
+  }
+
+  /**
+   * Dashboard gráfico (clave 620): KPIs anuales (Monto/Pagos/Balance), serie de
+   * 12 meses (por vencimiento) y **naves con atrasos** (parcialidades vencidas
+   * con saldo > 0). Universo: planes activos (`pdpActivo=true`), sin Tickets.
+   * Reutiliza `scopePropiedades`/`fetchParcialidades`/`pagosAggPorParcialidad`.
+   */
+  async reporteGrafico(anio: number): Promise<ReporteGrafico> {
+    const meses = Array.from({ length: 12 }, (_, i) => ({
+      mes: i + 1,
+      monto: 0,
+      pagos: 0,
+      balance: 0,
+    }));
+    const vacio: ReporteGrafico = {
+      kpis: { monto: 0, pagos: 0, balance: 0 },
+      meses,
+      atrasos: [],
+      totalVencido: 0,
+    };
+
+    const scope = await this.scopePropiedades(true);
+    const scopeIds = [...scope.keys()];
+    if (scopeIds.length === 0) return vacio;
+
+    const hoy = this.hoyMx();
+    const [anioIni, anioFin] = this.rangoAnio(anio);
+
+    // 1) KPIs y serie mensual del año (objetivo por vencimiento + sus pagos).
+    const parcAnio = await this.fetchParcialidades(scopeIds, anioIni, anioFin);
+    const aggAnio = await this.pagosAggPorParcialidad(parcAnio.map((p) => p.idPdpDet));
+    let kMonto = 0;
+    let kPagos = 0;
+    for (const pd of parcAnio) {
+      const monto = pd.monto ?? 0;
+      const pagos = aggAnio.get(pd.idPdpDet)?.pagos ?? 0;
+      kMonto += monto;
+      kPagos += pagos;
+      const m = pd.fecha ? Number(pd.fecha.slice(5, 7)) : 0;
+      if (m >= 1 && m <= 12) {
+        meses[m - 1]!.monto += monto;
+        meses[m - 1]!.pagos += pagos;
+      }
+    }
+    for (const mm of meses) mm.balance = mm.pagos - mm.monto;
+    const kpis = { monto: kMonto, pagos: kPagos, balance: kPagos - kMonto };
+
+    // 2) Naves con atrasos: parcialidades vencidas (fecha < hoy) con saldo > 0,
+    //    en TODO el historial (cartera vencida real, no solo del año del gráfico).
+    const parcVencidas = await this.fetchParcialidades(scopeIds, '1900-01-01', hoy);
+    const aggVenc = await this.pagosAggPorParcialidad(parcVencidas.map((p) => p.idPdpDet));
+    const porNave = new Map<
+      string,
+      {
+        idNave: string | null;
+        nave: string | null;
+        razonsocial: string | null;
+        montoVencido: number;
+        fechaMasAntigua: string | null;
+      }
+    >();
+    for (const pd of parcVencidas) {
+      const saldo = (pd.monto ?? 0) - (aggVenc.get(pd.idPdpDet)?.pagos ?? 0);
+      if (saldo <= 0.005) continue; // sin saldo vencido
+      const sc = pd.idPropiedad ? scope.get(pd.idPropiedad) : undefined;
+      const key = pd.idPropiedad ?? pd.idPdpDet;
+      const cur =
+        porNave.get(key) ??
+        {
+          idNave: sc?.idNave ?? null,
+          nave: sc?.nomDescriptivo ?? sc?.nomParque ?? null,
+          razonsocial: sc?.razonsocial ?? null,
+          montoVencido: 0,
+          fechaMasAntigua: null as string | null,
+        };
+      cur.montoVencido += saldo;
+      if (pd.fecha && (!cur.fechaMasAntigua || pd.fecha < cur.fechaMasAntigua))
+        cur.fechaMasAntigua = pd.fecha;
+      porNave.set(key, cur);
+    }
+    const atrasos = [...porNave.values()]
+      .map((v) => ({
+        idNave: v.idNave,
+        nave: v.nave,
+        razonsocial: v.razonsocial,
+        montoVencido: Math.round(v.montoVencido * 100) / 100,
+        diasAtraso: v.fechaMasAntigua ? this.diasEntre(v.fechaMasAntigua, hoy) : 0,
+      }))
+      .sort((a, b) => b.montoVencido - a.montoVencido);
+    const totalVencido = Math.round(atrasos.reduce((s, a) => s + a.montoVencido, 0) * 100) / 100;
+
+    return { kpis, meses, atrasos, totalVencido };
+  }
+
+  /** "Hoy" en horario de México (yyyy-MM-dd). */
+  private hoyMx(): string {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+  }
+
+  /** Días naturales entre dos fechas yyyy-MM-dd (>= 0). */
+  private diasEntre(desde: string, hasta: string): number {
+    const a = new Date(`${desde}T00:00:00Z`).getTime();
+    const b = new Date(`${hasta}T00:00:00Z`).getTime();
+    return Math.max(0, Math.round((b - a) / 86_400_000));
   }
 
   /** Pagos realizados durante el mes (por fecha de pago), dentro del universo. */

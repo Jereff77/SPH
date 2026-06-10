@@ -16,18 +16,26 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { DashboardService } from './dashboard.service.js';
 import { PagosVentaService } from './pagos-venta.service.js';
 import { PlanesService } from './planes.service.js';
+import { EscriturasService } from './escrituras.service.js';
+import { ReportesService } from './reportes.service.js';
 import {
   comentarioSchema,
   crearPlanPagosSchema,
   docSchema,
+  escrituraFechaSchema,
+  escrituraMontoSchema,
   inversionistaSchema,
   propiedadSchema,
   registrarPagoSchema,
+  tipoPagoSchema,
   type CrearPlanPagosDto,
   type DocDto,
+  type EscrituraFechaDto,
+  type EscrituraMontoDto,
   type InversionistaDto,
   type PropiedadDto,
   type RegistrarPagoDto,
+  type TipoPagoDto,
 } from './ventas.schemas.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard.js';
@@ -66,6 +74,8 @@ export class VentasController {
     private readonly dashboard: DashboardService,
     private readonly pagos: PagosVentaService,
     private readonly planes: PlanesService,
+    private readonly escrituras: EscriturasService,
+    private readonly reportes: ReportesService,
   ) {}
 
   // ============================ Dashboard (600) ============================
@@ -289,6 +299,17 @@ export class VentasController {
     return this.planes.desvincularNave(idPropiedad, actor.uid);
   }
 
+  // ----- Plan de Pagos: cambiar tipo de pago de una parcialidad -----
+  @Patch('planes/tipo-pago/:idPdpDet')
+  @RequierePermiso(610)
+  async actualizarTipoPago(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPdpDet') idPdpDet: string,
+    @Body(new ZodValidationPipe(tipoPagoSchema)) dto: TipoPagoDto,
+  ) {
+    return this.planes.actualizarTipoPago(idPdpDet, dto.tipoPago, actor.uid);
+  }
+
   // ----- Config: Crear Plan de Pagos -----
   @Post('planes/plan-pagos')
   @RequierePermiso(610)
@@ -297,5 +318,123 @@ export class VentasController {
     @Body(new ZodValidationPipe(crearPlanPagosSchema)) dto: CrearPlanPagosDto,
   ) {
     return this.planes.crearPlanPagos(dto, actor.uid);
+  }
+
+  // ============================ Dashboard gráfico (620) ============================
+
+  @Get('reporte')
+  @RequierePermiso(620)
+  reporteGrafico(@Query('anio') anio?: string) {
+    return this.dashboard.reporteGrafico(toNum(anio, new Date().getFullYear()));
+  }
+
+  // ============================ Reportes (620) ============================
+
+  @Get('reportes/combos')
+  @RequierePermiso(620)
+  reporteCombos(@Query('sinA3') sinA3?: string) {
+    return this.reportes.combosFiltros(toBool(sinA3));
+  }
+
+  @Get('reportes/filtros')
+  @RequierePermiso(620)
+  reporteFiltros(@Query('tipo') tipo: string, @Query('sinA3') sinA3?: string) {
+    return this.reportes.valoresUnicos(toNum(tipo, 1), toBool(sinA3));
+  }
+
+  @Get('reportes/filtros-dependientes')
+  @RequierePermiso(620)
+  reporteFiltrosDependientes(
+    @Query('razonsocial') razonsocial?: string,
+    @Query('parque') parque?: string,
+  ) {
+    return this.reportes.filtrosDependientes(razonsocial, parque);
+  }
+
+  @Get('reportes/edo-cuenta')
+  @RequierePermiso(620)
+  reporteEdoCuenta(
+    @Query('anio') anio?: string,
+    @Query('mes') mes?: string,
+    @Query('razonsocial') razonsocial?: string,
+    @Query('parque') parque?: string,
+    @Query('propiedad') propiedad?: string,
+  ) {
+    return this.reportes.estadoCuenta({
+      anio: anio ? toNum(anio, 0) : null,
+      mes: mes ? toNum(mes, 0) : null,
+      razonsocial,
+      parque,
+      propiedad,
+    });
+  }
+
+  @Get('reportes/vencidos')
+  @RequierePermiso(620)
+  reporteVencidos(
+    @Query('anio') anio?: string,
+    @Query('mes') mes?: string,
+    @Query('razonsocial') razonsocial?: string,
+    @Query('parque') parque?: string,
+    @Query('propiedad') propiedad?: string,
+  ) {
+    return this.reportes.saldosVencidos({
+      anio: anio ? toNum(anio, 0) : null,
+      mes: mes ? toNum(mes, 0) : null,
+      razonsocial,
+      parque,
+      propiedad,
+    });
+  }
+
+  @Get('reportes/vencidos-resumen')
+  @RequierePermiso(620)
+  reporteVencidosResumen(
+    @Query('anio') anio?: string,
+    @Query('mes') mes?: string,
+    @Query('razonsocial') razonsocial?: string,
+  ) {
+    return this.reportes.resumenVencidos({
+      anio: anio ? toNum(anio, 0) : null,
+      mes: mes ? toNum(mes, 0) : null,
+      razonsocial,
+    });
+  }
+
+  @Get('reportes/vencidos-evolucion')
+  @RequierePermiso(620)
+  reporteVencidosEvolucion(
+    @Query('razonsocial') razonsocial?: string,
+    @Query('parque') parque?: string,
+  ) {
+    return this.reportes.evolucionVencidos(razonsocial, parque);
+  }
+
+  // ============================ Escrituras (630) ============================
+
+  @Get('escrituras')
+  @RequierePermiso(630)
+  listarEscrituras() {
+    return this.escrituras.listar();
+  }
+
+  @Patch('escrituras/:idPdpDet/fecha')
+  @RequierePermiso(630)
+  async actualizarFechaEscritura(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPdpDet') idPdpDet: string,
+    @Body(new ZodValidationPipe(escrituraFechaSchema)) dto: EscrituraFechaDto,
+  ) {
+    return this.escrituras.actualizarFecha(idPdpDet, dto.fecha, actor.uid);
+  }
+
+  @Patch('escrituras/:idPdpDet/monto')
+  @RequierePermiso(630)
+  async actualizarMontoEscritura(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPdpDet') idPdpDet: string,
+    @Body(new ZodValidationPipe(escrituraMontoSchema)) dto: EscrituraMontoDto,
+  ) {
+    return this.escrituras.actualizarMonto(idPdpDet, dto.monto, actor.uid);
   }
 }

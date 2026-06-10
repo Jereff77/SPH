@@ -16,7 +16,13 @@ import {
   IVA_TASA,
   type CfdiData,
 } from './cfdi.js';
-import type { EditarSolicitudDto } from './solicitudes.schemas.js';
+import type {
+  EditarSolicitudDto,
+  CrearUrgenteDto,
+  CrearLineaCapturaDto,
+  CrearDevolucionDto,
+  CrearSinXmlDto,
+} from './solicitudes.schemas.js';
 
 const BUCKET_CFDI = 'CFDIproveedores';
 
@@ -585,5 +591,268 @@ export class SolicitudesService {
       this.logger.error(`Error editando cxp ${idCxp}: ${error.message}`);
       throw new InternalServerErrorException('No se pudo actualizar la solicitud.');
     }
+  }
+
+  // ===================== Tipos de solicitud especiales =====================
+  // Urgentes (2), Línea de Captura (4), Devoluciones (5) y Facturas sin XML (6).
+  // Reescriben los flujos de FlutterFlow `linea_solicitud_urgente`, `linea_captura`,
+  // `linea_devolucion` y `linea_factura_sin_x_m_l`. Todos capturan el monto manual,
+  // resuelven el aprobador desde `PresCategorias.uidResponsable` (server-side, no del
+  // cliente) e insertan un comentario inicial. Escrituras auditadas (`comoActor`).
+
+  /** Inversionistas/clientes para el selector de Devoluciones (no de prueba). */
+  async inversionistas() {
+    const { data, error } = await this.supabase.admin
+      .from('inversionista')
+      .select('idInversionista, razonsocial')
+      .eq('status', true)
+      .or('pruebas.is.null,pruebas.eq.false')
+      .not('razonsocial', 'is', null)
+      .order('razonsocial', { ascending: true });
+    if (error) throw new InternalServerErrorException(error.message);
+    return data ?? [];
+  }
+
+  /** Valida la clasificación y devuelve su aprobador (`uidResponsable`). */
+  private async responsableDeCategoria(idCategoria: string): Promise<string> {
+    if (!idCategoria || idCategoria === '-')
+      throw new BadRequestException('Seleccione una clasificación válida.');
+    const { data, error } = await this.supabase.admin
+      .from('PresCategorias')
+      .select('idCategoria, uidResponsable')
+      .eq('idCategoria', idCategoria)
+      .maybeSingle();
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!data)
+      throw new BadRequestException('La clasificación seleccionada no existe.');
+    if (!data.uidResponsable)
+      throw new BadRequestException(
+        'La clasificación no tiene un responsable configurado; no se puede asignar la solicitud.',
+      );
+    return data.uidResponsable;
+  }
+
+  /** Razón social del proveedor (para desnormalizar `nombreProveedor`). */
+  private async razonSocialProveedor(idProveedor: string): Promise<string | null> {
+    const { data } = await this.supabase.admin
+      .from('catProveedores')
+      .select('razonSocial')
+      .eq('idProveedor', idProveedor)
+      .maybeSingle();
+    return data?.razonSocial ?? null;
+  }
+
+  /** Razón social del inversionista (contraparte de una devolución). */
+  private async razonSocialInversionista(id: string): Promise<string | null> {
+    const { data } = await this.supabase.admin
+      .from('inversionista')
+      .select('razonsocial')
+      .eq('idInversionista', id)
+      .maybeSingle();
+    return data?.razonsocial ?? null;
+  }
+
+  /** Sube un comprobante PDF al bucket de CFDI y devuelve su URL pública. */
+  private async subirComprobante(
+    pdf: Buffer,
+    idProveedor: string,
+    idCxp: string,
+  ): Promise<string> {
+    const ym = new Date().toISOString().slice(0, 7); // yyyy-MM
+    const path = `${ym}/${idProveedor}/${idCxp}.pdf`;
+    const { error } = await this.supabase.admin.storage
+      .from(BUCKET_CFDI)
+      .upload(path, pdf, { contentType: 'application/pdf', upsert: true });
+    if (error) {
+      this.logger.error(`Error subiendo comprobante ${path}: ${error.message}`);
+      throw new InternalServerErrorException('No se pudo subir el archivo PDF.');
+    }
+    return this.supabase.admin.storage.from(BUCKET_CFDI).getPublicUrl(path).data
+      .publicUrl;
+  }
+
+  /** Inserta una solicitud + su comentario inicial (auditado). */
+  private async insertarEspecial(
+    fila: Record<string, unknown>,
+    justificacion: string,
+    actorUid: string,
+  ): Promise<{ idCxp: string }> {
+    const idCxp = fila.idCxp as string;
+    const db = this.supabase.comoActor(actorUid);
+    const { error } = await db.from('cxp').insert(fila as never);
+    if (error) {
+      this.logger.error(`Error creando solicitud especial: ${error.message}`);
+      throw new InternalServerErrorException('No se pudo crear la solicitud.');
+    }
+    await db.from('cxpComentarios').insert({
+      idCxpComentarios: this.generarId(10),
+      idCxP: idCxp,
+      status: true,
+      uidr: actorUid,
+      tipo: 1,
+      comentario: justificacion,
+    });
+    return { idCxp };
+  }
+
+  /** Campos base compartidos por todos los tipos especiales. */
+  private filaBase(idCxp: string, actorUid: string, uidGerente: string) {
+    return {
+      idCxp,
+      uidr: actorUid,
+      status: true,
+      fecSolicitud: new Date().toISOString().split('T')[0]!,
+      montoAplicado: 0,
+      uidGerente,
+      nomCFDI: '',
+      diferido: false,
+      tdc: false,
+    };
+  }
+
+  /** Urgentes (tipoOperacion=2, idEstado=2 → directo a aprobación, esUrgente). */
+  async crearUrgente(dto: CrearUrgenteDto, actorUid: string): Promise<{ idCxp: string }> {
+    const uidGerente = await this.responsableDeCategoria(dto.idCategoria);
+    const nombreProveedor = await this.razonSocialProveedor(dto.idProveedor);
+    const idCxp = this.generarId(15);
+    return this.insertarEspecial(
+      {
+        ...this.filaBase(idCxp, actorUid, uidGerente),
+        idProveedor: dto.idProveedor,
+        nombreProveedor,
+        tipoProveedor: 1,
+        idCategoria: dto.idCategoria,
+        concepto: dto.concepto,
+        total: dto.total,
+        ultimoComentario: dto.justificacion,
+        idEstado: 2,
+        esUrgente: true,
+        completada: false,
+        tipoOperacion: 2,
+      },
+      dto.justificacion,
+      actorUid,
+    );
+  }
+
+  /** Línea de Captura (tipoOperacion=4, idEstado=2). Requiere PDF. */
+  async crearLineaCaptura(
+    dto: CrearLineaCapturaDto,
+    pdf: Buffer,
+    actorUid: string,
+  ): Promise<{ idCxp: string }> {
+    const uidGerente = await this.responsableDeCategoria(dto.idCategoria);
+    // Duplicado coherente (corrige el chequeo roto de v1): misma línea de captura activa.
+    const { data: dup } = await this.supabase.admin
+      .from('cxp')
+      .select('idCxp')
+      .eq('status', true)
+      .eq('lineaCaptura', dto.lineaCaptura)
+      .limit(1);
+    if (dup && dup.length > 0)
+      throw new BadRequestException(
+        `Ya existe una solicitud con la línea de captura ${dto.lineaCaptura}.`,
+      );
+    const nombreProveedor = await this.razonSocialProveedor(dto.idProveedor);
+    const idCxp = this.generarId(15);
+    const urlCFDI = await this.subirComprobante(pdf, dto.idProveedor, idCxp);
+    return this.insertarEspecial(
+      {
+        ...this.filaBase(idCxp, actorUid, uidGerente),
+        idProveedor: dto.idProveedor,
+        nombreProveedor,
+        tipoProveedor: 1,
+        idCategoria: dto.idCategoria,
+        concepto: dto.concepto,
+        total: dto.total,
+        lineaCaptura: dto.lineaCaptura,
+        referencia: dto.referencia,
+        fechaLimite: dto.fechaLimite,
+        pagoInmediato: dto.pagoInmediato,
+        urlCFDI,
+        ultimoComentario: dto.justificacion,
+        idEstado: 2,
+        esUrgente: false,
+        tipoOperacion: 4,
+      },
+      dto.justificacion,
+      actorUid,
+    );
+  }
+
+  /** Devoluciones (tipoOperacion=5, idEstado=1). La contraparte es un Inversionista. */
+  async crearDevolucion(
+    dto: CrearDevolucionDto,
+    actorUid: string,
+  ): Promise<{ idCxp: string }> {
+    const uidGerente = await this.responsableDeCategoria(dto.idCategoria);
+    const nombreProveedor = await this.razonSocialInversionista(dto.idInversionista);
+    if (!nombreProveedor)
+      throw new BadRequestException('El cliente/inversionista no existe.');
+    const idCxp = this.generarId(15);
+    return this.insertarEspecial(
+      {
+        ...this.filaBase(idCxp, actorUid, uidGerente),
+        idProveedor: dto.idInversionista, // la contraparte es un inversionista
+        nombreProveedor,
+        tipoProveedor: 2, // 2 = inversionista/cliente
+        idCategoria: dto.idCategoria,
+        concepto: dto.conceptoDevolucion,
+        referencia: dto.conceptoDevolucion,
+        total: dto.total,
+        ultimoComentario: dto.justificacion,
+        idEstado: 1,
+        esUrgente: false,
+        tipoOperacion: 5,
+      },
+      dto.justificacion,
+      actorUid,
+    );
+  }
+
+  /** Facturas sin XML (tipoOperacion=6, idEstado=1). Requiere PDF. */
+  async crearSinXml(
+    dto: CrearSinXmlDto,
+    pdf: Buffer,
+    actorUid: string,
+  ): Promise<{ idCxp: string }> {
+    const uidGerente = await this.responsableDeCategoria(dto.idCategoria);
+    // Duplicado coherente: mismo proveedor + folio activo.
+    const { data: dup } = await this.supabase.admin
+      .from('cxp')
+      .select('idCxp')
+      .eq('status', true)
+      .eq('idProveedor', dto.idProveedor)
+      .eq('folio', dto.folio)
+      .limit(1);
+    if (dup && dup.length > 0)
+      throw new BadRequestException(
+        `Ya existe una solicitud de este proveedor con el folio ${dto.folio}.`,
+      );
+    const nombreProveedor = await this.razonSocialProveedor(dto.idProveedor);
+    const idCxp = this.generarId(15);
+    const urlCFDI = await this.subirComprobante(pdf, dto.idProveedor, idCxp);
+    return this.insertarEspecial(
+      {
+        ...this.filaBase(idCxp, actorUid, uidGerente),
+        idProveedor: dto.idProveedor,
+        nombreProveedor,
+        tipoProveedor: 1,
+        idCategoria: dto.idCategoria,
+        concepto: dto.concepto,
+        total: dto.total,
+        folio: dto.folio,
+        fecCFDI: dto.fecFactura,
+        fechaLimite: dto.fecFactura,
+        moneda: dto.moneda,
+        urlCFDI,
+        ultimoComentario: dto.justificacion,
+        idEstado: 1,
+        esUrgente: false,
+        tipoOperacion: 6,
+      },
+      dto.justificacion,
+      actorUid,
+    );
   }
 }

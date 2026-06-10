@@ -1,8 +1,8 @@
 ---
 documento: Obsolescencia de la base de datos (registro de retiro)
 estado: vivo
-ultima_actualizacion: 2026-06-04
-palabras_clave: [obsoleto, deprecado, retirar, eliminar, limpieza, RPC, vista, cdg, backup, duplicado, transicion, apagar v1]
+ultima_actualizacion: 2026-06-10
+palabras_clave: [obsoleto, deprecado, retirar, eliminar, limpieza, RPC, vista, cdg, backup, duplicado, transicion, apagar v1, ia, v_pdpdetalle, reutilizado]
 ---
 
 # Obsolescencia de la base de datos — qué se podrá eliminar al apagar v1
@@ -42,7 +42,7 @@ los hallazgos críticos (SQL crudo desde el cliente / inyección).
 | `consulta_segura_parametrizada` | función | Construye SQL dinámico con fragmentos del cliente → inyección. v1 la usaba p. ej. para las KVA's de Parques. | No |
 | `consulta_dinamica` | función | SQL dinámico genérico. | No |
 | `sum_column` | función | Suma una columna recibida como texto → inyección. | No |
-| `ia_consulta_sql` | función | Ejecuta SQL para flujos de IA. Revisar antes de retirar (puede usarla otro proceso). | No |
+| `ia_consulta_sql` | función | Ejecuta SELECT para el agente de IA. **⚠️ Ya NO es candidata a retiro:** la usa la edge `ia-chat` que **v2 reutiliza** (Montse AI). | **Sí (Montse AI, vía edge `ia-chat`)** |
 | `get_distinct_values`, `get_fields_by_source`, `get_widget_grouped` | funciones | Consulta genérica parametrizada por nombres de campo/tabla. | No |
 
 > Acción al apagar v1: `REVOKE` de `anon/authenticated` primero (cuando ya nadie las llame), luego `DROP`.
@@ -89,10 +89,15 @@ correspondiente; entonces se marcará cada una como "reutilizar" o "retirar".
 - **Fideicomiso:** `fideicomiso_*`, `fidepdpdispersion_*`, `guardar_dispersiones_*`,
   `resumen_fideicomiso_*`, `plan_dispersiones_*`, vistas `v_fideicomiso`, `v_propiedadesfide`.
 - **CRM:** `crm_*`, `leads_*`, vistas `crm_Agenda`.
-- **PDP / estados de cuenta:** `pdp_*`, `pdpdetalle_*`, `v_pdpdetalle*`, `v_pdpdetalle_get_*`.
-- **Inversionistas/Propietarios:** `propiedades_eliminar_propiedad`, `v_propiedades`, etc.
-- **Integraciones n8n / IA:** vistas `n8n_*`, funciones `ia_*` (ojo: pueden ser de procesos externos
-  vigentes; confirmar con el equipo antes de tocar).
+- **PDP / estados de cuenta:** `pdp_*`, `pdpdetalle_*`, `v_pdpdetalle*`. ⚠️ **Excepción:** las RPCs
+  **`v_pdpdetalle_get_*`** (estado_cuenta_detalle, saldos_vencidos_por_parque, resumen/evolución,
+  unique_values, filtros_dependientes) y la **vista `v_pdpdetalle`** las **reutiliza v2** (Ventas → Reportes,
+  desde el backend). **NO retirar** mientras Reportes v2 las use.
+- **Inversionistas/Propietarios:** `propiedades_eliminar_propiedad`, `v_propiedades` (esta última **v2 la
+  evita**: calcula desde tablas base), etc.
+- **Integraciones n8n / IA:** vistas `n8n_*`. ⚠️ Los objetos **IA** (`ia_*` como `ia_tokens_disponibles`,
+  `ia_nueva_sesion`, `ia_log_conversacion`, `ia_consulta_sql`; tablas `iaSesiones`/`iaConversaciones`; edge
+  `ia-chat`) los **reutiliza v2** (Montse AI). **NO son obsoletos.**
 
 ## 5. ⚪ No tocar
 

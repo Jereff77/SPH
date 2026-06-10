@@ -39,9 +39,11 @@ export const MENU: MenuGrupo[] = [
     label: 'Ventas',
     Icon: IconVentas,
     items: [
-      { label: 'Dashboard', to: '/ventas', clave: 600 },
+      { label: 'Dashboard', to: '/ventas/dashboard', clave: 620 },
+      { label: 'Gestión de Cobranza', to: '/ventas', clave: 600 },
       { label: 'Planes', to: '/ventas/planes', clave: 610 },
-      // Próximas fases: Reportes (620), Escrituras (630)…
+      { label: 'Escrituras', to: '/ventas/escrituras', clave: 630 },
+      { label: 'Reportes', to: '/ventas/reportes', clave: 620 },
     ],
   },
   {

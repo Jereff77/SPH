@@ -1,13 +1,13 @@
 ---
 modulo: Inversionistas / Propietarios (Ventas)
-estado: parcial              # Etapa 1 (Dashboard + Planes) en v2; Reportes/Escrituras pendientes
+estado: parcial              # Gestión de Cobranza + Dashboard gráfico + Planes + Escrituras en v2
 version_doc: 2.0
-ultima_actualizacion: 2026-06-07
-submodulos: [Dashboard, Planes, Configuración]
-rutas: [/ventas, /ventas/planes]
-claves_permiso: [600, 610]
-tablas: [inversionista, inversionista_docs, propiedades, naves, kvasAsignados, pdp, pdpDetalle, pagos, rgPdp, rgPdpDetalle, raPdp, raPdpDetalle, comentarios, actividad, parques, v_rentasCombinadas]
-palabras_clave: [inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, avance, renta garantizada, renta administrada, configuración, documentos, escrituración, dashboard, comentarios, razón social]
+ultima_actualizacion: 2026-06-09
+submodulos: [Gestión de Cobranza, Dashboard gráfico, Reportes, Planes, Configuración, Escrituras]
+rutas: [/ventas, /ventas/dashboard, /ventas/reportes, /ventas/planes, /ventas/escrituras]
+claves_permiso: [600, 610, 620, 630]
+tablas: [inversionista, inversionista_docs, propiedades, naves, kvasAsignados, pdp, pdpDetalle, pagos, rgPdp, rgPdpDetalle, raPdp, raPdpDetalle, comentarios, actividad, parques, v_rentasCombinadas, iaSesiones, iaConversaciones]
+palabras_clave: [inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, avance, renta garantizada, renta administrada, configuración, documentos, escrituración, dashboard, gráfico, atrasos, vencido, días de atraso, KPI, gestión de cobranza, reportes, estado de cuenta, vencidos, saldo vencido, exportar, CSV, PDF, JSON, Montse AI, asistente, IA, chat, OpenRouter, comentarios, razón social]
 relacionado_con: [parques, arrendatarios, cxp, clientes, fideicomiso]
 ---
 
@@ -29,7 +29,10 @@ relacionado_con: [parques, arrendatarios, cxp, clientes, fideicomiso]
 > `propiedades.esTicket` (directo, sin join). Excluir tickets aplica a: Dashboard (tabla + 3 tarjetas/totales),
 > selector de inversionistas y propiedades de Planes, y tarjetas de Config→Propiedades.
 
-## 2. Dashboard (`/ventas`, clave 600)
+## 2. Gestión de Cobranza (`/ventas`, clave 600)
+> En la UI esta sección se llama **"Gestión de Cobranza"** (antes "Dashboard"); el código/servicio interno
+> sigue siendo `dashboard.service.ts` y la ruta `/ventas`.
+
 Vista de cobranza por **Año/Mes** + chips **Activo/Inactivo**. Reemplaza `InicioWidget` de v1.
 **Sin vistas SQL**: todos los cálculos (tabla y tarjetas) se hacen en el backend desde las tablas base
 (`pdpDetalle`, `pagos`, `pdp`, `propiedades`, `inversionista`, `parques`), con el mismo universo → **el
@@ -62,6 +65,52 @@ total de la tabla y las tarjetas siempre cuadran**.
 - **Tiempo real (SSE):** el Dashboard se suscribe a `/ventas/dashboard/stream` (cambios en `pagos`, incluso
   los hechos desde v1) y refresca en vivo.
 
+## 2c. Dashboard gráfico (`/ventas/dashboard`, clave 620)
+Vista **gráfica/reporte** (separada de "Gestión de Cobranza"). Usa **Chart.js** (`react-chartjs-2`, cargado
+en chunk aparte por code-splitting). En el sidebar aparece **primero** como "Dashboard". Universo: planes
+**activos** (`pdpActivo=true`), sin Tickets. Componentes:
+- **3 KPIs del año** (formato compacto, p. ej. 226M): **Monto** (objetivo), **Pagos** (cobrado),
+  **Balance** (= pagos − objetivo; rojo si negativo).
+- **Gráfico de barras** por mes (Monto azul, Pagos verde, Balance rojo) con **toggle Mensual / Acumulado**
+  (acumulado = suma corrida mes a mes). Barras redondeadas, tooltips en moneda.
+- **Naves con atrasos:** tabla de la **cartera vencida** (parcialidades con `fecha < hoy` y saldo > 0 =
+  monto − pagos), agrupada por **nave** (con razón social), columnas **Vencido** y **Días** (desde la
+  parcialidad vencida más antigua de esa nave), ordenable, con **Total**. ⚠️ Los atrasos son de TODO el
+  historial (cartera vencida real), no solo del año del selector (que sí filtra los KPIs y el gráfico).
+- **Backend:** `GET ventas/reporte?anio=` → `dashboard.service.reporteGrafico()` (reutiliza
+  `scopePropiedades`/`fetchParcialidades`/`pagosAggPorParcialidad`). **Sin objetos nuevos en BD.**
+
+## 2d. Reportes (`/ventas/reportes`, clave 620)
+Réplica **segura** de los 2 reportes HTML de v1 (que iban embebidos en un WebView y consultaban Supabase
+con **anon key en el navegador** 🚨). En v2 el **backend** invoca las RPCs existentes `v_pdpdetalle_get_*`
+(SECURITY DEFINER, parametrizadas) con `service_role` y el front las pinta en React (mismos estilos/colores).
+Dos pestañas:
+- **Estado de Cuenta** (header azul): filtros (Año/Mes + Razón social/Parque/Propiedad con búsqueda) → botón
+  **Aplicar**; 4 tarjetas (Monto/Pagos/Balance/Vencidos), tabla de 12 columnas (fila roja si `pago_vencido`),
+  export **CSV/JSON/PDF**. RPC `v_pdpdetalle_get_estado_cuenta_detalle`.
+- **Vencidos** (header rojo): 4 tarjetas (Total vencido/Registros/Parques/Promedio días), **gráfico de barras
+  apiladas** (evolución por año/parque, Chart.js), **tabla resumen por parque** (con barra de %), tabla
+  principal de 8 columnas (rojo si `dias>30`), export. RPCs `v_pdpdetalle_get_saldos_vencidos_por_parque`,
+  `_resumen_saldos_vencidos_parque`, `_evolucion_saldos_vencidos`. Filtros sin A3 (`_unique_values_sin_a3`).
+- **Filtros en cascada bidireccional:** al elegir un filtro, los demás se reducen a lo compatible (p. ej.
+  al elegir un inversionista, Parque/Propiedad muestran solo los suyos, y viceversa). Se deriva en el front
+  de las **combinaciones únicas** (`GET ventas/reportes/combos` → `SELECT DISTINCT` sobre la vista
+  `v_pdpdetalle`, 602 combos; lectura). Las incompatibles se autolimpian.
+- **Montse AI** (3er tab): **asistente conversacional** sobre los datos del ERP (chat con sesiones,
+  respuestas en markdown con tablas y **gráficos** bar/pie/line que la IA adjunta). El frontend NO habla
+  con Supabase: el backend (`montse.service.ts`/`montse.controller.ts`, rutas `ventas/montse/*`) hace de
+  **proxy** de la **edge function `ia-chat`** (OpenRouter con su secret `OPENROUTER_API_KEY`), reenviando
+  el **JWT del usuario** para que la función lo identifique y registre la conversación. Sesiones en
+  `iaSesiones`, mensajes en `iaConversaciones`; control de cuota con RPC `ia_tokens_disponibles`. Front:
+  `features/ventas/montse/` (`MontseChat`, `ChartBlockIA` con Chart.js, `useMontse`). Adaptado de la rama
+  `gpt` (que usaba la anon key en el navegador — en v2 se elimina ese vector). Copiar respuesta como CSV y
+  gráfico como imagen.
+- **Réplica fiel:** se replica el comportamiento de v1 tal cual (incluye Tickets, como v1). Frontend
+  `ReportesPage.tsx` (lazy/code-split; carga Chart.js + jsPDF + react-markdown). Backend `reportes.service.ts`.
+  ⚖️ **Decisión (regla 2):** se **reutilizan** las RPCs `v_pdpdetalle_get_*` del esquema (autorizado por el
+  usuario) porque ya encapsulan la lógica; **no** son las RPCs peligrosas (`cdg`/`consulta_segura`). El vector
+  inseguro de v1 (anon key en cliente) **se elimina**: ahora las llama el backend.
+
 ## 3. Planes (`/ventas/planes`, clave 610)
 Selector **inversionista** (combobox **con búsqueda**, ordenado por razón social) + **propiedad/nave** +
 botón **⚙ Configuración**. El selector solo lista inversionistas con `inversionista=true`, `pruebas=false`
@@ -71,6 +120,10 @@ y con al menos una propiedad `pdpActivo=true`. 3 pestañas:
   cuando la parcialidad tiene descuento y **＋** (verde) cuando hay saldo a favor (balance > 0). **Fila de
   totales** + leyenda. Botones por fila: **$** (registrar/eliminar pago, mismo modal del Dashboard) y
   **💬** (comentarios de la parcialidad: ver + agregar).
+  - **Cambiar Tipo de pago** (réplica de `editar_tipo_pago` de v1): **doble clic** en la celda *Tipo pago*
+    habilita un selector (**Anticipo / Parcialidad / Escrituracion**); se aplica al confirmar con ✓ (o Enter),
+    se cancela con ✕/Esc. Backend `PATCH ventas/planes/tipo-pago/:idPdpDet` → `UPDATE pdpDetalle.tipoPago`
+    (`comoActor` + `actividad`).
 - **Renta Garantizada:** `rgPdpDetalle` del `rgPdp` de la propiedad (solo lectura).
 - **Renta Administrada:** `raPdpDetalle` del `raPdp` de la propiedad (solo lectura).
 
@@ -108,6 +161,22 @@ y con al menos una propiedad `pdpActivo=true`. 3 pestañas:
 > En esta etapa **solo se crea el Plan de Pagos**. La creación de Renta Garantizada (RPCs
 > `rgpdp_insertar_registro`/`rgpdp_generar_plan_pagos`) y Administrada (`rapdp_actualizar`) se hará después.
 
+## 3b. Escrituras (`/ventas/escrituras`, clave 630)
+Réplica de la pantalla **"Fechas de escrituración"** de v1 (`i01_inversionistas/escrituracion`). Lista las
+**parcialidades cuyo `pdpDetalle.tipoPago = 'Escrituracion'`** (status=true) y permite **editar la fecha y el
+monto** de cada una. **Cálculos sin vistas** (v1 usaba `v_pagos`): el backend lee `pdpDetalle` y enriquece
+con nave (`naves.numNaveNAME` + `parques.nomParque` → "Parque - Nave"), inversionista (`razonsocial`) y
+**excluye el parque de Tickets** (`propiedades.esTicket=false`, regla del módulo).
+- **Columnas:** Tipo Pago · Nave · No. de pago (`numPago`) · Inversionista · **Fecha** (editable) ·
+  **Monto** (editable). Encabezado sticky azul + ordenable (`useSort`) + búsqueda (nave/inversionista/nº) +
+  **fila de total** al pie. Orden por defecto: nave → inversionista → fecha (como v1).
+- **Edición (anti-error):** **doble clic** en la celda de fecha/monto habilita el input; el cambio se aplica
+  solo al **confirmar** con ✓ (o Enter), y se cancela con ✕ o Esc (como v1, evita cambios accidentales).
+  Backend: `PATCH .../fecha` y `PATCH .../monto` → `UPDATE pdpDetalle` por `idPdpDet`, con `comoActor(uid)`
+  y registro en **`actividad`** ("Se actualiza fecha/monto de X a Y | idPdpDet…", como v1).
+- **Validación:** fecha `yyyy-MM-dd`; monto > 0. El recálculo de `pdp.montoPagado` (si aplica) lo hacen los
+  triggers existentes. **Sin objetos nuevos en BD.**
+
 ## 4. Modelo de datos (todo EXISTENTE; sin DDL nuevo)
 - **Catálogo/propietario:** `inversionista` (PK `idInversionista`), `inversionista_docs`, `propiedades`
   (vínculo nave↔inversionista), `naves` (incl. `situacion`: 'Disponible'/'Vendida', `numNave`, `numNaveNAME`,
@@ -128,13 +197,21 @@ y con al menos una propiedad `pdpActivo=true`. 3 pestañas:
   (eliminar pago), SSE `dashboard/stream`. (`tabla` y `tarjetas` reciben `anio`, `mes`, `activo`.)
 - **Planes (610):** `GET planes/inversionistas|propiedades|plan/:idPropiedad|renta-garantizada/:idPropiedad|
   renta-administrada/:idPropiedad`, `GET/POST planes/comentarios/:idPdpDet`. Config: `GET/PATCH
-  planes/inversionista/:id`, `GET/POST/DELETE planes/docs`, **`GET planes/parques`** (parques sin Tickets),
+  planes/inversionista/:id`, **`PATCH planes/tipo-pago/:idPdpDet`** (cambiar tipoPago de la parcialidad:
+  Anticipo/Parcialidad/Escrituracion), `GET/POST/DELETE planes/docs`, **`GET planes/parques`** (parques sin Tickets),
   `GET planes/naves-disponibles?idParque=` (solo `situacion='Disponible'`), `POST planes/propiedades`
   (vincula nave → marca `naves.situacion='Vendida'`), **`DELETE planes/propiedades/:idPropiedad`**
   (desvincula: borra la propiedad y regresa `naves.situacion='Disponible'`; rechaza si `tienenPdp=true`),
   `POST planes/plan-pagos`.
   - `GET planes/propiedades` devuelve cada propiedad enriquecida con datos de la nave, `nomParque` y
     `kvas:{alta,media}` (desde `kvasAsignados`).
+- **Reportes (620):** `GET ventas/reportes/filtros?tipo=&sinA3=`, `ventas/reportes/edo-cuenta`,
+  `ventas/reportes/vencidos`, `ventas/reportes/vencidos-resumen`, `ventas/reportes/vencidos-evolucion`
+  (todos con filtros anio/mes/razonsocial/parque/propiedad). Backend `reportes.service.ts` → RPCs
+  `v_pdpdetalle_get_*`.
+- **Escrituras (630):** `GET ventas/escrituras` (lista `{filas,total}` de `pdpDetalle` con
+  `tipoPago='Escrituracion'`, sin Tickets), `PATCH ventas/escrituras/:idPdpDet/fecha`,
+  `PATCH ventas/escrituras/:idPdpDet/monto`. Backend: `escrituras.service.ts`.
 
 ## 6. Seguridad
 - `JwtAuthGuard + PermisoGuard`; Dashboard con **600**, Planes/Config/Comentarios con **610**. SSE con
@@ -153,7 +230,8 @@ y con al menos una propiedad `pdpActivo=true`. 3 pestañas:
 - **Arrendatarios:** el mismo registro `inversionista` funge como arrendador (`idArrendador = idInversionista`).
 
 ## 8. Pendiente / fuera del MVP
-- **Reportes** (620) y **Escrituras** (630). Creación de **Renta Garantizada** y **Renta Administrada**.
+- (**Dashboard gráfico 620** y **Escrituras 630** ya implementados — ver §2c y §3b.) Creación de
+  **Renta Garantizada** y **Renta Administrada**.
   Edición/cancelación de planes existentes. Activar/desactivar PDP (`pdpactivo`). Pasar las pestañas de
   rentas a cálculo propio (hoy usan `v_rentasCombinadas`).
 - **Config→Propiedades:** íconos de **editar** nave (sin endpoint en v2). El **desvincular** ya está hecho.

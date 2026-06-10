@@ -31,10 +31,10 @@ futuro, en una tabla vectorial `pgvector` para búsqueda semántica).
 | Auditoría / Ver como | ✅ desarrollado | `modulos/auditoria-y-ver-como.md` | (transversal) | 200 | historial, bitácora, auditoría, trazabilidad, ver como, quién cambió |
 | Changelog / Novedades | ✅ desarrollado | `modulos/changelog.md` | /configuraciones/novedades | — (sin permiso) | novedades, changelog, versión, versiones, actualización, qué cambió, notas de la versión, SemVer |
 | Clientes | ✅ desarrollado | `modulos/clientes.md` | /clientes | 300 | cliente, clientes, inversionista, arrendatario, ticket, usuario final, papelera, prueba, razón social, RFC, CURP, contpaq, personalidad, alta cliente, CRM |
-| Inversionistas / Propietarios (Ventas) | 🟠 parcial | `modulos/inversionistas.md` | /ventas, /ventas/planes | 600, 610 | inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, % avance, renta garantizada, renta administrada, configuración, documentos, escrituración, comentarios, razón social |
+| Inversionistas / Propietarios (Ventas) | 🟠 parcial | `modulos/inversionistas.md` | /ventas, /ventas/dashboard, /ventas/planes, /ventas/escrituras | 600, 610, 620, 630 | inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, % avance, renta garantizada, renta administrada, configuración, documentos, escrituración, comentarios, razón social |
 | Arrendatarios | ✅ desarrollado | `modulos/arrendatarios.md` | /arrendatarios, /arrendatarios/planes | 10, 20 | arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, INPC, mes de gracia, cortesía, concepto financiado, KVA, vigencia, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, m² construcción, liberar nave, renovación, renovar plan, fecha fin |
 | Correo (buzón de facturas) | ✅ desarrollado | `modulos/correo.md` | /correo | 800 (usar), 801 (configurar cuenta) | correo, email, buzón, bandeja, factura, comprobante, IMAP, SMTP, Hostinger, responder, adjunto, sincronizar |
-| CxP (Cuentas por pagar) | 🟠 parcial | `modulos/cxp.md` | /cxp/pagar, /cxp/aprobar, /cxp/solicitudes, /cxp/pendientes, /cxp/proveedores, /cxp/bancos | 400, 401, 402, 410, 420, 430, 431, 450, 470 | pago, pagar solicitudes, aprobar solicitudes, aprobación, presupuesto, fuera de presupuesto, cuenta por pagar, factura, CFDI, aplicar pago, comprobante, N8N, autorizar, rechazar, regresar, transferencia SPEI, proveedor, banco, conciliación, desaplicar, claves SAT, retención, tiempo real |
+| CxP (Cuentas por pagar) | 🟠 parcial | `modulos/cxp.md` | /cxp/pagar, /cxp/aprobar, /cxp/solicitudes, /cxp/pendientes, /cxp/proveedores, /cxp/bancos | 400, 401, 402, 410, 420, 430, 431, 450, 470 | pago, pagar solicitudes, aprobar solicitudes, aprobación, presupuesto, fuera de presupuesto, cuenta por pagar, factura, CFDI, aplicar pago, comprobante, N8N, autorizar, rechazar, regresar, transferencia SPEI, proveedor, banco, conciliación, desaplicar, claves SAT, retención, tiempo real, solicitud urgente, línea de captura, devolución, factura sin XML |
 | Fideicomiso | 🟡 stub | `modulos/fideicomiso.md` | (pendiente v2) | — | fideicomiso, dispersión, aportación, rendimiento, contabilidad |
 | CRM | 🟠 parcial | `modulos/crm.md` | (Clientes ya migrado → ver `modulos/clientes.md`) | 300 | lead, prospecto, empresa, inmobiliaria, actividad comercial · (Clientes = padrón) |
 
@@ -51,6 +51,8 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `inversionista` | **Clientes** (padrón) · Inversionistas/Propietarios (Ventas) · Arrendatarios |
 | `propiedades`, `inversionista_docs`, `v_propiedades` | Inversionistas/Propietarios (Ventas) (y Parques para el dueño) |
 | `kvasAsignados` | Inversionistas/Propietarios (Ventas) (KVAs por nave) · Parques |
+| RPCs `v_pdpdetalle_get_*` (estado_cuenta_detalle, saldos_vencidos_por_parque, resumen/evolucion, unique_values) | Inversionistas/Propietarios (Ventas) → **Reportes** (las llama el backend) |
+| `iaSesiones`, `iaConversaciones`, RPCs `ia_*`, edge `ia-chat` (OpenRouter) | Ventas → Reportes → **Montse AI** (asistente; backend proxy) |
 | `pdp`, `pdpDetalle`, `pagos`, `rgPdp`, `rgPdpDetalle`, `raPdp`, `raPdpDetalle`, `v_rentasCombinadas` | Inversionistas/Propietarios (Ventas) |
 | `arrenPropiedades`, `arrePdp`, `arrePdpDetalle`, `arreConceptos`, `v_arrendadasNaves` | Arrendatarios (y Parques para el arrendatario) |
 | `catUsers`, `segModulosUsuarios`, `segModulos`, `segPlantillasPermisos` | Configuraciones (Usuarios/Permisos) |
@@ -69,7 +71,7 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `/login`, `/recuperar` | Autenticación |
 | `/` | Landing / Indicadores |
 | `/clientes` | Clientes |
-| `/ventas`, `/ventas/planes` | Inversionistas/Propietarios (Ventas) |
+| `/ventas`, `/ventas/dashboard`, `/ventas/reportes`, `/ventas/planes`, `/ventas/escrituras` | Inversionistas/Propietarios (Ventas) |
 | `/arrendatarios` | Arrendatarios (Dashboard de cobranza) |
 | `/arrendatarios/planes` | Arrendatarios (Planes de Renta) |
 | `/parques`, `/parques/disponibilidad` | Parques |

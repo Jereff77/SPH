@@ -1,8 +1,8 @@
 ---
 modulo: CxP (Cuentas por Pagar)
 estado: parcial              # Proveedores, Bancos, Solicitudes (alta+listado), Pendientes y Pagar en v2; resto por fases
-version_doc: 0.3
-ultima_actualizacion: 2026-06-05
+version_doc: 0.4
+ultima_actualizacion: 2026-06-10
 submodulos: [Proveedores, Bancos, Solicitudes, "Pagar solicitudes", Aprobación, Pago/Conciliación, Reportes, "Claves SAT"]
 rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes, /cxp/pagar]
 claves_permiso: [400, 401, 402, 410, 420, 430, 431, 440, 441, 450, 460, 470]
@@ -42,7 +42,7 @@ Captura/Solicitud  →  Autorización  →  Pago/Transferencia  →  Conciliaci�
 |---|---|---|---|
 | Proveedores | `/cxp/proveedores` | **410** | ✅ desarrollado |
 | Bancos | `/cxp/bancos` | **470** | ✅ desarrollado |
-| Solicitudes de pago | `/cxp/solicitudes` | 420 | ✅ listado (4 etapas) + **alta de Solicitud de Pago (CFDI)** + editar/enviar/eliminar |
+| Solicitudes de pago | `/cxp/solicitudes` | 420 | ✅ listado (4 etapas) + **alta de los 5 tipos** (Solicitud de Pago CFDI, Urgentes, Línea de Captura, Devoluciones, Sin XML) + editar/enviar/eliminar |
 | **Pagar solicitudes** | `/cxp/pagar` | **400** | ✅ desarrollado (tesorería: listado + registrar pago/conciliación + tiempo real) |
 | Claves SAT | `/configuraciones/parametros` (pestaña) | 210 | ✅ desarrollado |
 | **Aprobar Solicitudes** | `/cxp/aprobar` | **430** | ✅ desarrollado (bandeja del aprobador: regresar/rechazar/aprobar con presupuesto) |
@@ -197,8 +197,10 @@ atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
   **registrar pago en 3 vías** (asignar `movbancarios` del proveedor · comprobante PDF vía N8N ·
   captura de pantalla con banco Banbajío/Actinver) + desaplicar (401) + batch aprobados sin pago
   (402). Validación de monto = total.
+- ✅ **Tipos de solicitud especiales**: Urgentes, Línea de Captura, Devoluciones y Facturas sin XML
+  (ver sección "Tipos de solicitud especiales" más abajo).
 - ⏳ **Dashboard** (440/441), **Reportes** (460), conciliación avanzada (automática/parciales/importación
-  de estado de cuenta), tipos de solicitud Urgentes/Línea de captura/Devoluciones/Sin XML.
+  de estado de cuenta).
 - Decisiones acordadas: reutilizar RPCs de negocio seguras; el CFDI se parsea en el backend (sin N8N),
   pero el **comprobante de pago** sí sigue usando el webhook N8N por ahora; las escrituras quedan
   auditadas con el usuario real.
@@ -389,3 +391,60 @@ Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un mod
 ### RPCs/objetos reutilizados (sin crear nada nuevo)
 `cxp_autorizar_solicitud_pago`, `cxp_puede_autorizar`, vista `v_resumenPresupuesto`, parámetro
 `SPHConfiguraciones.'Aprobar fuera de presupuesto'`, permisos 430/431, campo `cxp.autorizadoFP`.
+
+---
+
+## Tipos de solicitud especiales (Urgentes / Línea de Captura / Devoluciones / Sin XML) — v2  ✅
+
+> Reescritura de los flujos de FlutterFlow `linea_solicitud_urgente`, `linea_captura`,
+> `linea_devolucion` y `linea_factura_sin_x_m_l`. Se abren desde **Solicitudes de pago →
+> "Nueva solicitud"** (drawer con los 5 tipos). A diferencia de la **Solicitud de Pago normal**
+> (CFDI con XML, `tipoOperacion=1`), estos **no parsean XML**: el **monto se captura a mano** y los
+> datos vienen de los campos del formulario. El **aprobador** (`uidGerente`) lo resuelve el backend
+> desde **`PresCategorias.uidResponsable`** de la clasificación elegida (no se confía en el cliente).
+
+### Tabla comparativa (qué escribe cada tipo en `cxp`)
+
+| Tipo | Ruta API | `tipoOperacion` | `idEstado` inicial | `tipoProveedor` | `esUrgente` | Archivo | Contraparte | Campos propios |
+|---|---|---|---|---|---|---|---|---|
+| **Urgentes** | `POST /cxp/solicitudes/urgente` | 2 | **2 = Enviado** (directo a aprobación) | 1 | **true** | — | Proveedor | `completada=false` |
+| **Línea de Captura** | `POST /cxp/solicitudes/linea-captura` (multipart) | 4 | **2 = Enviado** | 1 | false | **PDF** | Proveedor | `lineaCaptura`, `referencia`, `fechaLimite`, `pagoInmediato` |
+| **Devoluciones** | `POST /cxp/solicitudes/devolucion` | 5 | 1 = Guardado | **2** | false | — | **Inversionista** (`inversionista`) | `referencia` = concepto de devolución |
+| **Sin XML** | `POST /cxp/solicitudes/sin-xml` (multipart) | 6 | 1 = Guardado | 1 | false | **PDF** | Proveedor | `folio` (manual), `fecCFDI`, `fechaLimite` (= fecha factura), `moneda` |
+
+**Campos comunes a los 4:** `idCxp` (15, server), `uidr`, `fecSolicitud`=hoy, `montoAplicado`=0,
+`total` (manual), `idCategoria` (la **clasificación**), `concepto`, `ultimoComentario`=justificación,
+`uidGerente`=`PresCategorias.uidResponsable`, `nomCFDI`=''. Todos insertan un comentario inicial en
+`cxpComentarios` (tipo 1 = la justificación). Escrituras **auditadas** (`comoActor`).
+
+### Decisiones vs. v1 (paridad con correcciones puntuales)
+- **Estado inicial**: se replica v1 — Urgentes y Línea de Captura **nacen en Enviado (2)** y van directo a
+  la bandeja del aprobador asignado; Devoluciones y Sin XML nacen en **Guardado (1)**.
+- **Bug corregido**: en Línea de Captura `concepto` ahora es **un campo propio** (en v1 reusaba la
+  justificación). 
+- **Duplicados coherentes** (el chequeo de v1 estaba roto — comparaba `lineaCaptura` contra el concepto):
+  - Línea de Captura: bloquea si ya existe una solicitud **activa con la misma `lineaCaptura`**.
+  - Sin XML: bloquea si ya existe **mismo proveedor + mismo `folio`**.
+  - Urgentes/Devoluciones: sin chequeo (no hay clave natural fiable).
+- **No** validan "mes en curso" ni llaman `cxp_puede_insertar` (paridad con v1: estos tipos son atajos
+  manuales; la regla fiscal del mes solo aplica al alta con CFDI).
+- **Devoluciones**: la contraparte es un **Inversionista** (selector `GET /cxp/solicitudes/inversionistas`:
+  `inversionista` activos, no de prueba). Se guarda `idProveedor`=`idInversionista`, `tipoProveedor=2` y
+  `nombreProveedor`=`razonsocial` (resuelto en el backend; v1 lo dejaba en null).
+- **Archivos** (Línea de Captura y Sin XML): PDF al bucket **`CFDIproveedores`**, ruta
+  `{yyyy-MM}/{idProveedor}/{idCxp}.pdf` → `urlCFDI`.
+
+### Archivos
+- Backend: `solicitudes.schemas.ts` (schemas `crearUrgente`/`crearLineaCaptura`/`crearDevolucion`/
+  `crearSinXml`), `solicitudes.service.ts` (métodos homónimos + `inversionistas()` +
+  `responsableDeCategoria()` + `subirComprobante()`), `solicitudes.controller.ts` (endpoints).
+- Frontend: `NuevaSolicitudEspecial.tsx` (4 modales: `NuevaUrgente`/`NuevaLineaCaptura`/`NuevaDevolucion`/
+  `NuevaSinXml`, con `SearchSelect` + `InputFecha` compartidos), `solicitudes.api.ts` (DTOs + métodos),
+  `SolicitudesPage.tsx` (drawer con los 5 tipos activos).
+
+### Pendiente / notas
+- ⚠️ Cuando se **reactive** el trigger `cxp_validar_fecha_cfdi_estado` (hoy off), revisar el caso **Sin XML**:
+  escribe `fecCFDI` = fecha de factura (capturada por el usuario), que podría ser de un mes anterior. El plan
+  de corrección del trigger debe contemplar `tipoOperacion=6`.
+- Sin objetos nuevos en BD: todo se construye sobre `cxp`/`cxpComentarios`/`PresCategorias`/`catProveedores`/
+  `inversionista` existentes.

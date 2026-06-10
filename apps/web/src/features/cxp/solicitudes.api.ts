@@ -99,8 +99,52 @@ export interface CfdiAnalisis {
   };
 }
 
+export interface CatalogoInversionista {
+  idInversionista: string;
+  razonsocial: string | null;
+}
+
+/** DTOs de los tipos de solicitud especiales. */
+export interface UrgenteDto {
+  idProveedor: string;
+  idCategoria: string;
+  concepto: string;
+  total: number;
+  justificacion: string;
+}
+export interface LineaCapturaDto {
+  idProveedor: string;
+  idCategoria: string;
+  concepto: string;
+  lineaCaptura: string;
+  referencia: string;
+  fechaLimite: string; // ISO yyyy-MM-dd
+  total: number;
+  pagoInmediato: boolean;
+  justificacion: string;
+}
+export interface DevolucionDto {
+  idInversionista: string;
+  idCategoria: string;
+  conceptoDevolucion: string;
+  total: number;
+  justificacion: string;
+}
+export interface SinXmlDto {
+  idProveedor: string;
+  idCategoria: string;
+  concepto: string;
+  folio: string;
+  fecFactura: string; // ISO yyyy-MM-dd
+  total: number;
+  moneda: string;
+  justificacion: string;
+}
+
 export const solicitudesApi = {
   semanas: () => api.get<string[]>('/cxp/solicitudes/semanas'),
+  inversionistas: () =>
+    api.get<CatalogoInversionista[]>('/cxp/solicitudes/inversionistas'),
   analizar: (xml: File, pdf: File) => {
     const fd = new FormData();
     fd.append('xml', xml);
@@ -120,6 +164,38 @@ export const solicitudesApi = {
     return api.postForm<{ idCxp: string }>('/cxp/solicitudes', fd);
   },
   catalogos: () => api.get<Catalogos>('/cxp/solicitudes/catalogos'),
+  // ===== Tipos de solicitud especiales =====
+  crearUrgente: (dto: UrgenteDto) =>
+    api.post<{ idCxp: string }>('/cxp/solicitudes/urgente', dto),
+  crearDevolucion: (dto: DevolucionDto) =>
+    api.post<{ idCxp: string }>('/cxp/solicitudes/devolucion', dto),
+  crearLineaCaptura: (pdf: File, dto: LineaCapturaDto) => {
+    const fd = new FormData();
+    fd.append('pdf', pdf);
+    fd.append('idProveedor', dto.idProveedor);
+    fd.append('idCategoria', dto.idCategoria);
+    fd.append('concepto', dto.concepto);
+    fd.append('lineaCaptura', dto.lineaCaptura);
+    fd.append('referencia', dto.referencia);
+    fd.append('fechaLimite', dto.fechaLimite);
+    fd.append('total', String(dto.total));
+    fd.append('pagoInmediato', String(dto.pagoInmediato));
+    fd.append('justificacion', dto.justificacion);
+    return api.postForm<{ idCxp: string }>('/cxp/solicitudes/linea-captura', fd);
+  },
+  crearSinXml: (pdf: File, dto: SinXmlDto) => {
+    const fd = new FormData();
+    fd.append('pdf', pdf);
+    fd.append('idProveedor', dto.idProveedor);
+    fd.append('idCategoria', dto.idCategoria);
+    fd.append('concepto', dto.concepto);
+    fd.append('folio', dto.folio);
+    fd.append('fecFactura', dto.fecFactura);
+    fd.append('total', String(dto.total));
+    fd.append('moneda', dto.moneda);
+    fd.append('justificacion', dto.justificacion);
+    return api.postForm<{ idCxp: string }>('/cxp/solicitudes/sin-xml', fd);
+  },
   listar: (rangoSemana?: string) =>
     api.get<SolicitudCxP[]>(
       `/cxp/solicitudes${rangoSemana ? `?rangoSemana=${encodeURIComponent(rangoSemana)}` : ''}`,

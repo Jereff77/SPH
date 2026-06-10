@@ -18,8 +18,22 @@ import { PendientesPage } from '@/features/cxp/PendientesPage';
 import { PagarSolicitudesPage } from '@/features/cxp/PagarSolicitudesPage';
 import { AprobarSolicitudesPage } from '@/features/cxp/AprobarSolicitudesPage';
 import { CorreoPage } from '@/features/correo/CorreoPage';
+import { lazy, Suspense } from 'react';
 import { DashboardVentasPage } from '@/features/ventas/DashboardVentasPage';
 import { PlanesPage } from '@/features/ventas/PlanesPage';
+import { EscriturasPage } from '@/features/ventas/EscriturasPage';
+
+// El Dashboard gráfico carga Chart.js (pesado): se separa en su propio chunk.
+const DashboardGraficoPage = lazy(() =>
+  import('@/features/ventas/DashboardGraficoPage').then((m) => ({
+    default: m.DashboardGraficoPage,
+  })),
+);
+// Reportes carga Chart.js + jsPDF: también en su propio chunk.
+const ReportesPage = lazy(() =>
+  import('@/features/ventas/ReportesPage').then((m) => ({ default: m.ReportesPage })),
+);
+const cargando = <div className="p-6 text-sm text-gray-400">Cargando…</div>;
 import { ClientesPage } from '@/features/clientes/ClientesPage';
 import { DashboardCobranzaPage } from '@/features/arrendatarios/DashboardCobranzaPage';
 import { ArrendatariosPage } from '@/features/arrendatarios/ArrendatariosPage';
@@ -43,7 +57,24 @@ export const router = createBrowserRouter([
           { path: '/', element: <Home /> },
           { path: '/clientes', element: <ClientesPage /> },
           { path: '/ventas', element: <DashboardVentasPage /> },
+          {
+            path: '/ventas/dashboard',
+            element: (
+              <Suspense fallback={cargando}>
+                <DashboardGraficoPage />
+              </Suspense>
+            ),
+          },
           { path: '/ventas/planes', element: <PlanesPage /> },
+          {
+            path: '/ventas/reportes',
+            element: (
+              <Suspense fallback={cargando}>
+                <ReportesPage />
+              </Suspense>
+            ),
+          },
+          { path: '/ventas/escrituras', element: <EscriturasPage /> },
           { path: '/arrendatarios', element: <DashboardCobranzaPage /> },
           { path: '/arrendatarios/planes', element: <ArrendatariosPage /> },
           { path: '/parques', element: <ParquesPage /> },

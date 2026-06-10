@@ -1,9 +1,13 @@
 import { Module } from '@nestjs/common';
 import { VentasController } from './ventas.controller.js';
 import { VentasStreamController } from './ventas-stream.controller.js';
+import { MontseController } from './montse.controller.js';
 import { DashboardService } from './dashboard.service.js';
 import { PagosVentaService } from './pagos-venta.service.js';
 import { PlanesService } from './planes.service.js';
+import { EscriturasService } from './escrituras.service.js';
+import { ReportesService } from './reportes.service.js';
+import { MontseService } from './montse.service.js';
 import { VentasRealtimeService } from './ventas-realtime.service.js';
 import { SseAuthGuard } from '../cxp/sse-auth.guard.js';
 
@@ -13,11 +17,14 @@ import { SseAuthGuard } from '../cxp/sse-auth.guard.js';
  * el SSE del Dashboard reutiliza `SseAuthGuard` del módulo CxP.
  */
 @Module({
-  controllers: [VentasController, VentasStreamController],
+  controllers: [VentasController, VentasStreamController, MontseController],
   providers: [
     DashboardService,
     PagosVentaService,
     PlanesService,
+    EscriturasService,
+    ReportesService,
+    MontseService,
     VentasRealtimeService,
     SseAuthGuard,
   ],

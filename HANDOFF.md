@@ -5,7 +5,7 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-09. Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-10. Autor: Claude (Opus 4.8).
 >
 > 📌 **El estado detallado y al día por módulo está en `base-conocimiento/INDICE.md`** (router) y los
 > `base-conocimiento/modulos/*.md`. El **handoff operativo** (despliegue EasyPanel, rama, variables,
@@ -43,8 +43,25 @@
     reubicarlo) y renderiza el **cuerpo HTML** en un `<iframe sandbox>` sin scripts (anti-XSS). Requiere
     `EMAIL_ENCRYPTION_KEY` (env del api, AES-256-GCM) — **debe ser idéntica en todos los entornos** que usen la
     misma BD o no se descifran las contraseñas guardadas.
-  - **Ventas** (Inversionistas/Propietarios) — **Etapa 1**: **Dashboard** (clave 600) y **Planes** (clave
-    610). **Cálculos sin vistas** (desde tablas base) con un **único universo**: propiedades con
+  - **Ventas** (Inversionistas/Propietarios): **Dashboard** gráfico (clave 620, Chart.js), **Gestión de
+    Cobranza** (clave 600, antes "Dashboard"), **Reportes** (clave 620), **Planes** (clave 610) y
+    **Escrituras** (clave 630). **Reportes** (`/ventas/reportes`) replica los 2 reportes HTML de v1
+    (Estado de Cuenta + Vencidos) de forma **segura**: el backend (`reportes.service.ts`) invoca las RPCs
+    existentes `v_pdpdetalle_get_*` con service_role (autorizado; ya no usa la anon key en el navegador
+    como v1). Front `ReportesPage.tsx` (lazy; Chart.js + jsPDF), con filtros (cascada bidireccional), tarjetas, tablas,
+    gráfico de barras apiladas y export CSV/JSON/PDF. **3er tab "Montse AI":** asistente conversacional —
+    el backend (`montse.service.ts`/`montse.controller.ts`, `ventas/montse/*`) hace de **proxy** de la edge
+    function **`ia-chat`** (OpenRouter) reenviando el JWT del usuario; sesiones en `iaSesiones`/
+    `iaConversaciones`, cuota con `ia_tokens_disponibles`. Front `features/ventas/montse/` (chat con markdown
+    + gráficos Chart.js). Adaptado de la rama `gpt`. **Nuevas deps:** `jspdf`, `jspdf-autotable`,
+    `react-markdown`, `remark-gfm`, `html-to-image`.
+    El **Dashboard** (`/ventas/dashboard`) es un reporte con KPIs del año, barras Mensual/Acumulado
+    (Monto/Pagos/Balance) y tabla de **naves con atrasos** (cartera vencida: monto vencido + días de atraso).
+    Reutiliza el universo del dashboard (sin Tickets); backend `reporteGrafico()` en `dashboard.service.ts`,
+    front `DashboardGraficoPage.tsx` (lazy/code-split). **Nueva dependencia:** `chart.js` + `react-chartjs-2`. Escrituras = réplica de "Fechas de escrituración" de v1: lista `pdpDetalle`
+    con `tipoPago='Escrituracion'` (sin Tickets, enriquecido sin vistas) y edita **fecha**/**monto** inline
+    (`PATCH ventas/escrituras/:idPdpDet/fecha|monto` → `UPDATE pdpDetalle`, auditado + `actividad`).
+    Backend `escrituras.service.ts`; front `EscriturasPage.tsx`. **Cálculos sin vistas** (desde tablas base) con un **único universo**: propiedades con
     `propiedades.pdpActivo=<filtro>`, **`propiedades.esTicket=false`** (el parque de Tickets se excluye de
     TODO el módulo de Ventas) e inversionista `inversionista=true` y `pruebas=false` (NO tipoCliente;
     la bandera de "activo" vigente es `propiedades.pdpActivo`, no `pdp.pdpactivo`). Dashboard: 3 tarjetas
@@ -100,7 +117,7 @@
   UPDATE con `OLD.idEstado IN (1,2)`; Fase 2: PPD⇒`diferido` automático en el alta — **bloqueada hasta
   que se defina cómo se trabajará el PPD**). Mientras el trigger esté off, las PUE de meses anteriores
   no se auto-rechazan.
-- **Siguiente:** Ventas Etapa 2 (**Reportes 620**, **Escrituras 630**, creación de **Renta Garantizada**
+- **Siguiente:** Ventas Etapa 2 (**Reportes 620** — Escrituras 630 ya hecho—, creación de **Renta Garantizada**
   vía RPCs `rgpdp_insertar_registro`/`rgpdp_generar_plan_pagos` y **Renta Administrada** `rapdp_actualizar`,
   pasar las pestañas de rentas a cálculo propio); CxP Dashboard(440/441) y Reportes(460); conciliación
   bancaria avanzada; configurar la cuenta de Correo (`EMAIL_ENCRYPTION_KEY` en EasyPanel); migrar stubs
@@ -453,6 +470,14 @@ para **todos** los usuarios (ítem de menú **sin `clave`**, igual que "Cambiar 
   objeto nuevo v2_, `SECURITY DEFINER`, `EXECUTE` solo a `service_role`): **asigna el número de versión desde
   la BD** con `pg_advisory_xact_lock` (a prueba de concurrencia) y devuelve la versión creada. **Es la ÚNICA
   vía correcta de registrar** (no usar `INSERT` manual con versión hardcodeada).
+  - ⚠️ **BUG conocido (sin corregir por decisión del usuario, 2026-06-10):** la función inserta
+    `(...->>'sub')` (text) en la columna `"creadoPor"` (uuid) **sin `::uuid`** → falla con *"column creadoPor
+    is of type uuid but expression is of type text"*. Por eso el seed 2.0.0→2.10.0 fue por INSERT directo, y
+    **2.11.0 se registró por INSERT directo omitiendo `creadoPor`** (queda NULL; el registro lo hace el
+    agente, no un usuario) — ver `base-conocimiento/migraciones/2026-06-10-changelog-2.11.0.sql`. **Para
+    reactivar la función**, agregar el cast: `(NULLIF(current_setting('request.jwt.claims',true),'')::jsonb->>'sub')::uuid`
+    (el usuario pidió NO modificarla ahora). Mientras tanto, registrar nuevas versiones con el INSERT directo
+    (calcula la siguiente desde la tabla) **omitiendo `creadoPor`**.
 
 **📌 Cómo registra un agente una versión (a prueba de concurrencia):** llama a la función pasando el salto
 (`major`|`minor`|`patch`) — el número lo calcula la BD:

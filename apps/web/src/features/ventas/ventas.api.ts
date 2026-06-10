@@ -242,6 +242,34 @@ export interface CrearPlanInput {
   idVendedor?: string;
 }
 
+/** Salida del Dashboard gráfico (clave 620). */
+export interface ReporteGrafico {
+  kpis: { monto: number; pagos: number; balance: number };
+  meses: { mes: number; monto: number; pagos: number; balance: number }[];
+  atrasos: {
+    idNave: string | null;
+    nave: string | null;
+    razonsocial: string | null;
+    montoVencido: number;
+    diasAtraso: number;
+  }[];
+  totalVencido: number;
+}
+
+/** Fila de la pantalla Escrituras (parcialidad con tipoPago='Escrituracion'). */
+export interface EscrituraRow {
+  idPdpDet: string;
+  idPropiedad: string | null;
+  idNave: string | null;
+  idInversionista: string | null;
+  tipoPago: string | null;
+  nave: string | null;
+  numPago: number | null;
+  inversionista: string | null;
+  fecha: string | null;
+  monto: number | null;
+}
+
 function dq(params: Record<string, string | number | undefined>): string {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -284,6 +312,8 @@ export const ventasApi = {
     api.get<RentaGarantizadaRow[]>(`/ventas/planes/renta-garantizada/${idPropiedad}`),
   rentaAdministrada: (idPropiedad: string) =>
     api.get<RentaAdministradaRow[]>(`/ventas/planes/renta-administrada/${idPropiedad}`),
+  actualizarTipoPago: (idPdpDet: string, tipoPago: TipoPago) =>
+    api.patch<{ ok: true }>(`/ventas/planes/tipo-pago/${idPdpDet}`, { tipoPago }),
   comentarios: (idPdpDet: string) =>
     api.get<Comentario[]>(`/ventas/planes/comentarios/${idPdpDet}`),
   agregarComentario: (idPdpDet: string, comentario: string) =>
@@ -318,6 +348,18 @@ export const ventasApi = {
     api.delete<{ ok: true }>(`/ventas/planes/propiedades/${idPropiedad}`),
   crearPlanPagos: (dto: CrearPlanInput) =>
     api.post<{ idPdp: string }>('/ventas/planes/plan-pagos', dto),
+
+  // Dashboard gráfico (620)
+  reporteGrafico: (anio: number) =>
+    api.get<ReporteGrafico>(`/ventas/reporte${dq({ anio })}`),
+
+  // Escrituras (630)
+  escrituras: () =>
+    api.get<{ filas: EscrituraRow[]; total: number }>('/ventas/escrituras'),
+  actualizarFechaEscritura: (idPdpDet: string, fecha: string) =>
+    api.patch<{ ok: true }>(`/ventas/escrituras/${idPdpDet}/fecha`, { fecha }),
+  actualizarMontoEscritura: (idPdpDet: string, monto: number) =>
+    api.patch<{ ok: true }>(`/ventas/escrituras/${idPdpDet}/monto`, { monto }),
 };
 
 export const MESES = [
@@ -338,3 +380,7 @@ export const TIPO_MOVIMIENTO: Record<number, string> = {
   2: 'Construcción',
   3: 'Ticket',
 };
+
+/** Tipos de pago de una parcialidad (PDP), como en `editar_tipo_pago` de v1. */
+export const TIPOS_PAGO = ['Anticipo', 'Parcialidad', 'Escrituracion'] as const;
+export type TipoPago = (typeof TIPOS_PAGO)[number];

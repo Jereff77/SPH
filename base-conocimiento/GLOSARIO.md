@@ -1,8 +1,8 @@
 ---
 documento: Glosario transversal
 estado: vivo
-ultima_actualizacion: 2026-06-04
-palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parque, PDP, KVA, INPC, situacion, status, esTicket, auditoria, ver como]
+ultima_actualizacion: 2026-06-10
+palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parque, PDP, KVA, INPC, situacion, status, esTicket, auditoria, ver como, saldo vencido, días de atraso, cartera vencida, tipo de pago, escrituración, Montse AI, asistente]
 ---
 
 # Glosario — entidades y términos transversales
@@ -40,6 +40,13 @@ palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parq
   como indicador en el landing. Lo gestiona Configuraciones → Parámetros.
 - **Tipo de cambio (USD/MXN):** indicador del landing; se obtiene de **Banxico** (serie SF43718, FIX)
   a través del backend (el token nunca se expone al frontend).
+- **Tipo de pago** (`pdpDetalle.tipoPago`): clasifica cada parcialidad de un plan de pagos de venta.
+  Valores: **Anticipo**, **Parcialidad**, **Escrituración** (en BD `Escrituracion`). Editable desde Ventas →
+  Planes (doble clic). La pantalla **Escrituras** (Ventas) lista solo las de tipo `Escrituracion`.
+- **Saldo vencido / Cartera vencida:** monto de una parcialidad **ya vencida** (su `fecha` < hoy) que **no
+  ha sido cubierta** por pagos (`monto − Σ pagos > 0`). Los **días de atraso** se cuentan desde la fecha de
+  vencimiento de la parcialidad más antigua sin cubrir. Se usa en Ventas → **Dashboard** (naves con atrasos)
+  y → **Reportes → Vencidos**.
 
 ## Campos y banderas comunes
 
@@ -64,6 +71,14 @@ palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parq
 - **Auditoría / bitácora (`auditoria`):** registra cada cambio (crear/editar/eliminar) con su **diff
   antes/después** y **quién** lo hizo, tanto de v1 como de v2. La tabla vieja `actividad` (v1) se
   conserva; su histórico se copió a `auditoria` como registros `LEGACY`.
+
+## Asistente IA
+
+- **Montse AI:** asistente conversacional (chat) sobre los datos del ERP, dentro de **Ventas → Reportes**
+  (pestaña). Responde en lenguaje natural consultando la BD (genera SQL de solo lectura) y puede adjuntar
+  **gráficos** (bar/pie/line) y tablas. En v2 el frontend NO habla con Supabase: el backend hace de **proxy**
+  de la **edge function `ia-chat`** (que usa OpenRouter con su secret), reenviando el JWT del usuario.
+  Sesiones en `iaSesiones`, mensajes en `iaConversaciones`, cuota de uso por RPC `ia_tokens_disponibles`.
 
 ## Convenciones de la app nueva (v2)
 

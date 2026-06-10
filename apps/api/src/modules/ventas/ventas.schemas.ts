@@ -67,6 +67,29 @@ export const comentarioSchema = z.object({
 });
 export type ComentarioDto = z.infer<typeof comentarioSchema>;
 
+/**
+ * Cambiar el tipo de pago de una parcialidad (`pdpDetalle.tipoPago`) desde el
+ * Plan de Pagos (clave 610). Réplica de `editar_tipo_pago` de v1 (producto=PDP):
+ * Anticipo / Parcialidad / Escrituracion.
+ */
+export const tipoPagoSchema = z.object({
+  tipoPago: z.enum(['Anticipo', 'Parcialidad', 'Escrituracion']),
+});
+export type TipoPagoDto = z.infer<typeof tipoPagoSchema>;
+
+/**
+ * Escrituras (clave 630): edición de la fecha de una parcialidad de
+ * escrituración (`pdpDetalle.fecha`). Réplica del calendario de v1.
+ */
+export const escrituraFechaSchema = z.object({ fecha: FECHA });
+export type EscrituraFechaDto = z.infer<typeof escrituraFechaSchema>;
+
+/** Escrituras (clave 630): edición del monto (`pdpDetalle.monto`). */
+export const escrituraMontoSchema = z.object({
+  monto: z.coerce.number().positive('El monto debe ser mayor a 0.'),
+});
+export type EscrituraMontoDto = z.infer<typeof escrituraMontoSchema>;
+
 /** Vincular una nave a un inversionista creando una propiedad (Config, sub-tab 3). */
 export const propiedadSchema = z.object({
   idInversionista: z.string().trim().min(1, 'Falta el inversionista.'),

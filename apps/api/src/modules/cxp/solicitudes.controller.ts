@@ -9,17 +9,26 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { SolicitudesService } from './solicitudes.service.js';
 import {
   crearSolicitudSchema,
   editarSolicitudSchema,
+  crearUrgenteSchema,
+  crearLineaCapturaSchema,
+  crearDevolucionSchema,
+  crearSinXmlSchema,
   type CrearSolicitudDto,
   type EditarSolicitudDto,
+  type CrearUrgenteDto,
+  type CrearLineaCapturaDto,
+  type CrearDevolucionDto,
+  type CrearSinXmlDto,
 } from './solicitudes.schemas.js';
 
 /** Archivos recibidos por multipart (memoria). */
@@ -56,6 +65,60 @@ export class SolicitudesController {
   @Get('catalogos')
   catalogos() {
     return this.svc.catalogos();
+  }
+
+  /** Inversionistas/clientes para el selector de Devoluciones. */
+  @Get('inversionistas')
+  inversionistas() {
+    return this.svc.inversionistas();
+  }
+
+  // ===================== Alta de tipos especiales =====================
+
+  /** Urgentes (tipoOperacion=2): sin archivos. */
+  @Post('urgente')
+  async crearUrgente(
+    @CurrentUser() actor: AuthUser,
+    @Body(new ZodValidationPipe(crearUrgenteSchema)) dto: CrearUrgenteDto,
+  ) {
+    return this.svc.crearUrgente(dto, actor.uid);
+  }
+
+  /** Línea de Captura (tipoOperacion=4): requiere PDF. */
+  @Post('linea-captura')
+  @UseInterceptors(
+    FileInterceptor('pdf', { limits: { fileSize: LIMITE_ARCHIVO } }),
+  )
+  async crearLineaCaptura(
+    @CurrentUser() actor: AuthUser,
+    @UploadedFile() pdf: Express.Multer.File | undefined,
+    @Body(new ZodValidationPipe(crearLineaCapturaSchema)) dto: CrearLineaCapturaDto,
+  ) {
+    if (!pdf) throw new BadRequestException('Falta el archivo PDF del comprobante.');
+    return this.svc.crearLineaCaptura(dto, pdf.buffer, actor.uid);
+  }
+
+  /** Devoluciones (tipoOperacion=5): contraparte = inversionista, sin archivos. */
+  @Post('devolucion')
+  async crearDevolucion(
+    @CurrentUser() actor: AuthUser,
+    @Body(new ZodValidationPipe(crearDevolucionSchema)) dto: CrearDevolucionDto,
+  ) {
+    return this.svc.crearDevolucion(dto, actor.uid);
+  }
+
+  /** Facturas sin XML (tipoOperacion=6): requiere PDF. */
+  @Post('sin-xml')
+  @UseInterceptors(
+    FileInterceptor('pdf', { limits: { fileSize: LIMITE_ARCHIVO } }),
+  )
+  async crearSinXml(
+    @CurrentUser() actor: AuthUser,
+    @UploadedFile() pdf: Express.Multer.File | undefined,
+    @Body(new ZodValidationPipe(crearSinXmlSchema)) dto: CrearSinXmlDto,
+  ) {
+    if (!pdf) throw new BadRequestException('Falta el archivo PDF del comprobante.');
+    return this.svc.crearSinXml(dto, pdf.buffer, actor.uid);
   }
 
   /** Analiza el CFDI (XML + PDF) y devuelve los datos extraídos + proveedor. */
