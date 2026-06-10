@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pagos Arrendatarios — SPH Bienes Raíces</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+:root {
+  --primary:      #1a3a5c;
+  --primary-lt:   #2d5f8a;
+  --accent:       #e67e22;
+  --bg:           #E3E3E3;
+  --card:         #ffffff;
+  --text:         #2c3e50;
+  --text-lt:      #7f8c8d;
+  --border:       #dde3ea;
+  --row-alt:      #f0f4f8;
+  --pend-bg:      #fde8e8;
+  --pend-border:  #f5c6c6;
+  --paid-bg:      #f0faf1;
+  --c1m: #e67e22;
+  --c2m: #f39c12;
+  --c3m: #27ae60;
+  --cvenc: #c0392b;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Layout ── */
+.layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+.main-panel {
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+/* ── Stats bar ── */
+.stats-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+
+/* Toggle estado pago */
+.toggle-estado {
+  display: flex;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
+  align-self: stretch;
+}
+.toggle-estado button {
+  flex: 1;
+  border: none;
+  background: none;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-lt);
+  cursor: pointer;
+  height: 100%;
+  white-space: nowrap;
+  transition: background .15s, color .15s;
+  border-right: 1px solid var(--border);
+}
+.toggle-estado button:last-child { border-right: none; }
+.toggle-estado button:hover { background: var(--row-alt); color: var(--text); }
+.toggle-estado button.active-all  { background: var(--primary);  color: #fff; }
+.toggle-estado button.active-pend { background: #c0392b;          color: #fff; }
+.toggle-estado button.active-paid { background: #27ae60;          color: #fff; }
+
+/* Bloque selector de periodo junto a las cards */
+.stat-period {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 14px;
+  margin-left: auto;
+}
+.sp-group { display: flex; align-items: center; gap: 7px; }
+.sp-lbl { font-size: 11px; color: var(--text-lt); font-weight: 600; width: 28px; }
+.sp-sel {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  outline: none;
+  cursor: pointer;
+}
+.sp-sel:focus { border-color: var(--primary-lt); }
+.stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 14px;
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stat-lbl { font-size: 10px; color: var(--text-lt); text-transform: uppercase; letter-spacing: .5px; }
+.stat-val { font-size: 16px; font-weight: 700; color: var(--primary); }
+.stat-val.red  { color: #c0392b; }
+.stat-val.grn  { color: #27ae60; }
+
+/* ── Table ── */
+.tbl-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: auto; flex: 1; min-height: 0; }
+table { width: 100%; border-collapse: collapse; }
+
+thead { position: sticky; top: 0; z-index: 10; }
+thead tr.hdr { background: var(--primary); color: #fff; }
+thead th {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+thead th:hover { background: var(--primary-lt); }
+.si { margin-left: 3px; opacity: .5; font-size: 10px; }
+.sorted .si { opacity: 1; }
+
+thead tr.cfr { background: #20456b; }
+thead tr.cfr th {
+  padding: 3px 6px;
+  cursor: default;
+}
+thead tr.cfr th input {
+  width: 100%;
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.25);
+  border-radius: 3px;
+  color: #fff;
+  padding: 2px 5px;
+  font-size: 11px;
+  outline: none;
+}
+thead tr.cfr th input::placeholder { color: rgba(255,255,255,.4); }
+thead tr.cfr th input:focus { background: rgba(255,255,255,.2); }
+
+tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+tbody tr:hover  { background: #dbeafe !important; }
+tbody tr.pend   { background: var(--pend-bg); }
+tbody tr.paid   { background: var(--paid-bg); }
+tbody td { padding: 5px 10px; font-size: 12px; }
+
+.tc-r { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
+.tc-c { text-align: center; }
+.tc-nm{ white-space: nowrap; }
+.tc-nave { font-weight: 700; color: var(--primary); }
+.badge-pend { color: #c0392b; font-weight: 600; font-style: italic; }
+.badge-paid { color: #27ae60; }
+
+tfoot tr  { background: var(--primary); color: #fff; font-weight: 700; }
+tfoot td  { padding: 7px 10px; font-size: 12px; }
+
+.state-msg { text-align: center; padding: 36px 20px; color: var(--text-lt); }
+.spinner {
+  display: inline-block; width: 20px; height: 20px;
+  border: 3px solid var(--border); border-top-color: var(--primary);
+  border-radius: 50%; animation: spin .7s linear infinite;
+  vertical-align: middle; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Legend ── */
+.legend {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  font-size: 11px; color: var(--text-lt);
+  padding: 6px 10px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+}
+.li { display: flex; align-items: center; gap: 5px; }
+.ld { width: 14px; height: 14px; border-radius: 2px; flex-shrink: 0; }
+.ld-pend { background: var(--pend-bg); border: 1.5px solid var(--pend-border); }
+.ld-paid { background: var(--paid-bg); border: 1.5px solid #a5d6a7; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 230px;
+  min-width: 230px;
+  background: var(--card);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sb-title { font-size: 10px; font-weight: 700; color: var(--text-lt); text-transform: uppercase; letter-spacing: .5px; padding: 2px 4px; }
+
+.vp { border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.vp-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 10px; cursor: pointer;
+  font-weight: 700; font-size: 12px; color: #fff;
+  user-select: none;
+}
+.vp-head .chev { font-size: 10px; transition: transform .2s; }
+.vp-head.coll  .chev { transform: rotate(-90deg); }
+.vp-1m   .vp-head { background: var(--c1m); }
+.vp-2m   .vp-head { background: var(--c2m); }
+.vp-3m   .vp-head { background: var(--c3m); }
+.vp-venc .vp-head { background: var(--cvenc); }
+
+.vi-dias { color: var(--cvenc); font-size: 10px; font-weight: 700; }
+
+.cnt-badge { background: rgba(255,255,255,.3); border-radius: 10px; padding: 0 6px; font-size: 11px; }
+
+.vp-body { background: var(--card); max-height: 250px; overflow-y: auto; transition: max-height .25s ease; }
+.vp-body.coll { max-height: 0; overflow: hidden; }
+.vi { padding: 5px 8px; border-bottom: 1px solid var(--border); font-size: 11px; line-height: 1.4; }
+.vi:last-child { border-bottom: none; }
+.vi-nave { font-weight: 700; color: var(--primary); }
+.vi-rs   { color: var(--text); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 205px; }
+.vi-date { color: var(--text-lt); font-size: 10px; }
+.vi-monto{ color: var(--accent); font-weight: 600; }
+.vp-empty { padding: 10px 8px; color: var(--text-lt); font-size: 11px; text-align: center; }
+
+/* ── Balance placeholder ── */
+.bal-ph { text-align: center; padding: 60px 20px; color: var(--text-lt); }
+.bal-ph .icon { font-size: 44px; opacity: .3; margin-bottom: 10px; }
+
+/* ── Tooltip desglose ── */
+.has-tip { cursor: default; }
+#tip {
+  position: fixed;
+  z-index: 9000;
+  background: #1e2d3d;
+  color: #ecf0f1;
+  border-radius: 7px;
+  padding: 10px 14px;
+  font-size: 12px;
+  box-shadow: 0 4px 18px rgba(0,0,0,.35);
+  pointer-events: none;
+  min-width: 200px;
+  max-width: 280px;
+  display: none;
+}
+#tip .tip-title { font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .5px; color: rgba(255,255,255,.5); margin-bottom: 7px; }
+#tip table { width: 100%; border-collapse: collapse; }
+#tip tr + tr td { border-top: 1px solid rgba(255,255,255,.08); }
+#tip td { padding: 3px 0; font-size: 12px; }
+#tip td:last-child { text-align: right; padding-left: 10px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.tip-pend { color: #f1948a; }
+.tip-paid { color: #82e0aa; }
+
+/* ── Botón aplicar pago ── */
+.btn-pago {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .15s;
+  line-height: 1;
+}
+.btn-pago:hover { background: #d35400; }
+.btn-pago:disabled { background: var(--border); color: var(--text-lt); cursor: not-allowed; }
+
+/* ── Modal aplicar pago ── */
+#modal-pago-bg {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 8000;
+  align-items: center;
+  justify-content: center;
+}
+#modal-pago-bg.open { display: flex; }
+.modal-pago {
+  background: var(--card);
+  border-radius: 10px;
+  width: min(820px, 96vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 40px rgba(0,0,0,.3);
+  overflow: hidden;
+}
+.mp-head {
+  background: var(--primary);
+  color: #fff;
+  padding: 12px 18px;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mp-head button {
+  background: none; border: none; color: #fff;
+  font-size: 18px; cursor: pointer; opacity: .7; line-height: 1;
+}
+.mp-head button:hover { opacity: 1; }
+.mp-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  gap: 0;
+}
+.mp-col {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mp-col + .mp-col { border-left: 1px solid var(--border); }
+.mp-col-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text-lt);
+}
+.mp-search {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 5px 8px;
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+}
+.mp-search:focus { border-color: var(--primary-lt); }
+
+/* Lista de depósitos */
+.dep-list { display: flex; flex-direction: column; gap: 4px; }
+.dep-item {
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+  font-size: 12px;
+}
+.dep-item:hover { background: var(--row-alt); border-color: var(--primary-lt); }
+.dep-item.selected { border-color: var(--accent); background: #fff3e0; }
+.dep-ord { font-weight: 600; color: var(--text); }
+.dep-meta { color: var(--text-lt); font-size: 11px; }
+.dep-importe { font-weight: 700; color: var(--primary); font-size: 13px; }
+
+/* Lista de naves */
+.nave-list { display: flex; flex-direction: column; gap: 4px; }
+.nave-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  cursor: pointer;
+  transition: background .12s;
+  font-size: 12px;
+}
+.nave-item:hover { background: var(--row-alt); }
+.nave-item input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; }
+.nave-info { flex: 1; }
+.nave-nm { font-weight: 700; color: var(--primary); }
+.nave-pq { color: var(--text-lt); font-size: 11px; }
+.nave-monto { font-weight: 700; color: #c0392b; white-space: nowrap; }
+
+/* Resumen */
+.mp-resumen {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.mp-res-item { display: flex; flex-direction: column; gap: 2px; }
+.mp-res-lbl { font-size: 10px; color: var(--text-lt); text-transform: uppercase; font-weight: 600; }
+.mp-res-val { font-weight: 700; font-size: 14px; color: var(--primary); }
+.mp-res-val.red { color: #c0392b; }
+.mp-res-val.grn { color: #27ae60; }
+.mp-res-val.ylw { color: #f39c12; }
+
+.mp-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+.mp-btn {
+  padding: 6px 16px;
+  border-radius: 5px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.mp-btn-cancel { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+.mp-btn-cancel:hover { background: var(--border); }
+.mp-btn-apply { background: var(--accent); color: #fff; }
+.mp-btn-apply:hover { background: #d35400; }
+.mp-btn-apply:disabled { background: var(--border); color: var(--text-lt); cursor: not-allowed; }
+
+/* ── Toast ── */
+#toast {
+  position: fixed; bottom: 18px; right: 18px;
+  background: #2c3e50; color: #fff;
+  padding: 8px 16px; border-radius: 6px;
+  font-size: 13px; opacity: 0; pointer-events: none;
+  transition: opacity .3s; z-index: 9999; max-width: 300px;
+}
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+
+<!-- Layout -->
+<div class="layout">
+
+  <!-- Main: Pagos -->
+  <div class="main-panel" id="panel-pagos">
+
+    <div class="stats-bar">
+      <div class="stat"><span class="stat-lbl">Naves</span><span class="stat-val" id="s-tot">—</span></div>
+      <div class="stat"><span class="stat-lbl">Naves pendientes</span><span class="stat-val red" id="s-pend">—</span></div>
+      <div class="stat"><span class="stat-lbl">Monto pendiente MXN</span><span class="stat-val red" id="s-mpend">—</span></div>
+      <div class="stat"><span class="stat-lbl">Cobrado MXN</span><span class="stat-val grn" id="s-mpaid">—</span></div>
+
+      <div class="toggle-estado">
+        <button id="te-all"  class="active-all"  onclick="setEstado('all')">Todos</button>
+        <button id="te-pend"                     onclick="setEstado('pend')">Pendientes</button>
+        <button id="te-paid"                     onclick="setEstado('paid')">Pagados</button>
+      </div>
+
+      <div class="stat-period">
+        <div class="sp-group">
+          <span class="sp-lbl">Mes</span>
+          <select id="sel-mes" class="sp-sel" onchange="loadData()">
+            <option value="">Todos</option>
+            <option value="1">Enero</option>
+            <option value="2">Febrero</option>
+            <option value="3">Marzo</option>
+            <option value="4">Abril</option>
+            <option value="5">Mayo</option>
+            <option value="6">Junio</option>
+            <option value="7">Julio</option>
+            <option value="8">Agosto</option>
+            <option value="9">Septiembre</option>
+            <option value="10">Octubre</option>
+            <option value="11">Noviembre</option>
+            <option value="12">Diciembre</option>
+          </select>
+        </div>
+        <div class="sp-group">
+          <span class="sp-lbl">Año</span>
+          <select id="sel-anio" class="sp-sel" onchange="loadData()"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr class="hdr" id="thead-hdr">
+            <th onclick="sortBy('nave')">Nave <span class="si" id="si-nave"></span></th>
+            <th onclick="sortBy('parque')">Parque <span class="si" id="si-parque"></span></th>
+            <th onclick="sortBy('razon_social')">Razón Social <span class="si" id="si-razon_social"></span></th>
+            <th style="text-align:right">Pendiente MXN</th>
+            <th style="text-align:right">USD</th>
+            <th style="text-align:right">Cobrado MXN</th>
+            <th style="text-align:center">Opciones</th>
+          </tr>
+          <tr class="cfr" id="thead-cfr">
+            <th><input id="cf-nave"   placeholder="nave…"         oninput="applyFilter()"></th>
+            <th><input id="cf-parque" placeholder="parque…"       oninput="applyFilter()"></th>
+            <th><input id="cf-rs"     placeholder="razón social…" oninput="applyFilter()"></th>
+            <th><input id="cf-conc"   placeholder="concepto…"     oninput="applyFilter()"></th>
+            <th></th>
+            <th></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="8" class="state-msg"><span class="spinner"></span>Iniciando…</td></tr>
+        </tbody>
+        <tfoot id="tfoot"></tfoot>
+      </table>
+    </div>
+
+    <div class="legend">
+      <strong style="color:var(--text)">Leyenda:</strong>
+      <div class="li"><div class="ld ld-pend"></div><span>Pago pendiente</span></div>
+      <div class="li"><div class="ld ld-paid"></div><span>Pago recibido</span></div>
+    </div>
+  </div>
+
+  <!-- Main: Balance (placeholder) -->
+  <div class="main-panel" id="panel-balance" style="display:none">
+    <div class="bal-ph">
+      <div class="icon">📊</div>
+      <p>Módulo Balance — próximamente</p>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sb-title">Contratos vencidos</div>
+    <div class="vp vp-venc" id="vp-venc">
+      <div class="vp-head" onclick="toggleVP('venc')">
+        <span>Sin renovación <span class="cnt-badge" id="cnt-venc">0</span></span>
+        <span class="chev">▼</span>
+      </div>
+      <div class="vp-body" id="vb-venc"></div>
+    </div>
+
+    <div class="sb-title" style="margin-top:6px">Próximos vencimientos</div>
+
+    <div class="vp vp-1m" id="vp-1m">
+      <div class="vp-head" onclick="toggleVP('1m')">
+        <span>1 mes <span class="cnt-badge" id="cnt-1m">0</span></span>
+        <span class="chev">▼</span>
+      </div>
+      <div class="vp-body" id="vb-1m"></div>
+    </div>
+
+    <div class="vp vp-2m" id="vp-2m">
+      <div class="vp-head" onclick="toggleVP('2m')">
+        <span>2 meses <span class="cnt-badge" id="cnt-2m">0</span></span>
+        <span class="chev">▼</span>
+      </div>
+      <div class="vp-body" id="vb-2m"></div>
+    </div>
+
+    <div class="vp vp-3m" id="vp-3m">
+      <div class="vp-head" onclick="toggleVP('3m')">
+        <span>3 meses <span class="cnt-badge" id="cnt-3m">0</span></span>
+        <span class="chev">▼</span>
+      </div>
+      <div class="vp-body" id="vb-3m"></div>
+    </div>
+  </div>
+</div>
+
+<div id="tip"></div>
+<div id="toast"></div>
+
+<!-- Modal aplicar pago -->
+<div id="modal-pago-bg">
+  <div class="modal-pago">
+    <div class="mp-head">
+      <span id="mp-titulo">Aplicar pago</span>
+      <button onclick="closeModalPago()">✕</button>
+    </div>
+    <div class="mp-body">
+      <!-- Columna izquierda: depósitos bancarios -->
+      <div class="mp-col">
+        <div class="mp-col-title">Depósito bancario</div>
+        <input id="mp-busq" class="mp-search" placeholder="Buscar por nombre del ordenante…"
+               oninput="cargarDepositos(this.value)">
+        <div id="dep-list" class="dep-list">
+          <div style="color:var(--text-lt);font-size:12px;text-align:center;padding:20px">Escribe para buscar depósitos…</div>
+        </div>
+      </div>
+      <!-- Columna derecha: naves pendientes -->
+      <div class="mp-col">
+        <div class="mp-col-title">Naves con pago pendiente</div>
+        <div id="nave-list" class="nave-list"></div>
+      </div>
+    </div>
+    <div class="mp-resumen">
+      <div class="mp-res-item">
+        <span class="mp-res-lbl">Depósito</span>
+        <span class="mp-res-val" id="res-dep">—</span>
+      </div>
+      <div class="mp-res-item">
+        <span class="mp-res-lbl">Seleccionado</span>
+        <span class="mp-res-val" id="res-sel">—</span>
+      </div>
+      <div class="mp-res-item">
+        <span class="mp-res-lbl">Diferencia</span>
+        <span class="mp-res-val" id="res-dif">—</span>
+      </div>
+    </div>
+    <div class="mp-footer">
+      <button class="mp-btn mp-btn-cancel" onclick="closeModalPago()">Cancelar</button>
+      <button class="mp-btn mp-btn-apply" id="btn-aplicar" disabled onclick="aplicarPago()">Aplicar pago</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL      = 'https://szjlkvakwljssdnysazp.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6amxrdmFrd2xqc3NkbnlzYXpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTY4MTkxOTEsImV4cCI6MjAxMjM5NTE5MX0.OvICpRi2IHrrzwQ6TDl_031QRU6qTy2gRWylMrGU8y8';
+const USER_JWT = '';
+const SUPABASE_KEY = (USER_JWT && USER_JWT.startsWith('eyJ')) ? USER_JWT : SUPABASE_ANON_KEY;
+const CURRENT_UID = '';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const ANIOS = [2023,2024,2025,2026,2027,2028,2029,2030];
+
+let allData      = [];
+let sidebarData  = [];
+let vencidosData = [];
+let filtered     = [];
+let sortCol      = 'fecha';
+let sortAsc      = true;
+let estadoFiltro = 'all'; // 'all' | 'pend' | 'paid'
+
+// ── Init ──────────────────────────────────────────────
+(function init() {
+  const selAnio = document.getElementById('sel-anio');
+  const hoyInit = new Date();
+  ANIOS.forEach(y => {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y;
+    if (y === hoyInit.getFullYear()) o.selected = true;
+    selAnio.appendChild(o);
+  });
+  document.getElementById('sel-mes').value = hoyInit.getMonth() + 1;
+  loadData();
+})();
+
+// ── Load from Supabase ────────────────────────────────
+async function loadData() {
+  const anio = parseInt(document.getElementById('sel-anio').value) || null;
+  const mes  = parseInt(document.getElementById('sel-mes').value)  || null;
+  setLoading();
+
+  const hoy  = new Date(); hoy.setHours(0,0,0,0);
+  const en90 = new Date(hoy); en90.setDate(en90.getDate() + 90);
+  const fmtD = d => d.toISOString().slice(0, 10);
+
+  const [res, resSidebar, resVenc] = await Promise.all([
+    sb.rpc('pagos_arrendatarios', {
+      p_anio:            anio,
+      p_mes:             mes,
+      p_parque:          null,
+      p_arrendatario:    null,
+      p_solo_pendientes: false,
+      p_fecha_desde:     null,
+      p_fecha_hasta:     null
+    }),
+    sb.rpc('contratos_por_vencer', {
+      p_fecha_desde: fmtD(hoy),
+      p_fecha_hasta: fmtD(en90)
+    }),
+    sb.rpc('contratos_vencidos_sin_renovacion')
+  ]);
+
+  if (res.error) {
+    toast('Error: ' + (res.error.message || JSON.stringify(res.error)));
+    setEmpty('Error al cargar los datos.');
+    return;
+  }
+
+  allData      = res.data        || [];
+  sidebarData  = resSidebar.data || [];
+  vencidosData = resVenc.data    || [];
+  applyFilter();
+}
+
+// ── Toggle estado pago ────────────────────────────────
+function setEstado(val) {
+  estadoFiltro = val;
+  document.getElementById('te-all').className  = val === 'all'  ? 'active-all'  : '';
+  document.getElementById('te-pend').className = val === 'pend' ? 'active-pend' : '';
+  document.getElementById('te-paid').className = val === 'paid' ? 'active-paid' : '';
+  applyFilter();
+}
+
+// ── Local filter + sort ───────────────────────────────
+function applyFilter() {
+  const v = id => { const el = document.getElementById(id); return el ? (el.value || '').toLowerCase() : ''; };
+  const cfNave   = v('cf-nave');
+  const cfParque = v('cf-parque');
+  const cfRs     = v('cf-rs');
+  const cfConc   = v('cf-conc');
+
+  filtered = allData.filter(r => {
+    if (estadoFiltro === 'pend' && r.fec_pago)   return false;
+    if (estadoFiltro === 'paid' && !r.fec_pago)  return false;
+    if (cfNave   && !r.nave.toLowerCase().includes(cfNave))        return false;
+    if (cfParque && !r.parque.toLowerCase().includes(cfParque))    return false;
+    if (cfRs     && !r.razon_social.toLowerCase().includes(cfRs))  return false;
+    if (cfConc   && !r.concepto.toLowerCase().includes(cfConc))    return false;
+    return true;
+  });
+
+  doSort(filtered);
+  renderTableGrouped(filtered);
+  renderStats(filtered);
+  renderSidebar(sidebarData);
+  renderVencidos(vencidosData);
+}
+
+// ── Sort ──────────────────────────────────────────────
+function sortBy(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+
+  document.querySelectorAll('.si').forEach(el => { el.textContent = ''; el.parentElement.classList.remove('sorted'); });
+  const si = document.getElementById('si-' + col);
+  if (si) { si.textContent = sortAsc ? ' ↑' : ' ↓'; si.parentElement.classList.add('sorted'); }
+
+  doSort(filtered);
+  renderTableGrouped(filtered);
+}
+
+function doSort(arr) {
+  arr.sort((a, b) => {
+    let va = a[sortCol] ?? '';
+    let vb = b[sortCol] ?? '';
+    if (sortCol === 'monto') {
+      return sortAsc ? (parseFloat(va)||0) - (parseFloat(vb)||0) : (parseFloat(vb)||0) - (parseFloat(va)||0);
+    }
+    if (sortCol === 'fecha' || sortCol === 'fec_pago') {
+      const da = va ? new Date(va) : new Date('9999-01-01');
+      const db = vb ? new Date(vb) : new Date('9999-01-01');
+      return sortAsc ? da - db : db - da;
+    }
+    va = String(va).toLowerCase();
+    vb = String(vb).toLowerCase();
+    return sortAsc ? va.localeCompare(vb, 'es') : vb.localeCompare(va, 'es');
+  });
+}
+
+// ── Render table ──────────────────────────────────────
+function renderTable(rows) {
+  const tbody = document.getElementById('tbody');
+  const tfoot = document.getElementById('tfoot');
+
+  // Restaurar encabezado detallado
+  document.getElementById('thead-hdr').innerHTML = `
+    <th onclick="sortBy('fecha')">Fecha <span class="si" id="si-fecha"></span></th>
+    <th onclick="sortBy('nave')">Nave <span class="si" id="si-nave"></span></th>
+    <th onclick="sortBy('parque')">Parque <span class="si" id="si-parque"></span></th>
+    <th onclick="sortBy('razon_social')">Razón Social <span class="si" id="si-razon_social"></span></th>
+    <th onclick="sortBy('concepto')">Concepto <span class="si" id="si-concepto"></span></th>
+    <th onclick="sortBy('monto')" style="text-align:right">Monto <span class="si" id="si-monto"></span></th>
+    <th onclick="sortBy('divisa')" style="text-align:center">Divisa <span class="si" id="si-divisa"></span></th>
+    <th onclick="sortBy('fec_pago')">Fecha Pago <span class="si" id="si-fec_pago"></span></th>`;
+  document.getElementById('thead-cfr').style.display = '';
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="state-msg">Sin registros para los filtros seleccionados.</td></tr>';
+    tfoot.innerHTML = '';
+    return;
+  }
+
+  let mxnPend = 0, mxnPaid = 0, usdPend = 0, usdPaid = 0;
+
+  const html = rows.map(r => {
+    const pend = !r.fec_pago;
+    const m    = parseFloat(r.monto) || 0;
+    const mxn  = r.divisa !== 'USD';
+    if (pend) { if (mxn) mxnPend += m; else usdPend += m; }
+    else       { if (mxn) mxnPaid += m; else usdPaid += m; }
+
+    return `<tr class="${pend ? 'pend' : 'paid'}">
+      <td class="tc-nm">${fmt(r.fecha)}</td>
+      <td class="tc-nave">${esc(r.nave)}</td>
+      <td>${esc(r.parque)}</td>
+      <td>${esc(r.razon_social)}</td>
+      <td>${esc(r.concepto)}</td>
+      <td class="tc-r">${fmtN(m)}</td>
+      <td class="tc-c">${esc(r.divisa)}</td>
+      <td class="${pend ? 'badge-pend' : 'badge-paid'}">${r.fec_pago ? fmt(r.fec_pago) : '— Pendiente'}</td>
+    </tr>`;
+  }).join('');
+  tbody.innerHTML = html;
+
+  // Footer totals
+  const hasusd = usdPend > 0 || usdPaid > 0;
+  let foot = '<tr><td colspan="4" style="text-align:right;font-size:11px;opacity:.85">TOTALES VISIBLES</td>';
+  if (hasusd) {
+    foot += `<td colspan="2" class="tc-r">
+      MXN: ${fmtN(mxnPend + mxnPaid)}&nbsp;&nbsp;|&nbsp;&nbsp;USD: ${fmtN(usdPend + usdPaid)}
+    </td><td colspan="2"></td>`;
+  } else {
+    foot += `<td class="tc-r">${fmtN(mxnPend + mxnPaid)}</td><td class="tc-c">MXN</td><td></td>`;
+  }
+  foot += '</tr>';
+  tfoot.innerHTML = foot;
+}
+
+// ── Render table agrupado por nave ───────────────────
+function renderTableGrouped(rows) {
+  const tbody = document.getElementById('tbody');
+  const tfoot = document.getElementById('tfoot');
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="state-msg">Sin registros para los filtros seleccionados.</td></tr>';
+    tfoot.innerHTML = '';
+    return;
+  }
+
+  // Agrupar por nave+parque+razon_social, con desglose por concepto
+  const grupos = {};
+  rows.forEach(r => {
+    const key = `${r.nave}||${r.parque}||${r.razon_social}`;
+    if (!grupos[key]) {
+      grupos[key] = {
+        nave: r.nave, parque: r.parque, razon_social: r.razon_social,
+        mxnPend: 0, mxnPaid: 0, usdPend: 0, usdPaid: 0,
+        cntPend: 0, cntPaid: 0,
+        conceptos: {}
+      };
+    }
+    const g   = grupos[key];
+    const m   = parseFloat(r.monto) || 0;
+    const mxn = r.divisa !== 'USD';
+    if (!r.fec_pago) { if (mxn) g.mxnPend += m; else g.usdPend += m; g.cntPend++; }
+    else             { if (mxn) g.mxnPaid += m; else g.usdPaid += m; g.cntPaid++; }
+
+    // Desglose por concepto
+    const conc = r.concepto || 'Sin concepto';
+    if (!g.conceptos[conc]) g.conceptos[conc] = { pend: 0, paid: 0, div: r.divisa };
+    if (!r.fec_pago) g.conceptos[conc].pend += m;
+    else             g.conceptos[conc].paid += m;
+  });
+
+  const lista = Object.values(grupos).sort((a, b) =>
+    a.parque.localeCompare(b.parque, 'es') || a.nave.localeCompare(b.nave, 'es')
+  );
+
+  let totMxnPend = 0, totMxnPaid = 0, totUsdPend = 0, totUsdPaid = 0;
+
+  const html = lista.map(g => {
+    totMxnPend += g.mxnPend; totMxnPaid += g.mxnPaid;
+    totUsdPend += g.usdPend; totUsdPaid += g.usdPaid;
+    const allPend = g.cntPaid === 0;
+    const allPaid = g.cntPend === 0;
+    const cls     = allPend ? 'pend' : allPaid ? 'paid' : '';
+    const hasusd  = g.usdPend > 0 || g.usdPaid > 0;
+
+    // JSON del desglose para el tooltip
+    const desglose = JSON.stringify(g.conceptos);
+
+    return `<tr class="${cls}">
+      <td class="tc-nave">${esc(g.nave)}</td>
+      <td>${esc(g.parque)}</td>
+      <td>${esc(g.razon_social)}</td>
+      <td class="tc-r badge-pend has-tip" data-tip='${desglose}' data-tipo="pend"
+          onmouseenter="showTip(event,this)" onmouseleave="hideTip()">
+        ${g.mxnPend > 0 ? fmtN(g.mxnPend) + ' <span style="font-size:10px;font-weight:400;opacity:.7">MXN</span>' : '—'}
+      </td>
+      <td class="tc-r" style="font-size:11px;color:#888">
+        ${hasusd ? `${g.usdPend > 0 ? fmtN(g.usdPend) : '—'} / ${g.usdPaid > 0 ? fmtN(g.usdPaid) : '—'}` : '—'}
+      </td>
+      <td class="tc-r badge-paid has-tip" data-tip='${desglose}' data-tipo="paid"
+          onmouseenter="showTip(event,this)" onmouseleave="hideTip()">
+        ${g.mxnPaid > 0 ? fmtN(g.mxnPaid) + ' <span style="font-size:10px;font-weight:400;opacity:.7">MXN</span>' : '—'}
+      </td>
+      <td class="tc-c">
+        ${g.cntPend > 0
+          ? `<button class="btn-pago" data-rs="${esc(g.razon_social)}" onclick="openModalPago(this.dataset.rs)">💲</button>`
+          : '<span style="color:var(--text-lt);font-size:11px">✓</span>'
+        }
+      </td>
+    </tr>`;
+  }).join('');
+  tbody.innerHTML = html;
+
+  const hasusd = totUsdPend > 0 || totUsdPaid > 0;
+  let foot = '<tr><td colspan="2" style="text-align:right;font-size:11px;opacity:.85">TOTALES</td>';
+  foot += `<td></td><td class="tc-r">${fmtN(totMxnPend)}</td>`;
+  foot += `<td class="tc-r" style="font-size:11px">${hasusd ? fmtN(totUsdPend)+' / '+fmtN(totUsdPaid) : '—'}</td>`;
+  foot += `<td class="tc-r">${fmtN(totMxnPaid)}</td>`;
+  foot += `<td></td></tr>`;
+  tfoot.innerHTML = foot;
+}
+
+// ── Render stats bar ──────────────────────────────────
+function renderStats(rows) {
+  const key = r => `${r.nave}||${r.parque}||${r.razon_social}`;
+  const naves     = new Set(rows.map(key)).size;
+  const navesPend = new Set(rows.filter(r => !r.fec_pago).map(key)).size;
+  const mxnPend   = rows.filter(r => !r.fec_pago && r.divisa !== 'USD').reduce((s,r) => s + (parseFloat(r.monto)||0), 0);
+  const mxnPaid   = rows.filter(r =>  r.fec_pago && r.divisa !== 'USD').reduce((s,r) => s + (parseFloat(r.monto)||0), 0);
+
+  document.getElementById('s-tot').textContent   = naves.toLocaleString('es-MX');
+  document.getElementById('s-pend').textContent  = navesPend.toLocaleString('es-MX');
+  document.getElementById('s-mpend').textContent = fmtN(mxnPend);
+  document.getElementById('s-mpaid').textContent = fmtN(mxnPaid);
+}
+
+// ── Render sidebar ────────────────────────────────────
+function renderSidebar(rows) {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const m1  = addMonths(now, 1);
+  const m2  = addMonths(now, 2);
+  const m3  = addMonths(now, 3);
+  const parseLocal = s => { const [y,m,d] = String(s).slice(0,10).split('-'); return new Date(+y, +m-1, +d); };
+
+  const b1 = rows.filter(r => { const d = parseLocal(r.fec_fin); return d >= now && d < m1; });
+  const b2 = rows.filter(r => { const d = parseLocal(r.fec_fin); return d >= m1  && d < m2; });
+  const b3 = rows.filter(r => { const d = parseLocal(r.fec_fin); return d >= m2  && d < m3; });
+
+  fillVP('1m', b1);
+  fillVP('2m', b2);
+  fillVP('3m', b3);
+}
+
+function fillVP(id, rows) {
+  document.getElementById('cnt-' + id).textContent = rows.length;
+  const body = document.getElementById('vb-' + id);
+  if (!rows.length) {
+    body.innerHTML = '<div class="vp-empty">Sin vencimientos</div>';
+    return;
+  }
+  body.innerHTML = rows.map(r =>
+    `<div class="vi">
+      <div class="vi-nave">${esc(r.nave)} · ${esc(r.parque)}</div>
+      <div class="vi-rs">${esc(r.razon_social)}</div>
+      <div class="vi-date">Vence: ${fmt(r.fec_fin)} · ${esc(r.moneda)}</div>
+    </div>`
+  ).join('');
+}
+
+function renderVencidos(rows) {
+  document.getElementById('cnt-venc').textContent = rows.length;
+  const body = document.getElementById('vb-venc');
+  if (!rows.length) {
+    body.innerHTML = '<div class="vp-empty">Sin contratos vencidos</div>';
+    return;
+  }
+  body.innerHTML = rows.map(r =>
+    `<div class="vi">
+      <div class="vi-nave">${esc(r.nave)} · ${esc(r.parque)}</div>
+      <div class="vi-rs">${esc(r.razon_social)}</div>
+      <div class="vi-date">Venció: ${fmt(r.fec_fin)}</div>
+      <div class="vi-dias">${r.dias_vencido} día${r.dias_vencido !== 1 ? 's' : ''} vencido</div>
+    </div>`
+  ).join('');
+}
+
+function toggleVP(id) {
+  document.querySelector(`#vp-${id} .vp-head`).classList.toggle('coll');
+  document.getElementById('vb-' + id).classList.toggle('coll');
+}
+
+// ── Tab switch ────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById('panel-pagos').style.display   = tab === 'pagos'   ? '' : 'none';
+  document.getElementById('panel-balance').style.display = tab === 'balance' ? '' : 'none';
+  document.getElementById('tab-pagos').classList.toggle('active',   tab === 'pagos');
+  document.getElementById('tab-balance').classList.toggle('active', tab === 'balance');
+}
+
+// ── Helpers ───────────────────────────────────────────
+function setLoading() {
+  document.getElementById('tbody').innerHTML =
+    '<tr><td colspan="8" class="state-msg"><span class="spinner"></span>Cargando datos…</td></tr>';
+  document.getElementById('tfoot').innerHTML = '';
+}
+function setEmpty(msg) {
+  document.getElementById('tbody').innerHTML =
+    `<tr><td colspan="8" class="state-msg">${msg}</td></tr>`;
+  document.getElementById('tfoot').innerHTML = '';
+}
+
+function fmt(d) {
+  if (!d) return '—';
+  // Parsear solo los primeros 10 chars (YYYY-MM-DD) para evitar desplazamiento UTC→local
+  const s = String(d).slice(0, 10);
+  const [y, m, day] = s.split('-');
+  if (!y || !m || !day) return String(d);
+  return `${day}/${m}/${y}`;
+}
+function fmtN(n) {
+  return Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function addMonths(date, n) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + n);
+  return d;
+}
+
+// ── Tooltip desglose conceptos ────────────────────────
+function showTip(e, el) {
+  const tip   = document.getElementById('tip');
+  const tipo  = el.dataset.tipo; // 'pend' o 'paid'
+  let conceptos;
+  try { conceptos = JSON.parse(el.dataset.tip); } catch(_) { return; }
+
+  const titulo = tipo === 'pend' ? 'Desglose pendiente' : 'Desglose cobrado';
+  const cls    = tipo === 'pend' ? 'tip-pend' : 'tip-paid';
+
+  const filas = Object.entries(conceptos)
+    .filter(([, v]) => tipo === 'pend' ? v.pend > 0 : v.paid > 0)
+    .sort((a, b) => (tipo === 'pend' ? b[1].pend - a[1].pend : b[1].paid - a[1].paid))
+    .map(([conc, v]) =>
+      `<tr><td>${esc(conc)}</td><td class="${cls}">${fmtN(tipo === 'pend' ? v.pend : v.paid)} <span style="font-size:10px;opacity:.6">${esc(v.div||'MXN')}</span></td></tr>`
+    ).join('');
+
+  if (!filas) { return; }
+
+  tip.innerHTML = `<div class="tip-title">${titulo}</div><table>${filas}</table>`;
+  tip.style.display = 'block';
+  positionTip(e);
+}
+
+function positionTip(e) {
+  const tip = document.getElementById('tip');
+  const margin = 12;
+  let x = e.clientX + margin;
+  let y = e.clientY + margin;
+  const w = tip.offsetWidth  || 220;
+  const h = tip.offsetHeight || 120;
+  if (x + w > window.innerWidth  - 8) x = e.clientX - w - margin;
+  if (y + h > window.innerHeight - 8) y = e.clientY - h - margin;
+  tip.style.left = x + 'px';
+  tip.style.top  = y + 'px';
+}
+
+function hideTip() {
+  document.getElementById('tip').style.display = 'none';
+}
+
+document.addEventListener('mousemove', e => {
+  if (document.getElementById('tip').style.display === 'block') positionTip(e);
+});
+
+// ── Modal aplicar pago ────────────────────────────────
+let _pagoRS      = '';   // razón social activa en el modal
+let _pagoIdmov   = null; // idmov seleccionado
+let _pagoImporte = 0;    // importe del depósito seleccionado
+let _pagoFec     = null; // fecOperacion del depósito
+
+function openModalPago(razonSocial) {
+  _pagoRS      = razonSocial;
+  _pagoIdmov   = null;
+  _pagoImporte = 0;
+  _pagoFec     = null;
+
+  document.getElementById('mp-titulo').textContent = 'Aplicar pago — ' + razonSocial;
+  document.getElementById('mp-busq').value = razonSocial;
+  document.getElementById('btn-aplicar').disabled = true;
+  document.getElementById('res-dep').textContent = '—';
+  document.getElementById('res-sel').textContent = '—';
+  document.getElementById('res-dif').textContent = '—';
+
+  // Naves pendientes de esta razón social
+  const navesPend = {};
+  allData.filter(r => r.razon_social === razonSocial && !r.fec_pago).forEach(r => {
+    if (!navesPend[r.nave]) navesPend[r.nave] = { nave: r.nave, parque: r.parque, mxn: 0 };
+    if (r.divisa !== 'USD') navesPend[r.nave].mxn += parseFloat(r.monto) || 0;
+  });
+
+  const naveList = document.getElementById('nave-list');
+  const naves = Object.values(navesPend);
+  if (!naves.length) {
+    naveList.innerHTML = '<div style="color:var(--text-lt);font-size:12px;padding:16px;text-align:center">Sin partidas pendientes</div>';
+  } else {
+    naveList.innerHTML = naves.map(n =>
+      `<label class="nave-item">
+        <input type="checkbox" class="chk-nave" data-nave="${esc(n.nave)}" data-monto="${n.mxn}" onchange="recalcularResumen()" checked>
+        <div class="nave-info">
+          <div class="nave-nm">${esc(n.nave)}</div>
+          <div class="nave-pq">${esc(n.parque)}</div>
+        </div>
+        <div class="nave-monto">${fmtN(n.mxn)} MXN</div>
+      </label>`
+    ).join('');
+  }
+
+  document.getElementById('modal-pago-bg').classList.add('open');
+  cargarDepositos(razonSocial);
+}
+
+function closeModalPago() {
+  document.getElementById('modal-pago-bg').classList.remove('open');
+}
+
+let _depTimer;
+function cargarDepositos(busqueda) {
+  clearTimeout(_depTimer);
+  _depTimer = setTimeout(async () => {
+    const list = document.getElementById('dep-list');
+    list.innerHTML = '<div style="color:var(--text-lt);font-size:12px;text-align:center;padding:16px"><span class="spinner"></span> Buscando…</div>';
+
+    const anio = parseInt(document.getElementById('sel-anio').value) || null;
+    const mes  = parseInt(document.getElementById('sel-mes').value)  || null;
+    const { data, error } = await sb.rpc('movbancarios_sin_aplicar', {
+      p_busqueda: busqueda || null,
+      p_anio:     anio,
+      p_mes:      mes
+    });
+
+    if (error || !data) {
+      list.innerHTML = '<div style="color:#c0392b;font-size:12px;padding:12px">Error al cargar depósitos</div>';
+      return;
+    }
+    if (!data.length) {
+      list.innerHTML = '<div style="color:var(--text-lt);font-size:12px;text-align:center;padding:16px">Sin depósitos sin aplicar</div>';
+      return;
+    }
+
+    list.innerHTML = data.map(d =>
+      `<div class="dep-item" id="dep-${esc(d.idmov)}"
+            onclick="seleccionarDeposito('${esc(d.idmov)}', ${d.importe}, '${d.fec_operacion}')">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div class="dep-ord">${esc(d.ordenante)}</div>
+          <div class="dep-importe">${fmtN(d.importe)}</div>
+        </div>
+        <div class="dep-meta">${fmt(d.fec_operacion)} · ${esc(d.rastreo)}</div>
+      </div>`
+    ).join('');
+  }, 350);
+}
+
+function seleccionarDeposito(idmov, importe, fecOp) {
+  _pagoIdmov   = idmov;
+  _pagoImporte = importe;
+  _pagoFec     = fecOp;
+
+  document.querySelectorAll('.dep-item').forEach(el => el.classList.remove('selected'));
+  const el = document.getElementById('dep-' + idmov);
+  if (el) el.classList.add('selected');
+
+  document.getElementById('res-dep').textContent = fmtN(importe) + ' MXN';
+  recalcularResumen();
+}
+
+function recalcularResumen() {
+  const chks = document.querySelectorAll('.chk-nave:checked');
+  const totalSel = Array.from(chks).reduce((s, c) => s + (parseFloat(c.dataset.monto) || 0), 0);
+
+  const resSelEl = document.getElementById('res-sel');
+  const resDifEl = document.getElementById('res-dif');
+  resSelEl.textContent = totalSel > 0 ? fmtN(totalSel) + ' MXN' : '—';
+
+  if (!_pagoIdmov || totalSel === 0) {
+    resDifEl.textContent = '—';
+    resDifEl.className = 'mp-res-val';
+    document.getElementById('btn-aplicar').disabled = true;
+    return;
+  }
+
+  const dif = _pagoImporte - totalSel;
+  if (dif >= 0) {
+    resDifEl.textContent = (dif > 0 ? 'Sobrante ' : 'Exacto ') + fmtN(Math.abs(dif));
+    resDifEl.className = 'mp-res-val ' + (dif > 0 ? 'ylw' : 'grn');
+    document.getElementById('btn-aplicar').disabled = false;
+  } else {
+    resDifEl.textContent = 'Insuficiente ' + fmtN(Math.abs(dif));
+    resDifEl.className = 'mp-res-val red';
+    document.getElementById('btn-aplicar').disabled = true;
+  }
+}
+
+async function aplicarPago() {
+  if (!_pagoIdmov) return;
+
+  const navesSeleccionadas = new Set(
+    Array.from(document.querySelectorAll('.chk-nave:checked')).map(c => c.dataset.nave)
+  );
+  if (!navesSeleccionadas.size) { toast('Selecciona al menos una nave'); return; }
+
+  // Recopilar ids de todas las partidas pendientes de las naves seleccionadas
+  const idsDetalle = allData
+    .filter(r => r.razon_social === _pagoRS && !r.fec_pago && navesSeleccionadas.has(r.nave))
+    .map(r => r.id_detalle);
+
+  if (!idsDetalle.length) { toast('Sin partidas pendientes para las naves seleccionadas'); return; }
+
+  const btnAplicar = document.getElementById('btn-aplicar');
+  btnAplicar.disabled = true;
+  btnAplicar.textContent = '⏳';
+
+  const { error } = await sb.rpc('aplicar_pago_arrendatario', {
+    p_idmov:       _pagoIdmov,
+    p_ids_detalle: idsDetalle,
+    p_fec_pago:    _pagoFec || new Date().toISOString().slice(0,10)
+  });
+
+  btnAplicar.textContent = 'Aplicar pago';
+
+  if (error) {
+    toast('Error al aplicar: ' + (error.message || JSON.stringify(error)));
+    btnAplicar.disabled = false;
+    return;
+  }
+
+  toast('Pago aplicado correctamente ✓');
+  closeModalPago();
+  loadData();
+}
+
+let _toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+</script>
+</body>
+</html>

@@ -1,82 +1,118 @@
-# Contabilidad Fideicomiso — Estructura de Partes para FlutterFlow
-
-Este reporte se embebe en un **WebView de FlutterFlow** usando un widget de tipo `HtmlWidget` o similar con una variable `Combine Text`. El archivo HTML completo se ensambla dinámicamente inyectando las credenciales del usuario autenticado.
+# Contabilidad Fideicomiso — Documentación del Reporte
 
 ---
 
-## ¿Por qué está dividido en partes?
+## Arquitectura actual (Edge Function) ✅
 
-El JWT de Supabase y el UID del usuario no pueden estar hardcodeados en el HTML porque:
-- El JWT expira con cada sesión
-- Cada usuario tiene su propio UID
-- El archivo vive en el repositorio y sería un riesgo de seguridad
-
-La solución es dividir el HTML en fragmentos estáticos y dejar que FlutterFlow inyecte los valores dinámicos en tiempo de ejecución.
-
----
-
-## Estructura del Combine Text en FlutterFlow
-
-El widget Combine Text ensambla 5 piezas en este orden:
+Este reporte se sirve mediante una **Supabase Edge Function** que ensambla el HTML completo con las credenciales del usuario inyectadas server-side. FlutterFlow hace una sola llamada HTTP y usa la respuesta como contenido del WebView.
 
 ```
-[Text 1] parte1.html
-[Text 2] → Variable FF: Id token (JWT token)       ← DINÁMICO
-[Text 3] → parte2.txt                              ← ESTÁTICO (conector)
-[Text 4] → Variable FF: usuarioActual -> uid       ← DINÁMICO
-[Text 5] → parte3.html
+FF (usuario autenticado)
+  │  GET /functions/v1/contabilidad-fideicomiso
+  │  Authorization: Bearer [JWT del usuario]
+  ▼
+Edge Function
+  │  1. Valida que el JWT empiece con 'eyJ'
+  │  2. Extrae UID del payload (campo sub)
+  │  3. Lee parte1 y parte3 de la tabla reporte_html_parts (base64)
+  │  4. Ensambla: parte1 + JWT + conector + UID + parte3
+  │  5. Retorna HTML completo con Cache-Control: no-store
+  ▼
+WebView FF renderiza el reporte
+  │
+  ▼
+JS del reporte llama a Supabase con el JWT embebido → RLS activa
 ```
 
-El resultado concatenado forma el HTML completo y válido que se renderiza en el WebView.
+### Configuración en FlutterFlow
+
+| Campo | Valor |
+|---|---|
+| Tipo | API Call — GET |
+| URL | `https://szjlkvakwljssdnysazp.supabase.co/functions/v1/contabilidad-fideicomiso` |
+| Header `Authorization` | `Bearer [Id token del usuario]` |
+| Response type | Plain Text |
+
+El resultado (`responseBody`) se pasa directamente al WebView como `HTML Content`. No se usa Combine Text.
 
 ---
 
-## Contenido de cada archivo
+## Archivos del reporte
 
-### `parte1.html`
-Todo el HTML desde `<!DOCTYPE html>` hasta la línea:
+| Archivo | Descripción |
+|---|---|
+| `parte1.html` | HTML completo desde `<!DOCTYPE html>` hasta `const USER_JWT = '` |
+| `parte2.txt` | Conector legacy (ya no se usa en producción, se conserva como referencia) |
+| `parte3.html` | JavaScript desde `';` hasta `</html>` — toda la lógica del reporte |
+| `test_completo.html` | Ensamble local para pruebas en el navegador (JWT vacío, usa anon key) |
+
+### Cómo regenerar test_completo.html
+
+```powershell
+$base = ".\reportes\Fideicomiso\contabilidad"
+$p1   = Get-Content "$base\parte1.html" -Raw -Encoding UTF8
+$p3   = Get-Content "$base\parte3.html" -Raw -Encoding UTF8
+[System.IO.File]::WriteAllText("$base\test_completo.html", $p1 + $p3, [System.Text.Encoding]::UTF8)
+```
+
+> Con JWT vacío el reporte usa la anon key como fallback. Desactivar RLS durante pruebas locales.
+
+---
+
+## Cómo actualizar el reporte
+
+Cuando se modifica `parte1.html` o `parte3.html`, hay que subir los nuevos base64 a la tabla `reporte_html_parts`. La Edge Function **no necesita redespliegue**.
+
+```powershell
+$url     = 'https://szjlkvakwljssdnysazp.supabase.co'
+$anonKey = '[SUPABASE_ANON_KEY]'
+$base    = ".\reportes\Fideicomiso\contabilidad"
+
+$p1b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("$base\parte1.html"))
+$p3b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("$base\parte3.html"))
+
+$headers = @{
+    'apikey'        = $anonKey
+    'Authorization' = "Bearer $anonKey"
+    'Content-Type'  = 'application/json'
+    'Prefer'        = 'resolution=merge-duplicates'
+}
+
+$body = @(
+    @{ nombre = 'contabilidad_parte1'; contenido = $p1b64 }
+    @{ nombre = 'contabilidad_parte3'; contenido = $p3b64 }
+) | ConvertTo-Json -Depth 3
+
+Invoke-RestMethod -Uri "$url/rest/v1/reporte_html_parts" -Method POST -Headers $headers -Body $body
+```
+
+---
+
+## Edge Function
+
+- **Nombre:** `contabilidad-fideicomiso`
+- **Archivo fuente:** `supabase/functions/contabilidad-fideicomiso/index.ts`
+- **verify_jwt:** `true` — Supabase valida el JWT antes de ejecutar la función
+- **Versión activa:** 2
+
+### Lógica del conector (inyectado entre parte1 y parte3)
+
 ```js
-const USER_JWT = '
+'; const SUPABASE_KEY = (USER_JWT && USER_JWT.startsWith('eyJ')) ? USER_JWT : SUPABASE_ANON_KEY; const CURRENT_UID = '
 ```
-Incluye: estructura HTML, todos los estilos CSS, el HTML del body (tabla, modales, filtros) y el inicio del bloque `<script>` con las constantes públicas de Supabase (`SUPABASE_URL`, `SUPABASE_ANON_KEY`).
-
-**Cambio aplicado:** Se agregó `cursor: pointer` a las filas de datos para indicar que son clickeables.
-
-### `parte2.txt`
-Texto estático que conecta el JWT con el UID. Contiene:
-```
-'; const SUPABASE_KEY = (USER_JWT && USER_JWT !== '{{USER_JWT_TOKEN}}') ? USER_JWT : SUPABASE_ANON_KEY; const CURRENT_UID = '
-```
-Este fragmento:
-- Cierra el string del JWT (`'`)
-- Define `SUPABASE_KEY` eligiendo entre el JWT del usuario o la anon key como fallback
-- Abre el string para recibir el UID (`= '`)
-
-### `parte3.html`
-El resto del JavaScript desde:
-```js
-';
-
-const sb = supabase.createClient(...)
-```
-Incluye: inicialización del cliente Supabase, toda la lógica de la tabla pivot, filtros, notas, saldo banco, modal de alta/edición, detección de duplicados, historial de cambios.
-
-**Cambios aplicados:**
-1. `tr.onclick = () => openEditPicker(f)` — activado para que al hacer clic en un renglón abra el modal de edición
-2. `const isEdit = !!editId` al inicio de `guardarMovimiento()` — corrige el bug del botón que siempre mostraba "Agregar" en lugar de "Actualizar" al editar
 
 ---
 
-## Variables que usa el JS en tiempo de ejecución
+## Variables del JS en tiempo de ejecución
 
 | Variable | Origen | Uso |
 |---|---|---|
 | `SUPABASE_URL` | Hardcoded en parte1 | URL del proyecto Supabase |
 | `SUPABASE_ANON_KEY` | Hardcoded en parte1 | Clave pública anon |
-| `USER_JWT` | Inyectado por FF (Text 2) | JWT de la sesión activa del usuario |
-| `SUPABASE_KEY` | Calculado en parte2 | Key efectiva: usa JWT si es válido, si no cae a anon |
-| `CURRENT_UID` | Inyectado por FF (Text 4) | UID del usuario para trazabilidad en escrituras |
-| `sb` | Inicializado en parte3 | Cliente Supabase con el header Authorization correcto |
+| `USER_JWT` | Inyectado por Edge Function | JWT de la sesión activa |
+| `SUPABASE_KEY` | Calculado en el conector | JWT si válido, anon key si no |
+| `CURRENT_UID` | Inyectado por Edge Function | UID extraído del payload del JWT |
+| `sb` | Inicializado en parte3 | Cliente Supabase con Authorization header |
 
 ---
 
@@ -84,28 +120,50 @@ Incluye: inicialización del cliente Supabase, toda la lógica de la tabla pivot
 
 | Recurso | Tipo | Operación |
 |---|---|---|
-| `pivot_contabilidad(p_anio)` | RPC | SELECT — datos del pivot por mes |
-| `pivot_contabilidad_totales(p_anio)` | RPC | SELECT — filas de subtotales y gran total |
-| `fideContaConceptos` | Tabla | SELECT — catálogo en cascada para el modal |
-| `fideContabilidad` | Tabla | INSERT / UPDATE / SELECT — movimientos contables |
-| `fideSaldosBanco` | Tabla | SELECT / POST / DELETE — saldo estado de cuenta por mes |
-| `fideContaHistorial` | Tabla | INSERT — registro de auditoría de cambios |
+| `pivot_contabilidad(p_anio smallint)` | RPC | SELECT — filas del pivot por concepto y mes |
+| `pivot_contabilidad_totales(p_anio smallint)` | RPC | SELECT — filas BASE IVA, IVA 16%, SIN IVA, GRAN TOTAL |
+| `fideContaConceptos` | Tabla | SELECT — catálogo en cascada para el modal Nuevo |
+| `fideContabilidad` | Tabla | INSERT / UPDATE — movimientos contables |
+| `fideSaldosBanco` | Tabla | SELECT / INSERT / DELETE — saldo estado de cuenta por mes |
+| `fideContaHistorial` | Tabla | INSERT — auditoría de cambios |
+| `reporte_html_parts` | Tabla | SELECT — partes del HTML en base64 (leído por la Edge Function) |
 
 ---
 
-## Flujo de ensamble
+## Estado de la RLS
 
-```
-FF Authentication
-      │
-      ├─ Id token (JWT)  ──────────────────────┐
-      └─ usuarioActual.uid  ───────────────┐   │
-                                           │   │
-parte1.html ──► [JWT] ──► parte2.txt ──► [UID] ──► parte3.html
-      │                                               │
-      └─────────────── HTML completo ────────────────┘
-                              │
-                         WebView FF
-                              │
-                    Renderiza el reporte
-```
+| Tabla | RLS | Política SELECT |
+|---|---|---|
+| `fideContabilidad` | ✅ Activa | `auth.role() = 'authenticated'` |
+| `fideContaConceptos` | ✅ Activa | `auth.role() = 'authenticated'` |
+| `fideSaldosBanco` | ✅ Activa | `auth.role() = 'authenticated'` |
+| `fideContaHistorial` | ✅ Activa | `auth.role() = 'authenticated'` |
+
+---
+
+## ⚠️ Pendiente: corregir SECURITY DEFINER en los RPCs
+
+Las funciones `pivot_contabilidad` y `pivot_contabilidad_totales` se cambiaron a `SECURITY DEFINER` como solución temporal para que la RLS no bloquee las consultas internas del reporte.
+
+**Implicación:** Cualquier usuario autenticado puede llamar estas funciones y obtener todos los datos contables, sin restricción por usuario o rol.
+
+**Por qué se hizo así:** La RLS con `auth.role() = 'authenticated'` bloqueaba las tablas cuando los RPCs se ejecutaban como `SECURITY INVOKER`, devolviendo arrays vacíos aunque el JWT fuera válido (PostgREST retorna 200 con `[]` en lugar de error).
+
+**Lo que hay que hacer cuando se corrija:**
+1. Cambiar las funciones de vuelta a `SECURITY INVOKER`
+2. Agregar una política RLS más específica, por ejemplo filtrando por un campo de fideicomiso o usando un rol de Supabase dedicado
+3. O bien, mantener `SECURITY DEFINER` pero agregar dentro de la función un `WHERE` que valide el rol del usuario usando `current_setting('request.jwt.claims')::jsonb->>'role'` u otro campo del JWT
+
+---
+
+## Historial de cambios relevantes
+
+| Fecha | Cambio |
+|---|---|
+| May 2026 | Implementación inicial del reporte con Combine Text (5 partes en FF) |
+| May 2026 | Refactor a edición inline por celda (Excel-like) + filtros de texto |
+| May 2026 | Indicadores IVA por celda (punto naranja/gris) con toggle interactivo |
+| May 2026 | Modal "+ Catálogo" para agregar conceptos nuevos a `fideContaConceptos` |
+| May 2026 | Migración a Edge Function — elimina Combine Text, un solo API Call en FF |
+| May 2026 | `loadSaldos` migrado de `fetch` directo a `sb.from()` para evitar cuelgues en WebView |
+| May 2026 | RPCs cambiados a `SECURITY DEFINER` como solución temporal a bloqueo de RLS |
