@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 
 /** Filtros del reporte de cancelaciones anticipadas (todos opcionales). */
@@ -8,31 +8,71 @@ export interface FiltrosCancelaciones {
   busqueda?: string;
 }
 
-/** Fila del reporte Estado de Cuenta (agrupada por nave + cliente + divisa). */
-export interface EstadoCuentaRow {
-  nave: string;
-  parque: string;
-  razonSocial: string;
-  divisa: string;
-  pendiente: number;
-  cobrado: number;
-  renta: number;
-  vig: number;
-  admin: number;
-  mtto: number;
-  otros: number;
-  nota: string;
+/** Plan (arrePdp) de una nave para el selector del estado de cuenta. */
+export interface EstadoCuentaPlanOpcion {
+  idArrePdp: string;
+  fecInicio: string | null;
+  fecFin: string | null;
+  plazo: number | null;
+  moneda: string | null;
+  vigencia: string | null;
 }
 
-/** Fila cruda de la RPC `pagos_arrendatarios`. */
-interface PagoRow {
-  nave: string | null;
-  parque: string | null;
-  razon_social: string | null;
-  concepto: string | null;
-  monto: number | null;
-  divisa: string | null;
-  fec_pago: string | null;
+/** Nave arrendada con sus planes (opciones de los selectores Parque → Nave → Plan). */
+export interface EstadoCuentaNave {
+  idNavArrend: string;
+  idParque: string;
+  parque: string;
+  nave: string;
+  arrendatario: string;
+  planes: EstadoCuentaPlanOpcion[];
+}
+
+/** Cabecera del estado de cuenta (datos del plan arrePdp). */
+export interface EstadoCuentaCabecera {
+  idArrePdp: string;
+  arrendatario: string;
+  parque: string;
+  nave: string;
+  moneda: string;
+  fecInicio: string | null;
+  fecFin: string | null;
+  plazo: number | null;
+  deposito: number;
+  vigencia: string | null;
+  precioM2: number;
+  construccionM2: number;
+  pm2Admin: number;
+  pm2Mtto: number;
+  pm2Vig: number;
+  inpcPlus: number;
+}
+
+/** Partida (mes) de la corrida desglosada por concepto. */
+export interface EstadoCuentaPartida {
+  numPartida: number;
+  anio: number | null;
+  ciclo: number | null;
+  fecha: string | null;
+  pm2: number;
+  constM2: number;
+  inpc: number;
+  renta: number;
+  admin: number;
+  mtto: number;
+  vig: number;
+  otros: number;
+  nota: string;
+  total: number;
+  montoPagado: number;
+  fecPago: string | null;
+  pagado: boolean;
+}
+
+/** Respuesta del estado de cuenta de un plan: cabecera + corrida. */
+export interface EstadoCuentaCorrida {
+  cabecera: EstadoCuentaCabecera;
+  partidas: EstadoCuentaPartida[];
 }
 
 /** Normaliza el nombre de un concepto (sin acentos/minúsculas) para clasificarlo. */
@@ -193,87 +233,220 @@ export class ReportesArreService {
     return filas;
   }
 
-  /** Nombres de los parques de Tickets (esTicket=true), para excluirlos. */
-  private async nombresParquesTicket(): Promise<Set<string>> {
-    const { data } = await this.supabase.admin
-      .from('parques')
-      .select('nomParque')
-      .eq('esTicket', true);
-    return new Set((data ?? []).map((p) => p.nomParque).filter((x): x is string => !!x));
+  /**
+   * Opciones de los selectores del Estado de Cuenta: todas las naves arrendadas
+   * (vínculo activo, excluye Tickets) **con plan**, cada una con sus planes
+   * (`arrePdp`, vigentes y terminados) para elegir Parque → Nave → Plan.
+   */
+  async estadoCuentaOpciones(): Promise<EstadoCuentaNave[]> {
+    const { data: props, error } = await this.supabase.admin
+      .from('arrenPropiedades')
+      .select('idNavArrend, idArrendador, idNave, idParque')
+      .eq('status', true);
+    if (error) throw new InternalServerErrorException(error.message);
+    const lista = props ?? [];
+    if (lista.length === 0) return [];
+
+    const orEmpty = (xs: (string | null)[]): string[] => {
+      const s = [...new Set(xs.filter((x): x is string => !!x))];
+      return s.length ? s : [''];
+    };
+    const [{ data: naves }, { data: parques }, { data: invs }, { data: planes }] =
+      await Promise.all([
+        this.supabase.admin
+          .from('naves')
+          .select('idNave, numNaveNAME, numNave')
+          .in('idNave', orEmpty(lista.map((p) => p.idNave))),
+        this.supabase.admin
+          .from('parques')
+          .select('idParque, nomParque, esTicket')
+          .in('idParque', orEmpty(lista.map((p) => p.idParque))),
+        this.supabase.admin
+          .from('inversionista')
+          .select('idInversionista, nombre, apellido1, apellido2, razonsocial')
+          .in('idInversionista', orEmpty(lista.map((p) => p.idArrendador))),
+        this.supabase.admin
+          .from('arrePdp')
+          .select('idArrePdp, idNavArrend, fecInicio, fecFin, plazo, Moneda, arrePdpVigente')
+          .eq('status', true)
+          .in('idNavArrend', orEmpty(lista.map((p) => p.idNavArrend))),
+      ]);
+
+    const navePorId = new Map((naves ?? []).map((n) => [n.idNave, n]));
+    const parquePorId = new Map((parques ?? []).map((p) => [p.idParque, p]));
+    const invPorId = new Map((invs ?? []).map((i) => [i.idInversionista, i]));
+    const planesPorNav = new Map<string, EstadoCuentaPlanOpcion[]>();
+    for (const pl of planes ?? []) {
+      if (!pl.idNavArrend) continue;
+      const arr = planesPorNav.get(pl.idNavArrend) ?? [];
+      arr.push({
+        idArrePdp: pl.idArrePdp,
+        fecInicio: pl.fecInicio,
+        fecFin: pl.fecFin,
+        plazo: pl.plazo,
+        moneda: pl.Moneda,
+        vigencia: pl.arrePdpVigente,
+      });
+      planesPorNav.set(pl.idNavArrend, arr);
+    }
+
+    const out: EstadoCuentaNave[] = [];
+    for (const p of lista) {
+      const parque = p.idParque ? parquePorId.get(p.idParque) : undefined;
+      if (parque?.esTicket === true) continue; // Tickets se gestionan en Ventas.
+      const planesNav = planesPorNav.get(p.idNavArrend) ?? [];
+      if (planesNav.length === 0) continue; // solo naves con plan
+      const nave = p.idNave ? navePorId.get(p.idNave) : undefined;
+      const inv = p.idArrendador ? invPorId.get(p.idArrendador) : undefined;
+      out.push({
+        idNavArrend: p.idNavArrend,
+        idParque: p.idParque ?? '',
+        parque: parque?.nomParque ?? '—',
+        nave: nave?.numNaveNAME ?? (nave?.numNave != null ? String(nave.numNave) : '—'),
+        arrendatario: inv ? this.nombre(inv) : '—',
+        // Planes más recientes primero (el vigente suele ser el de mayor fecInicio).
+        planes: planesNav.sort((a, b) => (b.fecInicio ?? '').localeCompare(a.fecInicio ?? '')),
+      });
+    }
+    return out.sort(
+      (a, b) => a.parque.localeCompare(b.parque, 'es') || a.nave.localeCompare(b.nave, 'es'),
+    );
   }
 
   /**
-   * Estado de cuenta acumulado (planes activos), agrupado por **nave + cliente +
-   * divisa**, con el desglose por concepto (Renta/Vig/Admin/Mtto/Otros + Nota) y
-   * los totales Pendiente/Cobrado — el mismo formato que el export del Dashboard de
-   * cobranza. Reutiliza la RPC `pagos_arrendatarios` (solo `pdpActivo=true`) y
-   * excluye los parques de Tickets. El filtrado fino (nave/cliente/divisa) se hace
-   * en el frontend; aquí se acota opcionalmente por parque.
+   * Estado de cuenta de **un plan** (`arrePdp`): la cabecera (datos del plan) y la
+   * **corrida completa** (`arrePdpDetalle`) **desglosada por partida** — una fila por
+   * mes con el monto separado en Renta/Admin/Mtto/Vig + Otros Servicios (suma del
+   * resto) + Nota (detalle), Total y el estado de pago (monto aplicado, fecha, pagado).
    */
-  async estadoCuenta(f: { parque?: string }): Promise<EstadoCuentaRow[]> {
-    const [{ data, error }, ticket] = await Promise.all([
-      // Cast localizado: `pagos_arrendatarios` tiene sobrecargas; se pasan los 5
-      // parámetros nombrados (con nulls) para resolver a la versión vigente.
-      (
-        this.supabase.admin.rpc as unknown as (
-          fn: string,
-          args: Record<string, unknown>,
-        ) => Promise<{ data: PagoRow[] | null; error: { message: string } | null }>
-      )('pagos_arrendatarios', {
-        p_anio: null,
-        p_mes: null,
-        p_parque: f.parque ?? null,
-        p_arrendatario: null,
-        p_solo_pendientes: false,
-      }),
-      this.nombresParquesTicket(),
-    ]);
+  async estadoCuentaCorrida(idArrePdp: string): Promise<EstadoCuentaCorrida> {
+    const { data: plan, error } = await this.supabase.admin
+      .from('arrePdp')
+      .select(
+        'idArrePdp, idNavArrend, idArrendador, fecInicio, fecFin, plazo, deposito, precioM2, construccionM2, pm2Admin, pm2Mtto, pm2Vig, INPCPlus, Moneda, arrePdpVigente',
+      )
+      .eq('idArrePdp', idArrePdp)
+      .maybeSingle();
     if (error) throw new InternalServerErrorException(error.message);
+    if (!plan) throw new NotFoundException('Plan no encontrado.');
 
-    const filas = (data ?? []).filter((r) => !r.parque || !ticket.has(r.parque));
+    // Enriquecer la cabecera (nave/parque/arrendatario).
+    const { data: prop } = await this.supabase.admin
+      .from('arrenPropiedades')
+      .select('idNave, idParque')
+      .eq('idNavArrend', plan.idNavArrend ?? '')
+      .maybeSingle();
+    const [{ data: nave }, { data: parque }, { data: inv }] = await Promise.all([
+      prop?.idNave
+        ? this.supabase.admin
+            .from('naves')
+            .select('numNaveNAME, numNave')
+            .eq('idNave', prop.idNave)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      prop?.idParque
+        ? this.supabase.admin
+            .from('parques')
+            .select('nomParque')
+            .eq('idParque', prop.idParque)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      plan.idArrendador
+        ? this.supabase.admin
+            .from('inversionista')
+            .select('nombre, apellido1, apellido2, razonsocial')
+            .eq('idInversionista', plan.idArrendador)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+
+    const cabecera: EstadoCuentaCabecera = {
+      idArrePdp: plan.idArrePdp,
+      arrendatario: inv ? this.nombre(inv) : '—',
+      parque: parque?.nomParque ?? '—',
+      nave: nave?.numNaveNAME ?? (nave?.numNave != null ? String(nave.numNave) : '—'),
+      moneda: plan.Moneda ?? 'MXN',
+      fecInicio: plan.fecInicio,
+      fecFin: plan.fecFin,
+      plazo: plan.plazo,
+      deposito: Number(plan.deposito) || 0,
+      vigencia: plan.arrePdpVigente,
+      precioM2: Number(plan.precioM2) || 0,
+      construccionM2: Number(plan.construccionM2) || 0,
+      pm2Admin: Number(plan.pm2Admin) || 0,
+      pm2Mtto: Number(plan.pm2Mtto) || 0,
+      pm2Vig: Number(plan.pm2Vig) || 0,
+      inpcPlus: Number(plan.INPCPlus) || 0,
+    };
+
+    const { data: det, error: detErr } = await this.supabase.admin
+      .from('arrePdpDetalle')
+      .select(
+        'numPartida, anio, ciclo, concepto, fecha, pm2, constM2, INPC, cantidad, cantidadAplicada, fecPago',
+      )
+      .eq('idArrePdp', idArrePdp)
+      .eq('status', true)
+      .order('numPartida', { ascending: true })
+      .order('anio', { ascending: true });
+    if (detErr) throw new InternalServerErrorException(detErr.message);
 
     interface Acc {
-      nave: string;
-      parque: string;
-      razonSocial: string;
-      divisa: string;
-      pendiente: number;
-      cobrado: number;
+      numPartida: number;
+      anio: number | null;
+      ciclo: number | null;
+      fecha: string | null;
+      pm2: number;
+      constM2: number;
+      inpc: number;
       renta: number;
-      vig: number;
       admin: number;
       mtto: number;
+      vig: number;
       otros: number;
       detalle: Map<string, number>;
+      total: number;
+      montoPagado: number;
+      fecPago: string | null;
+      filas: number;
+      filasPagadas: number;
     }
-    const map = new Map<string, Acc>();
-    for (const r of filas) {
-      const divisa = r.divisa === 'USD' ? 'USD' : 'MXN';
-      const key = `${r.nave}||${r.parque}||${r.razon_social}||${divisa}`;
-      let a = map.get(key);
+    const map = new Map<number, Acc>();
+    for (const r of det ?? []) {
+      const np = r.numPartida ?? 0;
+      let a = map.get(np);
       if (!a) {
         a = {
-          nave: r.nave ?? '—',
-          parque: r.parque ?? '—',
-          razonSocial: r.razon_social ?? '—',
-          divisa,
-          pendiente: 0,
-          cobrado: 0,
+          numPartida: np,
+          anio: r.anio,
+          ciclo: r.ciclo,
+          fecha: r.fecha ? String(r.fecha).slice(0, 10) : null,
+          pm2: 0,
+          constM2: 0,
+          inpc: 0,
           renta: 0,
-          vig: 0,
           admin: 0,
           mtto: 0,
+          vig: 0,
           otros: 0,
           detalle: new Map(),
+          total: 0,
+          montoPagado: 0,
+          fecPago: null,
+          filas: 0,
+          filasPagadas: 0,
         };
-        map.set(key, a);
+        map.set(np, a);
       }
-      const m = Number(r.monto) || 0;
-      if (r.fec_pago) a.cobrado += m;
-      else a.pendiente += m;
+      const m = Number(r.cantidad) || 0;
+      a.total += m;
+      a.montoPagado += Number(r.cantidadAplicada) || 0;
       const n = normConcepto(r.concepto ?? '');
-      if (n === 'renta') a.renta += m;
-      else if (n === 'vigilancia') a.vig += m;
+      if (n === 'renta') {
+        a.renta += m;
+        a.pm2 = Number(r.pm2) || a.pm2;
+        a.constM2 = Number(r.constM2) || a.constM2;
+        a.inpc = Number(r.INPC) || a.inpc;
+      } else if (n === 'vigilancia') a.vig += m;
       else if (n === 'administracion') a.admin += m;
       else if (n === 'mantenimiento') a.mtto += m;
       else {
@@ -281,28 +454,35 @@ export class ReportesArreService {
         const nom = r.concepto ?? 'Otro';
         a.detalle.set(nom, (a.detalle.get(nom) ?? 0) + m);
       }
+      a.filas++;
+      if (r.fecPago) {
+        a.filasPagadas++;
+        if (!a.fecPago || r.fecPago > a.fecPago) a.fecPago = r.fecPago;
+      }
     }
 
-    return [...map.values()]
+    const partidas: EstadoCuentaPartida[] = [...map.values()]
       .map((a) => ({
-        nave: a.nave,
-        parque: a.parque,
-        razonSocial: a.razonSocial,
-        divisa: a.divisa,
-        pendiente: a.pendiente,
-        cobrado: a.cobrado,
+        numPartida: a.numPartida,
+        anio: a.anio,
+        ciclo: a.ciclo,
+        fecha: a.fecha,
+        pm2: a.pm2,
+        constM2: a.constM2,
+        inpc: a.inpc,
         renta: a.renta,
-        vig: a.vig,
         admin: a.admin,
         mtto: a.mtto,
+        vig: a.vig,
         otros: a.otros,
         nota: [...a.detalle.entries()].map(([nom, mo]) => `${montoTxt(mo)} ${nom}`).join(', '),
+        total: a.total,
+        montoPagado: a.montoPagado,
+        fecPago: a.fecPago,
+        pagado: a.filas > 0 && a.filasPagadas === a.filas,
       }))
-      .sort(
-        (x, y) =>
-          x.parque.localeCompare(y.parque, 'es') ||
-          x.nave.localeCompare(y.nave, 'es') ||
-          x.razonSocial.localeCompare(y.razonSocial, 'es'),
-      );
+      .sort((x, y) => x.numPartida - y.numPartida);
+
+    return { cabecera, partidas };
   }
 }

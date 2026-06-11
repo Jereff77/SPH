@@ -122,12 +122,12 @@
     `arrePdp.canceladoAnticipado/fecCancelacion/canceladoPor/motivoCancelacion` + `vigente=false` (sin tocar
     `plazo`/`fecFin`) y **libera la nave** (RPC transaccional `v2_arrepdp_cancelar_anticipado`). **Permisos por
     botón** (front+back): Config=25 (nueva), Renovar=23, Cancelar=22, Liberar=24 (nueva). Nueva sección
-    **Reportes** (`/arrendatarios/reportes`, clave 20): **Estado de Cuenta** (acumulado por nave+cliente+
-    divisa, desglose por concepto Renta/Vig/Admin/Mtto/Otros+Nota, totales Pago/Cobrado; filtros parque/
-    nave/cliente/divisa; export **CSV** y **PDF con logo**; backend `reportes-arre.service.ts→estadoCuenta`
-    vía RPC `pagos_arrendatarios`) y **Cancelaciones Anticipadas** (filtros año/parque/búsqueda + CSV/PDF).
-    Util CSV en `csv-export.ts` (ligera, sin jsPDF → no infla el bundle del Dashboard). Ver
-    `modulos/arrendatarios.md`.
+    **Reportes** (`/arrendatarios/reportes`, clave 20): **Estado de Cuenta** **por nave y plan** (se elige
+    Parque→Nave→Plan vigente/terminado; muestra la cabecera del `arrePdp` y la **corrida completa**
+    `arrePdpDetalle` desglosada por partida: Renta/Admin/Mtto/Vig + Otros Servicios + Nota + Total + Pagado/
+    Fecha pago/Estado, con totales; export **CSV** y **PDF con logo**; backend `estadoCuentaOpciones` +
+    `estadoCuentaCorrida`) y **Cancelaciones Anticipadas** (filtros año/parque/búsqueda + CSV/PDF). Util CSV
+    en `csv-export.ts` (ligera, sin jsPDF → no infla el bundle del Dashboard). Ver `modulos/arrendatarios.md`.
 - **Changelog / Novedades** (Configuraciones, **sin permiso** → todos): bitácora de versiones SemVer
   (`GET /api/changelog`, solo lectura). El Sidebar muestra la versión desde aquí. Fuente: tabla nueva
   `v2_changelog` + función `v2_changelog_registrar` (asigna el SemVer desde la BD con lock, **a prueba de

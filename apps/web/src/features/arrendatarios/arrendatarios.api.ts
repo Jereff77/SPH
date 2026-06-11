@@ -250,20 +250,71 @@ export interface CancelacionReporteRow {
   moneda: string | null;
 }
 
-/** Fila del reporte Estado de Cuenta (agrupada por nave + cliente + divisa). */
-export interface EstadoCuentaArreRow {
-  nave: string;
+/** Plan (arrePdp) de una nave para el selector del estado de cuenta. */
+export interface EstadoCuentaPlanOpcion {
+  idArrePdp: string;
+  fecInicio: string | null;
+  fecFin: string | null;
+  plazo: number | null;
+  moneda: string | null;
+  vigencia: string | null;
+}
+
+/** Nave arrendada con sus planes (selectores Parque → Nave → Plan). */
+export interface EstadoCuentaNave {
+  idNavArrend: string;
+  idParque: string;
   parque: string;
-  razonSocial: string;
-  divisa: string;
-  pendiente: number;
-  cobrado: number;
+  nave: string;
+  arrendatario: string;
+  planes: EstadoCuentaPlanOpcion[];
+}
+
+/** Cabecera del estado de cuenta (datos del plan arrePdp). */
+export interface EstadoCuentaCabecera {
+  idArrePdp: string;
+  arrendatario: string;
+  parque: string;
+  nave: string;
+  moneda: string;
+  fecInicio: string | null;
+  fecFin: string | null;
+  plazo: number | null;
+  deposito: number;
+  vigencia: string | null;
+  precioM2: number;
+  construccionM2: number;
+  pm2Admin: number;
+  pm2Mtto: number;
+  pm2Vig: number;
+  inpcPlus: number;
+}
+
+/** Partida (mes) de la corrida desglosada por concepto. */
+export interface EstadoCuentaPartida {
+  numPartida: number;
+  anio: number | null;
+  ciclo: number | null;
+  fecha: string | null;
+  pm2: number;
+  constM2: number;
+  inpc: number;
   renta: number;
-  vig: number;
   admin: number;
   mtto: number;
+  vig: number;
   otros: number;
   nota: string;
+  total: number;
+  montoPagado: number;
+  fecPago: string | null;
+  pagado: boolean;
+}
+
+/** Estado de cuenta de un plan: cabecera + corrida. */
+export interface EstadoCuentaCorrida {
+  cabecera: EstadoCuentaCabecera;
+  partidas: EstadoCuentaPartida[];
 }
 
 // ============================ Cobranza ============================
@@ -372,8 +423,10 @@ export const arrendatariosApi = {
   // Reportes
   reporteCancelaciones: (f: { anio?: number; parque?: string; busqueda?: string }) =>
     api.get<CancelacionReporteRow[]>(`/arrendatarios/reportes/cancelaciones${dq(f)}`),
-  reporteEstadoCuenta: (f: { parque?: string } = {}) =>
-    api.get<EstadoCuentaArreRow[]>(`/arrendatarios/reportes/estado-cuenta${dq(f)}`),
+  estadoCuentaOpciones: () =>
+    api.get<EstadoCuentaNave[]>('/arrendatarios/reportes/estado-cuenta/opciones'),
+  estadoCuentaCorrida: (idArrePdp: string) =>
+    api.get<EstadoCuentaCorrida>(`/arrendatarios/reportes/estado-cuenta/${idArrePdp}`),
 
   // Config
   datos: (id: string) => api.get<DatosGeneralesArre>(`/arrendatarios/${id}/datos`),

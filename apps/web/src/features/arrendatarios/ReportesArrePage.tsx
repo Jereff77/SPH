@@ -7,9 +7,10 @@ import {
   arrendatariosApi,
   fechaCorta,
   hoyMexico,
+  moneda,
   num,
   type CancelacionReporteRow,
-  type EstadoCuentaArreRow,
+  type EstadoCuentaPartida,
 } from './arrendatarios.api';
 import { configuracionApi } from '@/features/configuraciones/configuracion.api';
 import { exportarCSV } from './csv-export';
@@ -35,9 +36,9 @@ export function ReportesArrePage() {
 }
 
 function EstadoCuentaTab() {
-  const { data = [], isLoading } = useQuery({
-    queryKey: ['arre-rep-estado-cuenta'],
-    queryFn: () => arrendatariosApi.reporteEstadoCuenta(),
+  const { data: opciones = [] } = useQuery({
+    queryKey: ['arre-rep-ec-opciones'],
+    queryFn: () => arrendatariosApi.estadoCuentaOpciones(),
   });
   const { data: logos } = useQuery({
     queryKey: ['logos'],
@@ -45,82 +46,127 @@ function EstadoCuentaTab() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const [parque, setParque] = useState('');
-  const [nave, setNave] = useState('');
-  const [cliente, setCliente] = useState('');
-  const [divisa, setDivisa] = useState<'' | 'MXN' | 'USD'>('');
+  const [idParque, setIdParque] = useState('');
+  const [idNavArrend, setIdNavArrend] = useState('');
+  const [idArrePdp, setIdArrePdp] = useState('');
   const [generandoPdf, setGenerandoPdf] = useState(false);
 
-  const parques = useMemo(
-    () => [...new Set(data.map((r) => r.parque).filter((p): p is string => !!p && p !== '—'))].sort(),
-    [data],
+  // Parques con naves arrendadas (con plan).
+  const parques = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const n of opciones) if (n.idParque) m.set(n.idParque, n.parque);
+    return [...m.entries()]
+      .map(([id, nombre]) => ({ id, nombre }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }, [opciones]);
+
+  const naves = useMemo(
+    () => opciones.filter((n) => !idParque || n.idParque === idParque),
+    [opciones, idParque],
   );
+  const naveSel = useMemo(
+    () => naves.find((n) => n.idNavArrend === idNavArrend) ?? null,
+    [naves, idNavArrend],
+  );
+  const planes = naveSel?.planes ?? [];
 
-  const filtradas = useMemo(() => {
-    const qn = nave.trim().toLowerCase();
-    const qc = cliente.trim().toLowerCase();
-    return data.filter((r) => {
-      if (parque && r.parque !== parque) return false;
-      if (divisa && r.divisa !== divisa) return false;
-      if (qn && !r.nave.toLowerCase().includes(qn)) return false;
-      if (qc && !r.razonSocial.toLowerCase().includes(qc)) return false;
-      return true;
-    });
-  }, [data, parque, nave, cliente, divisa]);
-
-  const { ordenados, sortKey, dir, toggle } = useSort<EstadoCuentaArreRow>(filtradas, {
-    nave: (r) => r.nave,
-    parque: (r) => r.parque,
-    razonSocial: (r) => r.razonSocial,
-    divisa: (r) => r.divisa,
-    pendiente: (r) => r.pendiente,
-    cobrado: (r) => r.cobrado,
-    renta: (r) => r.renta,
-    vig: (r) => r.vig,
-    admin: (r) => r.admin,
-    mtto: (r) => r.mtto,
-    otros: (r) => r.otros,
+  // Corrida del plan seleccionado.
+  const { data: corrida, isLoading: cargandoCorrida } = useQuery({
+    queryKey: ['arre-rep-ec-corrida', idArrePdp],
+    queryFn: () => arrendatariosApi.estadoCuentaCorrida(idArrePdp),
+    enabled: !!idArrePdp,
   });
 
-  const COLS = [
+  const cab = corrida?.cabecera ?? null;
+  const partidas = useMemo(() => corrida?.partidas ?? [], [corrida]);
+  const divisa = cab?.moneda ?? 'MXN';
+
+  // Totales (pie de la corrida).
+  const tot = useMemo(() => {
+    const t = { renta: 0, admin: 0, mtto: 0, vig: 0, otros: 0, total: 0, pagado: 0 };
+    for (const p of partidas) {
+      t.renta += p.renta;
+      t.admin += p.admin;
+      t.mtto += p.mtto;
+      t.vig += p.vig;
+      t.otros += p.otros;
+      t.total += p.total;
+      t.pagado += p.montoPagado;
+    }
+    return t;
+  }, [partidas]);
+
+  function onParque(id: string) {
+    setIdParque(id);
+    setIdNavArrend('');
+    setIdArrePdp('');
+  }
+  function onNave(idNav: string) {
+    setIdNavArrend(idNav);
+    const n = opciones.find((o) => o.idNavArrend === idNav);
+    setIdArrePdp(n?.planes[0]?.idArrePdp ?? '');
+  }
+
+  // ----- Export -----
+  const COLS_CSV = [
     'Nave',
     'Parque',
     'Razon Social',
     'Divisa',
-    'Pago',
-    'Cobrado',
+    '#',
+    'Año',
+    'Fecha',
     'Renta',
-    'Vig',
     'Admin',
     'Mtto',
-    'Otros Conceptos',
+    'Vig',
+    'Otros Servicios',
     'Nota',
+    'Total',
+    'Pagado',
+    'Fecha pago',
+    'Estado',
   ];
-  const toRow = (r: EstadoCuentaArreRow): (string | number)[] => [
-    r.nave,
-    r.parque,
-    r.razonSocial,
-    r.divisa,
-    r.pendiente || '',
-    r.cobrado || '',
-    r.renta || '',
-    r.vig || '',
-    r.admin || '',
-    r.mtto || '',
-    r.otros || '',
-    r.nota,
+  const COLS_PDF = COLS_CSV.slice(4); // sin Nave/Parque/Razón Social/Divisa (van en el encabezado)
+
+  const filaPartida = (p: EstadoCuentaPartida): (string | number)[] => [
+    p.numPartida,
+    p.anio ?? '',
+    fechaCorta(p.fecha),
+    p.renta || '',
+    p.admin || '',
+    p.mtto || '',
+    p.vig || '',
+    p.otros || '',
+    p.nota,
+    p.total || '',
+    p.montoPagado || '',
+    fechaCorta(p.fecPago),
+    p.pagado ? 'Pagado' : 'Pendiente',
   ];
 
+  const archivo = cab ? `estado-cuenta-${cab.nave}`.replace(/[^\w-]+/g, '_') : 'estado-cuenta';
+
+  function exportarCsv() {
+    if (!cab) return;
+    const filas = partidas.map((p) => [cab.nave, cab.parque, cab.arrendatario, cab.moneda, ...filaPartida(p)]);
+    exportarCSV(archivo, COLS_CSV, filas);
+  }
+
   async function exportarPdf() {
+    if (!cab) return;
     setGenerandoPdf(true);
     try {
       await exportarPDFConEncabezado({
-        archivo: 'estado-cuenta-arrendatarios',
+        archivo,
         titulo: 'Estado de Cuenta · Arrendatarios',
-        subtitulo: `Generado el ${fechaCorta(hoyMexico())}`,
+        subtitulo:
+          `${cab.arrendatario}  ·  ${cab.parque} / Nave ${cab.nave}  ·  ` +
+          `${fechaCorta(cab.fecInicio)} → ${fechaCorta(cab.fecFin)}  ·  ${cab.moneda}  ·  ` +
+          `Generado ${fechaCorta(hoyMexico())}`,
         logoUrl: logos?.claro?.url ?? null,
-        columnas: COLS,
-        filas: ordenados.map(toRow),
+        columnas: COLS_PDF,
+        filas: partidas.map(filaPartida),
       });
     } finally {
       setGenerandoPdf(false);
@@ -129,66 +175,68 @@ function EstadoCuentaTab() {
 
   return (
     <div className="space-y-3">
+      {/* Selectores */}
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-gray-600">
           Parque
           <select
-            value={parque}
-            onChange={(e) => setParque(e.target.value)}
+            value={idParque}
+            onChange={(e) => onParque(e.target.value)}
             className="mt-1 block w-52 rounded border px-2 py-1.5 text-sm"
           >
-            <option value="">Todos</option>
+            <option value="">Selecciona…</option>
             {parques.map((p) => (
-              <option key={p} value={p}>
-                {p}
+              <option key={p.id} value={p.id}>
+                {p.nombre}
               </option>
             ))}
           </select>
         </label>
         <label className="text-xs text-gray-600">
           Nave
-          <input
-            type="text"
-            value={nave}
-            onChange={(e) => setNave(e.target.value)}
-            placeholder="Buscar nave…"
-            className="mt-1 block w-44 rounded border px-2 py-1.5 text-sm"
-          />
-        </label>
-        <label className="text-xs text-gray-600">
-          Cliente
-          <input
-            type="text"
-            value={cliente}
-            onChange={(e) => setCliente(e.target.value)}
-            placeholder="Buscar cliente…"
-            className="mt-1 block w-52 rounded border px-2 py-1.5 text-sm"
-          />
-        </label>
-        <label className="text-xs text-gray-600">
-          Divisa
           <select
-            value={divisa}
-            onChange={(e) => setDivisa(e.target.value as '' | 'MXN' | 'USD')}
-            className="mt-1 block w-32 rounded border px-2 py-1.5 text-sm"
+            value={idNavArrend}
+            onChange={(e) => onNave(e.target.value)}
+            disabled={!idParque && parques.length > 1}
+            className="mt-1 block w-56 rounded border px-2 py-1.5 text-sm disabled:bg-gray-100"
           >
-            <option value="">Ambos</option>
-            <option value="MXN">MXN</option>
-            <option value="USD">USD</option>
+            <option value="">Selecciona…</option>
+            {naves.map((n) => (
+              <option key={n.idNavArrend} value={n.idNavArrend}>
+                {n.nave} · {n.arrendatario}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-gray-600">
+          Plan
+          <select
+            value={idArrePdp}
+            onChange={(e) => setIdArrePdp(e.target.value)}
+            disabled={!naveSel}
+            className="mt-1 block w-72 rounded border px-2 py-1.5 text-sm disabled:bg-gray-100"
+          >
+            <option value="">Selecciona…</option>
+            {planes.map((pl) => (
+              <option key={pl.idArrePdp} value={pl.idArrePdp}>
+                {fechaCorta(pl.fecInicio)} → {fechaCorta(pl.fecFin)} ·{' '}
+                {pl.vigencia === 'No' ? 'Terminado' : 'Vigente'} · {pl.moneda ?? 'MXN'}
+              </option>
+            ))}
           </select>
         </label>
         <div className="ml-auto flex gap-2">
           <button
             type="button"
-            disabled={ordenados.length === 0}
-            onClick={() => exportarCSV('estado-cuenta-arrendatarios', COLS, ordenados.map(toRow))}
+            disabled={!cab || partidas.length === 0}
+            onClick={exportarCsv}
             className="rounded-lg border border-[#1f2a4d] px-3 py-2 text-sm font-medium text-[#1f2a4d] hover:bg-[#1f2a4d] hover:text-white disabled:opacity-40"
           >
             Export CSV
           </button>
           <button
             type="button"
-            disabled={ordenados.length === 0 || generandoPdf}
+            disabled={!cab || partidas.length === 0 || generandoPdf}
             onClick={exportarPdf}
             className="rounded-lg border border-[#1f2a4d] px-3 py-2 text-sm font-medium text-[#1f2a4d] hover:bg-[#1f2a4d] hover:text-white disabled:opacity-40"
           >
@@ -197,88 +245,116 @@ function EstadoCuentaTab() {
         </div>
       </div>
 
-      <div className="overflow-auto rounded-xl border bg-white" style={{ maxHeight: '65vh' }}>
-        <table className="min-w-full border-collapse text-sm">
-          <thead className={THEAD_STICKY}>
-            <tr className={THEAD_TR}>
-              <SortableTh campo="nave" sortKey={sortKey} dir={dir} onSort={toggle}>
-                Nave
-              </SortableTh>
-              <SortableTh campo="parque" sortKey={sortKey} dir={dir} onSort={toggle}>
-                Parque
-              </SortableTh>
-              <SortableTh campo="razonSocial" sortKey={sortKey} dir={dir} onSort={toggle}>
-                Razón Social
-              </SortableTh>
-              <SortableTh campo="divisa" sortKey={sortKey} dir={dir} onSort={toggle} align="center">
-                Divisa
-              </SortableTh>
-              <SortableTh campo="pendiente" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
-                Pago
-              </SortableTh>
-              <SortableTh campo="cobrado" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
-                Cobrado
-              </SortableTh>
-              <SortableTh campo="renta" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
-                Renta
-              </SortableTh>
-              <SortableTh campo="vig" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
-                Vig
-              </SortableTh>
-              <SortableTh campo="admin" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
-                Admin
-              </SortableTh>
-              <SortableTh campo="mtto" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
-                Mtto
-              </SortableTh>
-              <SortableTh campo="otros" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
-                Otros
-              </SortableTh>
-              <SortableTh sortKey={sortKey} dir={dir}>
-                Nota
-              </SortableTh>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {isLoading ? (
-              <tr>
-                <td colSpan={12} className="px-4 py-8 text-center text-gray-400">
-                  Cargando…
-                </td>
-              </tr>
-            ) : ordenados.length === 0 ? (
-              <tr>
-                <td colSpan={12} className="px-4 py-8 text-center text-gray-400">
-                  Sin registros para los filtros actuales.
-                </td>
-              </tr>
-            ) : (
-              ordenados.map((r, i) => (
-                <tr key={`${r.nave}|${r.razonSocial}|${r.divisa}|${i}`} className="hover:bg-gray-50">
-                  <td className="px-3 py-1.5 font-bold text-[#1f2a4d]">{r.nave}</td>
-                  <td className="px-3 py-1.5">{r.parque}</td>
-                  <td className="px-3 py-1.5">{r.razonSocial}</td>
-                  <td className="px-3 py-1.5 text-center">{r.divisa}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-red-600">
-                    {r.pendiente > 0 ? num(r.pendiente) : '—'}
-                  </td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-green-600">
-                    {r.cobrado > 0 ? num(r.cobrado) : '—'}
-                  </td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{r.renta > 0 ? num(r.renta) : '—'}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{r.vig > 0 ? num(r.vig) : '—'}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{r.admin > 0 ? num(r.admin) : '—'}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{r.mtto > 0 ? num(r.mtto) : '—'}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{r.otros > 0 ? num(r.otros) : '—'}</td>
-                  <td className="px-3 py-1.5 max-w-xs truncate" title={r.nota}>
-                    {r.nota || '—'}
-                  </td>
+      {!idArrePdp ? (
+        <div className="rounded-xl border border-dashed bg-white p-6 text-center text-sm text-gray-400">
+          Selecciona parque, nave y plan para ver el estado de cuenta.
+        </div>
+      ) : cargandoCorrida || !cab ? (
+        <div className="rounded-xl border bg-white p-6 text-center text-sm text-gray-400">
+          Cargando estado de cuenta…
+        </div>
+      ) : (
+        <>
+          {/* Cabecera: datos del plan */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 rounded-xl border bg-white p-4 text-sm sm:grid-cols-4">
+            <Dato etq="Arrendatario" val={cab.arrendatario} />
+            <Dato etq="Parque" val={cab.parque} />
+            <Dato etq="Nave" val={cab.nave} />
+            <Dato etq="Moneda" val={cab.moneda} />
+            <Dato etq="Inicio" val={fechaCorta(cab.fecInicio)} />
+            <Dato etq="Fin" val={fechaCorta(cab.fecFin)} />
+            <Dato etq="Plazo" val={`${cab.plazo ?? '—'} meses`} />
+            <Dato etq="Vigencia" val={cab.vigencia ?? '—'} />
+            <Dato etq="Depósito" val={moneda(cab.deposito, divisa)} />
+            <Dato etq="Renta $×m²" val={num(cab.precioM2)} />
+            <Dato etq="Const. m²" val={num(cab.construccionM2)} />
+            <Dato etq="INPC adic." val={num(cab.inpcPlus)} />
+          </div>
+
+          {/* Corrida desglosada */}
+          <div className="overflow-auto rounded-xl border bg-white" style={{ maxHeight: '60vh' }}>
+            <table className="min-w-full border-collapse text-sm">
+              <thead className={THEAD_STICKY}>
+                <tr className={THEAD_TR}>
+                  <SortableTh align="center">#</SortableTh>
+                  <SortableTh align="center">Año</SortableTh>
+                  <SortableTh>Fecha</SortableTh>
+                  <SortableTh align="right">Renta</SortableTh>
+                  <SortableTh align="right">Admin</SortableTh>
+                  <SortableTh align="right">Mtto</SortableTh>
+                  <SortableTh align="right">Vig</SortableTh>
+                  <SortableTh align="right">Otros Serv.</SortableTh>
+                  <SortableTh>Nota</SortableTh>
+                  <SortableTh align="right">Total</SortableTh>
+                  <SortableTh align="right">Pagado</SortableTh>
+                  <SortableTh>Fecha pago</SortableTh>
+                  <SortableTh align="center">Estado</SortableTh>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody className="divide-y">
+                {partidas.map((p) => (
+                  <tr key={p.numPartida} className={p.pagado ? 'bg-[#F0FAF1]' : 'hover:bg-gray-50'}>
+                    <td className="px-3 py-1.5 text-center font-medium">{p.numPartida}</td>
+                    <td className="px-3 py-1.5 text-center">{p.anio ?? '—'}</td>
+                    <td className="px-3 py-1.5 whitespace-nowrap">{fechaCorta(p.fecha)}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{p.renta > 0 ? num(p.renta) : '—'}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{p.admin > 0 ? num(p.admin) : '—'}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{p.mtto > 0 ? num(p.mtto) : '—'}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{p.vig > 0 ? num(p.vig) : '—'}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{p.otros > 0 ? num(p.otros) : '—'}</td>
+                    <td className="px-3 py-1.5 max-w-[16rem] truncate text-gray-500" title={p.nota}>
+                      {p.nota || '—'}
+                    </td>
+                    <td className="px-3 py-1.5 text-right font-medium tabular-nums">
+                      {p.total > 0 ? num(p.total) : '—'}
+                    </td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-green-700">
+                      {p.montoPagado > 0 ? num(p.montoPagado) : '—'}
+                    </td>
+                    <td className="px-3 py-1.5 whitespace-nowrap">{fechaCorta(p.fecPago)}</td>
+                    <td className="px-3 py-1.5 text-center">
+                      {p.pagado ? (
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                          Pagado
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-600">
+                          Pendiente
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="[&>tr>td]:sticky [&>tr>td]:bottom-0 [&>tr>td]:bg-[#1f2a4d]">
+                <tr className="font-bold text-white">
+                  <td className="px-3 py-2 text-right" colSpan={3}>
+                    TOTALES
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{num(tot.renta)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{num(tot.admin)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{num(tot.mtto)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{num(tot.vig)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{num(tot.otros)}</td>
+                  <td />
+                  <td className="px-3 py-2 text-right tabular-nums">{num(tot.total)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{num(tot.pagado)}</td>
+                  <td colSpan={2} />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Dato({ etq, val }: { etq: string; val: string }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[10px] uppercase tracking-wide text-gray-400">{etq}</span>
+      <span className="font-medium text-gray-700">{val}</span>
     </div>
   );
 }

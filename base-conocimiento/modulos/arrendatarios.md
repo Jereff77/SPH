@@ -117,12 +117,16 @@ actor para auditoría). Crear un plan orquesta **3 RPCs en secuencia**:
   (`Tabs` + filtros + tabla `useSort`/`SortableTh` + export). El CSV vive en `csv-export.ts` (ligero, sin
   jsPDF, para que el Dashboard no arrastre jsPDF al bundle principal); el PDF en `reportes-arre-export.ts`
   (`exportarPDF` simple y `exportarPDFConEncabezado` con logo).
-- **Estado de Cuenta** (tab, `reportes-arre.service.ts` → `estadoCuenta`): **mismo formato que el export del
-  Dashboard de cobranza** pero como reporte. Estado de cuenta **acumulado** (planes activos, RPC
-  `pagos_arrendatarios`), agrupado por **nave + cliente + divisa**, con desglose por concepto
-  (Renta/Vig/Admin/Mtto/Otros + Nota) y totales Pago(pendiente)/Cobrado. Excluye Tickets. Filtros (en
-  cliente): parque, nave, cliente, divisa. Export **CSV** y **PDF con encabezado (logo SPH + título +
-  fecha)**. Endpoint `GET /arrendatarios/reportes/estado-cuenta`.
+- **Estado de Cuenta** (tab): estado de cuenta **por nave y plan**. Se elige **Parque → Nave → Plan**
+  (vigente o terminado); muestra la **cabecera del plan** (`arrePdp`: arrendatario, fechas, plazo, moneda,
+  depósito, $×m², const m², INPC adic.) y la **corrida completa** (`arrePdpDetalle`) **desglosada por
+  partida**: una fila por mes con el monto separado en **Renta/Admin/Mtto/Vig** + **Otros Servicios** (suma
+  del resto) + **Nota** (detalle), **Total**, **Pagado** (cantidadAplicada), **Fecha de pago** y **Estado**
+  (Pagado/Pendiente), con **totales** al pie. Export **CSV** (incluye Nave/Parque/Razón Social/Divisa por
+  fila) y **PDF con encabezado (logo SPH + datos del plan)**. Backend `reportes-arre.service.ts`:
+  `estadoCuentaOpciones()` (naves arrendadas con plan, excluye Tickets) y `estadoCuentaCorrida(idArrePdp)`
+  (cabecera + corrida pivotada por concepto). Endpoints `GET /arrendatarios/reportes/estado-cuenta/opciones`
+  y `GET /arrendatarios/reportes/estado-cuenta/:idArrePdp`.
 - **Cancelaciones Anticipadas** (tab): lista los `arrePdp` con `canceladoAnticipado=true`,
   enriquecidos **en memoria sin vistas** (backend `reportes-arre.service.ts` → `cancelaciones()`): arrendatario
   (`inversionista`), parque/nave (`arrenPropiedades`+`naves`+`parques`, **excluye Tickets**), quién canceló

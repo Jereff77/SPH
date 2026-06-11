@@ -313,10 +313,16 @@ export class ArrendatariosController {
     });
   }
 
-  @Get('reportes/estado-cuenta')
+  @Get('reportes/estado-cuenta/opciones')
   @RequierePermiso(20)
-  reporteEstadoCuenta(@Query('parque') parque?: string) {
-    return this.reportes.estadoCuenta({ parque: parque || undefined });
+  estadoCuentaOpciones() {
+    return this.reportes.estadoCuentaOpciones();
+  }
+
+  @Get('reportes/estado-cuenta/:idArrePdp')
+  @RequierePermiso(20)
+  estadoCuentaCorrida(@Param('idArrePdp') idArrePdp: string) {
+    return this.reportes.estadoCuentaCorrida(idArrePdp);
   }
 
   // ============================ Cobranza (10) ============================
