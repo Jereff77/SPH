@@ -250,6 +250,22 @@ export interface CancelacionReporteRow {
   moneda: string | null;
 }
 
+/** Fila del reporte Estado de Cuenta (agrupada por nave + cliente + divisa). */
+export interface EstadoCuentaArreRow {
+  nave: string;
+  parque: string;
+  razonSocial: string;
+  divisa: string;
+  pendiente: number;
+  cobrado: number;
+  renta: number;
+  vig: number;
+  admin: number;
+  mtto: number;
+  otros: number;
+  nota: string;
+}
+
 // ============================ Cobranza ============================
 
 export interface FiltrosCobranza {
@@ -356,6 +372,8 @@ export const arrendatariosApi = {
   // Reportes
   reporteCancelaciones: (f: { anio?: number; parque?: string; busqueda?: string }) =>
     api.get<CancelacionReporteRow[]>(`/arrendatarios/reportes/cancelaciones${dq(f)}`),
+  reporteEstadoCuenta: (f: { parque?: string } = {}) =>
+    api.get<EstadoCuentaArreRow[]>(`/arrendatarios/reportes/estado-cuenta${dq(f)}`),
 
   // Config
   datos: (id: string) => api.get<DatosGeneralesArre>(`/arrendatarios/${id}/datos`),

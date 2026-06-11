@@ -313,6 +313,12 @@ export class ArrendatariosController {
     });
   }
 
+  @Get('reportes/estado-cuenta')
+  @RequierePermiso(20)
+  reporteEstadoCuenta(@Query('parque') parque?: string) {
+    return this.reportes.estadoCuenta({ parque: parque || undefined });
+  }
+
   // ============================ Cobranza (10) ============================
 
   @Get('cobranza/filtros')

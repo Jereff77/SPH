@@ -9,7 +9,7 @@ import {
 } from './arrendatarios.api';
 import { AplicarPagoModal } from './AplicarPagoModal';
 import { useArrendatariosRealtime } from './useArrendatariosRealtime';
-import { exportarCSV } from './reportes-arre-export';
+import { exportarCSV } from './csv-export';
 
 type EstadoFiltro = 'all' | 'pend' | 'paid';
 type SortCol = 'nave' | 'parque' | 'razon_social';

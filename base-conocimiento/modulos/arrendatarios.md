@@ -114,8 +114,16 @@ actor para auditoría). Crear un plan orquesta **3 RPCs en secuencia**:
 
 ## Reportes (clave 20)
 - **`/arrendatarios/reportes`** (`ReportesArrePage.tsx`, lazy). Calca el patrón de **Ventas → Reportes**
-  (`Tabs` + filtros + tabla `useSort`/`SortableTh` + export `exportarCSV`/`exportarPDF`).
-- **Cancelaciones Anticipadas** (primer reporte): lista los `arrePdp` con `canceladoAnticipado=true`,
+  (`Tabs` + filtros + tabla `useSort`/`SortableTh` + export). El CSV vive en `csv-export.ts` (ligero, sin
+  jsPDF, para que el Dashboard no arrastre jsPDF al bundle principal); el PDF en `reportes-arre-export.ts`
+  (`exportarPDF` simple y `exportarPDFConEncabezado` con logo).
+- **Estado de Cuenta** (tab, `reportes-arre.service.ts` → `estadoCuenta`): **mismo formato que el export del
+  Dashboard de cobranza** pero como reporte. Estado de cuenta **acumulado** (planes activos, RPC
+  `pagos_arrendatarios`), agrupado por **nave + cliente + divisa**, con desglose por concepto
+  (Renta/Vig/Admin/Mtto/Otros + Nota) y totales Pago(pendiente)/Cobrado. Excluye Tickets. Filtros (en
+  cliente): parque, nave, cliente, divisa. Export **CSV** y **PDF con encabezado (logo SPH + título +
+  fecha)**. Endpoint `GET /arrendatarios/reportes/estado-cuenta`.
+- **Cancelaciones Anticipadas** (tab): lista los `arrePdp` con `canceladoAnticipado=true`,
   enriquecidos **en memoria sin vistas** (backend `reportes-arre.service.ts` → `cancelaciones()`): arrendatario
   (`inversionista`), parque/nave (`arrenPropiedades`+`naves`+`parques`, **excluye Tickets**), quién canceló
   (`catUsers.nomCompleto`). Columnas: Arrendatario · Parque · Nave · Inicio · Fin contractual · Fecha
