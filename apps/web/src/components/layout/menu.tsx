@@ -14,6 +14,8 @@ export interface MenuItem {
   to: string;
   /** Clave de permiso requerida para ver el ítem (de segModulos). */
   clave?: number;
+  /** Si es true, el ítem solo se muestra a personal de soporte (isSupport). */
+  soloSoporte?: boolean;
 }
 
 export interface MenuGrupo {
@@ -107,6 +109,9 @@ export const MENU: MenuGrupo[] = [
       { label: 'Cambiar contraseña', to: '/configuraciones/cambiar-contrasena' },
       // Novedades (changelog): disponible para todos (sin clave).
       { label: 'Novedades', to: '/configuraciones/novedades' },
+      // Cron: monitoreo de tareas programadas. SOLO soporte (sin clave: no se
+      // asigna desde la app, solo por el flag isSupport del backend).
+      { label: 'Cron', to: '/configuraciones/cron', soloSoporte: true },
     ],
   },
 ];

@@ -37,6 +37,7 @@ futuro, en una tabla vectorial `pgvector` para búsqueda semántica).
 | CxP (Cuentas por pagar) | 🟠 parcial | `modulos/cxp.md` | /cxp/pagar, /cxp/aprobar, /cxp/solicitudes, /cxp/ppd, /cxp/pendientes, /cxp/proveedores, /cxp/bancos | 400, 401, 402, 403, 410, 420, 430, 431, 450, 470 | pago, pagar solicitudes, aprobar solicitudes, aprobación, presupuesto, fuera de presupuesto, cuenta por pagar, factura, CFDI, aplicar pago, comprobante, N8N, autorizar, rechazar, regresar, transferencia SPEI, proveedor, banco, conciliación, desaplicar, claves SAT, retención, tiempo real, solicitud urgente, línea de captura, devolución, factura sin XML, PPD, pago en parcialidades, diferido, parcialidad, abono, dosificar, saldo disponible, estado de cuenta, solicitar otro pago, cxp_ppd, complemento de pago, REP, recibo electrónico de pago, candado, bloqueo, usuario bloqueado, complemento pendiente, complemento vencido, aviso por correo, subir complemento, complementospago, dispensa, dispensar complemento, excepción, proveedor de única vez, exento, permiso 403, liberar usuario |
 | Fideicomiso | 🟡 stub | `modulos/fideicomiso.md` | (pendiente v2) | — | fideicomiso, dispersión, aportación, rendimiento, contabilidad |
 | CRM | 🟠 parcial | `modulos/crm.md` | (Clientes ya migrado → ver `modulos/clientes.md`) | 300 | lead, prospecto, empresa, inmobiliaria, actividad comercial · (Clientes = padrón) |
+| Cron / Tareas programadas | ✅ desarrollado | `modulos/cron.md` | /configuraciones/cron | — (solo soporte, isSupport) | cron, tarea programada, tareas programadas, job, jobs, scheduler, pg_cron, ejecución, historial de tareas, automático, programado, soporte, monitoreo, ejecutar ahora |
 
 > Leyenda: **✅ desarrollado** = está en v2 y su doc está completo · **🟡 stub** = existe en v1 pero aún
 > no en v2 (ficha mínima; el agente debe derivar a soporte para operaciones).
@@ -60,6 +61,7 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `SPHConfiguraciones` | Configuraciones (Sistema) · `RFC_RECEPTORES_AUTORIZADOS` lo usa CxP |
 | `auditoria`, `actividad` | Auditoría |
 | `v2_changelog` | Changelog / Novedades |
+| `v2_cron_ejecuciones` | Cron / Tareas programadas |
 | `cxp`, `cxp_ppd`, `cxpComentarios`, `catProveedores`, `catBancos`, `catClavesProdServ`, `movbancarios` | CxP (`cxp_ppd` = maestro de facturas PPD) |
 | `correo_cuentas`, `correo_mensajes`, `correo_adjuntos` | Correo (buzón de facturas) |
 | `emails`, `email_attachments` | Soporte/CRM (vía N8N — NO es el módulo Correo) |
@@ -86,3 +88,4 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `/configuraciones/sistema` | Configuraciones (Sistema) |
 | `/configuraciones/cambiar-contrasena` | Autenticación / Configuraciones |
 | `/configuraciones/novedades` | Changelog / Novedades |
+| `/configuraciones/cron` | Cron / Tareas programadas (solo soporte) |

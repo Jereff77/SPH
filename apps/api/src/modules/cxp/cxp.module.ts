@@ -56,5 +56,6 @@ import { ComplementosScheduler } from './complementos.scheduler.js';
     BloqueoService,
     ComplementosScheduler,
   ],
+  exports: [ComplementosScheduler],
 })
 export class CxpModule {}

@@ -40,6 +40,10 @@ const ReportesArrePage = lazy(() =>
     default: m.ReportesArrePage,
   })),
 );
+// Cron (Configuraciones → Cron, solo soporte): chunk propio.
+const CronPage = lazy(() =>
+  import('@/features/cron/CronPage').then((m) => ({ default: m.CronPage })),
+);
 const cargando = <div className="p-6 text-sm text-gray-400">Cargando…</div>;
 import { ClientesPage } from '@/features/clientes/ClientesPage';
 import { DashboardCobranzaPage } from '@/features/arrendatarios/DashboardCobranzaPage';
@@ -111,6 +115,14 @@ export const router = createBrowserRouter([
             element: <CambiarContrasenaPage />,
           },
           { path: '/configuraciones/novedades', element: <ChangelogPage /> },
+          {
+            path: '/configuraciones/cron',
+            element: (
+              <Suspense fallback={cargando}>
+                <CronPage />
+              </Suspense>
+            ),
+          },
         ],
       },
     ],

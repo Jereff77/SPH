@@ -76,7 +76,11 @@ export function Sidebar({ colapsado, onNavegar }: SidebarProps) {
   // Grupos con submenú: solo si tienen al menos un ítem permitido.
   const grupos = MENU.map((g) => ({
     ...g,
-    items: g.items.filter((it) => it.clave === undefined || tienePermiso(it.clave)),
+    items: g.items.filter(
+      (it) =>
+        (it.clave === undefined || tienePermiso(it.clave)) &&
+        (!it.soloSoporte || esSoporte),
+    ),
   })).filter((g) =>
     g.to ? g.clave === undefined || tienePermiso(g.clave) : g.items.length > 0,
   );

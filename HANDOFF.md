@@ -5,7 +5,7 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-10. Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-11. Autor: Claude (Opus 4.8).
 >
 > 📌 **El estado detallado y al día por módulo está en `base-conocimiento/INDICE.md`** (router) y los
 > `base-conocimiento/modulos/*.md`. El **handoff operativo** (despliegue EasyPanel, rama, variables,
@@ -128,6 +128,16 @@
     Fecha pago/Estado, con totales; export **CSV** y **PDF con logo**; backend `estadoCuentaOpciones` +
     `estadoCuentaCorrida`) y **Cancelaciones Anticipadas** (filtros año/parque/búsqueda + CSV/PDF). Util CSV
     en `csv-export.ts` (ligera, sin jsPDF → no infla el bundle del Dashboard). Ver `modulos/arrendatarios.md`.
+  - **Cron / Tareas programadas** (Configuraciones → Cron, **SOLO soporte**, `/configuraciones/cron`): pantalla
+    de monitoreo de **todas** las tareas programadas y su **historial de ejecuciones con logs**. Dos secciones:
+    **(1) pg_cron** (los 7 jobs de la BD, historial real de `cron.job_run_details`) y **(2) schedulers NestJS
+    `@Cron`** (`correo-sync` c/5 min, `cxp-aviso-complementos` diario) con estado en vivo (`SchedulerRegistry`) +
+    **historial persistente nuevo** y botón **«Ejecutar ahora»** (queda registrado como `manual` con el uid).
+    Acceso por **`SoporteGuard`** (`common/auth/soporte.guard.ts`, valida `catUsers.isSupport`) — **SIN clave de
+    permiso a propósito**: no se asigna desde la app, solo por el flag `isSupport`. El front nunca toca Supabase;
+    el schema `cron` se lee por 2 **funciones nuevas `v2_`** de solo lectura. Backend `modules/cron/*` +
+    `common/cron/*` (`RegistroCronService` global registra cada corrida). Ítem de menú con flag `soloSoporte`
+    (nuevo en `menu.tsx`/`Sidebar.tsx`). Ver `modulos/cron.md`.
 - **Changelog / Novedades** (Configuraciones, **sin permiso** → todos): bitácora de versiones SemVer
   (`GET /api/changelog`, solo lectura). El Sidebar muestra la versión desde aquí. Fuente: tabla nueva
   `v2_changelog` + función `v2_changelog_registrar` (asigna el SemVer desde la BD con lock, **a prueba de
@@ -141,8 +151,12 @@
   + **permisos `segModulos` 24 (Liberar) y 25 (Configuracion)** — SQL en
   `base-conocimiento/migraciones/2026-06-10-cancelacion-anticipada.sql` (⚠️ **pendiente de aplicar**; tras el
   ALTER, regenerar `database.types.ts`); **Changelog:** tabla `v2_changelog` + función
-  `v2_changelog_registrar(salto,titulo,cambios,publicada)` (asigna SemVer con `advisory lock`). **Único objeto
-  del sistema viejo modificado (con
+  `v2_changelog_registrar(salto,titulo,cambios,publicada)` (asigna SemVer con `advisory lock`); **Cron:**
+  funciones de solo lectura `v2_cron_jobs()` + `v2_cron_run_details(jobid,limit)` (sobre el schema `cron`,
+  `SECURITY DEFINER`, `EXECUTE` solo a `service_role`) + tabla `v2_cron_ejecuciones` (bitácora de los
+  schedulers NestJS; RLS ON sin políticas; **sin** trigger de auditoría por ser telemetría, no dato de
+  negocio) — **aplicadas** vía MCP; SQL en `base-conocimiento/migraciones/2026-06-11-cron-monitoreo.sql`.
+  **Único objeto del sistema viejo modificado (con
   autorización):** la columna generada `arrePdp."fecFin"` se redefinió a `fecInicio + plazo − 1 día` (antes no
   restaba el día). Detalle por módulo en `base-conocimiento/`.
 - **Despliegue:** EasyPanel, 2 apps (api Dockerfile `apps/api/Dockerfile` :3001, web `apps/web/Dockerfile`

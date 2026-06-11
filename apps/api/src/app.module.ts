@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { validateEnv } from './common/config/env.validation.js';
 import { SupabaseModule } from './common/supabase/supabase.module.js';
 import { AuthModule } from './common/auth/auth.module.js';
+import { RegistroCronModule } from './common/cron/registro-cron.module.js';
 import { HealthModule } from './health/health.module.js';
 import { ConfiguracionModule } from './modules/configuracion/configuracion.module.js';
 import { AuthApiModule } from './modules/auth/auth.module.js';
@@ -20,6 +21,7 @@ import { VentasModule } from './modules/ventas/ventas.module.js';
 import { ClientesModule } from './modules/clientes/clientes.module.js';
 import { ArrendatariosModule } from './modules/arrendatarios/arrendatarios.module.js';
 import { ChangelogModule } from './modules/changelog/changelog.module.js';
+import { CronModule } from './modules/cron/cron.module.js';
 
 /**
  * Módulo raíz. Aquí se registran los módulos de dominio del ERP a medida que se
@@ -42,6 +44,7 @@ import { ChangelogModule } from './modules/changelog/changelog.module.js';
     ]),
     SupabaseModule,
     AuthModule,
+    RegistroCronModule,
     HealthModule,
     // --- Módulos de dominio ---
     ConfiguracionModule,
@@ -58,6 +61,7 @@ import { ChangelogModule } from './modules/changelog/changelog.module.js';
     ClientesModule,
     ArrendatariosModule,
     ChangelogModule,
+    CronModule,
     // InversionistasModule,
     // CxpModule,
     // FideicomisoModule,

@@ -4,6 +4,8 @@ import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { SmtpService } from '../correo/smtp.service.js';
 import { CuentasService } from '../correo/cuentas.service.js';
 import { DIAS_BLOQUEO_REP } from './bloqueo.service.js';
+import { RegistroCronService } from '../../common/cron/registro-cron.service.js';
+import { TAREA_CXP_COMPLEMENTOS } from '../../common/cron/cron.tareas.js';
 
 /** A partir de cuántos días sin complemento empieza el aviso diario (faltan 5
  * para el bloqueo de 15 → del día 10 al 14). */
@@ -28,17 +30,36 @@ export class ComplementosScheduler {
     private readonly supabase: SupabaseService,
     private readonly smtp: SmtpService,
     private readonly cuentas: CuentasService,
+    private readonly registro: RegistroCronService,
   ) {}
 
   // Diario ~07:00 hora de México (13:00 UTC).
-  @Cron('0 13 * * *')
+  @Cron('0 13 * * *', { name: TAREA_CXP_COMPLEMENTOS })
   async avisar(): Promise<void> {
-    if (this.corriendo) return;
+    await this.ejecutar('programada');
+  }
+
+  /**
+   * Corre la tarea registrando la ejecución en la bitácora. Reutilizable por el
+   * disparo manual desde la pantalla Cron (`ejecutadoPor` = uid del usuario).
+   */
+  async ejecutar(
+    origen: 'programada' | 'manual',
+    ejecutadoPor?: string | null,
+  ): Promise<{ enviados: number; pendientes: number }> {
+    if (this.corriendo) return { enviados: 0, pendientes: 0 };
     this.corriendo = true;
     try {
-      await this.enviarAvisos();
+      return await this.registro.ejecutarYRegistrar(
+        TAREA_CXP_COMPLEMENTOS,
+        origen,
+        () => this.enviarAvisos(),
+        ejecutadoPor,
+      );
     } catch (e) {
       this.logger.warn(`Aviso de complementos: ${(e as Error).message}`);
+      if (origen === 'manual') throw e;
+      return { enviados: 0, pendientes: 0 };
     } finally {
       this.corriendo = false;
     }
