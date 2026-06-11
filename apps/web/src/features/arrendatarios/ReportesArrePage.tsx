@@ -14,7 +14,7 @@ import {
 } from './arrendatarios.api';
 import { configuracionApi } from '@/features/configuraciones/configuracion.api';
 import { exportarCSV } from './csv-export';
-import { exportarPDF, exportarPDFConEncabezado } from './reportes-arre-export';
+import { exportarPDF, exportarPDFEstadoCuenta } from './reportes-arre-export';
 
 const TABS: TabDef[] = [
   { id: 'estado', label: 'Estado de Cuenta' },
@@ -172,14 +172,26 @@ function EstadoCuentaTab() {
     if (!cab) return;
     setGenerandoPdf(true);
     try {
-      await exportarPDFConEncabezado({
+      await exportarPDFEstadoCuenta({
         archivo,
         titulo: 'Estado de Cuenta · Arrendatarios',
-        subtitulo:
-          `${cab.arrendatario}  ·  ${cab.parque} / Nave ${cab.nave}  ·  ` +
-          `${fechaCorta(cab.fecInicio)} → ${fechaCorta(cab.fecFin)}  ·  ${cab.moneda}  ·  ` +
-          `Generado ${fechaCorta(hoyMexico())}`,
+        generado: fechaCorta(hoyMexico()),
         logoUrl: logos?.claro?.url ?? null,
+        // Mismo grid que la tarjeta de la pantalla.
+        datos: [
+          { etiqueta: 'Arrendatario', valor: cab.arrendatario },
+          { etiqueta: 'Parque', valor: cab.parque },
+          { etiqueta: 'Nave', valor: cab.nave },
+          { etiqueta: 'Moneda', valor: cab.moneda },
+          { etiqueta: 'Inicio', valor: fechaCorta(cab.fecInicio) },
+          { etiqueta: 'Fin', valor: fechaCorta(cab.fecFin) },
+          { etiqueta: 'Plazo', valor: `${cab.plazo ?? '—'} meses` },
+          { etiqueta: 'Vigencia', valor: cab.vigencia ?? '—' },
+          { etiqueta: 'Depósito', valor: moneda(cab.deposito, divisa) },
+          { etiqueta: 'Renta $×m²', valor: num(cab.precioM2) },
+          { etiqueta: 'Const. m²', valor: num(cab.construccionM2) },
+          { etiqueta: 'INPC adic.', valor: num(cab.inpcPlus) },
+        ],
         columnas: COLS_PDF,
         filas: partidas.map((p) => filaPartida(p, pdfMonto)),
       });

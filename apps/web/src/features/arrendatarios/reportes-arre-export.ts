@@ -91,3 +91,86 @@ export async function exportarPDFConEncabezado(opts: {
   });
   doc.save(`${opts.archivo}.pdf`);
 }
+
+/**
+ * PDF del Estado de Cuenta: encabezado (logo + título) + **tarjeta de datos del
+ * plan** en grid de 4 columnas (etiqueta/valor, como en la app) + la corrida en
+ * tabla. Reproduce visualmente la pantalla.
+ */
+export async function exportarPDFEstadoCuenta(opts: {
+  archivo: string;
+  titulo: string;
+  generado: string;
+  logoUrl?: string | null;
+  datos: { etiqueta: string; valor: string }[];
+  columnas: string[];
+  filas: Celda[][];
+}) {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const marginX = 40;
+  let textoX = marginX;
+  let logoBottom = 18;
+
+  if (opts.logoUrl) {
+    const dataUrl = await urlADataURL(opts.logoUrl);
+    if (dataUrl) {
+      try {
+        const props = doc.getImageProperties(dataUrl);
+        const w = 84;
+        const h = props.height && props.width ? (props.height / props.width) * w : 32;
+        doc.addImage(dataUrl, marginX, 18, w, h);
+        textoX = marginX + w + 16;
+        logoBottom = 18 + h;
+      } catch {
+        /* imagen no soportada: se omite */
+      }
+    }
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(31, 42, 77);
+  doc.text(opts.titulo, textoX, 34);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(120, 120, 120);
+  doc.text(`Generado ${opts.generado}`, textoX, 48);
+
+  // Tarjeta de datos del plan (grid 4 columnas, etiqueta/valor).
+  const cols = 4;
+  const colW = (pageW - marginX * 2) / cols;
+  const rowH = 30;
+  const gridTop = Math.max(64, logoBottom + 12);
+  const filasGrid = Math.ceil(opts.datos.length / cols);
+  const gridBottom = gridTop + filasGrid * rowH;
+
+  // Marco suave de la tarjeta.
+  doc.setDrawColor(225, 228, 235);
+  doc.setLineWidth(0.8);
+  doc.roundedRect(marginX, gridTop - 12, pageW - marginX * 2, gridBottom - gridTop + 8, 4, 4);
+
+  opts.datos.forEach((d, i) => {
+    const x = marginX + 10 + (i % cols) * colW;
+    const y = gridTop + Math.floor(i / cols) * rowH;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(150, 150, 150);
+    doc.text(d.etiqueta.toUpperCase(), x, y);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(55, 55, 55);
+    doc.text(doc.splitTextToSize(d.valor, colW - 16)[0] ?? d.valor, x, y + 12);
+  });
+
+  doc.setTextColor(0, 0, 0);
+  autoTable(doc, {
+    head: [opts.columnas],
+    body: opts.filas.map((f) => f.map((c) => (c == null ? '' : String(c)))),
+    startY: gridBottom + 8,
+    styles: { fontSize: 7, cellPadding: 3 },
+    headStyles: { fillColor: [31, 42, 77], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+  });
+  doc.save(`${opts.archivo}.pdf`);
+}
