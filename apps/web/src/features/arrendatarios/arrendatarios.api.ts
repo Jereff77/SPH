@@ -277,6 +277,7 @@ export interface EstadoCuentaCabecera {
   parque: string;
   nave: string;
   moneda: string;
+  estado: 'VIGENTE' | 'TERMINADO' | 'CANCELADO';
   fecInicio: string | null;
   fecFin: string | null;
   plazo: number | null;

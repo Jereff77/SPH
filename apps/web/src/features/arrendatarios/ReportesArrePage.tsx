@@ -176,6 +176,7 @@ function EstadoCuentaTab() {
         archivo,
         titulo: 'Estado de Cuenta · Arrendatarios',
         generado: fechaCorta(hoyMexico()),
+        estado: cab.estado,
         logoUrl: logos?.claro?.url ?? null,
         // Mismo grid que la tarjeta de la pantalla.
         datos: [
@@ -282,20 +283,23 @@ function EstadoCuentaTab() {
         </div>
       ) : (
         <>
-          {/* Cabecera: datos del plan */}
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 rounded-xl border bg-white p-4 text-sm sm:grid-cols-4">
-            <Dato etq="Arrendatario" val={cab.arrendatario} />
-            <Dato etq="Parque" val={cab.parque} />
-            <Dato etq="Nave" val={cab.nave} />
-            <Dato etq="Moneda" val={cab.moneda} />
-            <Dato etq="Inicio" val={fechaCorta(cab.fecInicio)} />
-            <Dato etq="Fin" val={fechaCorta(cab.fecFin)} />
-            <Dato etq="Plazo" val={`${cab.plazo ?? '—'} meses`} />
-            <Dato etq="Vigencia" val={cab.vigencia ?? '—'} />
-            <Dato etq="Depósito" val={moneda(cab.deposito, divisa)} />
-            <Dato etq="Renta $×m²" val={num(cab.precioM2)} />
-            <Dato etq="Const. m²" val={num(cab.construccionM2)} />
-            <Dato etq="INPC adic." val={num(cab.inpcPlus)} />
+          {/* Cabecera: datos del plan + estado del contrato */}
+          <div className="flex flex-col gap-4 rounded-xl border bg-white p-4 lg:flex-row lg:items-stretch">
+            <div className="grid flex-1 grid-cols-2 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-4">
+              <Dato etq="Arrendatario" val={cab.arrendatario} />
+              <Dato etq="Parque" val={cab.parque} />
+              <Dato etq="Nave" val={cab.nave} />
+              <Dato etq="Moneda" val={cab.moneda} />
+              <Dato etq="Inicio" val={fechaCorta(cab.fecInicio)} />
+              <Dato etq="Fin" val={fechaCorta(cab.fecFin)} />
+              <Dato etq="Plazo" val={`${cab.plazo ?? '—'} meses`} />
+              <Dato etq="Vigencia" val={cab.vigencia ?? '—'} />
+              <Dato etq="Depósito" val={moneda(cab.deposito, divisa)} />
+              <Dato etq="Renta $×m²" val={num(cab.precioM2)} />
+              <Dato etq="Const. m²" val={num(cab.construccionM2)} />
+              <Dato etq="INPC adic." val={num(cab.inpcPlus)} />
+            </div>
+            <BadgeEstado estado={cab.estado} />
           </div>
 
           {/* Corrida desglosada */}
@@ -385,6 +389,25 @@ function Dato({ etq, val }: { etq: string; val: string }) {
     <div className="flex flex-col">
       <span className="text-[10px] uppercase tracking-wide text-gray-400">{etq}</span>
       <span className="font-medium text-gray-700">{val}</span>
+    </div>
+  );
+}
+
+/** Badge grande con el estado del contrato (VIGENTE / TERMINADO / CANCELADO). */
+function BadgeEstado({ estado }: { estado: 'VIGENTE' | 'TERMINADO' | 'CANCELADO' }) {
+  const estilo: Record<typeof estado, string> = {
+    VIGENTE: 'border-green-500 bg-green-50 text-green-700',
+    TERMINADO: 'border-gray-400 bg-gray-50 text-gray-600',
+    CANCELADO: 'border-red-500 bg-red-50 text-red-700',
+  };
+  return (
+    <div
+      className={`flex min-w-[180px] flex-col items-center justify-center rounded-xl border-2 px-6 py-3 ${estilo[estado]}`}
+    >
+      <span className="text-[10px] font-semibold uppercase tracking-widest opacity-70">
+        Estado del contrato
+      </span>
+      <span className="text-2xl font-extrabold tracking-wide">{estado}</span>
     </div>
   );
 }

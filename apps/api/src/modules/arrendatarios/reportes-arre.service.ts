@@ -35,6 +35,8 @@ export interface EstadoCuentaCabecera {
   parque: string;
   nave: string;
   moneda: string;
+  /** Estado visual del contrato. */
+  estado: 'VIGENTE' | 'TERMINADO' | 'CANCELADO';
   fecInicio: string | null;
   fecFin: string | null;
   plazo: number | null;
@@ -74,6 +76,26 @@ export interface EstadoCuentaPartida {
 export interface EstadoCuentaCorrida {
   cabecera: EstadoCuentaCabecera;
   partidas: EstadoCuentaPartida[];
+}
+
+/** Fila cruda de `arrePdp` (incluye `canceladoAnticipado`, aún no en @erp/types). */
+interface PlanCabeceraRow {
+  idArrePdp: string;
+  idNavArrend: string | null;
+  idArrendador: string | null;
+  fecInicio: string | null;
+  fecFin: string | null;
+  plazo: number | null;
+  deposito: number | null;
+  precioM2: number | null;
+  construccionM2: number | null;
+  pm2Admin: number | null;
+  pm2Mtto: number | null;
+  pm2Vig: number | null;
+  INPCPlus: number | null;
+  Moneda: string | null;
+  arrePdpVigente: string | null;
+  canceladoAnticipado: boolean | null;
 }
 
 /** Normaliza el nombre de un concepto (sin acentos/minúsculas) para clasificarlo. */
@@ -321,15 +343,21 @@ export class ReportesArreService {
    * resto) + Nota (detalle), Total y el estado de pago (monto aplicado, fecha, pagado).
    */
   async estadoCuentaCorrida(idArrePdp: string): Promise<EstadoCuentaCorrida> {
-    const { data: plan, error } = await this.supabase.admin
+    // select('*') para incluir `canceladoAnticipado` (aún no tipada en @erp/types).
+    const { data: planRaw, error } = await this.supabase.admin
       .from('arrePdp')
-      .select(
-        'idArrePdp, idNavArrend, idArrendador, fecInicio, fecFin, plazo, deposito, precioM2, construccionM2, pm2Admin, pm2Mtto, pm2Vig, INPCPlus, Moneda, arrePdpVigente',
-      )
+      .select('*')
       .eq('idArrePdp', idArrePdp)
       .maybeSingle();
     if (error) throw new InternalServerErrorException(error.message);
-    if (!plan) throw new NotFoundException('Plan no encontrado.');
+    if (!planRaw) throw new NotFoundException('Plan no encontrado.');
+    const plan = planRaw as unknown as PlanCabeceraRow;
+
+    const estado: EstadoCuentaCabecera['estado'] = plan.canceladoAnticipado
+      ? 'CANCELADO'
+      : plan.arrePdpVigente === 'No'
+        ? 'TERMINADO'
+        : 'VIGENTE';
 
     // Enriquecer la cabecera (nave/parque/arrendatario).
     const { data: prop } = await this.supabase.admin
@@ -367,6 +395,7 @@ export class ReportesArreService {
       parque: parque?.nomParque ?? '—',
       nave: nave?.numNaveNAME ?? (nave?.numNave != null ? String(nave.numNave) : '—'),
       moneda: plan.Moneda ?? 'MXN',
+      estado,
       fecInicio: plan.fecInicio,
       fecFin: plan.fecFin,
       plazo: plan.plazo,
