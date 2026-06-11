@@ -46,6 +46,18 @@ export interface ParcialidadPpd {
   nomGerente: string | null;
   categoria: string | null;
   clasificacion: string | null;
+  // Estado del Complemento de Pago (REP):
+  uuidComplemento: string | null;
+  fecComplemento: string | null;
+  urlComplementoXml: string | null; // URL firmada (1 h) o null
+  urlComplementoPdf: string | null;
+  repPendiente: boolean; // pagada, sin REP y sin dispensa
+  diasDesdePago: number | null;
+  // Dispensa por excepción:
+  complementoExento: boolean;
+  complementoExentoMotivo: string | null;
+  fecComplementoExento: string | null;
+  dispensadoPorNombre: string | null;
 }
 
 export interface DetallePpd {
@@ -125,4 +137,14 @@ export const ppdApi = {
     idCxpPPD: string,
     dto: { idCategoria: string; justificacion: string; monto: number },
   ) => api.post<{ idCxp: string }>(`/cxp/ppd/${idCxpPPD}/parcial`, dto),
+  /** Sube el Complemento de Pago (REP) de una parcialidad pagada. */
+  subirComplemento: (idCxp: string, xml: File, pdf: File | null) => {
+    const fd = new FormData();
+    fd.append('xml', xml);
+    if (pdf) fd.append('pdf', pdf);
+    return api.postForm<{ uuid: string }>(`/cxp/ppd/parcial/${idCxp}/complemento`, fd);
+  },
+  /** Dispensa el complemento de una parcialidad por excepción (permiso 403). */
+  dispensarComplemento: (idCxp: string, motivo: string) =>
+    api.post<{ ok: true }>(`/cxp/ppd/parcial/${idCxp}/dispensar-complemento`, { motivo }),
 };

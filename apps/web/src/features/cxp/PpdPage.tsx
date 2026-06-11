@@ -1,11 +1,18 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ppdApi, type FacturaPpd, type DetallePpd } from './ppd.api';
+import {
+  ppdApi,
+  type FacturaPpd,
+  type DetallePpd,
+  type ParcialidadPpd,
+} from './ppd.api';
 import { ESTADOS_CXP } from './solicitudes.api';
 import { useSort, type Accessors } from '@/components/tabla/useSort';
 import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
 import { NuevaFacturaPpd } from './NuevaFacturaPpd';
 import { NuevaParcialPpd } from './NuevaParcialPpd';
+import { SubirComplementoModal } from './SubirComplementoModal';
+import { DispensarComplementoModal } from './DispensarComplementoModal';
 import { useAuth } from '@/features/auth/useAuth';
 
 const fmt = (n: number, mon = 'MXN') =>
@@ -260,11 +267,21 @@ function DetalleModal({
   moneda: string;
   onClose: () => void;
 }) {
+  const qc = useQueryClient();
+  const { tienePermiso } = useAuth();
+  const puedeDispensar = tienePermiso(403);
   const { data, isLoading } = useQuery<DetallePpd>({
     queryKey: ['cxp-ppd-detalle', idCxpPPD],
     queryFn: () => ppdApi.detalle(idCxpPPD),
   });
+  const [subirDe, setSubirDe] = useState<ParcialidadPpd | null>(null);
+  const [dispensarDe, setDispensarDe] = useState<ParcialidadPpd | null>(null);
   const mon = moneda || 'MXN';
+
+  const refrescar = () => {
+    qc.invalidateQueries({ queryKey: ['cxp-ppd-detalle', idCxpPPD] });
+    qc.invalidateQueries({ queryKey: ['cxp-ppd'] });
+  };
 
   return (
     <div
@@ -312,12 +329,13 @@ function DetalleModal({
                       <SortableTh align="center">Estatus</SortableTh>
                       <SortableTh>Clasificación</SortableTh>
                       <SortableTh>Pago</SortableTh>
+                      <SortableTh align="center">Complemento (REP)</SortableTh>
                     </tr>
                   </thead>
                   <tbody>
                     {data.parcialidades.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
+                        <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
                           Sin parcialidades.
                         </td>
                       </tr>
@@ -346,6 +364,14 @@ function DetalleModal({
                               {[p.categoria, p.clasificacion].filter(Boolean).join(' / ') || '—'}
                             </td>
                             <td className="px-4 py-2 text-gray-600">{fechaCorta(p.fecPago)}</td>
+                            <td className="px-4 py-2 text-center">
+                              <Complemento
+                                parcial={p}
+                                onSubir={() => setSubirDe(p)}
+                                onDispensar={() => setDispensarDe(p)}
+                                puedeDispensar={puedeDispensar}
+                              />
+                            </td>
                           </tr>
                         );
                       })
@@ -362,6 +388,96 @@ function DetalleModal({
             Cerrar
           </button>
         </div>
+      </div>
+
+      {subirDe && (
+        <SubirComplementoModal
+          parcial={subirDe}
+          onClose={() => setSubirDe(null)}
+          onSubido={() => {
+            setSubirDe(null);
+            refrescar();
+          }}
+        />
+      )}
+      {dispensarDe && (
+        <DispensarComplementoModal
+          parcial={dispensarDe}
+          onClose={() => setDispensarDe(null)}
+          onDispensado={() => {
+            setDispensarDe(null);
+            refrescar();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Estado del Complemento de Pago de una parcialidad (en el detalle). */
+function Complemento({
+  parcial: p,
+  onSubir,
+  onDispensar,
+  puedeDispensar,
+}: {
+  parcial: ParcialidadPpd;
+  onSubir: () => void;
+  onDispensar: () => void;
+  puedeDispensar: boolean;
+}) {
+  const pagada = p.idEstado === 6 || p.idEstado === 7;
+  if (!pagada) return <span className="text-xs text-gray-300">—</span>;
+  if (p.uuidComplemento) {
+    return p.urlComplementoXml ? (
+      <a
+        href={p.urlComplementoXml}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs font-medium text-green-700 hover:underline"
+        title={p.uuidComplemento}
+      >
+        ✓ REP subido
+      </a>
+    ) : (
+      <span className="text-xs font-medium text-green-700">✓ REP subido</span>
+    );
+  }
+  if (p.complementoExento) {
+    const tip = [
+      p.complementoExentoMotivo,
+      p.dispensadoPorNombre ? `Autorizó: ${p.dispensadoPorNombre}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    return (
+      <span className="text-xs font-medium text-gray-500" title={tip || undefined}>
+        Dispensado (excepción)
+      </span>
+    );
+  }
+  const vencido = (p.diasDesdePago ?? 0) > 15;
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <span className={`text-xs ${vencido ? 'font-semibold text-red-600' : 'text-amber-600'}`}>
+        Pendiente{p.diasDesdePago != null ? ` (${p.diasDesdePago} d)` : ''}
+      </span>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={onSubir}
+          className="rounded bg-[#3f5b87] px-2 py-0.5 text-xs font-medium text-white hover:bg-[#1f2a4d]"
+        >
+          Subir
+        </button>
+        {puedeDispensar && (
+          <button
+            onClick={onDispensar}
+            title="Dispensar por excepción (proveedor que no emitirá el REP)"
+            className="rounded border border-amber-400 px-2 py-0.5 text-xs font-medium text-amber-700 hover:bg-amber-50"
+          >
+            Dispensar
+          </button>
+        )}
       </div>
     </div>
   );

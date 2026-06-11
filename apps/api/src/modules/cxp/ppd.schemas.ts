@@ -31,3 +31,13 @@ export const nuevaParcialPpdSchema = z.object({
   monto,
 });
 export type NuevaParcialPpdDto = z.infer<typeof nuevaParcialPpdSchema>;
+
+/** Dispensa de complemento (REP) por excepción: requiere un motivo. */
+export const dispensarComplementoSchema = z.object({
+  motivo: z
+    .string()
+    .trim()
+    .min(10, 'El motivo debe tener al menos 10 caracteres.')
+    .max(300, 'El motivo no debe exceder 300 caracteres.'),
+});
+export type DispensarComplementoDto = z.infer<typeof dispensarComplementoSchema>;

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CorreoModule } from '../correo/correo.module.js';
 import { ProveedoresController } from './proveedores.controller.js';
 import { ProveedoresService } from './proveedores.service.js';
 import { BancosController } from './bancos.controller.js';
@@ -19,6 +20,8 @@ import { AprobacionService } from './aprobacion.service.js';
 import { AprobacionStreamController } from './aprobacion-stream.controller.js';
 import { PpdController } from './ppd.controller.js';
 import { PpdService } from './ppd.service.js';
+import { BloqueoService } from './bloqueo.service.js';
+import { ComplementosScheduler } from './complementos.scheduler.js';
 
 /**
  * Módulo Cuentas por Pagar (CxP). Se construye por fases: Proveedores →
@@ -26,6 +29,7 @@ import { PpdService } from './ppd.service.js';
  * registrando los controllers/services de cada submódulo.
  */
 @Module({
+  imports: [CorreoModule],
   controllers: [
     ProveedoresController,
     BancosController,
@@ -49,6 +53,8 @@ import { PpdService } from './ppd.service.js';
     SseAuthGuard,
     AprobacionService,
     PpdService,
+    BloqueoService,
+    ComplementosScheduler,
   ],
 })
 export class CxpModule {}

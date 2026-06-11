@@ -45,6 +45,18 @@
     **Enviada** y fluye por Aprobar/Pagar; al pagar se sincroniza `cxp_ppd.montoAplicado`. **Reutiliza las tablas
     EXISTENTES `cxp` + `cxp_ppd`** (autorizado; ambas con `trg_auditoria`) — **sin objetos nuevos en BD, sin
     RPCs, sin SQL crudo**. `validarCfdi` se parametrizó (acepta PPD, relaja "mes en curso"). Ver `modulos/cxp.md`.
+    **Complemento de Pago (REP) + candado + dispensa (v2.17):** se captura el **REP** (CFDI tipo P) de cada
+    parcialidad pagada (`POST /cxp/ppd/parcial/:idCxp/complemento`, valida tipo P + `IdDocumento`=folio +
+    `ImpPagado`=monto + emisor/receptor; parser `parsearComplementoPago` en `cfdi.ts`, limpia **BOM**; archivos
+    en bucket privado **`complementospago`**, URLs firmadas). **Candado escalonado** (`bloqueo.service.ts`,
+    derivado, se levanta solo): **nivel 1** proveedor con REP pendiente → bloquea cualquier solicitud suya;
+    **nivel 2** >15 días → bloquea al usuario para toda solicitud (verificado en **las 7 altas**; `isSupport`
+    exento). **Aviso diario** (`complementos.scheduler.ts`, `@Cron`) del día 10–14 al solicitante + gerente que
+    autorizó, vía la **cuenta del buzón de facturas** (`CorreoModule` exporta `SmtpService`+`CuentasService`).
+    **Dispensa por excepción** (permiso **403**) para proveedor de única vez que no emitirá el REP: libera esa
+    parcialidad con motivo + auditoría (`dispensarComplemento`). Objetos nuevos en BD (autorizados): columnas
+    `cxp.{urlComplemento*,uuidComplemento,fecComplemento,complementoExento,complementoExentoMotivo,
+    complementoExentoPor,fecComplementoExento}`, bucket `complementospago`, permiso 403 en `segModulos`.
   - **Correo** (sección propia): buzón de facturas IMAP/SMTP en el backend (sin N8N). Sincroniza **todas las
     carpetas** del buzón dinámicamente (descubiertas vía `client.list()`, excluye Papelera/Spam/Borradores),
     **selector de carpeta** en la bandeja (estructura real del buzón en vivo, aparecen carpetas nuevas/

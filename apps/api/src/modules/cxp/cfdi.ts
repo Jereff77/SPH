@@ -66,8 +66,15 @@ const parser = new XMLParser({
   removeNSPrefix: true, // quita prefijos cfdi:/tfd: → nodos planos
   parseAttributeValue: false, // mantener strings (RFC, tasas con ceros)
   trimValues: true,
-  isArray: (name) => ['Concepto', 'Traslado', 'Retencion'].includes(name),
+  isArray: (name) =>
+    ['Concepto', 'Traslado', 'Retencion', 'Pago', 'DoctoRelacionado'].includes(name),
 });
+
+/** Quita el BOM (EF BB BF) si el archivo lo trae; si no, fast-xml-parser no
+ * encuentra la raíz y todo el parseo falla. */
+function limpiarBom(xml: string): string {
+  return xml.charCodeAt(0) === 0xfeff ? xml.slice(1) : xml;
+}
 
 interface ImpuestosNodo {
   Traslados?: { Traslado?: Record<string, unknown>[] };
@@ -93,7 +100,7 @@ function acumularImpuestos(
 export function parsearCfdi(xml: string): CfdiData {
   let root: Record<string, unknown>;
   try {
-    const doc = parser.parse(xml) as Record<string, unknown>;
+    const doc = parser.parse(limpiarBom(xml)) as Record<string, unknown>;
     root = (doc.Comprobante ?? {}) as Record<string, unknown>;
   } catch {
     throw new Error('El archivo XML no se pudo leer (formato inválido).');
@@ -243,6 +250,169 @@ export function validarDeducciones(
       errores.push(
         `La tasa de retención de ISR (${(tasa * 100).toFixed(4)}%) no corresponde con la esperada (${(tasaISR * 100).toFixed(2)}%).`,
       );
+  }
+
+  return errores;
+}
+
+// ======================= Complemento de Pago (REP) =======================
+// CFDI 4.0 tipo "P" con complemento Pagos 2.0. Cada `Pago` lleva uno o varios
+// `DoctoRelacionado` que referencian la factura pagada por su UUID
+// (`IdDocumento`) y el importe aplicado (`ImpPagado`). Se usa para registrar el
+// complemento de cada parcialidad PPD y validar que corresponde a la factura.
+
+export interface DoctoRelacionadoRep {
+  idDocumento: string; // UUID de la factura pagada (en mayúsculas)
+  impPagado: number;
+  numParcialidad: string;
+  serie: string;
+  folio: string;
+}
+
+export interface PagoRep {
+  monto: number;
+  fecha: string;
+  moneda: string;
+  doctos: DoctoRelacionadoRep[];
+}
+
+export interface ComplementoPagoData {
+  tipoComprobante: string | null; // debe ser 'P'
+  uuid: string | null; // UUID del propio REP (TimbreFiscalDigital)
+  emisorRfc: string; // el proveedor que emite el REP
+  receptorRfc: string; // la empresa que recibió el pago
+  fecha: string;
+  pagos: PagoRep[];
+}
+
+/** Parsea un CFDI de tipo Pago (REP). Lanza Error si no es un complemento válido. */
+export function parsearComplementoPago(xml: string): ComplementoPagoData {
+  let root: Record<string, unknown>;
+  try {
+    const doc = parser.parse(limpiarBom(xml)) as Record<string, unknown>;
+    root = (doc.Comprobante ?? {}) as Record<string, unknown>;
+  } catch {
+    throw new Error('El archivo XML no se pudo leer (formato inválido).');
+  }
+  if (!root || Object.keys(root).length === 0) {
+    throw new Error('El XML no es un CFDI válido (no se encontró el Comprobante).');
+  }
+
+  const tipoComprobante = str(root['@_TipoDeComprobante']) || null;
+  if (tipoComprobante !== 'P') {
+    throw new Error(
+      `El XML no es un Complemento de Pago (es un comprobante tipo "${tipoComprobante ?? '?'}", se esperaba "P").`,
+    );
+  }
+
+  const emisor = (root.Emisor ?? {}) as Record<string, unknown>;
+  const receptor = (root.Receptor ?? {}) as Record<string, unknown>;
+
+  // Complemento → Pagos (objeto) → Pago (array por isArray).
+  const complemento = root.Complemento as
+    | Record<string, unknown>
+    | Record<string, unknown>[]
+    | undefined;
+  const comps = Array.isArray(complemento) ? complemento : complemento ? [complemento] : [];
+  let pagosNodo: { Pago?: Record<string, unknown>[] } | undefined;
+  let timbre: Record<string, unknown> | undefined;
+  for (const c of comps) {
+    if (c['Pagos']) pagosNodo = c['Pagos'] as { Pago?: Record<string, unknown>[] };
+    const tfd = c['TimbreFiscalDigital'] as
+      | Record<string, unknown>
+      | Record<string, unknown>[]
+      | undefined;
+    if (tfd) timbre = Array.isArray(tfd) ? tfd[0] : tfd;
+  }
+  if (!pagosNodo || !pagosNodo.Pago || pagosNodo.Pago.length === 0) {
+    throw new Error('El Complemento de Pago no contiene información de Pagos (Pagos 2.0).');
+  }
+
+  const pagos: PagoRep[] = pagosNodo.Pago.map((p) => {
+    const doctosRaw = (p.DoctoRelacionado ?? []) as Record<string, unknown>[];
+    const doctos: DoctoRelacionadoRep[] = doctosRaw.map((d) => ({
+      idDocumento: str(d['@_IdDocumento']).toUpperCase(),
+      impPagado: num(d['@_ImpPagado']),
+      numParcialidad: str(d['@_NumParcialidad']),
+      serie: str(d['@_Serie']),
+      folio: str(d['@_Folio']),
+    }));
+    return {
+      monto: num(p['@_Monto']),
+      fecha: str(p['@_FechaPago']),
+      moneda: str(p['@_MonedaP']) || 'MXN',
+      doctos,
+    };
+  });
+
+  return {
+    tipoComprobante,
+    uuid: timbre && timbre['@_UUID'] ? str(timbre['@_UUID']).toUpperCase() : null,
+    emisorRfc: str(emisor['@_Rfc']).toUpperCase(),
+    receptorRfc: str(receptor['@_Rfc']).toUpperCase(),
+    fecha: str(root['@_Fecha']),
+    pagos,
+  };
+}
+
+/**
+ * Valida que un REP corresponda a una factura PPD y a un pago concreto:
+ * - El receptor es un RFC autorizado de la empresa.
+ * - El emisor coincide con el RFC del proveedor de la factura.
+ * - Existe al menos un `DoctoRelacionado` cuyo `IdDocumento` = UUID de la factura.
+ * - La suma de `ImpPagado` para ese documento coincide con el monto esperado (±0.01).
+ * Devuelve la lista de errores (vacía = válido).
+ */
+export function validarRepContra(
+  rep: ComplementoPagoData,
+  opts: {
+    folioFactura: string; // UUID de la factura PPD (cxp_ppd.folio)
+    montoEsperado: number; // monto pagado de la parcialidad
+    rfcProveedor: string | null;
+    receptoresAutorizados: string[];
+  },
+): string[] {
+  const errores: string[] = [];
+  const folio = (opts.folioFactura || '').toUpperCase();
+
+  if (
+    opts.receptoresAutorizados.length > 0 &&
+    !opts.receptoresAutorizados.includes(rep.receptorRfc)
+  ) {
+    errores.push(
+      `El complemento está emitido al RFC ${rep.receptorRfc || '(vacío)'}, que no es un receptor autorizado de la empresa.`,
+    );
+  }
+
+  if (opts.rfcProveedor && rep.emisorRfc !== opts.rfcProveedor.toUpperCase()) {
+    errores.push(
+      `El complemento lo emite ${rep.emisorRfc || '(sin RFC)'}, que no coincide con el proveedor de la factura (${opts.rfcProveedor.toUpperCase()}).`,
+    );
+  }
+
+  // Suma de ImpPagado de los doctos que referencian esta factura.
+  let impDelFolio = 0;
+  let encontrado = false;
+  for (const p of rep.pagos) {
+    for (const d of p.doctos) {
+      if (d.idDocumento === folio) {
+        encontrado = true;
+        impDelFolio += d.impPagado;
+      }
+    }
+  }
+
+  if (!encontrado) {
+    errores.push(
+      `El complemento no corresponde a esta factura: no referencia el folio fiscal ${folio}.`,
+    );
+    return errores; // sin el documento no tiene sentido validar el monto
+  }
+
+  if (Math.abs(impDelFolio - opts.montoEsperado) > 0.01) {
+    errores.push(
+      `El importe pagado en el complemento (${impDelFolio.toFixed(2)}) no coincide con el monto de la parcialidad (${opts.montoEsperado.toFixed(2)}).`,
+    );
   }
 
   return errores;

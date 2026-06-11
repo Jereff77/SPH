@@ -10,6 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { PDFParse } from 'pdf-parse';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { ClavesSatService } from './claves-sat.service.js';
+import { BloqueoService } from './bloqueo.service.js';
 import {
   parsearCfdi,
   validarDeducciones,
@@ -42,6 +43,7 @@ export class SolicitudesService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly clavesSat: ClavesSatService,
+    private readonly bloqueo: BloqueoService,
   ) {}
 
   private generarId(n = 10): string {
@@ -288,7 +290,7 @@ export class SolicitudesService {
   // ===================== Alta de solicitud (CFDI con XML) =====================
 
   /** RFC(s) receptor autorizados (la empresa) desde SPHConfiguraciones. */
-  private async rfcReceptoresAutorizados(): Promise<string[]> {
+  async rfcReceptoresAutorizados(): Promise<string[]> {
     const { data } = await this.supabase.admin
       .from('SPHConfiguraciones')
       .select('valor')
@@ -518,6 +520,7 @@ export class SolicitudesService {
     actorUid: string,
   ): Promise<{ idCxp: string }> {
     const { cfdi, proveedor } = await this.validarCfdi(xml.toString('utf8'), pdf);
+    await this.bloqueo.verificar(actorUid, proveedor.idProveedor);
     const uuid = cfdi.uuid!;
     const carpeta = cfdi.emisorRfc || 'sin-rfc';
     const pathPdf = `${carpeta}/${uuid}.pdf`;
@@ -733,6 +736,7 @@ export class SolicitudesService {
 
   /** Urgentes (tipoOperacion=2, idEstado=2 → directo a aprobación, esUrgente). */
   async crearUrgente(dto: CrearUrgenteDto, actorUid: string): Promise<{ idCxp: string }> {
+    await this.bloqueo.verificar(actorUid, dto.idProveedor);
     const uidGerente = await this.responsableDeCategoria(dto.idCategoria);
     const nombreProveedor = await this.razonSocialProveedor(dto.idProveedor);
     const idCxp = this.generarId(15);
@@ -762,6 +766,7 @@ export class SolicitudesService {
     pdf: Buffer,
     actorUid: string,
   ): Promise<{ idCxp: string }> {
+    await this.bloqueo.verificar(actorUid, dto.idProveedor);
     const uidGerente = await this.responsableDeCategoria(dto.idCategoria);
     // Duplicado coherente (corrige el chequeo roto de v1): misma línea de captura activa.
     const { data: dup } = await this.supabase.admin
@@ -806,6 +811,7 @@ export class SolicitudesService {
     dto: CrearDevolucionDto,
     actorUid: string,
   ): Promise<{ idCxp: string }> {
+    await this.bloqueo.verificar(actorUid, null); // contraparte = inversionista (sin PPD)
     const uidGerente = await this.responsableDeCategoria(dto.idCategoria);
     const nombreProveedor = await this.razonSocialInversionista(dto.idInversionista);
     if (!nombreProveedor)
@@ -837,6 +843,7 @@ export class SolicitudesService {
     pdf: Buffer,
     actorUid: string,
   ): Promise<{ idCxp: string }> {
+    await this.bloqueo.verificar(actorUid, dto.idProveedor);
     const uidGerente = await this.responsableDeCategoria(dto.idCategoria);
     // Duplicado coherente: mismo proveedor + folio activo.
     const { data: dup } = await this.supabase.admin

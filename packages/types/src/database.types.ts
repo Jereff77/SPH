@@ -2749,7 +2749,15 @@ export type Database = {
           uidr: string
           ultimoComentario: string
           urlCFDI: string | null
+          urlComplementoPdf: string | null
+          urlComplementoXml: string | null
           urlXLM: string | null
+          uuidComplemento: string | null
+          fecComplemento: string | null
+          complementoExento: boolean
+          complementoExentoMotivo: string | null
+          complementoExentoPor: string | null
+          fecComplementoExento: string | null
         }
         Insert: {
           autorizadoFP?: boolean
@@ -2798,7 +2806,15 @@ export type Database = {
           uidr: string
           ultimoComentario?: string
           urlCFDI?: string | null
+          urlComplementoPdf?: string | null
+          urlComplementoXml?: string | null
           urlXLM?: string | null
+          uuidComplemento?: string | null
+          fecComplemento?: string | null
+          complementoExento?: boolean
+          complementoExentoMotivo?: string | null
+          complementoExentoPor?: string | null
+          fecComplementoExento?: string | null
         }
         Update: {
           autorizadoFP?: boolean
@@ -2847,7 +2863,15 @@ export type Database = {
           uidr?: string
           ultimoComentario?: string
           urlCFDI?: string | null
+          urlComplementoPdf?: string | null
+          urlComplementoXml?: string | null
           urlXLM?: string | null
+          uuidComplemento?: string | null
+          fecComplemento?: string | null
+          complementoExento?: boolean
+          complementoExentoMotivo?: string | null
+          complementoExentoPor?: string | null
+          fecComplementoExento?: string | null
         }
         Relationships: [
           {

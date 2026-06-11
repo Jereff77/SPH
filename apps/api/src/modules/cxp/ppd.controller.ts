@@ -14,8 +14,10 @@ import { PpdService } from './ppd.service.js';
 import {
   nuevaFacturaPpdSchema,
   nuevaParcialPpdSchema,
+  dispensarComplementoSchema,
   type NuevaFacturaPpdDto,
   type NuevaParcialPpdDto,
+  type DispensarComplementoDto,
 } from './ppd.schemas.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard.js';
@@ -104,5 +106,41 @@ export class PpdController {
     @Body(new ZodValidationPipe(nuevaParcialPpdSchema)) dto: NuevaParcialPpdDto,
   ) {
     return this.svc.nuevaParcial(idCxpPPD, dto, actor.uid);
+  }
+
+  /** Sube el Complemento de Pago (REP) de una parcialidad pagada (XML + PDF). */
+  @Post('parcial/:idCxp/complemento')
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'xml', maxCount: 1 },
+        { name: 'pdf', maxCount: 1 },
+      ],
+      { limits: { fileSize: LIMITE_ARCHIVO } },
+    ),
+  )
+  async subirComplemento(
+    @CurrentUser() actor: AuthUser,
+    @Param('idCxp') idCxp: string,
+    @UploadedFiles() files: CfdiFiles,
+  ) {
+    const xml = files.xml?.[0];
+    const pdf = files.pdf?.[0];
+    if (!xml) throw new BadRequestException('Falta el archivo XML del complemento.');
+    return this.svc.subirComplemento(idCxp, xml.buffer, pdf?.buffer ?? null, actor.uid);
+  }
+
+  /**
+   * Dispensa de complemento por excepción (p. ej. proveedor de única vez que no
+   * emitirá el REP). Requiere el permiso 403 (sobrescribe el 420 de la clase).
+   */
+  @Post('parcial/:idCxp/dispensar-complemento')
+  @RequierePermiso(403)
+  async dispensarComplemento(
+    @CurrentUser() actor: AuthUser,
+    @Param('idCxp') idCxp: string,
+    @Body(new ZodValidationPipe(dispensarComplementoSchema)) dto: DispensarComplementoDto,
+  ) {
+    return this.svc.dispensarComplemento(idCxp, dto.motivo, actor.uid);
   }
 }

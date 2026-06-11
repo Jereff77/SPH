@@ -27,6 +27,40 @@ export class SmtpService {
 
   constructor(private readonly supabase: SupabaseService) {}
 
+  /**
+   * Envía un correo de notificación (sin hilo ni registro en `correo_mensajes`).
+   * Reutilizable por procesos internos (p. ej. avisos de complementos PPD). No
+   * lanza si falla: registra el error y devuelve false (un fallo de correo no
+   * debe tumbar el job que lo invoca).
+   */
+  async enviarNotificacion(
+    cred: Credenciales,
+    para: string[],
+    subject: string,
+    html: string,
+  ): Promise<boolean> {
+    const destinatarios = [...new Set(para.filter(Boolean))];
+    if (destinatarios.length === 0) return false;
+    const transporter = nodemailer.createTransport({
+      host: cred.smtpHost,
+      port: cred.smtpPort,
+      secure: cred.smtpPort === 465,
+      auth: { user: cred.usuario, pass: cred.password },
+    });
+    try {
+      await transporter.sendMail({
+        from: cred.email,
+        to: destinatarios.join(', '),
+        subject,
+        html,
+      });
+      return true;
+    } catch (e) {
+      this.logger.error(`SMTP notificación ${cred.email}: ${(e as Error).message}`);
+      return false;
+    }
+  }
+
   async responder(
     cred: Credenciales,
     original: CorreoOriginal,

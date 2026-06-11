@@ -517,10 +517,52 @@ proveedor registrado, retenciones, XML↔PDF) se mantienen iguales.
 - `POST /api/cxp/ppd/analizar` — analiza el CFDI PPD (multipart xml+pdf).
 - `POST /api/cxp/ppd` — crea factura + primera parcial (multipart).
 - `POST /api/cxp/ppd/:idCxpPPD/parcial` — nueva solicitud parcial (JSON).
+- `POST /api/cxp/ppd/parcial/:idCxp/complemento` — sube el Complemento de Pago (REP) de una parcialidad
+  pagada (multipart xml + pdf opcional).
+
+### Complemento de Pago (REP) + candado escalonado  ✅ (v2.15+)
+Cada pago de una parcialidad PPD obliga al proveedor a emitir un **Complemento de Pago (REP)**: un CFDI
+**tipo `P`** (`Pagos 2.0`) que referencia la factura por su UUID (`DoctoRelacionado.IdDocumento`) y el importe
+(`ImpPagado`). v2 lo captura y controla.
+
+- **Almacenamiento (objetos autorizados):** 4 columnas NULLABLE nuevas en `cxp` —
+  `urlComplementoXml`, `urlComplementoPdf` (rutas en el bucket), `uuidComplemento` (UUID del REP, anti-duplicado)
+  y `fecComplemento` — + bucket **privado `complementospago`**. El detalle PPD entrega **URLs firmadas** (1 h)
+  para ver/descargar los archivos. `cxp` ya tiene `trg_auditoria` → todo auditado.
+- **Parser/validación** (`cfdi.ts`): `parsearComplementoPago` (limpia **BOM**; `Pago`/`DoctoRelacionado` como
+  arrays) + `validarRepContra`. Al subir (`PpdService.subirComplemento`) se exige: tipo `P`; receptor ∈
+  `RFC_RECEPTORES_AUTORIZADOS`; emisor == RFC del proveedor de la factura; un `DoctoRelacionado.IdDocumento` =
+  `cxp_ppd.folio`; `ImpPagado` == monto de la parcialidad (±0.01); UUID del REP no repetido. Solo sobre
+  parcialidades **pagadas** (idEstado 6/7) y sin REP previo.
+- **Candado escalonado** (`bloqueo.service.ts`, derivado de datos — se levanta solo al subir el REP; `isSupport`
+  exento). Se verifica al inicio de **las 7 altas** (`crear`, urgente, línea de captura, devolución, sin XML,
+  `crearConFactura`, `nuevaParcial`):
+  - **Nivel 1 — proveedor (inmediato):** si el proveedor tiene una parcialidad PPD pagada sin REP, **se bloquea
+    cualquier tipo** de solicitud de pago de ese proveedor (403).
+  - **Nivel 2 — usuario (>15 días):** si una parcialidad PPD pagada por el usuario (`uidr`) lleva >15 días sin
+    REP, el usuario no puede crear **ninguna** solicitud de pago (de cualquier proveedor) hasta subirlo (403).
+- **Aviso diario** (`complementos.scheduler.ts`, `@Cron('0 13 * * *')` ≈07:00 MX): para parcialidades pagadas
+  hace **10–14 días** sin REP (faltando ≤5 días para el bloqueo), envía correo al **solicitante (`uidr`)** y al
+  **gerente que autorizó (`autorizo`)** con la **cuenta activa del buzón de facturas** (reutiliza
+  `SmtpService.enviarNotificacion` + `CuentasService`; `CorreoModule` exporta ambos y `CxpModule` lo importa).
+- **Dispensa por excepción (plan B, permiso `403` «Dispensar complemento PPD»):** salida para cuando el REP
+  **nunca llegará** (p. ej. **proveedor de única vez**) y, sin ella, el usuario quedaría bloqueado de forma
+  permanente. Un usuario con el permiso 403 marca **esa parcialidad** como **exenta** con un **motivo
+  obligatorio** (`PpdService.dispensarComplemento`, `POST /cxp/ppd/parcial/:idCxp/dispensar-complemento`). Es
+  **granular** (solo esa parcialidad; las demás siguen exigiéndose), no anula el pago (que es real y conciliado)
+  y queda **auditado** (motivo + `complementoExentoPor` + fecha + comentario). Las dispensadas se **excluyen**
+  del candado y de los avisos → el bloqueo se levanta solo. El endpoint usa `@RequierePermiso(403)` a nivel de
+  método (sobrescribe el 420 de la clase). Front: botón **Dispensar** junto a Subir (`DispensarComplementoModal`,
+  solo si `tienePermiso(403)`); la parcialidad muestra **"Dispensado (excepción)"** con tooltip (motivo + quién).
+- **Front:** en el detalle PPD, columna **Complemento (REP)** por parcialidad pagada: "✓ REP subido" (link
+  firmado) / "Pendiente (n d)" en ámbar/rojo (+ botones **Subir** y **Dispensar**) / **"Dispensado (excepción)"**.
+  El candado se refleja con el mensaje 403 del backend en el modal de alta.
 
 ### Pendiente / notas
-- **Complemento de Pago (REP):** fuera de alcance en esta etapa (se capturará el REP al pagar cada parcialidad
-  en una fase posterior).
 - **Supuesto:** el PPD se trabaja **solo desde v2** de aquí en adelante (no en paralelo desde Flutter), para no
   duplicar maestros `cxp_ppd`.
-- Sin objetos nuevos en BD: se reutilizan `cxp` + `cxp_ppd` (ambas con `trg_auditoria`) existentes.
+- Objetos de BD del complemento (autorizados): columnas `cxp.{urlComplementoXml,urlComplementoPdf,uuidComplemento,
+  fecComplemento,complementoExento,complementoExentoMotivo,complementoExentoPor,fecComplementoExento}` + bucket
+  `complementospago` + permiso `403` en `segModulos`. El resto reutiliza `cxp` + `cxp_ppd` (con `trg_auditoria`).
+- El job de avisos requiere **al menos una cuenta de correo activa** en `correo_cuentas` (la del buzón de
+  facturas) y `EMAIL_ENCRYPTION_KEY` configurada para descifrar su contraseña.

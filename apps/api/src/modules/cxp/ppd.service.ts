@@ -8,9 +8,13 @@ import {
 import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { SolicitudesService } from './solicitudes.service.js';
+import { BloqueoService } from './bloqueo.service.js';
+import { parsearComplementoPago, validarRepContra } from './cfdi.js';
 import type { NuevaFacturaPpdDto, NuevaParcialPpdDto } from './ppd.schemas.js';
 
 const BUCKET_CFDI = 'CFDIproveedores';
+/** Bucket privado para los XML/PDF de los Complementos de Pago (REP). */
+const BUCKET_REP = 'complementospago';
 const ID_ALFABETO =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
@@ -44,6 +48,7 @@ export class PpdService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly solicitudes: SolicitudesService,
+    private readonly bloqueo: BloqueoService,
   ) {}
 
   private generarId(n = 15): string {
@@ -159,7 +164,7 @@ export class PpdService {
     const { data: parciales, error: pErr } = await this.supabase.admin
       .from('cxp')
       .select(
-        'idCxp, total, montoAplicado, idEstado, estado, moneda, fecSolicitud, fecPago, idCategoria, ultimoComentario, nomGerente',
+        'idCxp, total, montoAplicado, idEstado, estado, moneda, fecSolicitud, fecPago, idCategoria, ultimoComentario, nomGerente, uuidComplemento, fecComplemento, urlComplementoXml, urlComplementoPdf, complementoExento, complementoExentoMotivo, complementoExentoPor, fecComplementoExento',
       )
       .eq('idCxpPPD', idCxpPPD)
       .eq('status', true)
@@ -170,7 +175,30 @@ export class PpdService {
       m.idCategoria,
       ...(parciales ?? []).map((p) => p.idCategoria),
     ]);
+    const dispensadores = await this.resolverUsuarios(
+      (parciales ?? []).map((p) => p.complementoExentoPor),
+    );
     const saldo = await this.saldoDe(idCxpPPD);
+
+    const parcialidades = await Promise.all(
+      (parciales ?? []).map(async (p) => {
+        const pagada = p.idEstado === 6 || p.idEstado === 7;
+        const tieneRep = !!p.uuidComplemento;
+        return {
+          ...p,
+          categoria: cuentas.get(p.idCategoria)?.cuenta ?? null,
+          clasificacion: cuentas.get(p.idCategoria)?.seccion ?? null,
+          // Estado del complemento (REP). Una parcialidad dispensada NO está pendiente.
+          repPendiente: pagada && !tieneRep && !p.complementoExento,
+          diasDesdePago: pagada ? this.diasDesde(p.fecPago) : null,
+          urlComplementoXml: await this.urlFirmadaRep(p.urlComplementoXml),
+          urlComplementoPdf: await this.urlFirmadaRep(p.urlComplementoPdf),
+          dispensadoPorNombre: p.complementoExentoPor
+            ? (dispensadores.get(p.complementoExentoPor) ?? null)
+            : null,
+        };
+      }),
+    );
 
     return {
       maestro: {
@@ -179,12 +207,25 @@ export class PpdService {
         clasificacion: cuentas.get(m.idCategoria)?.seccion ?? null,
       },
       saldo,
-      parcialidades: (parciales ?? []).map((p) => ({
-        ...p,
-        categoria: cuentas.get(p.idCategoria)?.cuenta ?? null,
-        clasificacion: cuentas.get(p.idCategoria)?.seccion ?? null,
-      })),
+      parcialidades,
     };
+  }
+
+  /** Días naturales transcurridos desde una fecha ISO hasta hoy (null si no hay). */
+  private diasDesde(iso: string | null): number | null {
+    if (!iso) return null;
+    const f = new Date(iso).getTime();
+    if (Number.isNaN(f)) return null;
+    return Math.floor((Date.now() - f) / 86_400_000);
+  }
+
+  /** Genera una URL firmada (1 h) para un archivo del bucket privado de REP. */
+  private async urlFirmadaRep(path: string | null): Promise<string | null> {
+    if (!path) return null;
+    const { data } = await this.supabase.admin.storage
+      .from(BUCKET_REP)
+      .createSignedUrl(path, 3600);
+    return data?.signedUrl ?? null;
   }
 
   private async resolverCuentas(ids: (string | null)[]) {
@@ -197,6 +238,25 @@ export class PpdService {
       .in('idCategoria', unicos);
     for (const c of data ?? [])
       mapa.set(c.idCategoria, { cuenta: c.cuenta, seccion: c.seccion });
+    return mapa;
+  }
+
+  /** Nombre legible de usuarios por uid (para "dispensado por"). */
+  private async resolverUsuarios(ids: (string | null)[]) {
+    const unicos = [...new Set(ids.filter((x): x is string => !!x))];
+    const mapa = new Map<string, string>();
+    if (unicos.length === 0) return mapa;
+    const { data } = await this.supabase.admin
+      .from('catUsers')
+      .select('uid, nomCompleto, nombre, apellidos')
+      .in('uid', unicos);
+    for (const u of data ?? [])
+      mapa.set(
+        u.uid,
+        u.apellidos && u.nombre
+          ? `${u.nombre} ${u.apellidos}`
+          : (u.nomCompleto ?? u.nombre ?? u.uid),
+      );
     return mapa;
   }
 
@@ -356,6 +416,7 @@ export class PpdService {
       pdf,
       { metodoPago: 'PPD', exigirMesActual: false, verificarDuplicado: false },
     );
+    await this.bloqueo.verificar(actorUid, proveedor.idProveedor);
     const uuid = cfdi.uuid!;
 
     // No duplicar el maestro: si ya existe, debe abonarse con "Solicitar otro pago".
@@ -467,6 +528,7 @@ export class PpdService {
       throw new NotFoundException('Factura PPD no encontrada.');
     if (!m.idProveedor)
       throw new BadRequestException('La factura PPD no tiene proveedor asociado.');
+    await this.bloqueo.verificar(actorUid, m.idProveedor);
 
     const saldo = await this.saldoDe(idCxpPPD);
     if (dto.monto > saldo.disponible + 0.01)
@@ -506,5 +568,193 @@ export class PpdService {
     );
     await this.actualizarContador(idCxpPPD, this.supabase.comoActor(actorUid));
     return res;
+  }
+
+  // ===================== Complemento de Pago (REP) =====================
+
+  /**
+   * Sube y registra el Complemento de Pago (REP) de una parcialidad PPD ya
+   * pagada. Valida que el XML sea un comprobante tipo "P" que referencie el UUID
+   * de la factura y cuyo importe coincida con el pago. Guarda los archivos en el
+   * bucket privado `complementospago` y registra sus rutas + el UUID del REP en
+   * la fila `cxp`. El PDF es opcional (respaldo).
+   */
+  async subirComplemento(
+    idCxp: string,
+    xml: Buffer,
+    pdf: Buffer | null,
+    actorUid: string,
+  ): Promise<{ uuid: string }> {
+    const { data: sol, error } = await this.supabase.admin
+      .from('cxp')
+      .select(
+        'idCxp, idCxpPPD, idProveedor, idEstado, status, total, montoAplicado, uuidComplemento',
+      )
+      .eq('idCxp', idCxp)
+      .maybeSingle();
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!sol || sol.status === false)
+      throw new NotFoundException('Solicitud no encontrada.');
+    if (!sol.idCxpPPD)
+      throw new BadRequestException('La solicitud no es una parcialidad PPD.');
+    if (sol.idEstado !== 6 && sol.idEstado !== 7)
+      throw new BadRequestException(
+        'Solo se puede subir el complemento de una parcialidad ya pagada.',
+      );
+    if (sol.uuidComplemento)
+      throw new BadRequestException(
+        'Esta parcialidad ya tiene un complemento de pago registrado.',
+      );
+
+    // Folio (UUID) de la factura PPD y RFC del proveedor.
+    const { data: maestro } = await this.supabase.admin
+      .from('cxp_ppd')
+      .select('folio')
+      .eq('idCxpPPD', sol.idCxpPPD)
+      .maybeSingle();
+    if (!maestro?.folio)
+      throw new InternalServerErrorException('No se encontró la factura PPD asociada.');
+    const { data: prov } = await this.supabase.admin
+      .from('catProveedores')
+      .select('rfc')
+      .eq('idProveedor', sol.idProveedor)
+      .maybeSingle();
+    const receptores = await this.solicitudes.rfcReceptoresAutorizados();
+
+    // Parsear y validar el REP.
+    let rep;
+    try {
+      rep = parsearComplementoPago(xml.toString('utf8'));
+    } catch (e) {
+      throw new BadRequestException((e as Error).message);
+    }
+    if (!rep.uuid)
+      throw new BadRequestException('El complemento no tiene folio fiscal (UUID).');
+    const errores = validarRepContra(rep, {
+      folioFactura: maestro.folio,
+      montoEsperado: sol.montoAplicado || sol.total,
+      rfcProveedor: prov?.rfc ?? null,
+      receptoresAutorizados: receptores,
+    });
+    if (errores.length > 0) throw new BadRequestException(errores.join(' '));
+
+    // UUID del REP no duplicado.
+    const { data: dup } = await this.supabase.admin
+      .from('cxp')
+      .select('idCxp')
+      .eq('uuidComplemento', rep.uuid)
+      .limit(1);
+    if (dup && dup.length > 0)
+      throw new BadRequestException(
+        'Ese complemento de pago ya fue registrado en otra solicitud.',
+      );
+
+    // Subir archivos al bucket privado (se guardan las RUTAS, no URLs públicas).
+    const carpeta = rep.emisorRfc || 'sin-rfc';
+    const pathXml = `${carpeta}/${rep.uuid}.xml`;
+    const subir = async (path: string, buf: Buffer, contentType: string) => {
+      const { error: upErr } = await this.supabase.admin.storage
+        .from(BUCKET_REP)
+        .upload(path, buf, { contentType, upsert: true });
+      if (upErr) {
+        this.logger.error(`Error subiendo REP ${path}: ${upErr.message}`);
+        throw new InternalServerErrorException(
+          'No se pudo subir el archivo del complemento.',
+        );
+      }
+    };
+    await subir(pathXml, xml, 'application/xml');
+    let pathPdf: string | null = null;
+    if (pdf) {
+      pathPdf = `${carpeta}/${rep.uuid}.pdf`;
+      await subir(pathPdf, pdf, 'application/pdf');
+    }
+
+    const db = this.supabase.comoActor(actorUid);
+    const { error: updErr } = await db
+      .from('cxp')
+      .update({
+        urlComplementoXml: pathXml,
+        urlComplementoPdf: pathPdf,
+        uuidComplemento: rep.uuid,
+        fecComplemento: new Date().toISOString(),
+      })
+      .eq('idCxp', idCxp);
+    if (updErr) {
+      this.logger.error(`Error registrando complemento en ${idCxp}: ${updErr.message}`);
+      throw new InternalServerErrorException(
+        'No se pudo registrar el complemento de pago.',
+      );
+    }
+    await db.from('cxpComentarios').insert({
+      idCxpComentarios: this.generarId(10),
+      idCxP: idCxp,
+      status: true,
+      uidr: actorUid,
+      tipo: 1,
+      comentario: `Complemento de pago (REP) registrado: ${rep.uuid}.`,
+    });
+
+    return { uuid: rep.uuid };
+  }
+
+  /**
+   * Dispensa de complemento por EXCEPCIÓN (permiso 403). Marca una parcialidad
+   * PPD pagada como exenta de complemento (p. ej. proveedor de única vez que no
+   * emitirá el REP), con un motivo obligatorio. Levanta el candado (nivel 1 y 2)
+   * para esa parcialidad sin afectar las demás. Queda auditado (quién/cuándo/por qué).
+   */
+  async dispensarComplemento(
+    idCxp: string,
+    motivo: string,
+    actorUid: string,
+  ): Promise<{ ok: true }> {
+    const { data: sol, error } = await this.supabase.admin
+      .from('cxp')
+      .select('idCxp, idCxpPPD, idEstado, status, uuidComplemento, complementoExento')
+      .eq('idCxp', idCxp)
+      .maybeSingle();
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!sol || sol.status === false)
+      throw new NotFoundException('Solicitud no encontrada.');
+    if (!sol.idCxpPPD)
+      throw new BadRequestException('La solicitud no es una parcialidad PPD.');
+    if (sol.idEstado !== 6 && sol.idEstado !== 7)
+      throw new BadRequestException(
+        'Solo se puede dispensar el complemento de una parcialidad ya pagada.',
+      );
+    if (sol.uuidComplemento)
+      throw new BadRequestException(
+        'Esta parcialidad ya tiene un complemento registrado; no requiere dispensa.',
+      );
+    if (sol.complementoExento)
+      throw new BadRequestException('Esta parcialidad ya está dispensada.');
+
+    const db = this.supabase.comoActor(actorUid);
+    const { error: updErr } = await db
+      .from('cxp')
+      .update({
+        complementoExento: true,
+        complementoExentoMotivo: motivo,
+        complementoExentoPor: actorUid,
+        fecComplementoExento: new Date().toISOString(),
+      })
+      .eq('idCxp', idCxp);
+    if (updErr) {
+      this.logger.error(`Error dispensando complemento ${idCxp}: ${updErr.message}`);
+      throw new InternalServerErrorException(
+        'No se pudo dispensar el complemento de pago.',
+      );
+    }
+    await db.from('cxpComentarios').insert({
+      idCxpComentarios: this.generarId(10),
+      idCxP: idCxp,
+      status: true,
+      uidr: actorUid,
+      tipo: 1,
+      comentario: `Complemento de pago DISPENSADO por excepción. Motivo: ${motivo}`,
+    });
+
+    return { ok: true };
   }
 }
