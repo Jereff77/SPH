@@ -15,8 +15,10 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { PlanesArreService } from './planes-arre.service.js';
 import { CobranzaService } from './cobranza.service.js';
+import { ReportesArreService } from './reportes-arre.service.js';
 import {
   aplicarPagoSchema,
+  cancelarAnticipadoSchema,
   conceptoFinanciadoSchema,
   crearPlanRentaSchema,
   docArreSchema,
@@ -24,6 +26,7 @@ import {
   renovarPlanSchema,
   vincularNaveArreSchema,
   type AplicarPagoDto,
+  type CancelarAnticipadoDto,
   type ConceptoFinanciadoDto,
   type CrearPlanRentaDto,
   type DocArreDto,
@@ -68,6 +71,7 @@ export class ArrendatariosController {
   constructor(
     private readonly planes: PlanesArreService,
     private readonly cobranza: CobranzaService,
+    private readonly reportes: ReportesArreService,
   ) {}
 
   // ============================ Planes de Renta (20) ============================
@@ -107,7 +111,7 @@ export class ArrendatariosController {
   }
 
   @Post('propiedades/:idNavArrend/planes')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   crearPlan(
     @CurrentUser() actor: AuthUser,
     @Param('idNavArrend') idNavArrend: string,
@@ -128,7 +132,7 @@ export class ArrendatariosController {
   }
 
   @Post('planes/:idArrePdp/conceptos')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   async agregarConcepto(
     @CurrentUser() actor: AuthUser,
     @Param('idArrePdp') idArrePdp: string,
@@ -139,7 +143,7 @@ export class ArrendatariosController {
   }
 
   @Delete('planes/:idArrePdp/conceptos/:concepto')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   async eliminarConcepto(
     @CurrentUser() actor: AuthUser,
     @Param('idArrePdp') idArrePdp: string,
@@ -150,7 +154,7 @@ export class ArrendatariosController {
   }
 
   @Post('planes/:idArrePdp/activar')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   async activar(
     @CurrentUser() actor: AuthUser,
     @Query('idNavArrend') idNavArrend: string,
@@ -161,7 +165,7 @@ export class ArrendatariosController {
   }
 
   @Post('planes/:idArrePdp/desactivar')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   async desactivar(
     @CurrentUser() actor: AuthUser,
     @Query('idNavArrend') idNavArrend: string,
@@ -172,20 +176,20 @@ export class ArrendatariosController {
   }
 
   @Delete('planes/:idArrePdp')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   eliminarPlan(@CurrentUser() actor: AuthUser, @Param('idArrePdp') idArrePdp: string) {
     return this.planes.eliminarPlan(idArrePdp, actor.uid);
   }
 
-  // ----- Renovación -----
+  // ----- Renovación (clave 23) -----
   @Get('planes/:idArrePdp/renovacion-precarga')
-  @RequierePermiso(20)
+  @RequierePermiso(23)
   renovacionPrecarga(@Param('idArrePdp') idArrePdp: string) {
     return this.planes.precargaRenovacion(idArrePdp);
   }
 
   @Post('planes/:idArrePdp/renovar')
-  @RequierePermiso(20)
+  @RequierePermiso(23)
   renovar(
     @CurrentUser() actor: AuthUser,
     @Param('idArrePdp') idArrePdp: string,
@@ -194,22 +198,39 @@ export class ArrendatariosController {
     return this.planes.renovar(idArrePdp, dto, actor.uid);
   }
 
-  // ----- Config: Datos generales (solo lectura) -----
+  // ----- Cancelación anticipada (clave 22) -----
+  @Get('planes/:idArrePdp/cancelacion-precarga')
+  @RequierePermiso(22)
+  cancelacionPrecarga(@Param('idArrePdp') idArrePdp: string) {
+    return this.planes.precargaCancelacion(idArrePdp);
+  }
+
+  @Post('planes/:idArrePdp/cancelar')
+  @RequierePermiso(22)
+  cancelar(
+    @CurrentUser() actor: AuthUser,
+    @Param('idArrePdp') idArrePdp: string,
+    @Body(new ZodValidationPipe(cancelarAnticipadoSchema)) dto: CancelarAnticipadoDto,
+  ) {
+    return this.planes.cancelarAnticipado(idArrePdp, dto, actor.uid);
+  }
+
+  // ----- Config: Datos generales (solo lectura) — clave 25 -----
   @Get(':id/datos')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   datos(@Param('id') id: string) {
     return this.planes.datosGenerales(id);
   }
 
-  // ----- Config: Documentos -----
+  // ----- Config: Documentos — clave 25 -----
   @Get(':id/documentos')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   docs(@Param('id') id: string) {
     return this.planes.listarDocs(id);
   }
 
   @Post('documentos')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   @UseInterceptors(FileInterceptor('archivo', { limits: { fileSize: LIMITE_ARCHIVO } }))
   async subirDoc(
     @CurrentUser() actor: AuthUser,
@@ -229,7 +250,7 @@ export class ArrendatariosController {
   }
 
   @Delete('documentos/:idDocumento')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   async eliminarDoc(
     @CurrentUser() actor: AuthUser,
     @Param('idDocumento') idDocumento: string,
@@ -238,21 +259,21 @@ export class ArrendatariosController {
     return { ok: true };
   }
 
-  // ----- Config: Propiedades -----
+  // ----- Config: Propiedades — clave 25 -----
   @Get('parques')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   parques() {
     return this.planes.parquesDisponibles();
   }
 
   @Get('naves-disponibles')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   navesDisponibles(@Query('idParque') idParque?: string) {
     return this.planes.navesDisponibles(idParque || undefined);
   }
 
   @Post('propiedades')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   vincularNave(
     @CurrentUser() actor: AuthUser,
     @Body(new ZodValidationPipe(vincularNaveArreSchema)) dto: VincularNaveArreDto,
@@ -261,7 +282,7 @@ export class ArrendatariosController {
   }
 
   @Post('propiedades/:idNavArrend/liberar')
-  @RequierePermiso(20)
+  @RequierePermiso(24)
   async liberarNave(
     @CurrentUser() actor: AuthUser,
     @Param('idNavArrend') idNavArrend: string,
@@ -274,6 +295,22 @@ export class ArrendatariosController {
   @RequierePermiso(20)
   inpc() {
     return this.planes.inpc();
+  }
+
+  // ============================ Reportes (20 — acceso al módulo) ============================
+
+  @Get('reportes/cancelaciones')
+  @RequierePermiso(20)
+  reporteCancelaciones(
+    @Query('anio') anio?: string,
+    @Query('parque') parque?: string,
+    @Query('busqueda') busqueda?: string,
+  ) {
+    return this.reportes.cancelaciones({
+      anio: toNum(anio),
+      parque: parque || undefined,
+      busqueda: busqueda || undefined,
+    });
   }
 
   // ============================ Cobranza (10) ============================

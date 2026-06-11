@@ -9,6 +9,7 @@ import {
 } from './arrendatarios.api';
 import { AplicarPagoModal } from './AplicarPagoModal';
 import { useArrendatariosRealtime } from './useArrendatariosRealtime';
+import { exportarCSV } from './reportes-arre-export';
 
 type EstadoFiltro = 'all' | 'pend' | 'paid';
 type SortCol = 'nave' | 'parque' | 'razon_social';
@@ -40,6 +41,20 @@ interface TipState {
 }
 
 const esMXN = (d: string | null): boolean => d !== 'USD';
+
+/** Normaliza el nombre de un concepto (sin acentos, minúsculas) para clasificarlo. */
+const normConc = (c: string): string =>
+  c
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
+
+/** Monto legible para la columna Nota (entero sin decimales si aplica). */
+const montoTxt = (n: number): string => {
+  const r = Math.round(n * 100) / 100;
+  return String(r);
+};
 
 /** Parsea YYYY-MM-DD como fecha local (evita el corrimiento UTC). */
 const parseLocal = (s: string | null): Date | null => {
@@ -239,9 +254,89 @@ export function DashboardCobranzaPage() {
     [filas, modalRS],
   );
 
+  /**
+   * Exporta el tablero a CSV (respeta los filtros activos): una fila por nave y
+   * divisa, con Pago (pendiente) / Cobrado y el desglose por concepto
+   * (Renta/Vig/Admin/Mtto/Otros + Nota con el detalle de "otros").
+   */
+  function exportar() {
+    const cols = [
+      'Nave',
+      'Parque',
+      'Razon Social',
+      'Divisa',
+      'Pago',
+      'Cobrado',
+      'Renta',
+      'Vig',
+      'Admin',
+      'Mtto',
+      'Otros Conceptos',
+      'Nota',
+    ];
+    const filasCsv: (string | number)[][] = [];
+    for (const g of gruposOrden) {
+      const divisas: ('MXN' | 'USD')[] = [];
+      if (g.mxnPend > 0 || g.mxnPaid > 0) divisas.push('MXN');
+      if (g.usdPend > 0 || g.usdPaid > 0) divisas.push('USD');
+      if (divisas.length === 0) divisas.push('MXN');
+
+      for (const D of divisas) {
+        let renta = 0;
+        let vig = 0;
+        let admin = 0;
+        let mtto = 0;
+        let otros = 0;
+        const detalle: string[] = [];
+        for (const [conc, v] of Object.entries(g.conceptos)) {
+          if ((esMXN(v.div) ? 'MXN' : 'USD') !== D) continue;
+          const total = v.pend + v.paid;
+          if (total === 0) continue;
+          const n = normConc(conc);
+          if (n === 'renta') renta += total;
+          else if (n === 'vigilancia') vig += total;
+          else if (n === 'administracion') admin += total;
+          else if (n === 'mantenimiento') mtto += total;
+          else {
+            otros += total;
+            detalle.push(`${montoTxt(total)} ${conc}`);
+          }
+        }
+        const pend = D === 'MXN' ? g.mxnPend : g.usdPend;
+        const paid = D === 'MXN' ? g.mxnPaid : g.usdPaid;
+        filasCsv.push([
+          g.nave,
+          g.parque,
+          g.razon_social,
+          D,
+          pend || '',
+          paid || '',
+          renta || '',
+          vig || '',
+          admin || '',
+          mtto || '',
+          otros || '',
+          detalle.join(', '),
+        ]);
+      }
+    }
+    exportarCSV('cobranza-arrendatarios', cols, filasCsv);
+  }
+
   return (
     <div className="space-y-3">
-      <h1 className="text-2xl font-bold tracking-tight text-gray-800">Arrendatarios · Cobranza</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold tracking-tight text-gray-800">Arrendatarios · Cobranza</h1>
+        <button
+          type="button"
+          onClick={exportar}
+          disabled={gruposOrden.length === 0}
+          title="Exporta a CSV lo que se ve en la tabla (respeta filtros)"
+          className="rounded-lg border border-[#1f2a4d] px-3 py-2 text-sm font-medium text-[#1f2a4d] hover:bg-[#1f2a4d] hover:text-white disabled:opacity-40"
+        >
+          ⬇ Export CSV
+        </button>
+      </div>
 
       {/* Stats bar */}
       <div className="flex flex-wrap items-stretch gap-2">

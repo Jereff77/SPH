@@ -96,13 +96,22 @@
   - **Arrendatarios** (grupo propio) — **módulo completo**: **Dashboard de cobranza** (clave 10, `/arrendatarios`)
     réplica del de v1 (stats, toggle Todos/Pendientes/Pagados, filtro divisa, tabla agrupada por nave+parque+
     razón social con filtros por columna + tooltip de desglose + montos en columna única con moneda al lado,
-    sidebar de vencimientos 1/2/3 meses + vencidos, aplicar pago Exacto/Sobrante/Insuficiente, SSE) — **sin
-    cliente Supabase ni anon key en el navegador** (se eliminó el WebView de v1). **Planes de Renta** (clave 20,
+    sidebar de vencimientos 1/2/3 meses + vencidos, aplicar pago Exacto/Sobrante/Insuficiente, SSE,
+    **export CSV** del tablero —1 fila por nave+divisa con Pago/Cobrado + desglose por concepto Renta/Vig/
+    Admin/Mtto/Otros + Nota, respeta filtros—) — **sin cliente Supabase ni anon key en el navegador** (se
+    eliminó el WebView de v1). **Planes de Renta** (clave 20,
     `/arrendatarios/planes`): selector arrendatario/propiedad, historial (solo activos/finalizados), corrida,
     **Liberar nave** (baja lógica), **Configuración** (Datos solo-lectura, Documentos, Propiedades, **Plan de
     Pagos** con layout 2 columnas: Generales con subtotales/Total Mes en vivo + Cargos KVA + Conceptos +
     **Previsualización** de la corrida) y **Renovación** de plan con **activación automática** (pg_cron). Motor
-    de cálculo INPC delegado a las RPCs `arrepdp_*` existentes (vía `comoActor`). Ver `modulos/arrendatarios.md`.
+    de cálculo INPC delegado a las RPCs `arrepdp_*` existentes (vía `comoActor`). **Cancelación anticipada**
+    (botón 🛑, clave 22): termina un contrato antes de su `fecFin` — el usuario elige desde qué partida (mes)
+    se deja de cobrar + motivo; baja lógica de las partidas (no cancela meses ya pagados), marca columnas nuevas
+    `arrePdp.canceladoAnticipado/fecCancelacion/canceladoPor/motivoCancelacion` + `vigente=false` (sin tocar
+    `plazo`/`fecFin`) y **libera la nave** (RPC transaccional `v2_arrepdp_cancelar_anticipado`). **Permisos por
+    botón** (front+back): Config=25 (nueva), Renovar=23, Cancelar=22, Liberar=24 (nueva). Nueva sección
+    **Reportes** (`/arrendatarios/reportes`, clave 20) — 1er reporte **Cancelaciones Anticipadas** (filtros
+    año/parque/búsqueda + export CSV/PDF). Ver `modulos/arrendatarios.md`.
 - **Changelog / Novedades** (Configuraciones, **sin permiso** → todos): bitácora de versiones SemVer
   (`GET /api/changelog`, solo lectura). El Sidebar muestra la versión desde aquí. Fuente: tabla nueva
   `v2_changelog` + función `v2_changelog_registrar` (asigna el SemVer desde la BD con lock, **a prueba de
@@ -111,7 +120,11 @@
 - **Objetos NUEVOS en BD (con autorización):** bucket `branding` + `v2_obtener_logo_url()`;
   `catClavesProdServ`; permisos 470/800/801 + enum `Modulos`+='Correo'; tablas `correo_*`; parámetro
   `RFC_RECEPTORES_AUTORIZADOS`; **Arrendatarios:** RPCs `v2_arrepdp_renovar` + `v2_arrepdp_activar_renovaciones`
-  + job pg_cron `v2-arrepdp-activar-renovaciones` (02:00); **Changelog:** tabla `v2_changelog` + función
+  + job pg_cron `v2-arrepdp-activar-renovaciones` (02:00) + **RPC `v2_arrepdp_cancelar_anticipado`** +
+  **columnas nuevas en `arrePdp`** (`canceladoAnticipado`/`fecCancelacion`/`canceladoPor`/`motivoCancelacion`)
+  + **permisos `segModulos` 24 (Liberar) y 25 (Configuracion)** — SQL en
+  `base-conocimiento/migraciones/2026-06-10-cancelacion-anticipada.sql` (⚠️ **pendiente de aplicar**; tras el
+  ALTER, regenerar `database.types.ts`); **Changelog:** tabla `v2_changelog` + función
   `v2_changelog_registrar(salto,titulo,cambios,publicada)` (asigna SemVer con `advisory lock`). **Único objeto
   del sistema viejo modificado (con
   autorización):** la columna generada `arrePdp."fecFin"` se redefinió a `fecInicio + plazo − 1 día` (antes no
@@ -127,11 +140,19 @@
   UPDATE con `OLD.idEstado IN (1,2)`; Fase 2: PPD⇒`diferido` automático en el alta — **bloqueada hasta
   que se defina cómo se trabajará el PPD**). Mientras el trigger esté off, las PUE de meses anteriores
   no se auto-rechazan.
-- **Siguiente:** Ventas Etapa 2 (**Reportes 620** — Escrituras 630 ya hecho—, creación de **Renta Garantizada**
-  vía RPCs `rgpdp_insertar_registro`/`rgpdp_generar_plan_pagos` y **Renta Administrada** `rapdp_actualizar`,
-  pasar las pestañas de rentas a cálculo propio); CxP Dashboard(440/441) y Reportes(460); conciliación
-  bancaria avanzada; configurar la cuenta de Correo (`EMAIL_ENCRYPTION_KEY` en EasyPanel); migrar stubs
-  (Fideicomiso, resto del CRM). **Arrendatarios ya migrado** (ver arriba). Ver pendientes completos en
+  - **📌 PENDIENTE (decisión del usuario, 2026-06-10):** el plan
+    `base-conocimiento/PLAN-correccion-trigger-cxp-fecha-cfdi.md` **SE CONSERVA y SÍ se aplicará** — NO
+    borrarlo. **Antes**, el equipo debe **definir la REGLA DE NEGOCIO del PPD** (cuándo una factura es PPD,
+    cómo/quién marca `diferido`, cómo se manejan las parcialidades/saldo, qué pasa con la fecha del CFDI en
+    PPD, etc.). **Hasta que esa regla esté definida**, la **Fase 2** del plan y la **reactivación** del
+    trigger `cxp_validar_fecha_cfdi_estado` quedan **en espera**.
+- **Siguiente:** **(1) Definir la REGLA DE NEGOCIO del PPD** (bloqueante) → luego aplicar
+  `PLAN-correccion-trigger-cxp-fecha-cfdi.md` (Fase 1 + Fase 2) y **reactivar** el trigger
+  `cxp_validar_fecha_cfdi_estado`. Ventas Etapa 2 (**Reportes 620** — Escrituras 630 ya hecho—, creación de
+  **Renta Garantizada** vía RPCs `rgpdp_insertar_registro`/`rgpdp_generar_plan_pagos` y **Renta Administrada**
+  `rapdp_actualizar`, pasar las pestañas de rentas a cálculo propio); CxP Dashboard(440/441) y Reportes(460);
+  conciliación bancaria avanzada; configurar la cuenta de Correo (`EMAIL_ENCRYPTION_KEY` en EasyPanel); migrar
+  stubs (Fideicomiso, resto del CRM). **Arrendatarios ya migrado** (ver arriba). Ver pendientes completos en
   `../.sessions/contexto.md`.
 
 > ⚠️ **Nota de UI:** el sidebar (`components/layout/menu.tsx` + `Sidebar.tsx`) soporta **grupos directos**

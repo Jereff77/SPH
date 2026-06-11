@@ -84,6 +84,20 @@ export const renovarPlanSchema = z.object({
 });
 export type RenovarPlanDto = z.infer<typeof renovarPlanSchema>;
 
+/**
+ * Cancelación anticipada de un plan: termina el contrato antes de su `fecFin`.
+ * A partir de la partida de corte (inclusive) se dejan de cobrar los meses
+ * (baja lógica); la nave se libera. El backend revalida que el plan esté activo
+ * y vigente y que el corte no caiga en/antes de un mes ya pagado.
+ * (RPC `v2_arrepdp_cancelar_anticipado`.)
+ */
+export const cancelarAnticipadoSchema = z.object({
+  /** Primera partida (mes) que YA NO se cobra; se conservan las anteriores. */
+  numPartidaCorte: z.coerce.number().int().positive('La partida de corte debe ser mayor a 0.'),
+  motivo: z.string().trim().min(1, 'El motivo es obligatorio.').max(400),
+});
+export type CancelarAnticipadoDto = z.infer<typeof cancelarAnticipadoSchema>;
+
 /** Vincular una nave a un arrendatario (Config → Propiedades). */
 export const vincularNaveArreSchema = z.object({
   idArrendador: z.string().trim().min(1, 'Falta el arrendatario.'),

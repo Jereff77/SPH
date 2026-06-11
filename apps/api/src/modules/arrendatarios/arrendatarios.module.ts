@@ -3,6 +3,7 @@ import { ArrendatariosController } from './arrendatarios.controller.js';
 import { ArrendatariosStreamController } from './arrendatarios-stream.controller.js';
 import { PlanesArreService } from './planes-arre.service.js';
 import { CobranzaService } from './cobranza.service.js';
+import { ReportesArreService } from './reportes-arre.service.js';
 import { ArrendatariosRealtimeService } from './arrendatarios-realtime.service.js';
 import { SseAuthGuard } from '../cxp/sse-auth.guard.js';
 
@@ -18,6 +19,7 @@ import { SseAuthGuard } from '../cxp/sse-auth.guard.js';
   providers: [
     PlanesArreService,
     CobranzaService,
+    ReportesArreService,
     ArrendatariosRealtimeService,
     SseAuthGuard,
   ],

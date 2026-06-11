@@ -8,6 +8,7 @@ import {
 import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type {
+  CancelarAnticipadoDto,
   ConceptoFinanciadoDto,
   CrearPlanRentaDto,
   DocArreDto,
@@ -635,6 +636,112 @@ export class PlanesArreService {
       actorUid,
     });
     return { idArrePdp: idNuevo, mensaje: res?.mensaje ?? 'Renovación registrada.' };
+  }
+
+  // ----------------------------- Cancelación anticipada -----------------------------
+
+  /**
+   * Datos para precargar el modal de cancelación anticipada: las partidas
+   * (meses) del plan y la **primera partida cancelable** = último mes con pago
+   * aplicado + 1 (no se permite cancelar meses ya cobrados). Solo aplica a planes
+   * activos y vigentes (se revalida server-side).
+   */
+  async precargaCancelacion(idArrePdp: string) {
+    const { data: plan, error: planErr } = await this.supabase.admin
+      .from('arrePdp')
+      .select('idArrePdp, idNavArrend, arrePdpVigente')
+      .eq('idArrePdp', idArrePdp)
+      .eq('status', true)
+      .maybeSingle();
+    if (planErr) throw new InternalServerErrorException(planErr.message);
+    if (!plan) throw new NotFoundException('Plan no encontrado.');
+    if (plan.arrePdpVigente === 'No')
+      throw new BadRequestException('El plan no está vigente; no se puede cancelar.');
+
+    const { data: prop, error: propErr } = await this.supabase.admin
+      .from('arrenPropiedades')
+      .select('pdpActivo')
+      .eq('idNavArrend', plan.idNavArrend ?? '')
+      .eq('status', true)
+      .maybeSingle();
+    if (propErr) throw new InternalServerErrorException(propErr.message);
+    if (!prop?.pdpActivo)
+      throw new BadRequestException('El plan no está activo; no se puede cancelar.');
+
+    // Corrida resumida (una fila por partida, ya filtra status=true).
+    const { data: resumen, error: resErr } = await this.supabase.admin.rpc(
+      'arrepdpdetalle_obtener_resumen_por_plan',
+      { p_idarrepdp: idArrePdp, p_validar: false },
+    );
+    if (resErr) throw new InternalServerErrorException(resErr.message);
+
+    // Partidas con pago aplicado (fecPago no nulo) → no se pueden cancelar.
+    const { data: pagadas, error: pagErr } = await this.supabase.admin
+      .from('arrePdpDetalle')
+      .select('numPartida')
+      .eq('idArrePdp', idArrePdp)
+      .eq('status', true)
+      .not('fecPago', 'is', null);
+    if (pagErr) throw new InternalServerErrorException(pagErr.message);
+    const pagadasSet = new Set((pagadas ?? []).map((p) => p.numPartida));
+    const maxPagada = pagadasSet.size
+      ? Math.max(...[...pagadasSet].filter((n): n is number => n != null))
+      : 0;
+
+    const partidas = (
+      (resumen ?? []) as Array<{ numPartida: number; fecha: string; total_cantidad: number }>
+    ).map((r) => ({
+      numPartida: r.numPartida,
+      fecha: r.fecha,
+      monto: Number(r.total_cantidad) || 0,
+      pagada: pagadasSet.has(r.numPartida),
+    }));
+
+    return { primerCancelable: maxPagada + 1, partidas };
+  }
+
+  /**
+   * Cancela anticipadamente un plan: baja lógica de las partidas desde el mes de
+   * corte, marca la cabecera (`canceladoAnticipado`, `fecCancelacion`,
+   * `canceladoPor`, `motivoCancelacion`, `vigente=false`) y **libera la nave**.
+   * Todo en una sola transacción (RPC `v2_arrepdp_cancelar_anticipado`), auditado
+   * vía `comoActor`. La RPC revalida plan activo/vigente y que el corte no caiga
+   * en/antes de un mes ya pagado.
+   */
+  async cancelarAnticipado(
+    idArrePdp: string,
+    dto: CancelarAnticipadoDto,
+    actorUid: string,
+  ): Promise<{ mensaje: string; fecCancelacion: string | null }> {
+    const db = this.supabase.comoActor(actorUid);
+    // RPC nueva v2_ (aún no tipada en @erp/types); cast localizado (igual que renovar).
+    const { data, error } = await (
+      db.rpc as unknown as (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message: string } | null }>
+    )('v2_arrepdp_cancelar_anticipado', {
+      p_id_arre_pdp: idArrePdp,
+      p_uid: actorUid,
+      p_num_partida_corte: dto.numPartidaCorte,
+      p_motivo: dto.motivo,
+    });
+    if (error) {
+      this.logger.error(`Error cancelando plan ${idArrePdp}: ${error.message}`);
+      throw new InternalServerErrorException('No se pudo cancelar el contrato.');
+    }
+    const res = data as RpcResultado;
+    if (res?.exito === false)
+      throw new BadRequestException(res.mensaje ?? 'No se pudo cancelar el contrato.');
+
+    const fecCancelacion = (res?.detalles?.['fec_cancelacion'] as string | undefined) ?? null;
+    await this.registrarActividad(db, {
+      pantalla: 'Arrendatarios',
+      nomwidget: 'CancelarAnticipado',
+      comentario: `Cancelación anticipada del plan ${idArrePdp} (corte en partida ${dto.numPartidaCorte}). Motivo: ${dto.motivo}`,
+      actorUid,
+    });
+    return { mensaje: res?.mensaje ?? 'Contrato cancelado.', fecCancelacion };
   }
 
   /** Bitácora de actividad (entorno 3 = web/servidor), como v1. */

@@ -8,6 +8,7 @@ import {
   THEAD_TR,
 } from '@/components/tabla/SortableTh';
 import { useSort, type Accessors } from '@/components/tabla/useSort';
+import { SearchSelect } from '@/components/SearchSelect';
 import { ApiRequestError } from '@/lib/api';
 
 const ACCESSORS_PERM: Accessors<PermisoUsuario> = {
@@ -73,6 +74,11 @@ export function PermisosPage() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: permKey }),
   });
 
+  const opcionesUsuarios = useMemo(
+    () => usuarios.map((u) => ({ value: u.uid, label: u.nombre })),
+    [usuarios],
+  );
+
   const modulos = useMemo(
     () => [...new Set(permisos.map((p) => p.modulo))].sort(),
     [permisos],
@@ -124,18 +130,13 @@ export function PermisosPage() {
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-gray-600">
           Usuario
-          <select
+          <SearchSelect
             value={uid}
-            onChange={(e) => setUid(e.target.value)}
-            className="mt-1 block w-72 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30"
-          >
-            <option value="">Selecciona un usuario…</option>
-            {usuarios.map((u) => (
-              <option key={u.uid} value={u.uid}>
-                {u.nombre}
-              </option>
-            ))}
-          </select>
+            onChange={setUid}
+            options={opcionesUsuarios}
+            placeholder="Selecciona un usuario…"
+            className="mt-1 w-72"
+          />
         </label>
         {uid && modulos.length > 0 && (
           <label className="text-xs text-gray-600">

@@ -215,6 +215,41 @@ export interface RenovarInput {
   cortesiaVig: number;
 }
 
+/** Partida candidata a cancelación (mes de la corrida). */
+export interface CancelacionPartida {
+  numPartida: number;
+  fecha: string;
+  monto: number;
+  pagada: boolean;
+}
+
+/** Precarga del modal de cancelación anticipada. */
+export interface CancelacionPrecarga {
+  /** Primera partida cancelable (último mes pagado + 1). */
+  primerCancelable: number;
+  partidas: CancelacionPartida[];
+}
+
+export interface CancelarAnticipadoInput {
+  /** Primera partida que YA NO se cobra; se conservan las anteriores. */
+  numPartidaCorte: number;
+  motivo: string;
+}
+
+/** Fila del reporte de Cancelaciones Anticipadas. */
+export interface CancelacionReporteRow {
+  idArrePdp: string;
+  arrendatario: string;
+  parque: string | null;
+  nave: string | null;
+  fecInicio: string | null;
+  fecFin: string | null;
+  fecCancelacion: string | null;
+  motivo: string | null;
+  cancelo: string | null;
+  moneda: string | null;
+}
+
 // ============================ Cobranza ============================
 
 export interface FiltrosCobranza {
@@ -310,6 +345,17 @@ export const arrendatariosApi = {
       `/arrendatarios/planes/${idArrePdp}/renovar`,
       dto,
     ),
+  cancelacionPrecarga: (idArrePdp: string) =>
+    api.get<CancelacionPrecarga>(`/arrendatarios/planes/${idArrePdp}/cancelacion-precarga`),
+  cancelarAnticipado: (idArrePdp: string, dto: CancelarAnticipadoInput) =>
+    api.post<{ mensaje: string; fecCancelacion: string | null }>(
+      `/arrendatarios/planes/${idArrePdp}/cancelar`,
+      dto,
+    ),
+
+  // Reportes
+  reporteCancelaciones: (f: { anio?: number; parque?: string; busqueda?: string }) =>
+    api.get<CancelacionReporteRow[]>(`/arrendatarios/reportes/cancelaciones${dq(f)}`),
 
   // Config
   datos: (id: string) => api.get<DatosGeneralesArre>(`/arrendatarios/${id}/datos`),

@@ -15,6 +15,8 @@ import { DetallePartida } from './DetallePartida';
 import { ConfigArrendatarioModal } from './ConfigArrendatarioModal';
 import { ConsultaInpcModal } from './ConsultaInpcModal';
 import { RenovarPlanModal } from './RenovarPlanModal';
+import { CancelarAnticipadoModal } from './CancelarAnticipadoModal';
+import { useAuth } from '@/features/auth/useAuth';
 import { SearchSelect } from '@/components/SearchSelect';
 import { THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
 import { IconGear } from '@/components/icons';
@@ -30,6 +32,7 @@ const BADGE_VIGENCIA: Record<ArrePdpVigente, string> = {
 
 export function ArrendatariosPage() {
   const queryClient = useQueryClient();
+  const { tienePermiso } = useAuth();
   const [idArrendador, setIdArrendador] = useState('');
   const [idNavArrend, setIdNavArrend] = useState('');
   const [idArrePdp, setIdArrePdp] = useState('');
@@ -37,6 +40,7 @@ export function ArrendatariosPage() {
   const [verInpc, setVerInpc] = useState(false);
   const [liberando, setLiberando] = useState(false);
   const [renovarDe, setRenovarDe] = useState<string | null>(null);
+  const [cancelarDe, setCancelarDe] = useState<string | null>(null);
 
   const { data: arrendatarios = [] } = useQuery({
     queryKey: ['arre-lista'],
@@ -99,6 +103,14 @@ export function ArrendatariosPage() {
     return null;
   }, [planes]);
 
+  // Plan activo (vinculado y vigente): único candidato a cancelación anticipada.
+  const planActivo = useMemo(
+    () =>
+      planes.find((p) => !!propSel?.pdpActivo && p.idArrePdp === propSel?.idArrendadoPdp) ?? null,
+    [planes, propSel],
+  );
+  const cancelable = !!planActivo && planActivo.arrePdpVigente !== 'No';
+
   async function liberar() {
     if (
       !window.confirm(
@@ -152,7 +164,7 @@ export function ArrendatariosPage() {
           />
         </label>
 
-        {arreSel && (
+        {arreSel && tienePermiso(25) && (
           <button
             type="button"
             onClick={() => setConfig(arreSel)}
@@ -191,7 +203,7 @@ export function ArrendatariosPage() {
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-gray-600">Planes de esta propiedad</h2>
             <div className="flex gap-2">
-              {planRenovable && (
+              {planRenovable && tienePermiso(23) && (
                 <button
                   type="button"
                   onClick={() => setRenovarDe(planRenovable.idArrePdp)}
@@ -201,7 +213,17 @@ export function ArrendatariosPage() {
                   🔄 Renovar
                 </button>
               )}
-              {liberable && (
+              {cancelable && tienePermiso(22) && (
+                <button
+                  type="button"
+                  onClick={() => setCancelarDe(planActivo!.idArrePdp)}
+                  title="Termina el contrato anticipadamente desde un mes elegido"
+                  className="rounded-lg border border-red-500 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                >
+                  🛑 Cancelación anticipada
+                </button>
+              )}
+              {liberable && tienePermiso(24) && (
                 <button
                   type="button"
                   onClick={liberar}
@@ -248,6 +270,20 @@ export function ArrendatariosPage() {
           onRenovado={() => {
             void queryClient.invalidateQueries({ queryKey: ['arre-planes'] });
             void queryClient.invalidateQueries({ queryKey: ['arre-propiedades', idArrendador] });
+          }}
+        />
+      )}
+      {cancelarDe && (
+        <CancelarAnticipadoModal
+          idArrePdp={cancelarDe}
+          nombre={`${arreSel ? nombreArrendatario(arreSel) : ''} · ${propSel?.nomDescriptivo ?? ''}`}
+          onClose={() => setCancelarDe(null)}
+          onCancelado={() => {
+            // La nave se liberó: se limpia la selección y se refrescan listas.
+            void queryClient.invalidateQueries({ queryKey: ['arre-planes'] });
+            void queryClient.invalidateQueries({ queryKey: ['arre-propiedades', idArrendador] });
+            setIdNavArrend('');
+            setIdArrePdp('');
           }}
         />
       )}

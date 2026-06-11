@@ -34,6 +34,12 @@ const DashboardGraficoPage = lazy(() =>
 const ReportesPage = lazy(() =>
   import('@/features/ventas/ReportesPage').then((m) => ({ default: m.ReportesPage })),
 );
+// Reportes de Arrendatarios (jsPDF): chunk propio.
+const ReportesArrePage = lazy(() =>
+  import('@/features/arrendatarios/ReportesArrePage').then((m) => ({
+    default: m.ReportesArrePage,
+  })),
+);
 const cargando = <div className="p-6 text-sm text-gray-400">Cargando…</div>;
 import { ClientesPage } from '@/features/clientes/ClientesPage';
 import { DashboardCobranzaPage } from '@/features/arrendatarios/DashboardCobranzaPage';
@@ -78,6 +84,14 @@ export const router = createBrowserRouter([
           { path: '/ventas/escrituras', element: <EscriturasPage /> },
           { path: '/arrendatarios', element: <DashboardCobranzaPage /> },
           { path: '/arrendatarios/planes', element: <ArrendatariosPage /> },
+          {
+            path: '/arrendatarios/reportes',
+            element: (
+              <Suspense fallback={cargando}>
+                <ReportesArrePage />
+              </Suspense>
+            ),
+          },
           { path: '/parques', element: <ParquesPage /> },
           { path: '/parques/disponibilidad', element: <DisponibilidadPage /> },
           { path: '/cxp/pagar', element: <PagarSolicitudesPage /> },
