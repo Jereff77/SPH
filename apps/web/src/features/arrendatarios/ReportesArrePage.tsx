@@ -116,6 +116,7 @@ function EstadoCuentaTab() {
     '#',
     'Año',
     'Fecha',
+    'INPC total',
     'Renta',
     'Admin',
     'Mtto',
@@ -129,18 +130,26 @@ function EstadoCuentaTab() {
   ];
   const COLS_PDF = COLS_CSV.slice(4); // sin Nave/Parque/Razón Social/Divisa (van en el encabezado)
 
-  const filaPartida = (p: EstadoCuentaPartida): (string | number)[] => [
+  // CSV: número a 2 decimales (Excel lo trata como número). PDF: formato moneda.
+  const csvMonto = (n: number): string | number => (n > 0 ? Math.round(n * 100) / 100 : '');
+  const pdfMonto = (n: number): string => (n > 0 ? moneda(n, divisa) : '');
+
+  const filaPartida = (
+    p: EstadoCuentaPartida,
+    fmt: (n: number) => string | number,
+  ): (string | number)[] => [
     p.numPartida,
     p.anio ?? '',
     fechaCorta(p.fecha),
-    p.renta || '',
-    p.admin || '',
-    p.mtto || '',
-    p.vig || '',
-    p.otros || '',
+    p.inpcTotal > 0 ? num(p.inpcTotal) : '',
+    fmt(p.renta),
+    fmt(p.admin),
+    fmt(p.mtto),
+    fmt(p.vig),
+    fmt(p.otros),
     p.nota,
-    p.total || '',
-    p.montoPagado || '',
+    fmt(p.total),
+    fmt(p.montoPagado),
     fechaCorta(p.fecPago),
     p.pagado ? 'Pagado' : 'Pendiente',
   ];
@@ -149,7 +158,13 @@ function EstadoCuentaTab() {
 
   function exportarCsv() {
     if (!cab) return;
-    const filas = partidas.map((p) => [cab.nave, cab.parque, cab.arrendatario, cab.moneda, ...filaPartida(p)]);
+    const filas = partidas.map((p) => [
+      cab.nave,
+      cab.parque,
+      cab.arrendatario,
+      cab.moneda,
+      ...filaPartida(p, csvMonto),
+    ]);
     exportarCSV(archivo, COLS_CSV, filas);
   }
 
@@ -166,7 +181,7 @@ function EstadoCuentaTab() {
           `Generado ${fechaCorta(hoyMexico())}`,
         logoUrl: logos?.claro?.url ?? null,
         columnas: COLS_PDF,
-        filas: partidas.map(filaPartida),
+        filas: partidas.map((p) => filaPartida(p, pdfMonto)),
       });
     } finally {
       setGenerandoPdf(false);
@@ -279,6 +294,7 @@ function EstadoCuentaTab() {
                   <SortableTh align="center">#</SortableTh>
                   <SortableTh align="center">Año</SortableTh>
                   <SortableTh>Fecha</SortableTh>
+                  <SortableTh align="right">INPC total</SortableTh>
                   <SortableTh align="right">Renta</SortableTh>
                   <SortableTh align="right">Admin</SortableTh>
                   <SortableTh align="right">Mtto</SortableTh>
@@ -297,6 +313,7 @@ function EstadoCuentaTab() {
                     <td className="px-3 py-1.5 text-center font-medium">{p.numPartida}</td>
                     <td className="px-3 py-1.5 text-center">{p.anio ?? '—'}</td>
                     <td className="px-3 py-1.5 whitespace-nowrap">{fechaCorta(p.fecha)}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{p.inpcTotal > 0 ? num(p.inpcTotal) : '—'}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums">{p.renta > 0 ? num(p.renta) : '—'}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums">{p.admin > 0 ? num(p.admin) : '—'}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums">{p.mtto > 0 ? num(p.mtto) : '—'}</td>
@@ -331,6 +348,7 @@ function EstadoCuentaTab() {
                   <td className="px-3 py-2 text-right" colSpan={3}>
                     TOTALES
                   </td>
+                  <td />
                   <td className="px-3 py-2 text-right tabular-nums">{num(tot.renta)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{num(tot.admin)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{num(tot.mtto)}</td>

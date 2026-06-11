@@ -57,6 +57,7 @@ export interface EstadoCuentaPartida {
   pm2: number;
   constM2: number;
   inpc: number;
+  inpcTotal: number;
   renta: number;
   admin: number;
   mtto: number;
@@ -382,7 +383,7 @@ export class ReportesArreService {
     const { data: det, error: detErr } = await this.supabase.admin
       .from('arrePdpDetalle')
       .select(
-        'numPartida, anio, ciclo, concepto, fecha, pm2, constM2, INPC, cantidad, cantidadAplicada, fecPago',
+        'numPartida, anio, ciclo, concepto, fecha, pm2, constM2, INPC, inpcTotal, cantidad, cantidadAplicada, fecPago',
       )
       .eq('idArrePdp', idArrePdp)
       .eq('status', true)
@@ -398,6 +399,7 @@ export class ReportesArreService {
       pm2: number;
       constM2: number;
       inpc: number;
+      inpcTotal: number;
       renta: number;
       admin: number;
       mtto: number;
@@ -423,6 +425,7 @@ export class ReportesArreService {
           pm2: 0,
           constM2: 0,
           inpc: 0,
+          inpcTotal: 0,
           renta: 0,
           admin: 0,
           mtto: 0,
@@ -446,6 +449,7 @@ export class ReportesArreService {
         a.pm2 = Number(r.pm2) || a.pm2;
         a.constM2 = Number(r.constM2) || a.constM2;
         a.inpc = Number(r.INPC) || a.inpc;
+        a.inpcTotal = Number(r.inpcTotal) || a.inpcTotal;
       } else if (n === 'vigilancia') a.vig += m;
       else if (n === 'administracion') a.admin += m;
       else if (n === 'mantenimiento') a.mtto += m;
@@ -470,6 +474,7 @@ export class ReportesArreService {
         pm2: a.pm2,
         constM2: a.constM2,
         inpc: a.inpc,
+        inpcTotal: a.inpcTotal,
         renta: a.renta,
         admin: a.admin,
         mtto: a.mtto,

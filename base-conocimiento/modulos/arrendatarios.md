@@ -120,10 +120,11 @@ actor para auditoría). Crear un plan orquesta **3 RPCs en secuencia**:
 - **Estado de Cuenta** (tab): estado de cuenta **por nave y plan**. Se elige **Parque → Nave → Plan**
   (vigente o terminado); muestra la **cabecera del plan** (`arrePdp`: arrendatario, fechas, plazo, moneda,
   depósito, $×m², const m², INPC adic.) y la **corrida completa** (`arrePdpDetalle`) **desglosada por
-  partida**: una fila por mes con el monto separado en **Renta/Admin/Mtto/Vig** + **Otros Servicios** (suma
-  del resto) + **Nota** (detalle), **Total**, **Pagado** (cantidadAplicada), **Fecha de pago** y **Estado**
-  (Pagado/Pendiente), con **totales** al pie. Export **CSV** (incluye Nave/Parque/Razón Social/Divisa por
-  fila) y **PDF con encabezado (logo SPH + datos del plan)**. Backend `reportes-arre.service.ts`:
+  partida**: una fila por mes con **INPC total**, el monto separado en **Renta/Admin/Mtto/Vig** + **Otros
+  Servicios** (suma del resto) + **Nota** (detalle), **Total**, **Pagado** (cantidadAplicada), **Fecha de
+  pago** y **Estado** (Pagado/Pendiente), con **totales** al pie. Export **CSV** (incluye Nave/Parque/Razón
+  Social/Divisa por fila; montos a 2 decimales) y **PDF con encabezado (logo SPH + datos del plan; montos con
+  formato de moneda a 2 decimales)**. Backend `reportes-arre.service.ts`:
   `estadoCuentaOpciones()` (naves arrendadas con plan, excluye Tickets) y `estadoCuentaCorrida(idArrePdp)`
   (cabecera + corrida pivotada por concepto). Endpoints `GET /arrendatarios/reportes/estado-cuenta/opciones`
   y `GET /arrendatarios/reportes/estado-cuenta/:idArrePdp`.

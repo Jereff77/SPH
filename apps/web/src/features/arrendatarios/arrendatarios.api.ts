@@ -299,6 +299,7 @@ export interface EstadoCuentaPartida {
   pm2: number;
   constM2: number;
   inpc: number;
+  inpcTotal: number;
   renta: number;
   admin: number;
   mtto: number;
