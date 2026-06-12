@@ -51,6 +51,10 @@ export class KbService implements OnModuleInit {
   private readonly logger = new Logger(KbService.name);
   private docs: DocModuloKb[] = [];
   private glosarioTexto = '';
+  private directorioTexto = '';
+
+  /** Documento que SIEMPRE se inyecta (no se enruta): el directorio de contactos. */
+  private static readonly DOC_DIRECTORIO = 'directorio-contactos';
 
   onModuleInit(): void {
     this.cargar();
@@ -69,14 +73,25 @@ export class KbService implements OnModuleInit {
     }
     this.docs = this.cargarModulos(join(dir, 'modulos'));
     this.glosarioTexto = this.leerArchivo(join(dir, 'GLOSARIO.md')) ?? '';
+    this.directorioTexto =
+      this.docs.find((d) => d.archivo === KbService.DOC_DIRECTORIO)?.cuerpo ?? '';
     this.logger.log(
-      `KB cargada desde ${dir}: ${this.docs.length} módulos, glosario ${this.glosarioTexto ? 'OK' : 'ausente'}.`,
+      `KB cargada desde ${dir}: ${this.docs.length} módulos, glosario ${this.glosarioTexto ? 'OK' : 'ausente'}, directorio ${this.directorioTexto ? 'OK' : 'ausente'}.`,
     );
   }
 
   /** Texto del glosario (se inyecta siempre: es corto y transversal). */
   glosario(): string {
     return this.glosarioTexto;
+  }
+
+  /**
+   * Directorio de contactos/responsables (se inyecta SIEMPRE, no se enruta). Es
+   * lo que permite al agente canalizar al usuario con la persona correcta cuando
+   * menciona un permiso faltante o algo que gestiona otra persona.
+   */
+  directorio(): string {
+    return this.directorioTexto;
   }
 
   /** Documentos cargados (para diagnóstico/tests). */
@@ -96,10 +111,13 @@ export class KbService implements OnModuleInit {
     const q = normalizar(texto);
     const rutaNorm = ruta ? normalizar(ruta) : '';
 
-    const puntajes = this.docs.map((doc) => ({
-      doc,
-      score: this.puntuar(doc, q, rutaNorm),
-    }));
+    const puntajes = this.docs
+      // El directorio se inyecta siempre por separado; no compite en el enrutamiento.
+      .filter((doc) => doc.archivo !== KbService.DOC_DIRECTORIO)
+      .map((doc) => ({
+        doc,
+        score: this.puntuar(doc, q, rutaNorm),
+      }));
 
     // Ordena por score desc y toma los que superan 0.
     const ganadores = puntajes

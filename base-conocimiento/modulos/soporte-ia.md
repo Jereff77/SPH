@@ -51,8 +51,14 @@ relacionado_con: [configuraciones, correo, auditoria-y-ver-como]
 ## 4. Diagnóstico de permisos
 El agente conoce las **claves de permiso** de cada pantalla (del frontmatter de la KB) y los
 **permisos del usuario** (perfil). Así puede explicar, por ejemplo, "no ves *Claves SAT* porque
-te falta la clave **215**; pídesela a un administrador en Configuraciones → Permisos". Los
-usuarios de **soporte** (`isSupport`) tienen acceso total.
+te falta la clave **215**". Los usuarios de **soporte** (`isSupport`) tienen acceso total.
+
+### 4.1. Directorio de contactos (canalizar con la persona correcta)
+El documento **`modulos/directorio-contactos.md`** se inyecta **SIEMPRE** en el contexto del agente
+(no se enruta, como el glosario). Lista **quién asigna permisos**, los **responsables por área** y a
+quién acudir para **soporte técnico**, con su correo/teléfono. Por eso, cuando el agente dice "te
+falta el permiso 420", no se queda ahí: **te dice a quién pedírselo** (nombre + contacto). Los datos
+salen de `catUsers`. Implementado en `KbService.directorio()` + reglas en `construirSystemPrompt`.
 
 ## 5. Escalación a ticket
 - Cuando el agente no puede resolver, **ofrece** crear un ticket (botón 🎫 en el widget).

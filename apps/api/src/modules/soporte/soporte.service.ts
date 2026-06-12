@@ -317,6 +317,7 @@ export class SoporteService {
     ruta?: string,
   ): string {
     const glosario = this.kb.glosario();
+    const directorio = this.kb.directorio();
 
     const clavesTxt =
       perfil.claves.length > 0
@@ -327,7 +328,8 @@ export class SoporteService {
       promptBase,
       '',
       'REGLAS:',
-      `- Si el usuario pregunta por algo que requiere un permiso que NO tiene, explícale con claridad que necesita esa clave de permiso y que la solicite a un administrador.`,
+      `- Si el usuario pregunta por algo que requiere un permiso que NO tiene, explícale con claridad que necesita esa clave de permiso y, usando el DIRECTORIO DE CONTACTOS, dile EXACTAMENTE a quién solicitársela (nombre y cómo contactarlo). Nunca digas solo "pídeselo a un administrador" si el directorio tiene un responsable.`,
+      `- Siempre que menciones que algo lo gestiona o autoriza otra persona, canaliza al usuario con el responsable correcto según el DIRECTORIO DE CONTACTOS.`,
       `- Si el problema necesita intervención humana (un dato incorrecto, algo que el sistema hizo solo, una falla), ofrece escalar a un ticket y añade en una línea aparte exactamente el marcador ${MARCADOR_ESCALAR} (el sistema lo usa para mostrar el botón de ticket; no lo expliques al usuario).`,
       '- No reveles detalles técnicos internos (SQL, nombres de funciones de base de datos, secretos).',
       '',
@@ -335,6 +337,8 @@ export class SoporteService {
       `- Nombre: ${perfil.nombre}${perfil.esSoporte ? ' (usuario de SOPORTE: tiene acceso total)' : ''}.`,
       `- Pantalla actual: ${ruta ?? 'desconocida'}.`,
       `- Permisos (claves): ${clavesTxt}.`,
+      '',
+      directorio ? `DIRECTORIO DE CONTACTOS (a quién canalizar):\n${directorio}` : '',
       '',
       glosario ? `GLOSARIO (términos transversales):\n${glosario}` : '',
       '',

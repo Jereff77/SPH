@@ -39,6 +39,7 @@ futuro, en una tabla vectorial `pgvector` para búsqueda semántica).
 | CRM | 🟠 parcial | `modulos/crm.md` | (Clientes ya migrado → ver `modulos/clientes.md`) | 300 | lead, prospecto, empresa, inmobiliaria, actividad comercial · (Clientes = padrón) |
 | Cron / Tareas programadas | ✅ desarrollado | `modulos/cron.md` | /configuraciones/cron | — (solo soporte, isSupport) | cron, tarea programada, tareas programadas, job, jobs, scheduler, pg_cron, ejecución, historial de tareas, automático, programado, soporte, monitoreo, ejecutar ahora |
 | Asistente / Agente de IA de Soporte | ✅ desarrollado | `modulos/soporte-ia.md` | (transversal — widget flotante) | — (todos) | asistente, ayuda, soporte, agente, IA, chat, chatbot, cómo hago, no me deja, no aparece, ticket, escalar, OpenRouter, widget, dudas, guía |
+| Directorio de Contactos y Responsables | ✅ desarrollado | `modulos/directorio-contactos.md` | (transversal — **siempre** en contexto) | — | quién, a quién contactar, responsable, asignar permiso, no tengo permiso, quién asigna, soporte, área, encargado, administrador |
 
 > Leyenda: **✅ desarrollado** = está en v2 y su doc está completo · **🟡 stub** = existe en v1 pero aún
 > no en v2 (ficha mínima; el agente debe derivar a soporte para operaciones).

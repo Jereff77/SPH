@@ -5,7 +5,7 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-12 (v2.23.0 — CxP Reportes: Estado de Cuenta). Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-12 (v2.24.0 — Asistente: directorio de contactos). Autor: Claude (Opus 4.8).
 >
 > ✨ **v2.23.0 (feature):** **CxP → Reportes** (`/cxp/reportes`, clave **460**) — réplica **segura** del reporte
 > HTML embebido de v1 (`/reportescxp`). Backend `cxp/reportes.{service,controller,schemas}.ts` invoca con
@@ -189,6 +189,10 @@
     `v2_soporte_ro`, tablas `v2_soporte_sesiones/mensajes/tickets` (RLS ON, `trg_auditoria`), parámetros
     `SOPORTE_IA_MODELO/PROMPT` en `SPHConfiguraciones`. Edge `soporte-chat` **desplegada** (ACTIVE). SQL en
     `base-conocimiento/migraciones/2026-06-12-soporte-ia.sql`. Doc `base-conocimiento/modulos/soporte-ia.md`.
+    **Directorio de contactos (v2.24.0):** doc `modulos/directorio-contactos.md` (quién asigna permisos,
+    responsables por área, soporte técnico — datos de `catUsers`) que el `KbService` **inyecta SIEMPRE** en
+    el prompt (`directorio()`, no se enruta) + reglas en `construirSystemPrompt` para que el agente canalice
+    al usuario con la persona correcta (nombre+correo) en vez de un genérico "pídeselo a un administrador".
     **⚠️ Pendiente operativo:** la cuenta de **OpenRouter** debe tener clave válida + créditos (el chat
     devolvía 502 de OpenRouter en pruebas) y desplegar api+web a EasyPanel. Fase 2 prevista: RAG con `pgvector`.
 - **Changelog / Novedades** (Configuraciones, **sin permiso** → todos): bitácora de versiones SemVer
