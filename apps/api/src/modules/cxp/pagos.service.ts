@@ -319,8 +319,10 @@ export class PagosService {
       autorizacion: dto.autorizacion || null,
       imgComp,
       folioCFDI: sol.folio,
-      numAnio: sol.numAnio,
-      numMes: sol.numMes,
+      // `numAnio` y `numMes` son columnas GENERADAS en `movbancarios`
+      // (EXTRACT year/month de `fecOperacion`): NO se pueden insertar — Postgres
+      // las calcula solo. Insertarlas provocaba un 500 ("cannot insert a
+      // non-DEFAULT value into column numAnio") al aplicar el pago.
     });
     if (movErr) {
       this.logger.error(`Error insertando movbancario: ${movErr.message}`);

@@ -182,6 +182,7 @@ parametrizadas desde el backend.
 | "Al pagar no aparece el movimiento del proveedor." | No hay SPEI sin aplicar que coincida (nombre truncado **y** importe ≠ total), o es otro tipo. | Verificar el comprobante; usar la opción de capturar comprobante (PDF). |
 | "No me deja registrar el pago." | El importe del comprobante no coincide con el total de la solicitud. | Verificar el comprobante / monto. |
 | "Un pago quedó mal conciliado." | Asignación incorrecta de `movbancarios`. | Desaplicar (permiso 401) y reasignar. |
+| "Error interno del servidor al aplicar pago por captura/comprobante." | **Resuelto en v2.22.1.** El INSERT a `movbancarios` enviaba columnas GENERADAS (`numAnio`/`numMes`). | Actualizar a v2.22.1+ (el backend ya no las envía). Si reaparece, revisar que ningún INSERT a `movbancarios` incluya columnas generadas. |
 
 **Cuándo escalar a ticket:** desaplicar/corregir pagos, inconsistencias de conciliación, solicitudes
 atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
@@ -320,14 +321,22 @@ Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un mod
 
 **C) Captura de pantalla del pago** (manual, sin lectura automática)
 - El usuario elige el **banco** (`Banbajío` / `Actinver`), captura el **monto** (= total) y sube una
-  **imagen o PDF** del pago (PDF/JPG/PNG). Botón "Aplicar pago" → mismo `POST /cxp/pagos/:idCxp`
-  (con el archivo como `comprobante`, sin webhook): crea el `movbancarios` (`bcoDestino` = banco,
-  `manual=true`, `tipo='Transferencias'`) y aplica el pago. Útil cuando solo se tiene la captura
-  del SPEI. Los bancos disponibles son una lista fija en el front (`BANCOS_CAPTURA`).
+  **imagen o PDF** del pago (**PDF, JPG, PNG, WEBP, GIF, HEIC**). Botón "Aplicar pago" → mismo
+  `POST /cxp/pagos/:idCxp` (con el archivo como `comprobante`, sin webhook): crea el `movbancarios`
+  (`bcoDestino` = banco, `manual=true`, `tipo='Transferencias'`) y aplica el pago. Útil cuando solo se
+  tiene la captura del SPEI. Los bancos disponibles son una lista fija en el front (`BANCOS_CAPTURA`).
 
 > ⚠️ **Validación de monto (B y C):** el importe del pago **debe coincidir** con el total de la
 > solicitud (tolerancia 1 centavo) — bloqueado en el front (aviso + botón inhabilitado) y en el
 > backend (`registrarPago`).
+
+> 🐛 **Gotcha resuelto (v2.22.1):** en `movbancarios` las columnas **`numAnio`/`numMes`** (y también
+> `idtipo`/`idUnico`) son **GENERADAS** por Postgres (`EXTRACT(year/month FROM "fecOperacion")`). El
+> INSERT de `registrarPago` las pasaba explícitamente → Postgres rechazaba con *"cannot insert a
+> non-DEFAULT value into column numAnio"* y el front mostraba **"Error interno del servidor"** (500)
+> al aplicar pago por **captura (C)** o **comprobante (B)**. Fix: **no** enviar esas columnas en el
+> INSERT (Postgres las deriva de `fecOperacion`). Regla general: al insertar en `movbancarios` desde
+> v2, **nunca** incluir columnas generadas. La opción **A** no se veía afectada (hace UPDATE, no INSERT).
 
 ### Otras acciones
 - **Ver pago / desaplicar** (🏦): muestra el `movbancarios` aplicado; **desaplicar**

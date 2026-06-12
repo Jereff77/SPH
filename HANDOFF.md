@@ -5,7 +5,15 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-12 (v2.21.0 — módulo Fideicomiso completo). Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-12 (v2.22.1 — Fix CxP: aplicar pago por captura/comprobante). Autor: Claude (Opus 4.8).
+>
+> 🐛 **v2.22.1 (fix):** "Pagar solicitudes" devolvía **500 "Error interno del servidor"** al aplicar pago por
+> **captura de pantalla (C)** o **comprobante (B)**: el INSERT a `movbancarios` enviaba las columnas
+> **GENERADAS** `numAnio`/`numMes` (Postgres: `EXTRACT(year/month FROM "fecOperacion")`) → *"cannot insert a
+> non-DEFAULT value into column numAnio"*. Fix en `pagos.service.ts` (no enviar esas columnas). De paso se
+> ampliaron los formatos aceptados del comprobante (PDF/JPG/PNG/WEBP/GIF/HEIC) en `pagos.controller.ts` +
+> `AplicarPagoModal.tsx`. **Sin cambios en BD.** Regla nueva: al insertar en `movbancarios`, **nunca** incluir
+> columnas generadas (`numAnio`/`numMes`/`idtipo`/`idUnico`). Detalle en `base-conocimiento/modulos/cxp.md`.
 >
 > 📌 **El estado detallado y al día por módulo está en `base-conocimiento/INDICE.md`** (router) y los
 > `base-conocimiento/modulos/*.md`. El **handoff operativo** (despliegue EasyPanel, rama, variables,
@@ -157,6 +165,23 @@
     diseño**). **Sin objetos nuevos en BD** (todas las tablas/RPC ya existían; todo server-side y auditado).
     Mejoras vs v1: documentos guardan la URL real (v1 dejaba `urldoc=''`); botón Guardar de Datos funcional
     (en v1 estaba oculto). **Nueva dependencia front:** `exceljs` (lazy). Ver `modulos/fideicomiso.md`.
+  - **Agente de IA de Soporte** (v2.22.0; **widget flotante 💬 global**, sin permiso → todos): asistente
+    que ayuda a **usar la app** (how-to, diagnóstico "¿por qué no me aparece?", escalar a ticket). **Dedicado
+    y separado de Montse** (que consulta datos). Backend `apps/api/src/modules/soporte/` (`kb.service` =
+    router de la KB por palabras clave + ruta; `soporte.service` = proxy + perfil + persistencia;
+    `soporte.controller` con `JwtAuthGuard` sin permiso). Front `apps/web/src/features/soporte/`
+    (`SoporteWidget` montado en `AppShell`, oculto en "Ver como"). Proxy a la **edge `soporte-chat`**
+    (OpenRouter; secreto `OPENROUTER_API_KEY` solo en la edge). **🔒 Regla del usuario: el agente SOLO
+    informa, jamás escribe en BD** → toda lectura del agente pasa por el **rol nuevo `v2_soporte_ro`**
+    (solo `SELECT`; verificado: UPDATE/INSERT/columna `email` denegados). Persistencia y tickets son
+    escrituras deterministas del backend (`comoActor`, auditadas); el ticket se crea **solo si el usuario
+    confirma**. La KB (`base-conocimiento/`) es la fuente de conocimiento (se copia a la imagen del api;
+    `KbService` la resuelve por cwd o `KB_PATH`). **Objetos nuevos en BD (aplicados vía MCP):** rol
+    `v2_soporte_ro`, tablas `v2_soporte_sesiones/mensajes/tickets` (RLS ON, `trg_auditoria`), parámetros
+    `SOPORTE_IA_MODELO/PROMPT` en `SPHConfiguraciones`. Edge `soporte-chat` **desplegada** (ACTIVE). SQL en
+    `base-conocimiento/migraciones/2026-06-12-soporte-ia.sql`. Doc `base-conocimiento/modulos/soporte-ia.md`.
+    **⚠️ Pendiente operativo:** la cuenta de **OpenRouter** debe tener clave válida + créditos (el chat
+    devolvía 502 de OpenRouter en pruebas) y desplegar api+web a EasyPanel. Fase 2 prevista: RAG con `pgvector`.
 - **Changelog / Novedades** (Configuraciones, **sin permiso** → todos): bitácora de versiones SemVer
   (`GET /api/changelog`, solo lectura). El Sidebar muestra la versión desde aquí. Fuente: tabla nueva
   `v2_changelog` + función `v2_changelog_registrar` (asigna el SemVer desde la BD con lock, **a prueba de

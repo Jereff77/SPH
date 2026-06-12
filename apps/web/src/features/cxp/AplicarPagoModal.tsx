@@ -443,10 +443,10 @@ function OpcionCaptura({
       </label>
 
       <label className={lbl}>
-        Comprobante / captura de pantalla * (PDF, JPG o PNG)
+        Comprobante / captura de pantalla * (PDF o imagen: JPG, PNG, WEBP, GIF, HEIC)
         <input
           type="file"
-          accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
+          accept="application/pdf,image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif"
           onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
           className="mt-1 block w-full text-xs"
         />
