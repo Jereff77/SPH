@@ -49,7 +49,7 @@ Captura/Solicitud  →  Autorización  →  Pago/Transferencia  →  Conciliaci�
 | **Aprobar Solicitudes** | `/cxp/aprobar` | **430** | ✅ desarrollado (bandeja del aprobador: regresar/rechazar/aprobar con presupuesto) |
 | Solicitudes pendientes | `/cxp/pendientes` | **450** | ✅ desarrollado |
 | Dashboard CxP | (pendiente) | 440 / 441 | ⏳ |
-| Reportes | (pendiente) | 460 | ⏳ |
+| **Reportes** | `/cxp/reportes` | **460** | ✅ desarrollado (Estado de Cuenta: filtros server-side + Excel/PDF) |
 
 Permisos (confirmados en `segModulos`): **400** módulo · **401** desaplicar pagos · **402** aprobados sin
 pago aplicado · **410** proveedores · **420** solicitudes de pago · **430** aprobar facturas · **431**
@@ -355,6 +355,54 @@ Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un mod
 - Conciliación automática por monto, drag-drop, 1 pago↔N solicitudes, pagos parciales,
   importación del estado de cuenta bancario.
 - El webhook de N8N se sigue usando tal cual; luego se integrará al backend (como el CFDI).
+
+---
+
+## Reportes — "Estado de Cuenta" (clave 460) — v2  ✅
+
+Réplica **segura** del reporte HTML embebido de v1 (`/reportescxp`, widget Flutter
+`cxp_reportes_widget.dart` → `FlutterFlowWebView`). En v1 el HTML hablaba **directo a Supabase** con la
+*publishable key embebida* y filtraba en el navegador trayendo todo (riesgos: key en el bundle, sin JWT,
+permiso solo en Flutter, XSS por `innerHTML`, búsqueda "rota" que reusaba el filtro de proveedor). En v2 el
+front **nunca toca Supabase**: el backend sirve los datos tras `JwtAuthGuard`+`PermisoGuard` (clave **460**).
+
+### Datos (reusa RPCs EXISTENTES de v1 — autorizado, solo lectura, sin objetos nuevos en BD)
+El backend (`reportes.service.ts`) invoca con `service_role` las 3 RPCs de v1:
+- `cxp_get_unique_values_v2(tipo_dato)` → combos (1=Proveedores, 2=Categorías, 3=Secciones, 5=Solicitantes,
+  6=Autorizadores, 7=Pagadores).
+- `cxp_get_filtros_dependientes_v2(p_proveedor,p_categoria,p_seccion)` → cascada (recalcula secciones).
+- `cxp_get_estado_cuenta_detalle_v2(...)` → datos. Devuelve por fila: `idCxp, folio, proveedor, estado,
+  idEstado, categoria, seccion, concepto, fecSolicitud, fecCFDI, fecPago, subtotal, total, montoAplicado,
+  quienSolicito, quienAutorizo, quienPago, esUrgente, tipoProveedor, anio, mes, balance`.
+
+> ⚠️ **Coexistencia:** estas RPCs son de v1 y **no se tocan**. v2 las **lee** con service_role (mismo
+> patrón autorizado que Ventas → Reportes con `v_pdpdetalle_get_*`).
+
+### Correcciones vs v1
+- **Búsqueda real** por folio/concepto/proveedor (v1 sobreescribía `p_proveedor`).
+- **Todo el filtrado server-side**: el rango de fechas (sobre `fecSolicitud`), los estados (multi) y la
+  búsqueda se aplican en el backend, no en el navegador. La RPC recibe proveedor/categoría/sección/tipo/
+  urgente/quién*; el backend filtra fechas/estados/búsqueda y calcula los totales. Devuelve el dataset YA
+  filtrado + `{ totalRegistros, montoTotal, montoAplicado, balance }`.
+
+### UI (idéntica a v1)
+Panel de filtros colapsable (rango de fechas con `InputFecha`, proveedor/categoría/sección con
+`SearchSelect`, tipo proveedor, **8 estados** en checkboxes [Guardado, Enviado, Rechazado, Aprobado,
+Reprogramado, Pagado, Pago T. Bancaria, Aprobado sin pago aplicado], urgente, quién solicitó/autorizó/pagó,
+búsqueda). **4 tarjetas** (Total Registros, Monto Total, Monto Aplicado, Balance). **Tabla de 14 columnas**
+(Folio, Proveedor, Estado [badge coloreado], Categoría, Sección, Concepto, F. Solicitud, F. CFDI, Subtotal,
+Total, Monto Aplicado, Balance, Urgente, Acciones) con encabezado fijo azul (regla 7), orden por columna y
+**paginación 20/pág**. **Modal de detalle** con 17 campos. Default del rango de fechas = mes actual.
+
+### Exportar
+- **Excel** (`exceljs` lazy): 17 columnas, hoja "CXP", archivo `Reporte_CXP_<aaaa-mm-dd>.xlsx`.
+- **PDF** (`jspdf`+`jspdf-autotable`): 7 columnas (Folio, Proveedor, Estado, F. Solicitud, Total, Monto
+  Aplicado, Balance), encabezado de tabla `#2c3e50`, resumen al pie, `Reporte_CXP_<aaaa-mm-dd>.pdf`.
+
+### Archivos
+- Backend: `cxp/reportes.{service,controller,schemas}.ts` (registrados en `cxp.module.ts`).
+- Frontend: `features/cxp/ReportesCxpPage.tsx` (lazy), `reportes.api.ts`, `reportes-export.ts`. Ruta
+  `/cxp/reportes` en `router.tsx`; ítem "Reportes" (clave 460) en `menu.tsx`.
 
 ---
 

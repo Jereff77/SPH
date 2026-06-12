@@ -22,6 +22,8 @@ import { PpdController } from './ppd.controller.js';
 import { PpdService } from './ppd.service.js';
 import { BloqueoService } from './bloqueo.service.js';
 import { ComplementosScheduler } from './complementos.scheduler.js';
+import { ReportesCxpController } from './reportes.controller.js';
+import { ReportesCxpService } from './reportes.service.js';
 
 /**
  * Módulo Cuentas por Pagar (CxP). Se construye por fases: Proveedores →
@@ -41,6 +43,7 @@ import { ComplementosScheduler } from './complementos.scheduler.js';
     AprobacionController,
     AprobacionStreamController,
     PpdController,
+    ReportesCxpController,
   ],
   providers: [
     ProveedoresService,
@@ -55,6 +58,7 @@ import { ComplementosScheduler } from './complementos.scheduler.js';
     PpdService,
     BloqueoService,
     ComplementosScheduler,
+    ReportesCxpService,
   ],
   exports: [ComplementosScheduler],
 })

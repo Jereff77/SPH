@@ -93,7 +93,8 @@ export const MENU: MenuGrupo[] = [
       { label: 'Solicitudes pendientes', to: '/cxp/pendientes', clave: 450 },
       { label: 'Proveedores', to: '/cxp/proveedores', clave: 410 },
       { label: 'Bancos', to: '/cxp/bancos', clave: 470 },
-      // Próximas fases: Reportes (460), Dashboard (440/441)…
+      { label: 'Reportes', to: '/cxp/reportes', clave: 460 },
+      // Próxima fase: Dashboard (440/441)…
     ],
   },
   {

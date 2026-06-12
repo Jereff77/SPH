@@ -5,7 +5,16 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-12 (v2.22.1 — Fix CxP: aplicar pago por captura/comprobante). Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-12 (v2.23.0 — CxP Reportes: Estado de Cuenta). Autor: Claude (Opus 4.8).
+>
+> ✨ **v2.23.0 (feature):** **CxP → Reportes** (`/cxp/reportes`, clave **460**) — réplica **segura** del reporte
+> HTML embebido de v1 (`/reportescxp`). Backend `cxp/reportes.{service,controller,schemas}.ts` invoca con
+> `service_role` las 3 RPCs EXISTENTES de v1 `cxp_get_unique_values_v2` / `cxp_get_filtros_dependientes_v2` /
+> `cxp_get_estado_cuenta_detalle_v2` (autorizado, solo lectura, **sin objetos nuevos en BD**). El front ya no
+> usa la publishable key embebida; **todo el filtrado es server-side** (fechas/estados/búsqueda) y se corrigió
+> la búsqueda (v1 reusaba el filtro de proveedor). Front `features/cxp/ReportesCxpPage.tsx` (lazy): filtros,
+> 4 tarjetas, tabla 14 cols (encabezado fijo), modal de detalle, paginación, **export Excel (17 cols, ExcelJS)
+> y PDF (7 cols, jsPDF+autotable)** idénticos a v1. Ver `base-conocimiento/modulos/cxp.md`.
 >
 > 🐛 **v2.22.1 (fix):** "Pagar solicitudes" devolvía **500 "Error interno del servidor"** al aplicar pago por
 > **captura de pantalla (C)** o **comprobante (B)**: el INSERT a `movbancarios` enviaba las columnas
