@@ -6,6 +6,7 @@ import { useMediaQuery } from '@/lib/useMediaQuery';
 import { STORAGE } from '@/lib/constants';
 import { IconMenu, IconLogout } from '@/components/icons';
 import { Sidebar } from './Sidebar';
+import { SoporteWidget } from '@/features/soporte/SoporteWidget';
 
 /**
  * Layout principal tras el login (landing). Header + sidebar colapsable.
@@ -114,6 +115,10 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      {/* Agente de IA de Soporte: widget flotante disponible en toda la app.
+          Se oculta en modo "Ver como" (solo lectura de soporte). */}
+      {!verComoActivo && <SoporteWidget />}
     </div>
   );
 }

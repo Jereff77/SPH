@@ -21,236 +21,10 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "12.2.3 (519615d)"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
-      auditoria: {
-        Row: {
-          accion: string
-          cambios: Json | null
-          comentario: string | null
-          entidad: string
-          fc: string
-          id: number
-          id_entidad: string | null
-          origen: number
-          registro_anterior: Json | null
-          registro_nuevo: Json | null
-          uid: string | null
-        }
-        Insert: {
-          accion: string
-          cambios?: Json | null
-          comentario?: string | null
-          entidad: string
-          fc?: string
-          id?: never
-          id_entidad?: string | null
-          origen?: number
-          registro_anterior?: Json | null
-          registro_nuevo?: Json | null
-          uid?: string | null
-        }
-        Update: {
-          accion?: string
-          cambios?: Json | null
-          comentario?: string | null
-          entidad?: string
-          fc?: string
-          id?: never
-          id_entidad?: string | null
-          origen?: number
-          registro_anterior?: Json | null
-          registro_nuevo?: Json | null
-          uid?: string | null
-        }
-        Relationships: []
-      }
-      catClavesProdServ: {
-        Row: {
-          claveProdServ: string
-          descripcion: string | null
-          fc: string
-          idClave: string
-          retieneIVA: boolean
-          retieneISR: boolean
-          status: boolean
-          uidr: string | null
-        }
-        Insert: {
-          claveProdServ: string
-          descripcion?: string | null
-          fc?: string
-          idClave?: string
-          retieneIVA?: boolean
-          retieneISR?: boolean
-          status?: boolean
-          uidr?: string | null
-        }
-        Update: {
-          claveProdServ?: string
-          descripcion?: string | null
-          fc?: string
-          idClave?: string
-          retieneIVA?: boolean
-          retieneISR?: boolean
-          status?: boolean
-          uidr?: string | null
-        }
-        Relationships: []
-      }
-      correo_cuentas: {
-        Row: {
-          activo: boolean
-          email: string
-          fc: string
-          id: string
-          imapHost: string
-          imapPort: number
-          nombre: string | null
-          passwordCifrada: string
-          smtpHost: string
-          smtpPort: number
-          ultimoUidSync: Json
-          uidr: string | null
-          usuario: string
-        }
-        Insert: {
-          activo?: boolean
-          email: string
-          fc?: string
-          id?: string
-          imapHost: string
-          imapPort?: number
-          nombre?: string | null
-          passwordCifrada: string
-          smtpHost: string
-          smtpPort?: number
-          ultimoUidSync?: Json
-          uidr?: string | null
-          usuario: string
-        }
-        Update: {
-          activo?: boolean
-          email?: string
-          fc?: string
-          id?: string
-          imapHost?: string
-          imapPort?: number
-          nombre?: string | null
-          passwordCifrada?: string
-          smtpHost?: string
-          smtpPort?: number
-          ultimoUidSync?: Json
-          uidr?: string | null
-          usuario?: string
-        }
-        Relationships: []
-      }
-      correo_mensajes: {
-        Row: {
-          bodyHtml: string | null
-          bodyText: string | null
-          cc: string | null
-          conversationId: string | null
-          fc: string
-          fecha: string | null
-          folder: string | null
-          fromEmail: string | null
-          id: string
-          idCuenta: string
-          leido: boolean
-          messageId: string | null
-          subject: string | null
-          tieneAdjuntos: boolean
-          tipo: string
-          toEmail: string | null
-        }
-        Insert: {
-          bodyHtml?: string | null
-          bodyText?: string | null
-          cc?: string | null
-          conversationId?: string | null
-          fc?: string
-          fecha?: string | null
-          folder?: string | null
-          fromEmail?: string | null
-          id?: string
-          idCuenta: string
-          leido?: boolean
-          messageId?: string | null
-          subject?: string | null
-          tieneAdjuntos?: boolean
-          tipo?: string
-          toEmail?: string | null
-        }
-        Update: {
-          bodyHtml?: string | null
-          bodyText?: string | null
-          cc?: string | null
-          conversationId?: string | null
-          fc?: string
-          fecha?: string | null
-          folder?: string | null
-          fromEmail?: string | null
-          id?: string
-          idCuenta?: string
-          leido?: boolean
-          messageId?: string | null
-          subject?: string | null
-          tieneAdjuntos?: boolean
-          tipo?: string
-          toEmail?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "correo_mensajes_idCuenta_fkey"
-            columns: ["idCuenta"]
-            isOneToOne: false
-            referencedRelation: "correo_cuentas"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      correo_adjuntos: {
-        Row: {
-          contentType: string | null
-          fc: string
-          filename: string | null
-          id: string
-          idMensaje: string
-          tamano: number | null
-          url: string | null
-        }
-        Insert: {
-          contentType?: string | null
-          fc?: string
-          filename?: string | null
-          id?: string
-          idMensaje: string
-          tamano?: number | null
-          url?: string | null
-        }
-        Update: {
-          contentType?: string | null
-          fc?: string
-          filename?: string | null
-          id?: string
-          idMensaje?: string
-          tamano?: number | null
-          url?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "correo_adjuntos_idMensaje_fkey"
-            columns: ["idMensaje"]
-            isOneToOne: false
-            referencedRelation: "correo_mensajes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       actividad: {
         Row: {
           comentario: string | null
@@ -598,9 +372,12 @@ export type Database = {
       arrePdp: {
         Row: {
           arrePdpVigente: Database["public"]["Enums"]["arrePdpVigente"]
+          canceladoAnticipado: boolean
+          canceladoPor: string | null
           construccionM2: number | null
           deposito: number | null
           fc: string
+          fecCancelacion: string | null
           fecFin: string | null
           fecInicio: string | null
           idArrendador: string
@@ -610,6 +387,7 @@ export type Database = {
           INPCPlus: number
           mesGracia: Json
           Moneda: string
+          motivoCancelacion: string | null
           plazo: number | null
           pm2Admin: number
           pm2Mtto: number
@@ -622,9 +400,12 @@ export type Database = {
         }
         Insert: {
           arrePdpVigente?: Database["public"]["Enums"]["arrePdpVigente"]
+          canceladoAnticipado?: boolean
+          canceladoPor?: string | null
           construccionM2?: number | null
           deposito?: number | null
           fc?: string
+          fecCancelacion?: string | null
           fecFin?: string | null
           fecInicio?: string | null
           idArrendador: string
@@ -634,6 +415,7 @@ export type Database = {
           INPCPlus?: number
           mesGracia?: Json
           Moneda?: string
+          motivoCancelacion?: string | null
           plazo?: number | null
           pm2Admin?: number
           pm2Mtto?: number
@@ -646,9 +428,12 @@ export type Database = {
         }
         Update: {
           arrePdpVigente?: Database["public"]["Enums"]["arrePdpVigente"]
+          canceladoAnticipado?: boolean
+          canceladoPor?: string | null
           construccionM2?: number | null
           deposito?: number | null
           fc?: string
+          fecCancelacion?: string | null
           fecFin?: string | null
           fecInicio?: string | null
           idArrendador?: string
@@ -658,6 +443,7 @@ export type Database = {
           INPCPlus?: number
           mesGracia?: Json
           Moneda?: string
+          motivoCancelacion?: string | null
           plazo?: number | null
           pm2Admin?: number
           pm2Mtto?: number
@@ -991,6 +777,48 @@ export type Database = {
           },
         ]
       }
+      auditoria: {
+        Row: {
+          accion: string
+          cambios: Json | null
+          comentario: string | null
+          entidad: string
+          fc: string
+          id: number
+          id_entidad: string | null
+          origen: number
+          registro_anterior: Json | null
+          registro_nuevo: Json | null
+          uid: string | null
+        }
+        Insert: {
+          accion: string
+          cambios?: Json | null
+          comentario?: string | null
+          entidad: string
+          fc?: string
+          id?: never
+          id_entidad?: string | null
+          origen?: number
+          registro_anterior?: Json | null
+          registro_nuevo?: Json | null
+          uid?: string | null
+        }
+        Update: {
+          accion?: string
+          cambios?: Json | null
+          comentario?: string | null
+          entidad?: string
+          fc?: string
+          id?: never
+          id_entidad?: string | null
+          origen?: number
+          registro_anterior?: Json | null
+          registro_nuevo?: Json | null
+          uid?: string | null
+        }
+        Relationships: []
+      }
       autorizaciones: {
         Row: {
           autorizacion: string | null
@@ -1132,6 +960,39 @@ export type Database = {
           idCategoria?: number
           nombre?: string
           status?: boolean
+        }
+        Relationships: []
+      }
+      catClavesProdServ: {
+        Row: {
+          claveProdServ: string
+          descripcion: string | null
+          fc: string
+          idClave: string
+          retieneISR: boolean
+          retieneIVA: boolean
+          status: boolean
+          uidr: string | null
+        }
+        Insert: {
+          claveProdServ: string
+          descripcion?: string | null
+          fc?: string
+          idClave?: string
+          retieneISR?: boolean
+          retieneIVA?: boolean
+          status?: boolean
+          uidr?: string | null
+        }
+        Update: {
+          claveProdServ?: string
+          descripcion?: string | null
+          fc?: string
+          idClave?: string
+          retieneISR?: boolean
+          retieneIVA?: boolean
+          status?: boolean
+          uidr?: string | null
         }
         Relationships: []
       }
@@ -2029,6 +1890,157 @@ export type Database = {
         }
         Relationships: []
       }
+      correo_adjuntos: {
+        Row: {
+          contentType: string | null
+          fc: string
+          filename: string | null
+          id: string
+          idMensaje: string
+          tamano: number | null
+          url: string | null
+        }
+        Insert: {
+          contentType?: string | null
+          fc?: string
+          filename?: string | null
+          id?: string
+          idMensaje: string
+          tamano?: number | null
+          url?: string | null
+        }
+        Update: {
+          contentType?: string | null
+          fc?: string
+          filename?: string | null
+          id?: string
+          idMensaje?: string
+          tamano?: number | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "correo_adjuntos_idMensaje_fkey"
+            columns: ["idMensaje"]
+            isOneToOne: false
+            referencedRelation: "correo_mensajes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      correo_cuentas: {
+        Row: {
+          activo: boolean
+          email: string
+          fc: string
+          id: string
+          imapHost: string
+          imapPort: number
+          nombre: string | null
+          passwordCifrada: string
+          smtpHost: string
+          smtpPort: number
+          uidr: string | null
+          ultimoUidSync: Json
+          usuario: string
+        }
+        Insert: {
+          activo?: boolean
+          email: string
+          fc?: string
+          id?: string
+          imapHost: string
+          imapPort?: number
+          nombre?: string | null
+          passwordCifrada: string
+          smtpHost: string
+          smtpPort?: number
+          uidr?: string | null
+          ultimoUidSync?: Json
+          usuario: string
+        }
+        Update: {
+          activo?: boolean
+          email?: string
+          fc?: string
+          id?: string
+          imapHost?: string
+          imapPort?: number
+          nombre?: string | null
+          passwordCifrada?: string
+          smtpHost?: string
+          smtpPort?: number
+          uidr?: string | null
+          ultimoUidSync?: Json
+          usuario?: string
+        }
+        Relationships: []
+      }
+      correo_mensajes: {
+        Row: {
+          bodyHtml: string | null
+          bodyText: string | null
+          cc: string | null
+          conversationId: string | null
+          fc: string
+          fecha: string | null
+          folder: string | null
+          fromEmail: string | null
+          id: string
+          idCuenta: string
+          leido: boolean
+          messageId: string | null
+          subject: string | null
+          tieneAdjuntos: boolean
+          tipo: string
+          toEmail: string | null
+        }
+        Insert: {
+          bodyHtml?: string | null
+          bodyText?: string | null
+          cc?: string | null
+          conversationId?: string | null
+          fc?: string
+          fecha?: string | null
+          folder?: string | null
+          fromEmail?: string | null
+          id?: string
+          idCuenta: string
+          leido?: boolean
+          messageId?: string | null
+          subject?: string | null
+          tieneAdjuntos?: boolean
+          tipo?: string
+          toEmail?: string | null
+        }
+        Update: {
+          bodyHtml?: string | null
+          bodyText?: string | null
+          cc?: string | null
+          conversationId?: string | null
+          fc?: string
+          fecha?: string | null
+          folder?: string | null
+          fromEmail?: string | null
+          id?: string
+          idCuenta?: string
+          leido?: boolean
+          messageId?: string | null
+          subject?: string | null
+          tieneAdjuntos?: boolean
+          tipo?: string
+          toEmail?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "correo_mensajes_idCuenta_fkey"
+            columns: ["idCuenta"]
+            isOneToOne: false
+            referencedRelation: "correo_cuentas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_campania: {
         Row: {
           bkColor: string
@@ -2705,6 +2717,9 @@ export type Database = {
         Row: {
           autorizadoFP: boolean
           autorizo: string | null
+          complementoExento: boolean
+          complementoExentoMotivo: string | null
+          complementoExentoPor: string | null
           completada: boolean
           concepto: string | null
           diferido: boolean
@@ -2713,6 +2728,8 @@ export type Database = {
           fc: string
           fecAutorizacion: string | null
           fecCFDI: string | null
+          fecComplemento: string | null
+          fecComplementoExento: string | null
           fechaLimite: string | null
           fecPago: string | null
           fecSolicitud: string | null
@@ -2753,15 +2770,13 @@ export type Database = {
           urlComplementoXml: string | null
           urlXLM: string | null
           uuidComplemento: string | null
-          fecComplemento: string | null
-          complementoExento: boolean
-          complementoExentoMotivo: string | null
-          complementoExentoPor: string | null
-          fecComplementoExento: string | null
         }
         Insert: {
           autorizadoFP?: boolean
           autorizo?: string | null
+          complementoExento?: boolean
+          complementoExentoMotivo?: string | null
+          complementoExentoPor?: string | null
           completada?: boolean
           concepto?: string | null
           diferido?: boolean
@@ -2770,6 +2785,8 @@ export type Database = {
           fc?: string
           fecAutorizacion?: string | null
           fecCFDI?: string | null
+          fecComplemento?: string | null
+          fecComplementoExento?: string | null
           fechaLimite?: string | null
           fecPago?: string | null
           fecSolicitud?: string | null
@@ -2810,15 +2827,13 @@ export type Database = {
           urlComplementoXml?: string | null
           urlXLM?: string | null
           uuidComplemento?: string | null
-          fecComplemento?: string | null
-          complementoExento?: boolean
-          complementoExentoMotivo?: string | null
-          complementoExentoPor?: string | null
-          fecComplementoExento?: string | null
         }
         Update: {
           autorizadoFP?: boolean
           autorizo?: string | null
+          complementoExento?: boolean
+          complementoExentoMotivo?: string | null
+          complementoExentoPor?: string | null
           completada?: boolean
           concepto?: string | null
           diferido?: boolean
@@ -2827,6 +2842,8 @@ export type Database = {
           fc?: string
           fecAutorizacion?: string | null
           fecCFDI?: string | null
+          fecComplemento?: string | null
+          fecComplementoExento?: string | null
           fechaLimite?: string | null
           fecPago?: string | null
           fecSolicitud?: string | null
@@ -2867,11 +2884,6 @@ export type Database = {
           urlComplementoXml?: string | null
           urlXLM?: string | null
           uuidComplemento?: string | null
-          fecComplemento?: string | null
-          complementoExento?: boolean
-          complementoExentoMotivo?: string | null
-          complementoExentoPor?: string | null
-          fecComplementoExento?: string | null
         }
         Relationships: [
           {
@@ -6431,6 +6443,217 @@ export type Database = {
         }
         Relationships: []
       }
+      v2_changelog: {
+        Row: {
+          cambios: Json
+          creadoEn: string
+          creadoPor: string | null
+          fecha: string
+          fum: string | null
+          fumUser: string | null
+          id: number
+          publicada: boolean
+          titulo: string | null
+          version: string
+        }
+        Insert: {
+          cambios?: Json
+          creadoEn?: string
+          creadoPor?: string | null
+          fecha: string
+          fum?: string | null
+          fumUser?: string | null
+          id?: never
+          publicada?: boolean
+          titulo?: string | null
+          version: string
+        }
+        Update: {
+          cambios?: Json
+          creadoEn?: string
+          creadoPor?: string | null
+          fecha?: string
+          fum?: string | null
+          fumUser?: string | null
+          id?: never
+          publicada?: boolean
+          titulo?: string | null
+          version?: string
+        }
+        Relationships: []
+      }
+      v2_cron_ejecuciones: {
+        Row: {
+          creado_en: string
+          detalle: Json | null
+          duracion_ms: number | null
+          ejecutado_por: string | null
+          estado: string
+          fin: string | null
+          id: number
+          inicio: string
+          mensaje: string | null
+          origen: string
+          tarea: string
+        }
+        Insert: {
+          creado_en?: string
+          detalle?: Json | null
+          duracion_ms?: number | null
+          ejecutado_por?: string | null
+          estado: string
+          fin?: string | null
+          id?: never
+          inicio?: string
+          mensaje?: string | null
+          origen?: string
+          tarea: string
+        }
+        Update: {
+          creado_en?: string
+          detalle?: Json | null
+          duracion_ms?: number | null
+          ejecutado_por?: string | null
+          estado?: string
+          fin?: string | null
+          id?: never
+          inicio?: string
+          mensaje?: string | null
+          origen?: string
+          tarea?: string
+        }
+        Relationships: []
+      }
+      v2_soporte_mensajes: {
+        Row: {
+          escalable: boolean
+          fc: string
+          modulos_detectados: string[]
+          pregunta: string
+          respuesta: string
+          ruta_origen: string | null
+          session_id: string
+          tokens_entrada: number | null
+          tokens_salida: number | null
+          uid_usuario: string
+          uuid: string
+        }
+        Insert: {
+          escalable?: boolean
+          fc?: string
+          modulos_detectados?: string[]
+          pregunta: string
+          respuesta?: string
+          ruta_origen?: string | null
+          session_id: string
+          tokens_entrada?: number | null
+          tokens_salida?: number | null
+          uid_usuario: string
+          uuid?: string
+        }
+        Update: {
+          escalable?: boolean
+          fc?: string
+          modulos_detectados?: string[]
+          pregunta?: string
+          respuesta?: string
+          ruta_origen?: string | null
+          session_id?: string
+          tokens_entrada?: number | null
+          tokens_salida?: number | null
+          uid_usuario?: string
+          uuid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "v2_soporte_mensajes_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "v2_soporte_sesiones"
+            referencedColumns: ["uuid"]
+          },
+        ]
+      }
+      v2_soporte_sesiones: {
+        Row: {
+          fc: string
+          fum: string | null
+          fumUser: string | null
+          status: boolean
+          titulo: string | null
+          uid_usuario: string
+          uuid: string
+        }
+        Insert: {
+          fc?: string
+          fum?: string | null
+          fumUser?: string | null
+          status?: boolean
+          titulo?: string | null
+          uid_usuario: string
+          uuid?: string
+        }
+        Update: {
+          fc?: string
+          fum?: string | null
+          fumUser?: string | null
+          status?: boolean
+          titulo?: string | null
+          uid_usuario?: string
+          uuid?: string
+        }
+        Relationships: []
+      }
+      v2_soporte_tickets: {
+        Row: {
+          asunto: string
+          estado: string
+          fc: string
+          fum: string | null
+          fumUser: string | null
+          modulo: string | null
+          resumen: string
+          ruta: string | null
+          session_id: string | null
+          uid_usuario: string
+          uuid: string
+        }
+        Insert: {
+          asunto: string
+          estado?: string
+          fc?: string
+          fum?: string | null
+          fumUser?: string | null
+          modulo?: string | null
+          resumen: string
+          ruta?: string | null
+          session_id?: string | null
+          uid_usuario: string
+          uuid?: string
+        }
+        Update: {
+          asunto?: string
+          estado?: string
+          fc?: string
+          fum?: string | null
+          fumUser?: string | null
+          modulo?: string | null
+          resumen?: string
+          ruta?: string | null
+          session_id?: string | null
+          uid_usuario?: string
+          uuid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "v2_soporte_tickets_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "v2_soporte_sesiones"
+            referencedColumns: ["uuid"]
+          },
+        ]
+      }
       versiones: {
         Row: {
           actualizaciones: string | null
@@ -9971,6 +10194,73 @@ export type Database = {
           valor: string
         }[]
       }
+      v2_arrepdp_activar_renovaciones: { Args: never; Returns: Json }
+      v2_arrepdp_cancelar_anticipado: {
+        Args: {
+          p_id_arre_pdp: string
+          p_motivo: string
+          p_num_partida_corte: number
+          p_uid: string
+        }
+        Returns: Json
+      }
+      v2_arrepdp_renovar: {
+        Args: {
+          p_construccion_m2: number
+          p_deposito?: number
+          p_id_arre_pdp_actual: string
+          p_inpc_plus?: number
+          p_mes_gracia_administracion?: number
+          p_mes_gracia_mantenimiento?: number
+          p_mes_gracia_renta?: number
+          p_mes_gracia_vigilancia?: number
+          p_moneda?: string
+          p_plazo: number
+          p_pm2_admin?: number
+          p_pm2_mtto?: number
+          p_pm2_vig?: number
+          p_precio_m2: number
+          p_uid: string
+        }
+        Returns: Json
+      }
+      v2_changelog_registrar: {
+        Args: {
+          p_cambios: Json
+          p_publicada?: boolean
+          p_salto: string
+          p_titulo: string
+        }
+        Returns: string
+      }
+      v2_cron_jobs: {
+        Args: never
+        Returns: {
+          active: boolean
+          command: string
+          jobid: number
+          jobname: string
+          schedule: string
+          total_ejecuciones: number
+          ultima_ejecucion: string
+          ultimo_estado: string
+          ultimo_mensaje: string
+        }[]
+      }
+      v2_cron_run_details: {
+        Args: { p_jobid?: number; p_limit?: number }
+        Returns: {
+          duracion_ms: number
+          end_time: string
+          jobid: number
+          jobname: string
+          return_message: string
+          runid: number
+          start_time: string
+          status: string
+        }[]
+      }
+      v2_obtener_logo_url: { Args: never; Returns: string }
     }
     Enums: {
       Area: "Modulo" | "Opcion"
@@ -9985,6 +10275,7 @@ export type Database = {
         | "Fideicomiso"
         | "Inversionistas"
         | "Parques"
+        | "Correo"
       statusTicket: "Abierto" | "En Proceso" | "Cerrado"
       tipoConceptos: "Tipo" | "Concepto" | "subConcepto"
     }
@@ -10130,6 +10421,7 @@ export const Constants = {
         "Fideicomiso",
         "Inversionistas",
         "Parques",
+        "Correo",
       ],
       statusTicket: ["Abierto", "En Proceso", "Cerrado"],
       tipoConceptos: ["Tipo", "Concepto", "subConcepto"],

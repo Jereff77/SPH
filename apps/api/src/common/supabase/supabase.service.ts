@@ -27,6 +27,11 @@ export class SupabaseService implements OnModuleInit {
     string,
     { client: SupabaseClient<Database>; exp: number }
   >();
+  // Cliente de SOLO LECTURA del Agente de Soporte (rol v2_soporte_ro) cacheado por uid.
+  private readonly soporteRoCache = new Map<
+    string,
+    { client: SupabaseClient<Database>; exp: number }
+  >();
 
   constructor(private readonly config: ConfigService<Env, true>) {}
 
@@ -85,6 +90,35 @@ export class SupabaseService implements OnModuleInit {
     return client;
   }
 
+  /**
+   * Cliente de **SOLO LECTURA** para el Agente de IA de Soporte. Las peticiones
+   * llevan un JWT con `role: v2_soporte_ro` (rol Postgres sin permisos de
+   * escritura) y `sub: <uid>`. TODA lectura que haga el agente para diagnóstico
+   * debe pasar por aquí: aunque hubiera un bug o un prompt malicioso, el motor
+   * (Postgres) RECHAZA cualquier INSERT/UPDATE/DELETE. La persistencia del chat y
+   * los tickets NO usan este cliente: usan `comoActor` (escrituras controladas y
+   * auditadas). Requiere el rol `v2_soporte_ro` creado en BD (ver
+   * base-conocimiento/migraciones/2026-06-12-soporte-ia.sql).
+   */
+  soporteRo(uid: string): SupabaseClient<Database> {
+    const now = Math.floor(Date.now() / 1000);
+    const cached = this.soporteRoCache.get(uid || '_anon');
+    if (cached && cached.exp - now > 300) return cached.client;
+
+    const url = this.config.get('SUPABASE_URL', { infer: true });
+    const anonKey = this.config.get('SUPABASE_ANON_KEY', { infer: true });
+    const exp = now + 3600;
+    const jwt = this.firmarJwt('v2_soporte_ro', uid, now, exp);
+    // Se inicializa con la anon key (PostgREST conmuta al rol del JWT vía
+    // SET ROLE desde authenticator).
+    const client = createClient<Database>(url, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+    });
+    this.soporteRoCache.set(uid || '_anon', { client, exp });
+    return client;
+  }
+
   /** ¿El usuario es de soporte? (para habilitar "Ver como"). */
   async esSoporte(uid: string): Promise<boolean> {
     const { data } = await this._admin
@@ -106,17 +140,19 @@ export class SupabaseService implements OnModuleInit {
     return (await this.esSoporte(actorUid)) ? verComoUid : actorUid;
   }
 
-  /** Firma un JWT HS256 (mismo secreto que verifica v2/v1) con role+sub. */
+  /** Firma un JWT HS256 (mismo secreto que verifica v2/v1) con role service_role + sub. */
   private firmarJwtActor(uid: string, iat: number, exp: number): string {
+    return this.firmarJwt('service_role', uid, iat, exp);
+  }
+
+  /** Firma un JWT HS256 (mismo secreto que verifica v2/v1) con el `role` y `sub` dados. */
+  private firmarJwt(role: string, uid: string, iat: number, exp: number): string {
     const secret = this.config.get('SUPABASE_JWT_SECRET', { infer: true });
     const enc = (o: unknown): string =>
       Buffer.from(JSON.stringify(o)).toString('base64url');
-    const data = `${enc({ alg: 'HS256', typ: 'JWT' })}.${enc({
-      role: 'service_role',
-      sub: uid,
-      iat,
-      exp,
-    })}`;
+    const payload: Record<string, unknown> = { role, iat, exp };
+    if (uid) payload.sub = uid;
+    const data = `${enc({ alg: 'HS256', typ: 'JWT' })}.${enc(payload)}`;
     const sig = createHmac('sha256', secret).update(data).digest('base64url');
     return `${data}.${sig}`;
   }

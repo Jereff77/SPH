@@ -38,6 +38,7 @@ futuro, en una tabla vectorial `pgvector` para búsqueda semántica).
 | Fideicomiso | ✅ desarrollado | `modulos/fideicomiso.md` | /fideicomiso/dashboard, /fideicomiso/aportaciones (+ config ⚙️), /fideicomiso/adhesiones, /fideicomiso/contabilidad, /fideicomiso/dispersiones, /fideicomiso/reportes | 500, 510, 511, 520, 530, 540 | fideicomiso, dashboard, dispersión, dispersiones, aportación, aportaciones, adhesión, adhesiones, rendimiento, kardex, reportes, ticket, contabilidad, pivote, concepto contable, inversión, rendimiento promedio, retención ISR, comisión SPH |
 | CRM | 🟠 parcial | `modulos/crm.md` | (Clientes ya migrado → ver `modulos/clientes.md`) | 300 | lead, prospecto, empresa, inmobiliaria, actividad comercial · (Clientes = padrón) |
 | Cron / Tareas programadas | ✅ desarrollado | `modulos/cron.md` | /configuraciones/cron | — (solo soporte, isSupport) | cron, tarea programada, tareas programadas, job, jobs, scheduler, pg_cron, ejecución, historial de tareas, automático, programado, soporte, monitoreo, ejecutar ahora |
+| Asistente / Agente de IA de Soporte | ✅ desarrollado | `modulos/soporte-ia.md` | (transversal — widget flotante) | — (todos) | asistente, ayuda, soporte, agente, IA, chat, chatbot, cómo hago, no me deja, no aparece, ticket, escalar, OpenRouter, widget, dudas, guía |
 
 > Leyenda: **✅ desarrollado** = está en v2 y su doc está completo · **🟡 stub** = existe en v1 pero aún
 > no en v2 (ficha mínima; el agente debe derivar a soporte para operaciones).
@@ -54,6 +55,7 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `kvasAsignados` | Inversionistas/Propietarios (Ventas) (KVAs por nave) · Parques |
 | RPCs `v_pdpdetalle_get_*` (estado_cuenta_detalle, saldos_vencidos_por_parque, resumen/evolucion, unique_values) | Inversionistas/Propietarios (Ventas) → **Reportes** (las llama el backend) |
 | `iaSesiones`, `iaConversaciones`, RPCs `ia_*`, edge `ia-chat` (OpenRouter) | Ventas → Reportes → **Montse AI** (asistente; backend proxy) |
+| `v2_soporte_sesiones`, `v2_soporte_mensajes`, `v2_soporte_tickets`, rol `v2_soporte_ro`, edge `soporte-chat` (OpenRouter) | **Asistente / Agente de IA de Soporte** (widget transversal) |
 | `pdp`, `pdpDetalle`, `pagos`, `rgPdp`, `rgPdpDetalle`, `raPdp`, `raPdpDetalle`, `v_rentasCombinadas` | Inversionistas/Propietarios (Ventas) |
 | `arrenPropiedades`, `arrePdp`, `arrePdpDetalle`, `arreConceptos`, `v_arrendadasNaves` | Arrendatarios (y Parques para el arrendatario) |
 | `catUsers`, `segModulosUsuarios`, `segModulos`, `segPlantillasPermisos` | Configuraciones (Usuarios/Permisos) |

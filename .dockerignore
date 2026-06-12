@@ -30,6 +30,7 @@
 
 # Documentación y sesiones (no afectan el runtime)
 .sessions
-base-conocimiento
 HANDOFF.md
 REVISION-SEGURIDAD.md
+# NOTA: base-conocimiento NO se ignora: el Agente de Soporte (apps/api) la lee en
+# runtime (KbService) y el Dockerfile del api la copia a la imagen de producción.

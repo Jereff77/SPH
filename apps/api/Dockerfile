@@ -31,6 +31,10 @@ ENV NODE_ENV=production
 ENV API_PORT=3001
 WORKDIR /app
 COPY --from=build /prod/api .
+# Base de conocimiento (la lee el Agente de Soporte vía KbService en runtime).
+# Se copia tal cual desde el contexto del monorepo; KbService la resuelve en
+# /app/base-conocimiento (o vía la env KB_PATH).
+COPY --from=build /app/base-conocimiento ./base-conocimiento
 EXPOSE 3001
 # Healthcheck: GET /api/health (público, sin auth).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
