@@ -22,6 +22,7 @@ import { ClientesModule } from './modules/clientes/clientes.module.js';
 import { ArrendatariosModule } from './modules/arrendatarios/arrendatarios.module.js';
 import { ChangelogModule } from './modules/changelog/changelog.module.js';
 import { CronModule } from './modules/cron/cron.module.js';
+import { FideicomisoModule } from './modules/fideicomiso/fideicomiso.module.js';
 
 /**
  * Módulo raíz. Aquí se registran los módulos de dominio del ERP a medida que se
@@ -62,9 +63,8 @@ import { CronModule } from './modules/cron/cron.module.js';
     ArrendatariosModule,
     ChangelogModule,
     CronModule,
+    FideicomisoModule,
     // InversionistasModule,
-    // CxpModule,
-    // FideicomisoModule,
     // ...
   ],
   providers: [

@@ -5,7 +5,7 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-11. Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-12 (v2.21.0 — módulo Fideicomiso completo). Autor: Claude (Opus 4.8).
 >
 > 📌 **El estado detallado y al día por módulo está en `base-conocimiento/INDICE.md`** (router) y los
 > `base-conocimiento/modulos/*.md`. El **handoff operativo** (despliegue EasyPanel, rama, variables,
@@ -138,6 +138,25 @@
     el schema `cron` se lee por 2 **funciones nuevas `v2_`** de solo lectura. Backend `modules/cron/*` +
     `common/cron/*` (`RegistroCronService` global registra cada corrida). Ítem de menú con flag `soloSoporte`
     (nuevo en `menu.tsx`/`Sidebar.tsx`). Ver `modulos/cron.md`.
+  - **Fideicomiso** (grupo propio, menú idéntico a v1) — **módulo COMPLETO** (v2.21.0). Claves `segModulos`:
+    500 Dashboard · 510 Aportaciones · 511 Aportaciones·Modificar Rendimiento · 520 Adhesiones · 530
+    Dispersión · 540 Reportes (NO se creó ninguna clave nueva). Secciones: **Dashboard** = **Adhesiones**
+    (misma vista `v_fideicomiso`; el endpoint exige 500 **ó** 520 — el `PermisoGuard` ahora soporta varias
+    claves "any-of"). **Aportaciones** (`v_pagos` por inversionista→propiedad-ticket, editar Fecha Plan, $
+    pagos con comprobante [reutiliza `PagosVentaService`, bucket `cxp`] y 💬 comentarios) **+ engrane ⚙️
+    Configuración del propietario** (réplica completa de `config_propietario_fide`: 5 pestañas — Datos,
+    Documentos [bucket `Documentos`], Naves/Propiedades [alta de nave-ticket + DatTickets + eliminar vía RPC
+    `propiedades_eliminar_propiedad`], Adhesiones/`fideCondiciones`, Plan de Pagos [genera PDP Único/Enganche/
+    Parcialidad, edita partidas, recalcula por enganche vía RPC `pdpdetalle_reevaluar_monto_por_enganche`,
+    activa/desactiva/elimina; reutiliza `PlanesService` para datos/docs]). **Contabilidad** (grid tipo Excel:
+    pivote `pivot_contabilidad`, edición de celda, IVA, notas, `fideSaldosBanco`, filtros, alta de movimientos
+    + `+Catálogo`; historial en `fideContaHistorial`). **Dispersión** (RPC `*_corregido`; filtros por columna
+    estilo Excel; **Desglose Detallado** export PNG `html-to-image` + CSV; ⚠️ el RPC trae los campos
+    invertidos: `rfc_inversionista`=NOMBRE). **Reportes/Kardex** (`fidePdpDispersion`, dona + KPIs, filtro por
+    propiedad, modo «ya pasados / todos los meses», **export Excel `.xlsx` (ExcelJS) + PDF, ambos con logo y
+    diseño**). **Sin objetos nuevos en BD** (todas las tablas/RPC ya existían; todo server-side y auditado).
+    Mejoras vs v1: documentos guardan la URL real (v1 dejaba `urldoc=''`); botón Guardar de Datos funcional
+    (en v1 estaba oculto). **Nueva dependencia front:** `exceljs` (lazy). Ver `modulos/fideicomiso.md`.
 - **Changelog / Novedades** (Configuraciones, **sin permiso** → todos): bitácora de versiones SemVer
   (`GET /api/changelog`, solo lectura). El Sidebar muestra la versión desde aquí. Fuente: tabla nueva
   `v2_changelog` + función `v2_changelog_registrar` (asigna el SemVer desde la BD con lock, **a prueba de
@@ -189,7 +208,7 @@
   **Renta Garantizada** vía RPCs `rgpdp_insertar_registro`/`rgpdp_generar_plan_pagos` y **Renta Administrada**
   `rapdp_actualizar`, pasar las pestañas de rentas a cálculo propio); CxP Dashboard(440/441) y Reportes(460);
   conciliación bancaria avanzada; configurar la cuenta de Correo (`EMAIL_ENCRYPTION_KEY` en EasyPanel); migrar
-  stubs (Fideicomiso, resto del CRM). **Arrendatarios ya migrado** (ver arriba). Ver pendientes completos en
+  stubs (resto del CRM). **Arrendatarios y Fideicomiso ya migrados** (ver arriba). Ver pendientes completos en
   `../.sessions/contexto.md`.
 
 > ⚠️ **Nota de UI:** el sidebar (`components/layout/menu.tsx` + `Sidebar.tsx`) soporta **grupos directos**

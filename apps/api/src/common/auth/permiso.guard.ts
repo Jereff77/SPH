@@ -33,13 +33,13 @@ export class PermisoGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const claveRequerida = this.reflector.getAllAndOverride<number | undefined>(
+    const claves = this.reflector.getAllAndOverride<number[] | undefined>(
       PERMISO_KEY,
       [context.getHandler(), context.getClass()],
     );
 
     // Sin @RequierePermiso, este guard no restringe (basta con estar autenticado).
-    if (claveRequerida === undefined) return true;
+    if (!claves || claves.length === 0) return true;
 
     const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const user = req.user;
@@ -56,23 +56,25 @@ export class PermisoGuard implements CanActivate {
       .maybeSingle();
     if (perfil?.isSupport === true) return true;
 
+    // any-of: basta con tener acceso a UNA de las claves declaradas.
     const { data, error } = await this.supabase.admin
       .from('segModulosUsuarios')
       .select('acceso')
       .eq('uid', user.uid)
-      .eq('clave', claveRequerida)
-      .maybeSingle();
+      .in('clave', claves)
+      .eq('acceso', true)
+      .limit(1);
 
     if (error) {
       this.logger.error(
-        `Error verificando permiso ${claveRequerida} para ${user.uid}: ${error.message}`,
+        `Error verificando permiso ${claves.join('/')} para ${user.uid}: ${error.message}`,
       );
       throw new ForbiddenException('No se pudo verificar el permiso.');
     }
 
-    if (data?.acceso !== true) {
+    if (!data || data.length === 0) {
       throw new ForbiddenException(
-        `Acceso denegado (permiso ${claveRequerida}).`,
+        `Acceso denegado (permiso ${claves.join(' o ')}).`,
       );
     }
     return true;

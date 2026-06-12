@@ -150,6 +150,17 @@ export function IconBarras(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** Escudo con edificio (módulo Fideicomiso: patrimonio protegido). */
+export function IconFideicomiso(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 2 4 5v6c0 5 3.5 8.5 8 11 4.5-2.5 8-6 8-11V5l-8-3Z" />
+      <path d="M9 13v-2h6v2" />
+      <path d="M12 9v6" />
+    </svg>
+  );
+}
+
 /** Llave (módulo Arrendatarios). */
 export function IconArrendatarios(props: SVGProps<SVGSVGElement>) {
   return (

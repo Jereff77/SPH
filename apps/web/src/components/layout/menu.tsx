@@ -7,6 +7,7 @@ import {
   IconVentas,
   IconClientes,
   IconArrendatarios,
+  IconFideicomiso,
 } from '@/components/icons';
 
 export interface MenuItem {
@@ -56,6 +57,19 @@ export const MENU: MenuGrupo[] = [
       { label: 'Dashboard', to: '/arrendatarios', clave: 10 },
       { label: 'Planes de Renta', to: '/arrendatarios/planes', clave: 20 },
       { label: 'Reportes', to: '/arrendatarios/reportes', clave: 20 },
+    ],
+  },
+  {
+    id: 'fideicomiso',
+    label: 'Fideicomiso',
+    Icon: IconFideicomiso,
+    items: [
+      { label: 'Dashboard', to: '/fideicomiso/dashboard', clave: 500 },
+      { label: 'Aportaciones', to: '/fideicomiso/aportaciones', clave: 510 },
+      { label: 'Adhesiones', to: '/fideicomiso/adhesiones', clave: 520 },
+      { label: 'Contabilidad', to: '/fideicomiso/contabilidad', clave: 520 },
+      { label: 'Dispersion', to: '/fideicomiso/dispersiones', clave: 530 },
+      { label: 'Reportes', to: '/fideicomiso/reportes', clave: 540 },
     ],
   },
   {

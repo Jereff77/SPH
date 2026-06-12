@@ -15,6 +15,7 @@
     "@erp/types": "workspace:*",
     "@tanstack/react-query": "^5.62.7",
     "chart.js": "^4.5.1",
+    "exceljs": "^4.4.0",
     "html-to-image": "^1.11.13",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",

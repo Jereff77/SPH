@@ -48,6 +48,11 @@ const cargando = <div className="p-6 text-sm text-gray-400">Cargando…</div>;
 import { ClientesPage } from '@/features/clientes/ClientesPage';
 import { DashboardCobranzaPage } from '@/features/arrendatarios/DashboardCobranzaPage';
 import { ArrendatariosPage } from '@/features/arrendatarios/ArrendatariosPage';
+import { DashboardPage as FideDashboardPage } from '@/features/fideicomiso/DashboardPage';
+import { KardexPage } from '@/features/fideicomiso/KardexPage';
+import { DispersionesPage } from '@/features/fideicomiso/DispersionesPage';
+import { ContabilidadPage } from '@/features/fideicomiso/ContabilidadPage';
+import { AportacionesPage } from '@/features/fideicomiso/AportacionesPage';
 import { Home } from './Home';
 
 /**
@@ -96,6 +101,12 @@ export const router = createBrowserRouter([
               </Suspense>
             ),
           },
+          { path: '/fideicomiso/dashboard', element: <FideDashboardPage /> },
+          { path: '/fideicomiso/aportaciones', element: <AportacionesPage /> },
+          { path: '/fideicomiso/adhesiones', element: <FideDashboardPage /> },
+          { path: '/fideicomiso/contabilidad', element: <ContabilidadPage /> },
+          { path: '/fideicomiso/dispersiones', element: <DispersionesPage /> },
+          { path: '/fideicomiso/reportes', element: <KardexPage /> },
           { path: '/parques', element: <ParquesPage /> },
           { path: '/parques/disponibilidad', element: <DisponibilidadPage /> },
           { path: '/cxp/pagar', element: <PagarSolicitudesPage /> },

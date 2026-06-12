@@ -35,7 +35,7 @@ futuro, en una tabla vectorial `pgvector` para búsqueda semántica).
 | Arrendatarios | ✅ desarrollado | `modulos/arrendatarios.md` | /arrendatarios, /arrendatarios/planes | 10, 20 | arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, INPC, mes de gracia, cortesía, concepto financiado, KVA, vigencia, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, m² construcción, liberar nave, renovación, renovar plan, fecha fin |
 | Correo (buzón de facturas) | ✅ desarrollado | `modulos/correo.md` | /correo | 800 (usar), 801 (configurar cuenta) | correo, email, buzón, bandeja, factura, comprobante, IMAP, SMTP, Hostinger, responder, adjunto, sincronizar |
 | CxP (Cuentas por pagar) | 🟠 parcial | `modulos/cxp.md` | /cxp/pagar, /cxp/aprobar, /cxp/solicitudes, /cxp/ppd, /cxp/pendientes, /cxp/proveedores, /cxp/bancos | 400, 401, 402, 403, 410, 420, 430, 431, 450, 470 | pago, pagar solicitudes, aprobar solicitudes, aprobación, presupuesto, fuera de presupuesto, cuenta por pagar, factura, CFDI, aplicar pago, comprobante, N8N, autorizar, rechazar, regresar, transferencia SPEI, proveedor, banco, conciliación, desaplicar, claves SAT, retención, tiempo real, solicitud urgente, línea de captura, devolución, factura sin XML, PPD, pago en parcialidades, diferido, parcialidad, abono, dosificar, saldo disponible, estado de cuenta, solicitar otro pago, cxp_ppd, complemento de pago, REP, recibo electrónico de pago, candado, bloqueo, usuario bloqueado, complemento pendiente, complemento vencido, aviso por correo, subir complemento, complementospago, dispensa, dispensar complemento, excepción, proveedor de única vez, exento, permiso 403, liberar usuario |
-| Fideicomiso | 🟡 stub | `modulos/fideicomiso.md` | (pendiente v2) | — | fideicomiso, dispersión, aportación, rendimiento, contabilidad |
+| Fideicomiso | ✅ desarrollado | `modulos/fideicomiso.md` | /fideicomiso/dashboard, /fideicomiso/aportaciones (+ config ⚙️), /fideicomiso/adhesiones, /fideicomiso/contabilidad, /fideicomiso/dispersiones, /fideicomiso/reportes | 500, 510, 511, 520, 530, 540 | fideicomiso, dashboard, dispersión, dispersiones, aportación, aportaciones, adhesión, adhesiones, rendimiento, kardex, reportes, ticket, contabilidad, pivote, concepto contable, inversión, rendimiento promedio, retención ISR, comisión SPH |
 | CRM | 🟠 parcial | `modulos/crm.md` | (Clientes ya migrado → ver `modulos/clientes.md`) | 300 | lead, prospecto, empresa, inmobiliaria, actividad comercial · (Clientes = padrón) |
 | Cron / Tareas programadas | ✅ desarrollado | `modulos/cron.md` | /configuraciones/cron | — (solo soporte, isSupport) | cron, tarea programada, tareas programadas, job, jobs, scheduler, pg_cron, ejecución, historial de tareas, automático, programado, soporte, monitoreo, ejecutar ahora |
 
@@ -65,6 +65,8 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `cxp`, `cxp_ppd`, `cxpComentarios`, `catProveedores`, `catBancos`, `catClavesProdServ`, `movbancarios` | CxP (`cxp_ppd` = maestro de facturas PPD) |
 | `correo_cuentas`, `correo_mensajes`, `correo_adjuntos` | Correo (buzón de facturas) |
 | `emails`, `email_attachments` | Soporte/CRM (vía N8N — NO es el módulo Correo) |
+| `fidePdpDispersion`, `fideicomiso`, `fideCondiciones`, `fide_periodos_dispersion`, `v_fideicomiso`, `v_propiedadesfide`, `v_pagos` | **Fideicomiso** (Kardex/Dispersiones/Adhesiones/Aportaciones) |
+| `fideContabilidad`, `fideContaConceptos`, `fideContaHistorial`, `fideSaldosBanco` | **Fideicomiso** (Contabilidad) |
 
 ## Mapa inverso: ruta → módulo
 
@@ -76,6 +78,7 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `/ventas`, `/ventas/dashboard`, `/ventas/reportes`, `/ventas/planes`, `/ventas/escrituras` | Inversionistas/Propietarios (Ventas) |
 | `/arrendatarios` | Arrendatarios (Dashboard de cobranza) |
 | `/arrendatarios/planes` | Arrendatarios (Planes de Renta) |
+| `/fideicomiso/dashboard`, `/fideicomiso/adhesiones`, `/fideicomiso/aportaciones`, `/fideicomiso/contabilidad`, `/fideicomiso/dispersiones`, `/fideicomiso/reportes` | Fideicomiso |
 | `/parques`, `/parques/disponibilidad` | Parques |
 | `/cxp/pagar` | CxP (Pagar solicitudes / tesorería) |
 | `/cxp/aprobar` | CxP (Aprobar Solicitudes / aprobador) |
