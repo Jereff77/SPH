@@ -156,6 +156,13 @@
   `SECURITY DEFINER`, `EXECUTE` solo a `service_role`) + tabla `v2_cron_ejecuciones` (bitácora de los
   schedulers NestJS; RLS ON sin políticas; **sin** trigger de auditoría por ser telemetría, no dato de
   negocio) — **aplicadas** vía MCP; SQL en `base-conocimiento/migraciones/2026-06-11-cron-monitoreo.sql`.
+  **Parámetros (visualización por pestaña):** 2 filas nuevas en `segModulos` — **clave 215 (Claves SAT)** y
+  **216 (Pizarra de Avisos)** — para gobernar la visualización de esas 2 pestañas (INPC/Cuentas/Fechas ya
+  tenían 212/213/214). **Aplicadas** vía MCP; SQL en
+  `base-conocimiento/migraciones/2026-06-10-parametros-claves-visualizacion.sql`. Ahora cada pestaña de
+  Configuraciones → Parámetros valida su clave en front (oculta la pestaña) y en backend (`@RequierePermiso`
+  por endpoint en `parametros.controller.ts` y `cxp/claves-sat.controller.ts`). Pendiente operativo: asignar
+  esas claves a los usuarios en Permisos (los `isSupport` las ven por bypass).
   **Único objeto del sistema viejo modificado (con
   autorización):** la columna generada `arrePdp."fecFin"` se redefinió a `fecInicio + plazo − 1 día` (antes no
   restaba el día). Detalle por módulo en `base-conocimiento/`.

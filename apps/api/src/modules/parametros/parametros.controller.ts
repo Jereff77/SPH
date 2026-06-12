@@ -39,9 +39,12 @@ import { CurrentUser } from '../../common/auth/current-user.decorator.js';
 import type { AuthUser } from '../../common/auth/auth.types.js';
 
 /**
- * Configuraciones > Parámetros (acceso al módulo: clave 210). Las pestañas tienen
- * claves más finas (INPC 212, Cuentas 213, Fechas CxP 214); por ahora se exige el
- * acceso general 210, que se puede refinar por método más adelante.
+ * Configuraciones > Parámetros. El acceso al módulo es la clave 210, pero cada
+ * pestaña tiene su propia clave de VISUALIZACIÓN (catálogo `segModulos`), que se
+ * exige por endpoint con @RequierePermiso a nivel de método (sobreescribe la de
+ * clase): INPC = 212, Cuentas = 213, Fechas CxP = 214. (Claves SAT = 215 vive en
+ * su propio controlador `cxp/claves-sat`; Pizarra de Avisos = 216 aún sin backend.)
+ * La clave de clase 210 queda como respaldo para cualquier endpoint sin clave fina.
  */
 @Controller('parametros')
 @UseGuards(JwtAuthGuard, PermisoGuard)
@@ -49,13 +52,15 @@ import type { AuthUser } from '../../common/auth/auth.types.js';
 export class ParametrosController {
   constructor(private readonly svc: ParametrosService) {}
 
-  // ----- INPC -----
+  // ----- INPC (clave 212) -----
   @Get('inpc')
+  @RequierePermiso(212)
   listarInpc() {
     return this.svc.listarInpc();
   }
 
   @Post('inpc')
+  @RequierePermiso(212)
   async crearInpc(
     @Body(new ZodValidationPipe(inpcCrearSchema)) dto: InpcCrearDto,
   ) {
@@ -64,6 +69,7 @@ export class ParametrosController {
   }
 
   @Patch('inpc/:consecutivo')
+  @RequierePermiso(212)
   async editarInpc(
     @Param('consecutivo') consecutivo: string,
     @Body(new ZodValidationPipe(inpcEditarSchema)) dto: InpcEditarDto,
@@ -73,13 +79,15 @@ export class ParametrosController {
   }
 
   @Delete('inpc/:consecutivo')
+  @RequierePermiso(212)
   async eliminarInpc(@Param('consecutivo') consecutivo: string) {
     await this.svc.eliminarInpc(Number(consecutivo));
     return { ok: true };
   }
 
-  // ----- Cuentas -----
+  // ----- Cuentas (clave 213) -----
   @Get('cuentas')
+  @RequierePermiso(213)
   listarCuentas(
     @Query('cuenta') cuenta?: string,
     @Query('seccion') seccion?: string,
@@ -88,11 +96,13 @@ export class ParametrosController {
   }
 
   @Get('responsables')
+  @RequierePermiso(213)
   listarResponsables() {
     return this.svc.listarResponsables();
   }
 
   @Post('cuentas')
+  @RequierePermiso(213)
   async crearCuenta(
     @CurrentUser() actor: AuthUser,
     @Body(new ZodValidationPipe(cuentaCrearSchema)) dto: CuentaCrearDto,
@@ -111,6 +121,7 @@ export class ParametrosController {
   }
 
   @Patch('cuentas/:idCategoria/responsable')
+  @RequierePermiso(213)
   async cambiarResponsable(
     @Param('idCategoria') idCategoria: string,
     @Body(new ZodValidationPipe(responsableSchema)) dto: ResponsableDto,
@@ -120,6 +131,7 @@ export class ParametrosController {
   }
 
   @Patch('cuentas/:idCategoria/presupuestable')
+  @RequierePermiso(213)
   async presupuestable(
     @Param('idCategoria') idCategoria: string,
     @Body(new ZodValidationPipe(valorBoolSchema)) dto: ValorBoolDto,
@@ -129,6 +141,7 @@ export class ParametrosController {
   }
 
   @Patch('cuentas/:idCategoria/status')
+  @RequierePermiso(213)
   async statusCuenta(
     @Param('idCategoria') idCategoria: string,
     @Body(new ZodValidationPipe(valorBoolSchema)) dto: ValorBoolDto,
@@ -138,13 +151,15 @@ export class ParametrosController {
   }
 
   @Delete('cuentas/:idCategoria')
+  @RequierePermiso(213)
   async eliminarCuenta(@Param('idCategoria') idCategoria: string) {
     await this.svc.eliminarCuenta(idCategoria);
     return { ok: true };
   }
 
-  // ----- Presupuesto mensual -----
+  // ----- Presupuesto mensual (parte de Cuentas, clave 213) -----
   @Get('cuentas/:idCategoria/presupuesto-mensual')
+  @RequierePermiso(213)
   presupuestoMensual(
     @Param('idCategoria') idCategoria: string,
     @Query('idPresupuesto') idPresupuesto: string,
@@ -153,6 +168,7 @@ export class ParametrosController {
   }
 
   @Put('cuentas/:idCategoria/presupuesto-mensual')
+  @RequierePermiso(213)
   async guardarMensual(
     @CurrentUser() actor: AuthUser,
     @Param('idCategoria') idCategoria: string,
@@ -167,18 +183,21 @@ export class ParametrosController {
     return { ok: true };
   }
 
-  // ----- Fechas CxP -----
+  // ----- Fechas CxP (clave 214) -----
   @Get('fechas-cxp/periodos')
+  @RequierePermiso(214)
   periodos() {
     return this.svc.listarPeriodos();
   }
 
   @Get('fechas-cxp')
+  @RequierePermiso(214)
   listarFechas(@Query('periodo') periodo?: string) {
     return this.svc.listarFechas(periodo);
   }
 
   @Post('fechas-cxp')
+  @RequierePermiso(214)
   async crearFecha(
     @CurrentUser() actor: AuthUser,
     @Body(new ZodValidationPipe(fechaCxpCrearSchema)) dto: FechaCxpCrearDto,
@@ -188,6 +207,7 @@ export class ParametrosController {
   }
 
   @Patch('fechas-cxp/:fecha')
+  @RequierePermiso(214)
   async toggleFecha(
     @Param('fecha') fecha: string,
     @Body(new ZodValidationPipe(fechaCxpToggleSchema)) dto: FechaCxpToggleDto,
@@ -197,6 +217,7 @@ export class ParametrosController {
   }
 
   @Delete('fechas-cxp/:fecha')
+  @RequierePermiso(214)
   async eliminarFecha(@Param('fecha') fecha: string) {
     await this.svc.eliminarFecha(fecha);
     return { ok: true };

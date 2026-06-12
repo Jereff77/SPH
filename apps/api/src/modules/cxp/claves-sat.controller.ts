@@ -25,11 +25,12 @@ import type { AuthUser } from '../../common/auth/auth.types.js';
 
 /**
  * Catálogo de claves Producto/Servicio del SAT (con reglas de retención).
- * Se administra desde Configuraciones → Parámetros (clave 210).
+ * Se administra desde Configuraciones → Parámetros, pestaña "Claves SAT"
+ * (clave de visualización 215, definida en `segModulos`).
  */
 @Controller('cxp/claves-sat')
 @UseGuards(JwtAuthGuard, PermisoGuard)
-@RequierePermiso(210)
+@RequierePermiso(215)
 export class ClavesSatController {
   constructor(private readonly svc: ClavesSatService) {}
 

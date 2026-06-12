@@ -5,7 +5,7 @@ version_doc: 1.1
 ultima_actualizacion: 2026-06-05
 submodulos: [Usuarios, Parámetros, Permisos, Sistema, Cambiar contraseña]
 rutas: [/configuraciones/usuarios, /configuraciones/parametros, /configuraciones/permisos, /configuraciones/sistema, /configuraciones/cambiar-contrasena]
-claves_permiso: [200, 203, 210, 220, 221]
+claves_permiso: [200, 203, 210, 212, 213, 214, 215, 216, 220, 221]
 tablas: [catUsers, crm_responsableComercial, segModulos, segModulosUsuarios, segPlantillasPermisos, segDetallesPlantilla, inpc, PresCategorias, PresDetalle, Presupuestos, v_resumenPresupuesto, cxp_fechas_habilitadas, catClavesProdServ, SPHConfiguraciones]
 palabras_clave: [usuarios, permisos, plantillas, parámetros, INPC, cuentas, presupuesto, fechas CxP, claves SAT, retención, IVA, ISR, CFDI, logos, favicon, dominios, correos autorizados, contraseña, soporte, responsable comercial]
 relacionado_con: [autenticacion, auditoria, parques, cxp]
@@ -54,7 +54,14 @@ Equivalente v1: `lib/pages/web_app/i09_configuraciones/`.
 
 ---
 
-## 4. Submenú: Parámetros (4 pestañas)
+## 4. Submenú: Parámetros (5 pestañas)
+
+> **Permiso de visualización por pestaña.** Para entrar al módulo se necesita la clave **210**, y
+> **cada pestaña tiene su propia clave**: INPC **212**, Cuentas **213**, Fechas CxP **214**, Claves SAT
+> **215**, Pizarra de Avisos **216**. El usuario **solo ve las pestañas cuyas claves tiene asignadas**; el
+> backend valida la clave de cada pestaña por endpoint (`@RequierePermiso`). Los usuarios de soporte
+> (`isSupport`) ven todas. (Claves 215/216 se crearon en `segModulos` para v2 — migración
+> `migraciones/2026-06-10-parametros-claves-visualizacion.sql`.)
 
 ### 4.1 INPC
 - **Tabla `inpc`:** `id` ("AAAA/MM", lo arma un trigger), `consecutivo` (trigger), `anio`, `mes`,
@@ -92,7 +99,8 @@ Equivalente v1: `lib/pages/web_app/i09_configuraciones/`.
 - **Acciones:** listar (tabla con encabezado fijo + filtros + orden), crear, editar, activar/desactivar
   (toggles inline de Retiene IVA / Retiene ISR / Activa). Escrituras auditadas.
 
-> Pestaña "Pizarra de Avisos": placeholder, no desarrollada.
+### 4.5 Pizarra de Avisos
+- Placeholder, **no desarrollada** (sin backend). Su clave de visualización es **216**.
 
 ---
 
@@ -114,7 +122,7 @@ Equivalente v1: `lib/pages/web_app/i09_configuraciones/`.
 | Clave | Módulo / acción |
 |---|---|
 | 200 | Configuraciones → Usuarios (módulo). 203 = modificar. |
-| 210 | Configuraciones → Parámetros (212/213/214 = claves finas INPC/Cuentas/Fechas, no aplicadas aún). |
+| 210 | Configuraciones → Parámetros (módulo). Pestañas: 212 INPC · 213 Cuentas · 214 Fechas CxP · 215 Claves SAT · 216 Pizarra de Avisos — **aplicadas** (visualización por pestaña, front+back). |
 | 220 | Configuraciones → Permisos. |
 | 221 | Configuraciones → Sistema (Branding y Dominios). |
 | 700 / 701 / 702 / 710 | Parques (ver `modulos/parques.md`). |
@@ -150,8 +158,10 @@ Equivalente v1: `lib/pages/web_app/i09_configuraciones/`.
 1. El toggle **esSoporte** solo lo ve y opera un usuario de soporte (doble validación: UI + backend).
 2. En Cuentas, `PresDetalle.claveUnica` es **generada** (`idCategoria-anio-MM`): nunca se inserta a mano.
 3. Eliminar una cuenta es **condicional** (sin pagos asociados) y borra primero el detalle mensual.
-4. Las **claves finas** de Parámetros (212/213/214) existen en `segModulos` pero por ahora todo el módulo
-   usa la clave 210 (acceso general). Refinarlas requiere verificar que los usuarios las tengan asignadas.
+4. Las **claves finas** de Parámetros (212 INPC / 213 Cuentas / 214 Fechas CxP / 215 Claves SAT / 216
+   Pizarra) están **aplicadas**: cada pestaña valida su clave en front (oculta la pestaña) y en backend
+   (`@RequierePermiso` por endpoint). Requiere que los usuarios tengan asignadas esas claves en Permisos
+   (los `isSupport` las ven por bypass).
 5. La autorización real es **del servidor**, no del menú; ocultar un ítem no es la barrera de seguridad.
 
 ## 9. Relaciones con otros módulos
@@ -179,4 +189,5 @@ errores al guardar parámetros que persisten, o datos de presupuesto que no cuad
 ## 11. Estado y pendientes
 
 - ✅ Los 5 submenús funcionando, con tablas (encabezado fijo azul + filtros + orden) e historial por usuario.
-- ⏳ Claves finas de Parámetros (212/213/214) por aplicar (requiere validar asignaciones en producción).
+- ✅ Claves finas de Parámetros (212/213/214/215/216) **aplicadas** (visualización por pestaña, front+back).
+  Pendiente operativo: asignar esas claves a los usuarios que correspondan en Permisos.
