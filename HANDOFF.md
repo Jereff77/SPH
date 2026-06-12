@@ -313,8 +313,11 @@
      calcula el siguiente SemVer atómicamente; devuelve la versión asignada). Así dos agentes simultáneos
      **no se tropiezan**. Detalle en la sección 5e.
    - **🗣️ Comando «documenta todo».** Cuando el usuario diga **«documenta todo»**, el agente ejecuta el
-     procedimiento completo de cierre (registrar versión → alinear front → KB → HANDOFF → contexto → commit+push
-     en `erp_v2`). **Pasos exactos en la sección 5e.** Cada «documenta todo» = **una versión nueva**.
+     procedimiento completo de cierre (registrar versión → alinear front → KB → HANDOFF → contexto →
+     **graphify `--update` → commit+push** en `erp_v2`). El **graphify va ANTES del commit**, lo corre el
+     **propio agente** (no espera un `/graphify` aparte del usuario), y `version2/graphify-out/` entra en
+     **ese mismo commit** (un solo commit, no dos). **Pasos exactos en la sección 5e.** Cada «documenta
+     todo» = **una versión nueva**.
    - **Qué SÍ se registra** en el changelog: features, fixes, cambios de comportamiento o de seguridad
      **visibles para el usuario**. **Qué NO:** refactors internos, cambios de documentación/KB, ajustes de
      tipos — nada que el usuario perciba. Categorías: `Agregado`, `Cambiado`, `Corregido`, `Eliminado`,
@@ -336,10 +339,11 @@
     - **DESPUÉS de cambios de código**, refresca el grafo de forma incremental:
       `/graphify version2 --update` — re-extrae **solo** lo nuevo/modificado. Si el cambio es
       **solo código** (.ts/.tsx), corre sin LLM (AST, gratis y rápido) y poda los nodos de archivos
-      borrados (anti-deriva). Cambios en docs/.md sí requieren `--update` completo. El refresco es
-      **manual** (este paso es parte del cierre «documenta todo», sección 5e, paso 4b): se hace una vez
-      por versión, no por commit — así se actualiza también la capa semántica y se evitan carreras de
-      escritura entre agentes.
+      borrados (anti-deriva). Cambios en docs/.md sí requieren `--update` completo. **Lo corre el propio
+      agente** como parte del cierre «documenta todo» (sección 5e, paso 4b), **ANTES del commit** y nunca
+      como un paso aparte que dispare el usuario: se hace una vez por versión (no por commit), y su salida
+      en `version2/graphify-out/` entra en **el mismo commit** de la versión (un solo commit). Así se
+      actualiza también la capa semántica y se evitan carreras de escritura entre agentes.
     - **Concurrencia (varios agentes):** graphify solo **lee** el código y escribe **únicamente** en
       `version2/graphify-out/`; nunca toca tu código ni la BD. `--update` es incremental, así que es
       seguro correrlo aunque otro agente esté trabajando — igual que el changelog (regla 9), el grafo
@@ -618,13 +622,17 @@ mostrarla aún, pasa `p_publicada => false` (4.º argumento).
 3. **Actualiza la Base de Conocimiento** (regla 8): el/los `base-conocimiento/modulos/<modulo>.md` tocados +
    `INDICE.md`.
 4. **Actualiza el HANDOFF** (lo que cambió) y **`../.sessions/contexto.md`** (entrada de sesión).
-4b. **Refresca el grafo de código (regla 10):** `/graphify version2 --update` (incremental). Así el
-   grafo en `version2/graphify-out/` queda alineado con el código que estás por commitear. Se hace
-   **manualmente aquí** (una vez por versión, no por commit): refresca AST + semántica de lo cambiado y
-   evita carreras de escritura entre agentes.
+4b. **Refresca el grafo de código (regla 10) — ANTES del commit, lo corre el agente:** ejecuta tú mismo
+   `/graphify version2 --update` (incremental) **como parte de este procedimiento**, sin esperar a que el
+   usuario lo dispare aparte. Así el grafo en `version2/graphify-out/` queda alineado con el código que
+   estás por commitear y su salida se incluye en **el mismo commit** del paso 5 (un solo commit, no dos).
+   Se hace una vez por versión (no por commit): refresca AST + semántica de lo cambiado y evita carreras
+   de escritura entre agentes.
 5. **Commit + push en el repo `erp_v2`** — `github.com/Jereff77/SPH`, rama **`erp_v2`**
    (https://github.com/Jereff77/SPH/tree/erp_v2) — **NO** en la carpeta temporal `version2/` (que solo existe
-   para dar acceso al código de v1). El mensaje del commit **DEBE empezar con `vN.N.N: …`** para identificarlo.
+   para dar acceso al código de v1). Este commit **incluye también** los cambios de `version2/graphify-out/`
+   del paso 4b (todo en **un solo commit**, no uno para el código y otro para el grafo). El mensaje del commit
+   **DEBE empezar con `vN.N.N: …`** para identificarlo.
    El push dispara el deploy en EasyPanel. *(Mientras trabajemos desde `version2/`: si el repo `erp_v2` no está
    montado en el entorno, deja preparado el mensaje `vN: …` y avísale al usuario para que sincronice y haga
    push.)*
