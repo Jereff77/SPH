@@ -23,3 +23,16 @@ export const escalarSchema = z.object({
   rutaActual: z.string().trim().max(300).optional(),
 });
 export type EscalarDto = z.infer<typeof escalarSchema>;
+
+/** Solicita a la IA que redacte (asunto + resumen) un ticket desde la conversación. */
+export const proponerTicketSchema = z.object({
+  sessionId: z.string().trim().uuid(),
+  rutaActual: z.string().trim().max(300).optional(),
+});
+export type ProponerTicketDto = z.infer<typeof proponerTicketSchema>;
+
+/** Atención de un ticket por soporte: cambio de estado (bandeja de tickets). */
+export const atenderTicketSchema = z.object({
+  estado: z.enum(['abierto', 'en_proceso', 'cerrado']),
+});
+export type AtenderTicketDto = z.infer<typeof atenderTicketSchema>;

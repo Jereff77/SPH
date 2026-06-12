@@ -1,0 +1,558 @@
+import { useMemo, useState, type ReactNode } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/features/auth/useAuth';
+import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
+import { useSort } from '@/components/tabla/useSort';
+import { fechaHora, soporteAdminApi } from './soporte-admin.api';
+import type { EstadoTicket, SesionAdmin, TicketAdmin } from './types';
+
+type Tab = 'conversaciones' | 'tickets';
+
+export function SoporteAdminPage() {
+  const { esSoporte } = useAuth();
+  const [tab, setTab] = useState<Tab>('conversaciones');
+
+  if (!esSoporte) {
+    return (
+      <div className="p-6">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
+          Esta sección está restringida al personal de soporte.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 p-4 sm:p-6">
+      <header>
+        <h1 className="text-xl font-semibold text-gray-900">Soporte — Auditoría y tickets</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Revisa las conversaciones del agente de soporte con los usuarios y atiende
+          los tickets levantados. Solo visible para personal de soporte.
+        </p>
+      </header>
+
+      <div className="flex gap-1 border-b border-gray-200">
+        <BotonTab activo={tab === 'conversaciones'} onClick={() => setTab('conversaciones')}>
+          Conversaciones
+        </BotonTab>
+        <BotonTab activo={tab === 'tickets'} onClick={() => setTab('tickets')}>
+          Tickets
+        </BotonTab>
+      </div>
+
+      {tab === 'conversaciones' ? <TabConversaciones /> : <TabTickets />}
+    </div>
+  );
+}
+
+function BotonTab({
+  activo,
+  onClick,
+  children,
+}: {
+  activo: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
+        activo
+          ? 'border-[#1f2a4d] text-[#1f2a4d]'
+          : 'border-transparent text-gray-500 hover:text-gray-700'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ===========================================================================
+// Pestaña 1: Conversaciones (auditoría)
+// ===========================================================================
+
+function TabConversaciones() {
+  const [q, setQ] = useState('');
+  const [incluirEliminadas, setIncluirEliminadas] = useState(false);
+  const [sesionActiva, setSesionActiva] = useState<string | null>(null);
+
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
+    queryKey: ['soporte-admin', 'sesiones', incluirEliminadas],
+    queryFn: () => soporteAdminApi.sesiones(incluirEliminadas),
+    staleTime: 20_000,
+  });
+
+  const filtradas = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return data ?? [];
+    return (data ?? []).filter(
+      (s) =>
+        s.usuario.toLowerCase().includes(t) ||
+        (s.correo ?? '').toLowerCase().includes(t) ||
+        (s.titulo ?? '').toLowerCase().includes(t),
+    );
+  }, [data, q]);
+
+  const accessors = {
+    usuario: (s: SesionAdmin) => s.usuario,
+    titulo: (s: SesionAdmin) => s.titulo ?? '',
+    mensajes: (s: SesionAdmin) => s.mensajes,
+    ultima: (s: SesionAdmin) => s.ultimaActividad ?? '',
+  };
+  const { ordenados, sortKey, dir, toggle } = useSort(filtradas, accessors, {
+    key: 'ultima',
+    dir: 'desc',
+  });
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Buscar por usuario, correo o título…"
+          className="w-72 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+        />
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          <input
+            type="checkbox"
+            checked={incluirEliminadas}
+            onChange={(e) => setIncluirEliminadas(e.target.checked)}
+          />
+          Incluir eliminadas
+        </label>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="ml-auto rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+        >
+          {isFetching ? 'Actualizando…' : 'Actualizar'}
+        </button>
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-gray-500">Cargando…</p>
+      ) : isError ? (
+        <p className="text-sm text-red-600">No se pudieron cargar las conversaciones.</p>
+      ) : (
+        <div className="overflow-auto rounded-lg border border-gray-200 max-h-[65vh]">
+          <table className="min-w-full text-sm">
+            <thead className={THEAD_STICKY}>
+              <tr className={THEAD_TR}>
+                <SortableTh campo="usuario" sortKey={sortKey} dir={dir} onSort={toggle}>
+                  Usuario
+                </SortableTh>
+                <SortableTh campo="titulo" sortKey={sortKey} dir={dir} onSort={toggle}>
+                  Tema
+                </SortableTh>
+                <SortableTh campo="mensajes" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
+                  Mensajes
+                </SortableTh>
+                <SortableTh campo="ultima" sortKey={sortKey} dir={dir} onSort={toggle}>
+                  Última actividad
+                </SortableTh>
+                <th className="px-4 py-3 text-center">Escaló</th>
+                <th className="px-4 py-3 text-center">Estado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {ordenados.map((s) => (
+                <tr
+                  key={s.uuid}
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => setSesionActiva(s.uuid)}
+                  title="Ver conversación completa"
+                >
+                  <td className="px-4 py-2.5">
+                    <span className="font-medium text-gray-900">{s.usuario}</span>
+                    {s.correo && (
+                      <span className="block text-xs text-gray-500">{s.correo}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-700">{s.titulo ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">
+                    {s.mensajes}
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-700">{fechaHora(s.ultimaActividad)}</td>
+                  <td className="px-4 py-2.5 text-center">
+                    {s.tieneEscalacion ? (
+                      <span className="text-amber-600" title="Hubo sugerencia de ticket">🎫</span>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-center">
+                    {s.activa ? (
+                      <span className="text-green-600">●</span>
+                    ) : (
+                      <span className="text-gray-400" title="Eliminada por el usuario">●</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {ordenados.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
+                    No hay conversaciones.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {sesionActiva && (
+        <ModalConversacion sessionId={sesionActiva} onClose={() => setSesionActiva(null)} />
+      )}
+    </section>
+  );
+}
+
+function ModalConversacion({
+  sessionId,
+  onClose,
+}: {
+  sessionId: string;
+  onClose: () => void;
+}) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['soporte-admin', 'conversacion', sessionId],
+    queryFn: () => soporteAdminApi.conversacion(sessionId),
+  });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between border-b border-gray-200 p-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">
+              {data?.sesion.titulo ?? 'Conversación'}
+            </h2>
+            {data && (
+              <p className="text-xs text-gray-500">
+                {data.sesion.usuario}
+                {data.sesion.correo ? ` · ${data.sesion.correo}` : ''} ·{' '}
+                {fechaHora(data.sesion.fc)}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-auto p-4">
+          {isLoading ? (
+            <p className="text-sm text-gray-500">Cargando conversación…</p>
+          ) : isError ? (
+            <p className="text-sm text-red-600">No se pudo cargar la conversación.</p>
+          ) : data && data.mensajes.length > 0 ? (
+            data.mensajes.map((m) => (
+              <div key={m.uuid} className="space-y-2">
+                {/* Pregunta del usuario */}
+                <div className="flex justify-end">
+                  <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-[#1f2a4d] px-3 py-2 text-sm text-white">
+                    {m.pregunta}
+                  </div>
+                </div>
+                {/* Respuesta del agente */}
+                <div className="flex justify-start">
+                  <div className="max-w-[85%] rounded-2xl rounded-bl-sm bg-gray-100 px-3 py-2 text-sm text-gray-800 whitespace-pre-wrap">
+                    {m.respuesta}
+                    {(m.escalable || m.modulos.length > 0 || m.ruta) && (
+                      <div className="mt-1.5 flex flex-wrap gap-1.5 border-t border-gray-200 pt-1.5 text-[11px] text-gray-500">
+                        {m.escalable && (
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-700">
+                            sugirió ticket
+                          </span>
+                        )}
+                        {m.ruta && (
+                          <span className="rounded bg-gray-200 px-1.5 py-0.5">{m.ruta}</span>
+                        )}
+                        {m.modulos.map((mod) => (
+                          <span key={mod} className="rounded bg-indigo-100 px-1.5 py-0.5 text-indigo-700">
+                            {mod}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <p className="text-center text-[11px] text-gray-400">{fechaHora(m.fc)}</p>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-gray-500">Esta conversación no tiene mensajes.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===========================================================================
+// Pestaña 2: Tickets (atención)
+// ===========================================================================
+
+const ESTADOS: { valor: EstadoTicket | 'todos'; etiqueta: string }[] = [
+  { valor: 'todos', etiqueta: 'Todos' },
+  { valor: 'abierto', etiqueta: 'Abiertos' },
+  { valor: 'en_proceso', etiqueta: 'En proceso' },
+  { valor: 'cerrado', etiqueta: 'Cerrados' },
+];
+
+function EstadoTicketBadge({ estado }: { estado: EstadoTicket }) {
+  const cls =
+    estado === 'abierto'
+      ? 'bg-red-100 text-red-700'
+      : estado === 'en_proceso'
+        ? 'bg-blue-100 text-blue-700'
+        : 'bg-green-100 text-green-700';
+  const txt =
+    estado === 'abierto' ? 'Abierto' : estado === 'en_proceso' ? 'En proceso' : 'Cerrado';
+  return (
+    <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${cls}`}>{txt}</span>
+  );
+}
+
+function TabTickets() {
+  const [filtro, setFiltro] = useState<EstadoTicket | 'todos'>('todos');
+  const [ticketActivo, setTicketActivo] = useState<TicketAdmin | null>(null);
+
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
+    queryKey: ['soporte-admin', 'tickets', filtro],
+    queryFn: () => soporteAdminApi.tickets(filtro === 'todos' ? undefined : filtro),
+    staleTime: 15_000,
+  });
+
+  const accessors = {
+    usuario: (t: TicketAdmin) => t.usuario,
+    asunto: (t: TicketAdmin) => t.asunto,
+    modulo: (t: TicketAdmin) => t.modulo ?? '',
+    estado: (t: TicketAdmin) => t.estado,
+    fc: (t: TicketAdmin) => t.fc,
+  };
+  const { ordenados, sortKey, dir, toggle } = useSort(data ?? [], accessors, {
+    key: 'fc',
+    dir: 'desc',
+  });
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {ESTADOS.map((e) => (
+          <button
+            key={e.valor}
+            type="button"
+            onClick={() => setFiltro(e.valor)}
+            className={`rounded-full px-3 py-1 text-sm ${
+              filtro === e.valor
+                ? 'bg-[#1f2a4d] text-white'
+                : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            {e.etiqueta}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="ml-auto rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+        >
+          {isFetching ? 'Actualizando…' : 'Actualizar'}
+        </button>
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-gray-500">Cargando…</p>
+      ) : isError ? (
+        <p className="text-sm text-red-600">No se pudieron cargar los tickets.</p>
+      ) : (
+        <div className="overflow-auto rounded-lg border border-gray-200 max-h-[65vh]">
+          <table className="min-w-full text-sm">
+            <thead className={THEAD_STICKY}>
+              <tr className={THEAD_TR}>
+                <SortableTh campo="usuario" sortKey={sortKey} dir={dir} onSort={toggle}>
+                  Usuario
+                </SortableTh>
+                <SortableTh campo="asunto" sortKey={sortKey} dir={dir} onSort={toggle}>
+                  Asunto
+                </SortableTh>
+                <SortableTh campo="modulo" sortKey={sortKey} dir={dir} onSort={toggle}>
+                  Módulo
+                </SortableTh>
+                <SortableTh campo="estado" sortKey={sortKey} dir={dir} onSort={toggle} align="center">
+                  Estado
+                </SortableTh>
+                <SortableTh campo="fc" sortKey={sortKey} dir={dir} onSort={toggle}>
+                  Creado
+                </SortableTh>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {ordenados.map((t) => (
+                <tr
+                  key={t.uuid}
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => setTicketActivo(t)}
+                  title="Ver y atender ticket"
+                >
+                  <td className="px-4 py-2.5">
+                    <span className="font-medium text-gray-900">{t.usuario}</span>
+                    {t.correo && (
+                      <span className="block text-xs text-gray-500">{t.correo}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-700">{t.asunto}</td>
+                  <td className="px-4 py-2.5 text-gray-700">{t.modulo ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-center">
+                    <EstadoTicketBadge estado={t.estado} />
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-700">{fechaHora(t.fc)}</td>
+                </tr>
+              ))}
+              {ordenados.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
+                    No hay tickets con este filtro.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {ticketActivo && (
+        <ModalTicket ticket={ticketActivo} onClose={() => setTicketActivo(null)} />
+      )}
+    </section>
+  );
+}
+
+function ModalTicket({
+  ticket,
+  onClose,
+}: {
+  ticket: TicketAdmin;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [verConversacion, setVerConversacion] = useState(false);
+
+  const atender = useMutation({
+    mutationFn: (estado: EstadoTicket) => soporteAdminApi.atender(ticket.uuid, estado),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['soporte-admin', 'tickets'] });
+      onClose();
+    },
+  });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between border-b border-gray-200 p-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">{ticket.asunto}</h2>
+            <p className="text-xs text-gray-500">
+              {ticket.usuario}
+              {ticket.correo ? ` · ${ticket.correo}` : ''} · {fechaHora(ticket.fc)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-auto p-4">
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="rounded bg-gray-100 px-2 py-0.5 text-gray-600">
+              Módulo: {ticket.modulo ?? '—'}
+            </span>
+            {ticket.ruta && (
+              <span className="rounded bg-gray-100 px-2 py-0.5 text-gray-600">
+                Pantalla: {ticket.ruta}
+              </span>
+            )}
+            <EstadoTicketBadge estado={ticket.estado} />
+          </div>
+
+          <div>
+            <h3 className="mb-1 text-sm font-medium text-gray-700">Resumen del problema</h3>
+            <p className="whitespace-pre-wrap rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
+              {ticket.resumen}
+            </p>
+          </div>
+
+          {ticket.atendidoPorNombre && (
+            <p className="text-xs text-gray-500">
+              Última atención: {ticket.atendidoPorNombre} · {fechaHora(ticket.fum)}
+            </p>
+          )}
+
+          {ticket.sessionId && (
+            <button
+              type="button"
+              onClick={() => setVerConversacion(true)}
+              className="text-sm font-medium text-[#1f2a4d] underline"
+            >
+              Ver conversación de origen
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-t border-gray-200 p-4">
+          <span className="mr-1 text-sm text-gray-500">Cambiar estado:</span>
+          {(['abierto', 'en_proceso', 'cerrado'] as EstadoTicket[]).map((e) => (
+            <button
+              key={e}
+              type="button"
+              disabled={atender.isPending || ticket.estado === e}
+              onClick={() => atender.mutate(e)}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+            >
+              {e === 'abierto' ? 'Abierto' : e === 'en_proceso' ? 'En proceso' : 'Cerrado'}
+            </button>
+          ))}
+          {atender.isError && (
+            <span className="text-xs text-red-600">No se pudo actualizar.</span>
+          )}
+        </div>
+      </div>
+
+      {verConversacion && ticket.sessionId && (
+        <ModalConversacion
+          sessionId={ticket.sessionId}
+          onClose={() => setVerConversacion(false)}
+        />
+      )}
+    </div>
+  );
+}

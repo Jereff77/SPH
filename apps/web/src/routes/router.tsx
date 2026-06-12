@@ -44,6 +44,12 @@ const ReportesArrePage = lazy(() =>
 const CronPage = lazy(() =>
   import('@/features/cron/CronPage').then((m) => ({ default: m.CronPage })),
 );
+// Soporte (Configuraciones → Soporte, solo soporte): auditoría + tickets. Chunk propio.
+const SoporteAdminPage = lazy(() =>
+  import('@/features/soporte-admin/SoporteAdminPage').then((m) => ({
+    default: m.SoporteAdminPage,
+  })),
+);
 // CxP → Reportes (jsPDF + ExcelJS lazy): chunk propio.
 const ReportesCxpPage = lazy(() => import('@/features/cxp/ReportesCxpPage'));
 const cargando = <div className="p-6 text-sm text-gray-400">Cargando…</div>;
@@ -141,6 +147,14 @@ export const router = createBrowserRouter([
             element: (
               <Suspense fallback={cargando}>
                 <CronPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/configuraciones/soporte',
+            element: (
+              <Suspense fallback={cargando}>
+                <SoporteAdminPage />
               </Suspense>
             ),
           },

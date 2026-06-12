@@ -6,7 +6,7 @@ import { CuentasService } from '../correo/cuentas.service.js';
 import { SmtpService } from '../correo/smtp.service.js';
 import { KbService } from './kb.service.js';
 import type { Env } from '../../common/config/env.validation.js';
-import type { EscalarDto, MensajeDto } from './soporte.schemas.js';
+import type { EscalarDto, MensajeDto, ProponerTicketDto } from './soporte.schemas.js';
 
 /** Un mensaje del chat (para historial y para enviar al modelo). */
 export interface MensajeSoporte {
@@ -215,6 +215,105 @@ export class SoporteService {
   // --- Escalación a ticket --------------------------------------------------
 
   /**
+   * Pide a la IA que **redacte** el ticket a partir de la conversación completa:
+   * un `asunto` sintético (no la copia literal del último mensaje) y un `resumen`
+   * accionable para el equipo de soporte humano. Es una propuesta editable: el
+   * usuario la revisa y confirma antes de que se cree el ticket (`escalar`).
+   */
+  async proponerTicket(
+    userJwt: string,
+    uid: string,
+    dto: ProponerTicketDto,
+  ): Promise<{ asunto: string; resumen: string; modulo: string | null }> {
+    const historial = await this.mensajes(uid, dto.sessionId);
+    const ultimaPregunta =
+      [...historial].reverse().find((m) => m.tipo === 'user')?.texto ?? '';
+
+    // Fallback si no hay conversación o si el modelo no responde bien.
+    const fallback = {
+      asunto: (ultimaPregunta.slice(0, 90) || 'Solicitud de soporte').trim(),
+      resumen: ultimaPregunta || 'El usuario solicita ayuda de soporte.',
+      modulo: null as string | null,
+    };
+    if (historial.length === 0) return fallback;
+
+    // Módulo más probable (para clasificar el ticket) desde la última pregunta.
+    const seleccion = this.kb.seleccionar(ultimaPregunta, dto.rutaActual);
+    const modulo = seleccion.modulos[0] ?? null;
+
+    const transcripcion = historial
+      .map((m) => `${m.tipo === 'user' ? 'Usuario' : 'Asistente'}: ${m.texto}`)
+      .join('\n');
+
+    const system =
+      'Eres un asistente que redacta tickets de soporte para un ERP inmobiliario. ' +
+      'A partir de la conversación entre el usuario y el asistente, redacta un ticket CLARO y ACCIONABLE ' +
+      'para el equipo de soporte humano. Analiza y SINTETIZA lo que el usuario realmente necesita; ' +
+      'NO copies textualmente sus mensajes. Devuelve EXCLUSIVAMENTE un JSON válido, sin texto adicional ni ' +
+      'bloques de código, con esta forma exacta: {"asunto": "...", "resumen": "..."}. ' +
+      'Reglas del contenido: ' +
+      '- "asunto": una sola línea, máximo 100 caracteres, describe el problema o la solicitud en términos concretos. ' +
+      '- "resumen": de 2 a 5 frases en español, en tercera persona y tono profesional. Explica QUÉ necesita o ' +
+      'reporta el usuario, el CONTEXTO relevante (módulo/pantalla) y, si aplica, qué se intentó o por qué el ' +
+      'asistente no pudo resolverlo. No inventes datos que no estén en la conversación.';
+
+    const user =
+      `Pantalla actual del usuario: ${dto.rutaActual ?? 'desconocida'}.\n` +
+      (modulo ? `Módulo probable: ${modulo}.\n` : '') +
+      `\nConversación:\n${transcripcion}`;
+
+    const modeloCfg = await this.param('SOPORTE_IA_MODELO', DEFAULT_MODELO);
+    let edge: RespuestaEdge;
+    try {
+      edge = await this.invocarEdge(
+        userJwt,
+        [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+        modeloCfg,
+      );
+    } catch (e) {
+      this.logger.warn(
+        `proponerTicket: el modelo no respondió, se usa el fallback: ${(e as Error).message}`,
+      );
+      return { ...fallback, modulo };
+    }
+
+    const parsed = this.parsearPropuesta(edge.respuesta ?? '');
+    if (!parsed) return { ...fallback, modulo };
+    return {
+      asunto: parsed.asunto.slice(0, 160).trim() || fallback.asunto,
+      resumen: parsed.resumen.slice(0, 4000).trim() || fallback.resumen,
+      modulo,
+    };
+  }
+
+  /** Extrae `{asunto, resumen}` de la respuesta del modelo (tolera ```fences```). */
+  private parsearPropuesta(
+    bruto: string,
+  ): { asunto: string; resumen: string } | null {
+    if (!bruto) return null;
+    // Quita fences de código y aísla el primer objeto JSON.
+    const limpio = bruto.replace(/```(?:json)?/gi, '').trim();
+    const ini = limpio.indexOf('{');
+    const fin = limpio.lastIndexOf('}');
+    if (ini === -1 || fin === -1 || fin <= ini) return null;
+    try {
+      const obj = JSON.parse(limpio.slice(ini, fin + 1)) as {
+        asunto?: unknown;
+        resumen?: unknown;
+      };
+      const asunto = typeof obj.asunto === 'string' ? obj.asunto : '';
+      const resumen = typeof obj.resumen === 'string' ? obj.resumen : '';
+      if (!asunto && !resumen) return null;
+      return { asunto, resumen };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Crea un ticket de soporte (SOLO tras confirmación explícita del usuario) y
    * notifica por correo, si hay cuenta configurada. Escritura controlada del
    * backend (no del modelo).
@@ -293,6 +392,20 @@ export class SoporteService {
       ro.from('catUsers').select('nombre, nomCompleto, isSupport').eq('uid', uid).maybeSingle(),
     ]);
 
+    // Si el rol de solo lectura fallara (rol/JWT/RLS), NO lo silenciamos: dejar
+    // el perfil vacío hace que el agente crea que el usuario "no tiene permisos"
+    // y responda mal. Lo registramos para diagnosticarlo.
+    if (permisosRes.error) {
+      this.logger.error(
+        `perfilUsuario: no se pudieron leer los permisos de ${uid} con v2_soporte_ro: ${permisosRes.error.message}`,
+      );
+    }
+    if (userRes.error) {
+      this.logger.error(
+        `perfilUsuario: no se pudo leer catUsers de ${uid} con v2_soporte_ro: ${userRes.error.message}`,
+      );
+    }
+
     const claves = (permisosRes.data ?? [])
       .filter((r) => r.clave != null)
       .map((r) => ({
@@ -328,15 +441,21 @@ export class SoporteService {
       promptBase,
       '',
       'REGLAS:',
-      `- Si el usuario pregunta por algo que requiere un permiso que NO tiene, explícale con claridad que necesita esa clave de permiso y, usando el DIRECTORIO DE CONTACTOS, dile EXACTAMENTE a quién solicitársela (nombre y cómo contactarlo). Nunca digas solo "pídeselo a un administrador" si el directorio tiene un responsable.`,
+      `- La sección "PERMISOS DEL USUARIO" de abajo es la fuente AUTORITATIVA y COMPLETA de los permisos del usuario que te escribe (la consulta el sistema en tiempo real). Si te pregunta si tiene un permiso o clave, qué permisos tiene, o si puede entrar a una pantalla o usar una función, RESPÓNDELE DIRECTAMENTE con base en esa lista: confírmale qué tiene (clave + a qué da acceso) o dile con claridad que ese permiso NO aparece entre los suyos. NUNCA le digas que "no hay forma de verificar tus permisos" ni lo mandes con un administrador SOLO para confirmar sus PROPIOS permisos: tú ya los conoces.`,
+      `- Solo cuando al usuario le FALTE un permiso que necesita para lo que quiere hacer, explícale qué clave necesita y, usando el DIRECTORIO DE CONTACTOS, dile EXACTAMENTE a quién solicitársela (nombre y cómo contactarlo). Nunca digas solo "pídeselo a un administrador" si el directorio tiene un responsable.`,
+      `- Tú SOLO conoces los permisos del usuario que te escribe (los de abajo). NO puedes consultar los permisos de OTROS usuarios ni datos de negocio (cuántos inversionistas hay, montos, saldos, reportes): para eso remite al módulo correspondiente u ofrece escalar a un ticket. Esto NO aplica a los permisos del propio usuario, que SÍ debes responder.`,
       `- Siempre que menciones que algo lo gestiona o autoriza otra persona, canaliza al usuario con el responsable correcto según el DIRECTORIO DE CONTACTOS.`,
       `- Si el problema necesita intervención humana (un dato incorrecto, algo que el sistema hizo solo, una falla), ofrece escalar a un ticket y añade en una línea aparte exactamente el marcador ${MARCADOR_ESCALAR} (el sistema lo usa para mostrar el botón de ticket; no lo expliques al usuario).`,
       '- No reveles detalles técnicos internos (SQL, nombres de funciones de base de datos, secretos).',
       '',
       `CONTEXTO DEL USUARIO QUE PREGUNTA:`,
-      `- Nombre: ${perfil.nombre}${perfil.esSoporte ? ' (usuario de SOPORTE: tiene acceso total)' : ''}.`,
+      `- Nombre: ${perfil.nombre}${perfil.esSoporte ? ' (usuario de SOPORTE: tiene acceso total a todo el sistema)' : ''}.`,
       `- Pantalla actual: ${ruta ?? 'desconocida'}.`,
-      `- Permisos (claves): ${clavesTxt}.`,
+      '',
+      `PERMISOS DEL USUARIO (lista verificada en tiempo real; es TODO lo que ${perfil.nombre} tiene habilitado hoy):`,
+      perfil.esSoporte
+        ? `- Es usuario de SOPORTE: tiene acceso a TODAS las pantallas y funciones del sistema, sin importar las claves.`
+        : `- Claves con acceso: ${clavesTxt}.`,
       '',
       directorio ? `DIRECTORIO DE CONTACTOS (a quién canalizar):\n${directorio}` : '',
       '',

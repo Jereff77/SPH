@@ -18,9 +18,11 @@ import type { AuthUser } from '../../common/auth/auth.types.js';
 import {
   escalarSchema,
   mensajeSchema,
+  proponerTicketSchema,
   renombrarSchema,
   type EscalarDto,
   type MensajeDto,
+  type ProponerTicketDto,
   type RenombrarDto,
 } from './soporte.schemas.js';
 
@@ -73,6 +75,16 @@ export class SoporteController {
     // Reenviamos el JWT del usuario a la edge (la identifica con auth.getUser()).
     const jwt = (auth ?? '').replace(/^Bearer\s+/i, '');
     return this.soporte.enviar(jwt, actor.uid, dto);
+  }
+
+  @Post('escalar/proponer')
+  proponerTicket(
+    @CurrentUser() actor: AuthUser,
+    @Headers('authorization') auth: string,
+    @Body(new ZodValidationPipe(proponerTicketSchema)) dto: ProponerTicketDto,
+  ) {
+    const jwt = (auth ?? '').replace(/^Bearer\s+/i, '');
+    return this.soporte.proponerTicket(jwt, actor.uid, dto);
   }
 
   @Post('escalar')

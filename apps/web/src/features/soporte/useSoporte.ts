@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { soporteApi, type MensajeSoporte } from './soporte.api';
+import { soporteApi, type MensajeSoporte, type PropuestaTicket } from './soporte.api';
 
 /**
  * Lógica del Agente de IA de Soporte (widget flotante). El frontend NO habla con
@@ -59,6 +59,24 @@ export function useSoporte() {
     [ocupado, sessionId],
   );
 
+  /**
+   * Pide a la IA que redacte (asunto + resumen) el ticket analizando la
+   * conversación. Devuelve la propuesta editable; si falla, null (el widget usa
+   * el último mensaje como respaldo).
+   */
+  const proponerTicket = useCallback(
+    async (rutaActual?: string): Promise<PropuestaTicket | null> => {
+      if (!sessionId) return null;
+      try {
+        return await soporteApi.proponerTicket(sessionId, rutaActual);
+      } catch (e) {
+        console.error('Error proponiendo ticket:', e);
+        return null;
+      }
+    },
+    [sessionId],
+  );
+
   /** Crea un ticket de soporte (escalación), solo tras confirmación del usuario. */
   const escalar = useCallback(
     async (asunto: string, resumen: string, rutaActual?: string): Promise<string | null> => {
@@ -94,6 +112,7 @@ export function useSoporte() {
     ocupado,
     puedeEscalar,
     enviar,
+    proponerTicket,
     escalar,
     nuevaConversacion,
   };

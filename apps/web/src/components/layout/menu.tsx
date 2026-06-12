@@ -127,6 +127,9 @@ export const MENU: MenuGrupo[] = [
       // Cron: monitoreo de tareas programadas. SOLO soporte (sin clave: no se
       // asigna desde la app, solo por el flag isSupport del backend).
       { label: 'Cron', to: '/configuraciones/cron', soloSoporte: true },
+      // Soporte: auditoría de conversaciones del agente IA + tickets. SOLO soporte
+      // (sin clave: igual que Cron, se gobierna por el flag isSupport del backend).
+      { label: 'Soporte', to: '/configuraciones/soporte', soloSoporte: true },
     ],
   },
 ];

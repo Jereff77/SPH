@@ -117,10 +117,13 @@ function FormEscalar({
  */
 export function SoporteWidget() {
   const { pathname } = useLocation();
-  const { mensajes, ocupado, puedeEscalar, enviar, escalar, nuevaConversacion } = useSoporte();
+  const { mensajes, ocupado, puedeEscalar, enviar, proponerTicket, escalar, nuevaConversacion } =
+    useSoporte();
   const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState('');
   const [escalando, setEscalando] = useState(false);
+  const [proponiendo, setProponiendo] = useState(false);
+  const [propuesta, setPropuesta] = useState<{ asunto: string; resumen: string } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -140,8 +143,22 @@ export function SoporteWidget() {
     }
   };
 
-  // Última pregunta del usuario (para prerellenar la escalación).
+  // Última pregunta del usuario (respaldo si la IA no logra redactar el ticket).
   const ultimaPregunta = [...mensajes].reverse().find((m) => m.tipo === 'user')?.texto ?? '';
+
+  // Genera la propuesta de ticket (asunto + resumen) analizando la conversación.
+  const abrirEscalacion = async () => {
+    setProponiendo(true);
+    const p = await proponerTicket(pathname);
+    setPropuesta(
+      p ?? {
+        asunto: ultimaPregunta.slice(0, 80) || 'Solicitud de soporte',
+        resumen: ultimaPregunta,
+      },
+    );
+    setEscalando(true);
+    setProponiendo(false);
+  };
 
   return (
     <>
@@ -219,20 +236,25 @@ export function SoporteWidget() {
             {/* Botón / formulario de escalación */}
             {puedeEscalar && !escalando && (
               <button
-                onClick={() => setEscalando(true)}
-                className="self-start rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100"
+                onClick={abrirEscalacion}
+                disabled={proponiendo}
+                className="self-start rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-60"
               >
-                🎫 Crear ticket de soporte
+                {proponiendo ? '✍️ Redactando ticket…' : '🎫 Crear ticket de soporte'}
               </button>
             )}
-            {escalando && (
+            {escalando && propuesta && (
               <FormEscalar
-                asuntoSugerido={ultimaPregunta.slice(0, 80) || 'Solicitud de soporte'}
-                resumenSugerido={ultimaPregunta}
-                onCancelar={() => setEscalando(false)}
+                asuntoSugerido={propuesta.asunto}
+                resumenSugerido={propuesta.resumen}
+                onCancelar={() => {
+                  setEscalando(false);
+                  setPropuesta(null);
+                }}
                 onConfirmar={async (asunto, resumen) => {
                   await escalar(asunto, resumen, pathname);
                   setEscalando(false);
+                  setPropuesta(null);
                 }}
               />
             )}

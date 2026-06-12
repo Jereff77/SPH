@@ -5,7 +5,7 @@
  * del changelog (`GET /api/changelog` → Sidebar). Mantener alineada con la última
  * versión publicada al ejecutar «documenta todo» (ver HANDOFF, regla 9 / sección 5e).
  */
-export const APP_VERSION = 'v. 2.24.0';
+export const APP_VERSION = 'v. 2.25.0';
 
 /** Paleta de marca SPH (provisional, ajustable al manual de marca). */
 export const COLORS = {

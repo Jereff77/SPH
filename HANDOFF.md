@@ -5,7 +5,27 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-12 (v2.24.0 — Asistente: directorio de contactos). Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-12 (v2.25.0 — Soporte: auditoría de conversaciones + tickets). Autor: Claude (Opus 4.8).
+>
+> ✨ **v2.25.0 (feature + fixes):** **Configuraciones → Soporte** (`/configuraciones/soporte`, **SOLO soporte**,
+> sin clave — `SoporteGuard` por `isSupport`, igual que Cron). Pantalla de **auditoría** del Agente de IA con
+> **2 pestañas**: (1) **Conversaciones** — lista TODAS las sesiones de chat de todos los usuarios (usuario,
+> nº de mensajes, última actividad, 🎫 si escaló, toggle «incluir eliminadas», búsqueda); clic → modal con la
+> conversación completa pregunta/respuesta + metadatos (módulos de KB, pantalla, si sugirió ticket). (2)
+> **Tickets** — bandeja filtrable por estado (Abiertos/En proceso/Cerrados); clic → resumen, pantalla de
+> origen, enlace a la conversación, y cambio de estado (`abierto→en_proceso→cerrado`) con `comoActor`
+> (auditado, `fum`/`fumUser`). Backend `soporte/soporte-admin.{controller,service}.ts`; front
+> `features/soporte-admin/`. **Reutiliza `v2_soporte_sesiones/mensajes/tickets` — sin objetos nuevos en BD.**
+> **Fix permisos:** el agente **no** podía decirle al usuario si tenía un permiso ("no hay forma de
+> verificarlo") aunque el perfil SÍ se inyecta vía `v2_soporte_ro` (validado: rol/JWT/RLS correctos, lee en
+> vivo). Causa: el system prompt no marcaba esa lista como autoritativa y sesgaba a deferir con un admin. Se
+> reescribieron las REGLAS de `construirSystemPrompt` (responde permisos propios desde la lista; solo defiere
+> si FALTA un permiso o son datos de otros/negocio) y `perfilUsuario` ahora **loguea** fallos del rol RO (antes
+> se silenciaban). **Fix tickets:** al escalar, el formulario copiaba **literal** el último mensaje. Nuevo
+> `POST /soporte/escalar/proponer` (`SoporteService.proponerTicket`): la IA **analiza la conversación** y
+> redacta `asunto`+`resumen` (JSON, parser tolerante a fences; respaldo = último mensaje); el widget muestra
+> «✍️ Redactando ticket…». Ver `base-conocimiento/modulos/soporte-ia.md`. **Pendiente operativo: redeploy
+> api+web a EasyPanel** (cambios de backend y frontend).
 >
 > ✨ **v2.23.0 (feature):** **CxP → Reportes** (`/cxp/reportes`, clave **460**) — réplica **segura** del reporte
 > HTML embebido de v1 (`/reportescxp`). Backend `cxp/reportes.{service,controller,schemas}.ts` invoca con
@@ -195,6 +215,11 @@
     al usuario con la persona correcta (nombre+correo) en vez de un genérico "pídeselo a un administrador".
     **⚠️ Pendiente operativo:** la cuenta de **OpenRouter** debe tener clave válida + créditos (el chat
     devolvía 502 de OpenRouter en pruebas) y desplegar api+web a EasyPanel. Fase 2 prevista: RAG con `pgvector`.
+    **Auditoría (v2.25.0):** **Configuraciones → Soporte** (`/configuraciones/soporte`, **solo soporte**) para
+    revisar TODAS las conversaciones del agente y atender los tickets (2 pestañas). Además se corrigió que el
+    agente responda los **permisos propios** del usuario desde su perfil (antes deferia) y que el **ticket** se
+    **redacte por IA** desde la conversación (antes copiaba el último mensaje). Detalle en el bloque ✨ de arriba
+    y en `modulos/soporte-ia.md`.
 - **Changelog / Novedades** (Configuraciones, **sin permiso** → todos): bitácora de versiones SemVer
   (`GET /api/changelog`, solo lectura). El Sidebar muestra la versión desde aquí. Fuente: tabla nueva
   `v2_changelog` + función `v2_changelog_registrar` (asigna el SemVer desde la BD con lock, **a prueba de

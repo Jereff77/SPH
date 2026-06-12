@@ -28,6 +28,12 @@ export interface EscalarPayload {
   rutaActual?: string;
 }
 
+export interface PropuestaTicket {
+  asunto: string;
+  resumen: string;
+  modulo: string | null;
+}
+
 /**
  * Cliente del Agente de IA de Soporte. Pasa por `lib/api.ts` (única puerta de
  * datos del frontend); nunca habla con Supabase ni con OpenRouter.
@@ -41,6 +47,8 @@ export const soporteApi = {
   renombrar: (id: string, titulo: string) =>
     api.patch<{ ok: true }>(`/soporte/sesiones/${id}`, { titulo }),
   eliminar: (id: string) => api.delete<{ ok: true }>(`/soporte/sesiones/${id}`),
+  proponerTicket: (sessionId: string, rutaActual?: string) =>
+    api.post<PropuestaTicket>('/soporte/escalar/proponer', { sessionId, rutaActual }),
   escalar: (dto: EscalarPayload) =>
     api.post<{ ok: true; ticketId: string }>('/soporte/escalar', dto),
 };
