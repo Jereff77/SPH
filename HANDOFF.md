@@ -303,6 +303,31 @@
    - La pantalla es de **solo lectura** (`GET /api/changelog`, `JwtAuthGuard` **sin** `PermisoGuard`). No hay
      UI de edición: el changelog lo escribe el agente que desarrolla, no el usuario final.
 
+10. **🗺️ GRAFO DE CONOCIMIENTO DEL CÓDIGO (graphify) — consultar antes, refrescar después.**
+    Existe un grafo navegable del código de `version2/` en **`version2/graphify-out/`**
+    (`graph.json`, `GRAPH_REPORT.md` y `graph.html`). Es el **mapa estructural** (quién llama a
+    quién, god nodes, puentes entre módulos) y **complementa** la Base de Conocimiento (regla 8):
+    la KB explica el *negocio* en prosa; el grafo mapea las *dependencias reales* del código.
+    En consecuencia:
+    - **ANTES de modificar o refactorizar un módulo**, consulta el grafo para medir el impacto:
+      `/graphify explain "<Servicio/Componente>"` (qué toca), `/graphify path "A" "B"` (cómo se
+      conectan), `/graphify query "<pregunta>"` (contexto amplio). Presta atención a los **god
+      nodes** (ej. `SupabaseService`, `api.ts`) y a los **nodos puente** (alta betweenness): tocarlos
+      tiene efecto en cascada.
+    - **DESPUÉS de cambios de código**, refresca el grafo de forma incremental:
+      `/graphify version2 --update` — re-extrae **solo** lo nuevo/modificado. Si el cambio es
+      **solo código** (.ts/.tsx), corre sin LLM (AST, gratis y rápido) y poda los nodos de archivos
+      borrados (anti-deriva). Cambios en docs/.md sí requieren `--update` completo. El refresco es
+      **manual** (este paso es parte del cierre «documenta todo», sección 5e, paso 4b): se hace una vez
+      por versión, no por commit — así se actualiza también la capa semántica y se evitan carreras de
+      escritura entre agentes.
+    - **Concurrencia (varios agentes):** graphify solo **lee** el código y escribe **únicamente** en
+      `version2/graphify-out/`; nunca toca tu código ni la BD. `--update` es incremental, así que es
+      seguro correrlo aunque otro agente esté trabajando — igual que el changelog (regla 9), el grafo
+      es un recurso compartido que cada agente refresca al cerrar su trabajo.
+    - **Honestidad del grafo:** cada arista está marcada `EXTRACTED` / `INFERRED` / `AMBIGUOUS`. No
+      trates una arista `INFERRED`/`AMBIGUOUS` como un hecho; verifícala en el código.
+
 ---
 
 ## 2. Contexto y documentación previa
@@ -574,6 +599,10 @@ mostrarla aún, pasa `p_publicada => false` (4.º argumento).
 3. **Actualiza la Base de Conocimiento** (regla 8): el/los `base-conocimiento/modulos/<modulo>.md` tocados +
    `INDICE.md`.
 4. **Actualiza el HANDOFF** (lo que cambió) y **`../.sessions/contexto.md`** (entrada de sesión).
+4b. **Refresca el grafo de código (regla 10):** `/graphify version2 --update` (incremental). Así el
+   grafo en `version2/graphify-out/` queda alineado con el código que estás por commitear. Se hace
+   **manualmente aquí** (una vez por versión, no por commit): refresca AST + semántica de lo cambiado y
+   evita carreras de escritura entre agentes.
 5. **Commit + push en el repo `erp_v2`** — `github.com/Jereff77/SPH`, rama **`erp_v2`**
    (https://github.com/Jereff77/SPH/tree/erp_v2) — **NO** en la carpeta temporal `version2/` (que solo existe
    para dar acceso al código de v1). El mensaje del commit **DEBE empezar con `vN.N.N: …`** para identificarlo.

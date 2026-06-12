@@ -39,3 +39,6 @@ apps/web/.vite/
 # Artefactos de tsc -b (composite) para la config de Vite
 apps/web/vite.config.js
 apps/web/vite.config.d.ts
+
+# graphify: cache interno de extraccion (no versionar)
+graphify-out/cache/
