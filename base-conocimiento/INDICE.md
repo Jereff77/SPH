@@ -25,7 +25,7 @@ futuro, en una tabla vectorial `pgvector` para búsqueda semántica).
 | Módulo | Estado | Documento | Rutas | Permisos | Palabras clave |
 |---|---|---|---|---|---|
 | Autenticación | ✅ desarrollado | `modulos/autenticacion.md` | /login, /recuperar | — | login, contraseña, usuario, sesión, dominio, correo |
-| Configuraciones | ✅ desarrollado | `modulos/configuraciones.md` | /configuraciones/* | 200, 203, 210, 220, 221 | usuarios, parámetros, permisos, plantillas, INPC, cuentas, fechas CxP, logos, dominios |
+| Configuraciones | ✅ desarrollado | `modulos/configuraciones.md` | /configuraciones/* · /registro | 200, 203, 210, 220, 221 | usuarios, invitación, invitar usuario, registro, alta de usuario, parámetros, permisos, plantillas, INPC, cuentas, fechas CxP, logos, dominios |
 | Parques | ✅ desarrollado | `modulos/parques.md` | /parques, /parques/disponibilidad | 700, 701, 702, 710 | parque, nave, bodega, KVA, disponibilidad, manzana, lote, GYM |
 | Landing / Indicadores | ✅ desarrollado | `modulos/landing-indicadores.md` | / | — | inicio, tipo de cambio, dólar, INPC, indicadores, Banxico |
 | Auditoría / Ver como | ✅ desarrollado | `modulos/auditoria-y-ver-como.md` | (transversal) | 200 | historial, bitácora, auditoría, trazabilidad, ver como, quién cambió |
@@ -60,6 +60,7 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `pdp`, `pdpDetalle`, `pagos`, `rgPdp`, `rgPdpDetalle`, `raPdp`, `raPdpDetalle`, `v_rentasCombinadas` | Inversionistas/Propietarios (Ventas) |
 | `arrenPropiedades`, `arrePdp`, `arrePdpDetalle`, `arreConceptos`, `v_arrendadasNaves` | Arrendatarios (y Parques para el arrendatario) |
 | `catUsers`, `segModulosUsuarios`, `segModulos`, `segPlantillasPermisos` | Configuraciones (Usuarios/Permisos) |
+| `v2_invitaciones` | Configuraciones (Usuarios → invitaciones de registro) |
 | `inpc`, `PresCategorias`, `PresDetalle`, `cxp_fechas_habilitadas`, `catClavesProdServ` | Configuraciones (Parámetros: INPC/Cuentas/Fechas/**Claves SAT**) |
 | `SPHConfiguraciones` | Configuraciones (Sistema) · `RFC_RECEPTORES_AUTORIZADOS` lo usa CxP |
 | `auditoria`, `actividad` | Auditoría |
@@ -89,6 +90,7 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `/cxp/proveedores`, `/cxp/bancos` | CxP (Catálogos) |
 | `/correo` | Correo (buzón de facturas) |
 | `/configuraciones/usuarios` | Configuraciones (Usuarios) |
+| `/registro` (público) | Configuraciones (Usuarios → registro por invitación) |
 | `/configuraciones/parametros` | Configuraciones (Parámetros) |
 | `/configuraciones/permisos` | Configuraciones (Permisos) |
 | `/configuraciones/sistema` | Configuraciones (Sistema) |

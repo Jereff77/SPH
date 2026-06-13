@@ -10,6 +10,7 @@ import { HealthModule } from './health/health.module.js';
 import { ConfiguracionModule } from './modules/configuracion/configuracion.module.js';
 import { AuthApiModule } from './modules/auth/auth.module.js';
 import { UsuariosModule } from './modules/usuarios/usuarios.module.js';
+import { InvitacionesModule } from './modules/invitaciones/invitaciones.module.js';
 import { ParametrosModule } from './modules/parametros/parametros.module.js';
 import { PermisosModule } from './modules/permisos/permisos.module.js';
 import { IndicadoresModule } from './modules/indicadores/indicadores.module.js';
@@ -52,6 +53,7 @@ import { SoporteModule } from './modules/soporte/soporte.module.js';
     ConfiguracionModule,
     AuthApiModule,
     UsuariosModule,
+    InvitacionesModule,
     ParametrosModule,
     PermisosModule,
     IndicadoresModule,

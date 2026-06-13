@@ -1,203 +1,232 @@
 # Graph Report - version2  (2026-06-12)
 
 ## Corpus Check
-- 332 files · ~99,999 words
+- 43 files · ~0 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3008 nodes · 5405 edges · 195 communities (125 shown, 70 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 100 edges (avg confidence: 0.82)
-- Token cost: 95,000 input · 5,330 output
+- 3206 nodes · 5754 edges · 224 communities (154 shown, 70 thin omitted)
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 116 edges (avg confidence: 0.82)
+- Token cost: 245,575 input · 5,000 output
 
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_useSort()|useSort()]]
-- [[_COMMUNITY_PpdPage.tsx|PpdPage.tsx]]
-- [[_COMMUNITY_PagarSolicitudesPage.tsx|PagarSolicitudesPage.tsx]]
-- [[_COMMUNITY_ventas.api.ts|ventas.api.ts]]
-- [[_COMMUNITY_SoporteService|SoporteService]]
-- [[_COMMUNITY_PagosService|PagosService]]
-- [[_COMMUNITY_ReportesPage.tsx|ReportesPage.tsx]]
-- [[_COMMUNITY_HANDOFF.md (contexto completo proyecto v|HANDOFF.md (contexto completo proyecto v]]
-- [[_COMMUNITY_router.tsx|router.tsx]]
-- [[_COMMUNITY_VentasController|VentasController]]
-- [[_COMMUNITY_ConfiguracionService|ConfiguracionService]]
-- [[_COMMUNITY_FideicomisoController|FideicomisoController]]
-- [[_COMMUNITY_ventas.module.ts|ventas.module.ts]]
-- [[_COMMUNITY_VentasController|VentasController]]
-- [[_COMMUNITY_Propuesta - Agente de IA de Soporte|Propuesta - Agente de IA de Soporte]]
-- [[_COMMUNITY_CxpModule|CxpModule]]
-- [[_COMMUNITY_ArrendatariosController|ArrendatariosController]]
-- [[_COMMUNITY_ParquesPage.tsx|ParquesPage.tsx]]
-- [[_COMMUNITY_SupabaseService|SupabaseService]]
-- [[_COMMUNITY_fideicomiso.controller.ts|fideicomiso.controller.ts]]
-- [[_COMMUNITY_SolicitudesPage|SolicitudesPage]]
-- [[_COMMUNITY_jwt-auth.guard.ts|jwt-auth.guard.ts]]
-- [[_COMMUNITY_configuracion.api.ts|configuracion.api.ts]]
-- [[_COMMUNITY_cxp.module.ts|cxp.module.ts]]
-- [[_COMMUNITY_SolicitudesService|SolicitudesService]]
-- [[_COMMUNITY_env.validation.ts|env.validation.ts]]
-- [[_COMMUNITY_parques.controller.ts|parques.controller.ts]]
-- [[_COMMUNITY_PlanesArreService|PlanesArreService]]
-- [[_COMMUNITY_ArrendatariosPage.tsx|ArrendatariosPage.tsx]]
-- [[_COMMUNITY_DashboardService|DashboardService]]
-- [[_COMMUNITY_arrendatarios.api.ts|arrendatarios.api.ts]]
-- [[_COMMUNITY_ArrendatariosController|ArrendatariosController]]
-- [[_COMMUNITY_clientes.controller.ts|clientes.controller.ts]]
-- [[_COMMUNITY_PlanesService|PlanesService]]
-- [[_COMMUNITY_CorreoService|CorreoService]]
-- [[_COMMUNITY_arrendatarios.controller.ts|arrendatarios.controller.ts]]
-- [[_COMMUNITY_cron.service.ts|cron.service.ts]]
-- [[_COMMUNITY_icons.tsx|icons.tsx]]
-- [[_COMMUNITY_BandejaCorreoTab.tsx|BandejaCorreoTab.tsx]]
-- [[_COMMUNITY_SupabaseService|SupabaseService]]
-- [[_COMMUNITY_solicitudes.controller.ts|solicitudes.controller.ts]]
-- [[_COMMUNITY_parametros.controller.ts|parametros.controller.ts]]
-- [[_COMMUNITY_ventas.controller.ts|ventas.controller.ts]]
-- [[_COMMUNITY_FideicomisoController|FideicomisoController]]
-- [[_COMMUNITY_ConfigFideService|ConfigFideService]]
-- [[_COMMUNITY_fideicomiso.api.ts|fideicomiso.api.ts]]
-- [[_COMMUNITY_changelog.service.ts|changelog.service.ts]]
-- [[_COMMUNITY_ParametrosController|ParametrosController]]
-- [[_COMMUNITY_ParametrosService|ParametrosService]]
-- [[_COMMUNITY_api.ts|api.ts]]
-- [[_COMMUNITY_SolicitudesService|SolicitudesService]]
-- [[_COMMUNITY_permiso.guard.ts|permiso.guard.ts]]
-- [[_COMMUNITY_DashboardCobranzaPage.tsx|DashboardCobranzaPage.tsx]]
-- [[_COMMUNITY_AuthService|AuthService]]
-- [[_COMMUNITY_ContabilidadPage.tsx|ContabilidadPage.tsx]]
-- [[_COMMUNITY_PermisoGuard|PermisoGuard]]
-- [[_COMMUNITY_PermisosService|PermisosService]]
-- [[_COMMUNITY_ArrendatariosPage|ArrendatariosPage]]
-- [[_COMMUNITY_ConfigFideModal.tsx|ConfigFideModal.tsx]]
-- [[_COMMUNITY_reportes-arre.service.ts|reportes-arre.service.ts]]
-- [[_COMMUNITY_PermisosService|PermisosService]]
-- [[_COMMUNITY_ReportesArrePage.tsx|ReportesArrePage.tsx]]
-- [[_COMMUNITY_fideicomiso.module.ts|fideicomiso.module.ts]]
-- [[_COMMUNITY_claves-sat.controller.ts|claves-sat.controller.ts]]
-- [[_COMMUNITY_CronPage.tsx|CronPage.tsx]]
-- [[_COMMUNITY_ClientesPage.tsx|ClientesPage.tsx]]
-- [[_COMMUNITY_ParametrosService|ParametrosService]]
-- [[_COMMUNITY_moneda()|moneda()]]
-- [[_COMMUNITY_AportacionesPage.tsx|AportacionesPage.tsx]]
-- [[_COMMUNITY_DashboardVentasPage|DashboardVentasPage]]
-- [[_COMMUNITY_pagos.controller.ts|pagos.controller.ts]]
-- [[_COMMUNITY_ppd.controller.ts|ppd.controller.ts]]
-- [[_COMMUNITY_indicadores.service.ts|indicadores.service.ts]]
-- [[_COMMUNITY_AprobacionService|AprobacionService]]
-- [[_COMMUNITY_SolicitudesController|SolicitudesController]]
-- [[_COMMUNITY_PlanPagoForm.tsx|PlanPagoForm.tsx]]
-- [[_COMMUNITY_parquesApi|parquesApi]]
-- [[_COMMUNITY_ContabilidadService|ContabilidadService]]
-- [[_COMMUNITY_ParquesService|ParquesService]]
-- [[_COMMUNITY_PendientesPage.tsx|PendientesPage.tsx]]
-- [[_COMMUNITY_fideicomisoApi (cliente HTTP del módulo)|fideicomisoApi (cliente HTTP del módulo)]]
-- [[_COMMUNITY_SoporteWidget.tsx|SoporteWidget.tsx]]
-- [[_COMMUNITY_ConfiguracionController|ConfiguracionController]]
-- [[_COMMUNITY_CorreoController|CorreoController]]
-- [[_COMMUNITY_UsuariosPage.tsx|UsuariosPage.tsx]]
-- [[_COMMUNITY_ProveedoresPage.tsx|ProveedoresPage.tsx]]
-- [[_COMMUNITY_ConfiguracionService|ConfiguracionService]]
-- [[_COMMUNITY_router (createBrowserRouter)|router (createBrowserRouter)]]
-- [[_COMMUNITY_VencidosTab|VencidosTab]]
-- [[_COMMUNITY_usuarios.controller.ts|usuarios.controller.ts]]
-- [[_COMMUNITY_ImapService|ImapService]]
-- [[_COMMUNITY_pagos-venta.service.ts|pagos-venta.service.ts]]
-- [[_COMMUNITY_HistorialPanel.tsx|HistorialPanel.tsx]]
-- [[_COMMUNITY_ChangelogService|ChangelogService]]
-- [[_COMMUNITY_configuracion.controller.ts|configuracion.controller.ts]]
-- [[_COMMUNITY_EscriturasService|EscriturasService]]
-- [[_COMMUNITY_api|api]]
-- [[_COMMUNITY_ConfigArrendatarioModal.tsx|ConfigArrendatarioModal.tsx]]
-- [[_COMMUNITY_database.types.ts|database.types.ts]]
-- [[_COMMUNITY_Módulo Configuraciones|Módulo Configuraciones]]
-- [[_COMMUNITY_Módulo Correo (buzón de facturas)|Módulo Correo (buzón de facturas)]]
-- [[_COMMUNITY_KardexService|KardexService]]
-- [[_COMMUNITY_proveedores.controller.ts|proveedores.controller.ts]]
-- [[_COMMUNITY_CobranzaService|CobranzaService]]
-- [[_COMMUNITY_auditoria.module.ts|auditoria.module.ts]]
-- [[_COMMUNITY_CuentasService|CuentasService]]
-- [[_COMMUNITY_CronService|CronService]]
-- [[_COMMUNITY_PagosController|PagosController]]
-- [[_COMMUNITY_ReportesService|ReportesService]]
-- [[_COMMUNITY_SolicitudAprobar|SolicitudAprobar]]
-- [[_COMMUNITY_kardex-export.ts|kardex-export.ts]]
-- [[_COMMUNITY_KardexPage.tsx|KardexPage.tsx]]
-- [[_COMMUNITY_MontseController|MontseController]]
-- [[_COMMUNITY_CronController|CronController]]
-- [[_COMMUNITY_CorreoService|CorreoService]]
-- [[_COMMUNITY_PendientesService|PendientesService]]
-- [[_COMMUNITY_PpdController|PpdController]]
-- [[_COMMUNITY_BandejaCorreoTab|BandejaCorreoTab]]
-- [[_COMMUNITY_Módulo Inversionistas  Propietarios (Ve|Módulo Inversionistas / Propietarios (Ve]]
-- [[_COMMUNITY_ConsultasService|ConsultasService]]
-- [[_COMMUNITY_permisos.controller.ts|permisos.controller.ts]]
-- [[_COMMUNITY_UsuariosService|UsuariosService]]
-- [[_COMMUNITY_AprobacionController|AprobacionController]]
-- [[_COMMUNITY_parametrosApi|parametrosApi]]
-- [[_COMMUNITY_MontseChat|MontseChat]]
-- [[_COMMUNITY_index.ts|index.ts]]
-- [[_COMMUNITY_PendientesController|PendientesController]]
-- [[_COMMUNITY_ProveedoresService|ProveedoresService]]
-- [[_COMMUNITY_CancelacionesTab|CancelacionesTab]]
-- [[_COMMUNITY_SistemaPage|SistemaPage]]
-- [[_COMMUNITY_Tabla cxp (central de pagos)|Tabla cxp (central de pagos)]]
-- [[_COMMUNITY_BloqueoService|BloqueoService]]
-- [[_COMMUNITY_UsuariosController|UsuariosController]]
-- [[_COMMUNITY_ProveedoresController|ProveedoresController]]
-- [[_COMMUNITY_reportes.service.ts|reportes.service.ts]]
-- [[_COMMUNITY_ClavesSatController|ClavesSatController]]
-- [[_COMMUNITY_ComplementosScheduler|ComplementosScheduler]]
-- [[_COMMUNITY_PlanPagoForm|PlanPagoForm]]
-- [[_COMMUNITY_ClienteModal|ClienteModal]]
-- [[_COMMUNITY_HistorialPanel|HistorialPanel]]
-- [[_COMMUNITY_Gestión de Cobranza (ventas, clave 600)|Gestión de Cobranza (/ventas, clave 600)]]
-- [[_COMMUNITY_Módulo CxP (Cuentas por Pagar)|Módulo CxP (Cuentas por Pagar)]]
-- [[_COMMUNITY_KB Módulo Fideicomiso|KB: Módulo Fideicomiso]]
-- [[_COMMUNITY_index.ts|index.ts]]
-- [[_COMMUNITY_Tabla inversionista|Tabla inversionista]]
-- [[_COMMUNITY_ProveedorModal|ProveedorModal]]
-- [[_COMMUNITY_ClavesSatTab|ClavesSatTab]]
-- [[_COMMUNITY_permisosApi|permisosApi]]
-- [[_COMMUNITY_Tabla inpc (parámetros INPC)|Tabla inpc (parámetros INPC)]]
-- [[_COMMUNITY_pdf-parse.d.ts|pdf-parse.d.ts]]
-- [[_COMMUNITY_vite-env.d.ts|vite-env.d.ts]]
-- [[_COMMUNITY_CfdiData|CfdiData]]
-- [[_COMMUNITY_BancosPage|BancosPage]]
-- [[_COMMUNITY_Migración Parámetros claves visualizaci|Migración: Parámetros claves visualizaci]]
-- [[_COMMUNITY_AprobacionController|AprobacionController]]
-- [[_COMMUNITY_UsuariosController|UsuariosController]]
-- [[_COMMUNITY_SortableTh|SortableTh]]
-- [[_COMMUNITY_esUrlImagenSegura|esUrlImagenSegura]]
-- [[_COMMUNITY_v2_changelog (migration)|v2_changelog (migration)]]
-- [[_COMMUNITY_Changelog  Novedades (v2_changelog)|Changelog / Novedades (v2_changelog)]]
-- [[_COMMUNITY_RenovarPlanModal|RenovarPlanModal]]
-- [[_COMMUNITY_useArrendatariosRealtime|useArrendatariosRealtime]]
-- [[_COMMUNITY_ESLint Config (API)|ESLint Config (API)]]
-- [[_COMMUNITY_MensajeIA (interface)|MensajeIA (interface)]]
-- [[_COMMUNITY_EstadoCuentaRow (interface)|EstadoCuentaRow (interface)]]
-- [[_COMMUNITY_VencidoRow (interface)|VencidoRow (interface)]]
-- [[_COMMUNITY_PDFParse (declaration)|PDFParse (declaration)]]
-- [[_COMMUNITY_vite.config.ts (web app)|vite.config.ts (web app)]]
-- [[_COMMUNITY_eslint.config.js (web)|eslint.config.js (web)]]
-- [[_COMMUNITY_IconEye|IconEye]]
-- [[_COMMUNITY_IconEyeOff|IconEyeOff]]
-- [[_COMMUNITY_IconHistorial|IconHistorial]]
-- [[_COMMUNITY_IconBarras|IconBarras]]
-- [[_COMMUNITY_InputFecha|InputFecha]]
-- [[_COMMUNITY_Toggle|Toggle]]
-- [[_COMMUNITY_ColumnFilter|ColumnFilter]]
-- [[_COMMUNITY_RecuperarPage|RecuperarPage]]
-- [[_COMMUNITY_DatosComprobante|DatosComprobante]]
-- [[_COMMUNITY_MovBancario|MovBancario]]
-- [[_COMMUNITY_PagoRealizado|PagoRealizado]]
-- [[_COMMUNITY_InversionistaOpt|InversionistaOpt]]
-- [[_COMMUNITY_PropiedadRow|PropiedadRow]]
-- [[_COMMUNITY_ReporteGrafico|ReporteGrafico]]
-- [[_COMMUNITY_COLORS (brand palette)|COLORS (brand palette)]]
-- [[_COMMUNITY_queryClient (TanStack Query)|queryClient (TanStack Query)]]
-- [[_COMMUNITY_useMediaQuery|useMediaQuery]]
-- [[_COMMUNITY_constants (APP_VERSIONCOLORSSTORAGE)|constants (APP_VERSION/COLORS/STORAGE)]]
-- [[_COMMUNITY_Reglas ULTRA-inviolables|Reglas ULTRA-inviolables]]
+- [[_COMMUNITY_Community 33|Community 33]]
+- [[_COMMUNITY_Community 160|Community 160]]
+- [[_COMMUNITY_Community 21|Community 21]]
+- [[_COMMUNITY_Community 2|Community 2]]
+- [[_COMMUNITY_Community 13|Community 13]]
+- [[_COMMUNITY_Community 18|Community 18]]
+- [[_COMMUNITY_Community 138|Community 138]]
+- [[_COMMUNITY_Community 26|Community 26]]
+- [[_COMMUNITY_Community 12|Community 12]]
+- [[_COMMUNITY_Community 117|Community 117]]
+- [[_COMMUNITY_Community 24|Community 24]]
+- [[_COMMUNITY_Community 62|Community 62]]
+- [[_COMMUNITY_Community 140|Community 140]]
+- [[_COMMUNITY_Community 108|Community 108]]
+- [[_COMMUNITY_Community 159|Community 159]]
+- [[_COMMUNITY_Community 119|Community 119]]
+- [[_COMMUNITY_Community 47|Community 47]]
+- [[_COMMUNITY_Community 139|Community 139]]
+- [[_COMMUNITY_Community 141|Community 141]]
+- [[_COMMUNITY_Community 128|Community 128]]
+- [[_COMMUNITY_Community 98|Community 98]]
+- [[_COMMUNITY_Community 65|Community 65]]
+- [[_COMMUNITY_Community 5|Community 5]]
+- [[_COMMUNITY_Community 99|Community 99]]
+- [[_COMMUNITY_Community 106|Community 106]]
+- [[_COMMUNITY_Community 126|Community 126]]
+- [[_COMMUNITY_Community 118|Community 118]]
+- [[_COMMUNITY_Community 142|Community 142]]
+- [[_COMMUNITY_Community 79|Community 79]]
+- [[_COMMUNITY_Community 167|Community 167]]
+- [[_COMMUNITY_Community 127|Community 127]]
+- [[_COMMUNITY_Community 48|Community 48]]
+- [[_COMMUNITY_Community 1|Community 1]]
+- [[_COMMUNITY_Community 36|Community 36]]
+- [[_COMMUNITY_Community 27|Community 27]]
+- [[_COMMUNITY_Community 49|Community 49]]
+- [[_COMMUNITY_Community 150|Community 150]]
+- [[_COMMUNITY_Community 130|Community 130]]
+- [[_COMMUNITY_Community 131|Community 131]]
+- [[_COMMUNITY_Community 37|Community 37]]
+- [[_COMMUNITY_Community 42|Community 42]]
+- [[_COMMUNITY_Community 80|Community 80]]
+- [[_COMMUNITY_Community 81|Community 81]]
+- [[_COMMUNITY_Community 78|Community 78]]
+- [[_COMMUNITY_Community 43|Community 43]]
+- [[_COMMUNITY_Community 50|Community 50]]
+- [[_COMMUNITY_Community 51|Community 51]]
+- [[_COMMUNITY_Community 91|Community 91]]
+- [[_COMMUNITY_Community 22|Community 22]]
+- [[_COMMUNITY_Community 63|Community 63]]
+- [[_COMMUNITY_Community 69|Community 69]]
+- [[_COMMUNITY_Community 28|Community 28]]
+- [[_COMMUNITY_Community 110|Community 110]]
+- [[_COMMUNITY_Community 132|Community 132]]
+- [[_COMMUNITY_Community 129|Community 129]]
+- [[_COMMUNITY_Community 109|Community 109]]
+- [[_COMMUNITY_Community 38|Community 38]]
+- [[_COMMUNITY_Community 34|Community 34]]
+- [[_COMMUNITY_Community 70|Community 70]]
+- [[_COMMUNITY_Community 10|Community 10]]
+- [[_COMMUNITY_Community 177|Community 177]]
+- [[_COMMUNITY_Community 19|Community 19]]
+- [[_COMMUNITY_Community 178|Community 178]]
+- [[_COMMUNITY_Community 31|Community 31]]
+- [[_COMMUNITY_Community 39|Community 39]]
+- [[_COMMUNITY_Community 4|Community 4]]
+- [[_COMMUNITY_Community 17|Community 17]]
+- [[_COMMUNITY_Community 67|Community 67]]
+- [[_COMMUNITY_Community 3|Community 3]]
+- [[_COMMUNITY_Community 25|Community 25]]
+- [[_COMMUNITY_Community 0|Community 0]]
+- [[_COMMUNITY_Community 29|Community 29]]
+- [[_COMMUNITY_Community 111|Community 111]]
+- [[_COMMUNITY_Community 30|Community 30]]
+- [[_COMMUNITY_Community 57|Community 57]]
+- [[_COMMUNITY_Community 53|Community 53]]
+- [[_COMMUNITY_Community 54|Community 54]]
+- [[_COMMUNITY_Community 20|Community 20]]
+- [[_COMMUNITY_Community 83|Community 83]]
+- [[_COMMUNITY_Community 73|Community 73]]
+- [[_COMMUNITY_Community 40|Community 40]]
+- [[_COMMUNITY_Community 66|Community 66]]
+- [[_COMMUNITY_Community 133|Community 133]]
+- [[_COMMUNITY_Community 101|Community 101]]
+- [[_COMMUNITY_Community 100|Community 100]]
+- [[_COMMUNITY_Community 15|Community 15]]
+- [[_COMMUNITY_Community 85|Community 85]]
+- [[_COMMUNITY_Community 71|Community 71]]
+- [[_COMMUNITY_Community 120|Community 120]]
+- [[_COMMUNITY_Community 72|Community 72]]
+- [[_COMMUNITY_Community 143|Community 143]]
+- [[_COMMUNITY_Community 6|Community 6]]
+- [[_COMMUNITY_Community 84|Community 84]]
+- [[_COMMUNITY_Community 112|Community 112]]
+- [[_COMMUNITY_Community 168|Community 168]]
+- [[_COMMUNITY_Community 102|Community 102]]
+- [[_COMMUNITY_Community 35|Community 35]]
+- [[_COMMUNITY_Community 184|Community 184]]
+- [[_COMMUNITY_Community 52|Community 52]]
+- [[_COMMUNITY_Community 179|Community 179]]
+- [[_COMMUNITY_Community 116|Community 116]]
+- [[_COMMUNITY_Community 158|Community 158]]
+- [[_COMMUNITY_Community 197|Community 197]]
+- [[_COMMUNITY_Community 58|Community 58]]
+- [[_COMMUNITY_Community 75|Community 75]]
+- [[_COMMUNITY_Community 180|Community 180]]
+- [[_COMMUNITY_Community 173|Community 173]]
+- [[_COMMUNITY_Community 103|Community 103]]
+- [[_COMMUNITY_Community 32|Community 32]]
+- [[_COMMUNITY_Community 169|Community 169]]
+- [[_COMMUNITY_Community 74|Community 74]]
+- [[_COMMUNITY_Community 107|Community 107]]
+- [[_COMMUNITY_Community 122|Community 122]]
+- [[_COMMUNITY_Community 113|Community 113]]
+- [[_COMMUNITY_Community 152|Community 152]]
+- [[_COMMUNITY_Community 121|Community 121]]
+- [[_COMMUNITY_Community 8|Community 8]]
+- [[_COMMUNITY_Community 185|Community 185]]
+- [[_COMMUNITY_Community 161|Community 161]]
+- [[_COMMUNITY_Community 198|Community 198]]
+- [[_COMMUNITY_Community 199|Community 199]]
+- [[_COMMUNITY_Community 200|Community 200]]
+- [[_COMMUNITY_Community 201|Community 201]]
+- [[_COMMUNITY_Community 202|Community 202]]
+- [[_COMMUNITY_Community 203|Community 203]]
+- [[_COMMUNITY_Community 96|Community 96]]
+- [[_COMMUNITY_Community 204|Community 204]]
+- [[_COMMUNITY_Community 205|Community 205]]
+- [[_COMMUNITY_Community 206|Community 206]]
+- [[_COMMUNITY_Community 207|Community 207]]
+- [[_COMMUNITY_Community 208|Community 208]]
+- [[_COMMUNITY_Community 105|Community 105]]
+- [[_COMMUNITY_Community 209|Community 209]]
+- [[_COMMUNITY_Community 210|Community 210]]
+- [[_COMMUNITY_Community 124|Community 124]]
+- [[_COMMUNITY_Community 162|Community 162]]
+- [[_COMMUNITY_Community 189|Community 189]]
+- [[_COMMUNITY_Community 153|Community 153]]
+- [[_COMMUNITY_Community 190|Community 190]]
+- [[_COMMUNITY_Community 211|Community 211]]
+- [[_COMMUNITY_Community 163|Community 163]]
+- [[_COMMUNITY_Community 154|Community 154]]
+- [[_COMMUNITY_Community 134|Community 134]]
+- [[_COMMUNITY_Community 123|Community 123]]
+- [[_COMMUNITY_Community 181|Community 181]]
+- [[_COMMUNITY_Community 16|Community 16]]
+- [[_COMMUNITY_Community 212|Community 212]]
+- [[_COMMUNITY_Community 213|Community 213]]
+- [[_COMMUNITY_Community 174|Community 174]]
+- [[_COMMUNITY_Community 175|Community 175]]
+- [[_COMMUNITY_Community 144|Community 144]]
+- [[_COMMUNITY_Community 86|Community 86]]
+- [[_COMMUNITY_Community 176|Community 176]]
+- [[_COMMUNITY_Community 156|Community 156]]
+- [[_COMMUNITY_Community 93|Community 93]]
+- [[_COMMUNITY_Community 182|Community 182]]
+- [[_COMMUNITY_Community 104|Community 104]]
+- [[_COMMUNITY_Community 214|Community 214]]
+- [[_COMMUNITY_Community 215|Community 215]]
+- [[_COMMUNITY_Community 216|Community 216]]
+- [[_COMMUNITY_Community 217|Community 217]]
+- [[_COMMUNITY_Community 147|Community 147]]
+- [[_COMMUNITY_Community 218|Community 218]]
+- [[_COMMUNITY_Community 219|Community 219]]
+- [[_COMMUNITY_Community 186|Community 186]]
+- [[_COMMUNITY_Community 220|Community 220]]
+- [[_COMMUNITY_Community 94|Community 94]]
+- [[_COMMUNITY_Community 187|Community 187]]
+- [[_COMMUNITY_Community 7|Community 7]]
+- [[_COMMUNITY_Community 183|Community 183]]
+- [[_COMMUNITY_Community 170|Community 170]]
+- [[_COMMUNITY_Community 88|Community 88]]
+- [[_COMMUNITY_Community 135|Community 135]]
+- [[_COMMUNITY_Community 114|Community 114]]
+- [[_COMMUNITY_Community 165|Community 165]]
+- [[_COMMUNITY_Community 157|Community 157]]
+- [[_COMMUNITY_Community 166|Community 166]]
+- [[_COMMUNITY_Community 14|Community 14]]
+- [[_COMMUNITY_Community 64|Community 64]]
+- [[_COMMUNITY_Community 44|Community 44]]
+- [[_COMMUNITY_Community 136|Community 136]]
+- [[_COMMUNITY_Community 89|Community 89]]
+- [[_COMMUNITY_Community 9|Community 9]]
+- [[_COMMUNITY_Community 115|Community 115]]
+- [[_COMMUNITY_Community 76|Community 76]]
+- [[_COMMUNITY_Community 59|Community 59]]
+- [[_COMMUNITY_Community 41|Community 41]]
+- [[_COMMUNITY_Community 55|Community 55]]
+- [[_COMMUNITY_Community 90|Community 90]]
+- [[_COMMUNITY_Community 45|Community 45]]
+- [[_COMMUNITY_Community 97|Community 97]]
+- [[_COMMUNITY_Community 92|Community 92]]
+- [[_COMMUNITY_Community 221|Community 221]]
+- [[_COMMUNITY_Community 222|Community 222]]
+- [[_COMMUNITY_Community 164|Community 164]]
+- [[_COMMUNITY_Community 172|Community 172]]
+- [[_COMMUNITY_Community 46|Community 46]]
+- [[_COMMUNITY_Community 95|Community 95]]
+- [[_COMMUNITY_Community 125|Community 125]]
+- [[_COMMUNITY_Community 77|Community 77]]
+- [[_COMMUNITY_Community 56|Community 56]]
+- [[_COMMUNITY_Community 82|Community 82]]
+- [[_COMMUNITY_Community 148|Community 148]]
+- [[_COMMUNITY_Community 145|Community 145]]
+- [[_COMMUNITY_Community 87|Community 87]]
+- [[_COMMUNITY_Community 188|Community 188]]
+- [[_COMMUNITY_Community 68|Community 68]]
+- [[_COMMUNITY_Community 60|Community 60]]
+- [[_COMMUNITY_Community 11|Community 11]]
+- [[_COMMUNITY_Community 137|Community 137]]
+- [[_COMMUNITY_Community 23|Community 23]]
+- [[_COMMUNITY_Community 61|Community 61]]
+- [[_COMMUNITY_Community 149|Community 149]]
+- [[_COMMUNITY_Community 151|Community 151]]
+- [[_COMMUNITY_Community 146|Community 146]]
+- [[_COMMUNITY_Community 155|Community 155]]
+- [[_COMMUNITY_Community 223|Community 223]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `SupabaseService` - 54 edges
@@ -228,486 +257,602 @@
 - **Capa de seguridad v2 (guards + frontera de confianza)** — handoff_jwt_auth_guard, handoff_permiso_guard, handoff_supabase_service, handoff_frontera_confianza [EXTRACTED 0.85]
 - **Flujo PPD CxP (factura -> parciales -> pago -> REP)** — cxp_ppd, cxp_tabla_cxp, cxp_ppd_service, cxp_pagos_service, cxp_complemento_rep [EXTRACTED 0.85]
 
-## Communities (195 total, 70 thin omitted)
+## Communities (224 total, 70 thin omitted)
 
-### Community 0 - "useSort()"
-Cohesion: 0.04
-Nodes (60): CancelacionesTab(), Toggle(), SeccionPgCron(), Banco, BancoDto, bancosApi, ACCESSORS, BancosPage() (+52 more)
-
-### Community 1 - "PpdPage.tsx"
-Cohesion: 0.05
-Nodes (57): InputFecha(), isoADmy(), OpcionSelect, SearchSelect(), DispensarComplementoModal(), moneda(), EditarSolicitudModal(), Props (+49 more)
-
-### Community 2 - "PagarSolicitudesPage.tsx"
-Cohesion: 0.05
-Nodes (58): DashboardCobranzaPage(), useArrendatariosRealtime(), AplicarPagoModal(), BANCOS_CAPTURA, hoyISO(), Metodo, moneda(), OpcionCaptura() (+50 more)
-
-### Community 3 - "ventas.api.ts"
-Cohesion: 0.05
-Nodes (42): ComentariosModal(), ConfigPropietarioModal(), SUBTABS, ACCESSORS, DashboardVentasPage(), LineaApilada(), moneda(), num() (+34 more)
-
-### Community 4 - "SoporteService"
-Cohesion: 0.05
-Nodes (23): casos, kb, pasa, sel, DocModuloKb, KbService, normalizar(), SeleccionKb (+15 more)
-
-### Community 5 - "PagosService"
-Cohesion: 0.06
-Nodes (18): acumularImpuestos(), CfdiData, ComplementoPagoData, ConceptoCfdi, DoctoRelacionadoRep, ImpuestosNodo, limpiarBom(), num() (+10 more)
-
-### Community 6 - "ReportesPage.tsx"
-Cohesion: 0.06
-Nodes (30): ChartBlockIA(), COLORS, GraficoIA, MensajeIA, montseApi, SesionIA, hora(), MD_COMPONENTS (+22 more)
-
-### Community 7 - "HANDOFF.md (contexto completo proyecto v"
-Cohesion: 0.05
-Nodes (47): Función: v2_arrepdp_cancelar_anticipado, Migración: Cancelación Anticipada, Permiso segModulos clave 24 (Liberar), Permiso segModulos clave 25 (Configuracion), Tabla: arrePdp (cancelación anticipada), Tabla: arrePdpDetalle (cancelación anticipada), Tabla: arrenPropiedades (referenciada en cancelación), Tabla: naves (liberada en cancelación) (+39 more)
-
-### Community 8 - "router.tsx"
-Cohesion: 0.09
-Nodes (30): CambiarContrasenaPage(), nombreUsuario(), LoginPage(), ProtectedRoute(), RecuperarPage(), useAuth(), changelogApi, ChangelogPage() (+22 more)
-
-### Community 9 - "VentasController"
-Cohesion: 0.06
-Nodes (47): BrandingEffects, DashboardService, ReporteGrafico (interface), actividad (DB table), comentarios (DB table), iaConversaciones (DB table), iaSesiones (DB table), DB Table: inversionista (+39 more)
-
-### Community 10 - "ConfiguracionService"
-Cohesion: 0.07
-Nodes (8): AuthController, AuthApiModule, AuthService, SessionTokens, LoginResult, PerfilUsuario, PermisoUsuario, ConfiguracionService
-
-### Community 12 - "ventas.module.ts"
-Cohesion: 0.07
-Nodes (15): ArrendatariosRealtimeService, CambioArre, ArrendatariosStreamController, SseMessage, AprobacionStreamController, SseMessage, PagosStreamController, SseMessage (+7 more)
-
-### Community 13 - "VentasController"
-Cohesion: 0.06
-Nodes (3): toBool(), toNum(), VentasController
-
-### Community 14 - "Propuesta - Agente de IA de Soporte"
-Cohesion: 0.07
-Nodes (40): Aprobar Solicitudes (RPC cxp_autorizar_solicitud_pago), bloqueo.service.ts (candado escalonado REP), Complemento de Pago (REP, CFDI tipo P), Control de saldo PPD (Disponible = total - parciales), CxP (Cuentas por Pagar), Gotcha movbancarios columnas generadas (numAnio/numMes), pagos.service.ts (Pagar solicitudes), Parser CFDI 4.0 backend (cfdi.ts) (+32 more)
-
-### Community 15 - "CxpModule"
-Cohesion: 0.07
-Nodes (37): AprobarDto, MotivoDto, AprobacionService, BancosController, BancoDto, BancosService, BloqueoService, ComplementoPagoData (+29 more)
-
-### Community 16 - "ArrendatariosController"
-Cohesion: 0.06
-Nodes (3): ArrendatariosController, toBool(), toNum()
-
-### Community 17 - "ParquesPage.tsx"
-Cohesion: 0.09
-Nodes (27): AgregarNavesModal(), Props, DisponibilidadPage(), EditarNaveModal(), Props, ParqueModal(), Props, CrearParqueDto (+19 more)
-
-### Community 18 - "SupabaseService"
-Cohesion: 0.1
-Nodes (11): AplicarPagoDto, Db, FiltrosCobranza, Credenciales, SPECIAL_EXCLUIDAS, AdjuntoSalida, CorreoOriginal, SmtpService (+3 more)
-
-### Community 19 - "fideicomiso.controller.ts"
-Cohesion: 0.1
-Nodes (31): Db, ContaConcepto, Db, RegistroConta, EXT_POR_MIME, anioActual, anioSchema, CeldaDto (+23 more)
-
-### Community 20 - "SolicitudesPage"
-Cohesion: 0.09
-Nodes (36): AltaCuenta, CuentasTab, ModalShell, NuevaDevolucion, NuevaLineaCaptura, NuevaSinXml, NuevaUrgente, useCatalogos (+28 more)
-
-### Community 21 - "jwt-auth.guard.ts"
-Cohesion: 0.13
-Nodes (17): CambiarContrasenaDto, cambiarContrasenaSchema, LoginDto, loginSchema, AuthenticatedRequest, AuthUser, CurrentUser, JwtAuthGuard (+9 more)
-
-### Community 22 - "configuracion.api.ts"
-Cohesion: 0.1
-Nodes (20): AuthProvider(), BrandingEffects(), ErrorBoundary, Props, State, configuracionApi, DominiosResponse, FondoLogo (+12 more)
-
-### Community 23 - "cxp.module.ts"
-Cohesion: 0.09
-Nodes (14): ArrendatariosModule, AuthModule, ConfiguracionModule, CorreoModule, CronModule, BancosController, BancosService, CxpModule (+6 more)
-
-### Community 25 - "env.validation.ts"
-Cohesion: 0.08
-Nodes (10): Env, envSchema, validateEnv(), EXT_POR_MIME, CriptoService, AllExceptionsFilter, AppModule, GraficoIA (+2 more)
-
-### Community 26 - "parques.controller.ts"
-Cohesion: 0.11
-Nodes (14): DisponibilidadController, ParquesController, ParquesModule, AgregarNavesDto, agregarNavesSchema, CrearParqueDto, crearParqueSchema, EditarNaveDto (+6 more)
-
-### Community 28 - "ArrendatariosPage.tsx"
-Cohesion: 0.11
-Nodes (19): arrendatariosApi, ArrePdpVigente, DetallePartida, fechaCorta(), MESES, moneda(), nombreArrendatario(), num() (+11 more)
-
-### Community 29 - "DashboardService"
-Cohesion: 0.14
-Nodes (7): AggPagos, DashboardService, FiltrosDashboard, ParcialRow, PropScope, ReporteGrafico, resumenVacio()
-
-### Community 30 - "arrendatarios.api.ts"
-Cohesion: 0.09
-Nodes (23): AplicarPagoModal(), NavePendiente, AplicarPagoInput, CancelacionPartida, CancelacionPrecarga, CancelarAnticipadoInput, ContratoVencido, DatosGeneralesArre (+15 more)
-
-### Community 31 - "ArrendatariosController"
-Cohesion: 0.1
-Nodes (26): ArrendatariosController, ArrendatariosModule, aplicarPagoSchema, cancelarAnticipadoSchema, crearPlanRentaSchema, docArreSchema, renovarPlanSchema, vincularNaveArreSchema (+18 more)
-
-### Community 32 - "clientes.controller.ts"
-Cohesion: 0.13
-Nodes (8): ClientesController, ClientesModule, ClienteDto, clienteSchema, FECHA, TipoCliente, TIPOS_CLIENTE, ClientesService
-
-### Community 34 - "CorreoService"
-Cohesion: 0.16
-Nodes (24): CronPage, DispensarComplementoModal, CorreoController, CorreoModule, cuentaSchema, responderSchema, CorreoService, Tabla correo_adjuntos (+16 more)
-
-### Community 35 - "arrendatarios.controller.ts"
-Cohesion: 0.18
-Nodes (20): EXT_POR_MIME, aplicarPagoSchema, CAMPOS_EDITABLES, CancelarAnticipadoDto, cancelarAnticipadoSchema, ConceptoFinanciadoDto, conceptoFinanciadoSchema, CrearPlanRentaDto (+12 more)
-
-### Community 36 - "cron.service.ts"
-Cohesion: 0.13
-Nodes (10): SyncScheduler, META_TAREAS, CronEjecucionBackend, CronJobBd, CronRunBd, TareaBackend, RegistroCronModule, OrigenEjecucion (+2 more)
-
-### Community 37 - "icons.tsx"
-Cohesion: 0.21
-Nodes (19): base, IconArrendatarios(), IconBarras(), IconChevron(), IconClientes(), IconCxP(), IconEye(), IconEyeOff() (+11 more)
-
-### Community 38 - "BandejaCorreoTab.tsx"
-Cohesion: 0.15
-Nodes (16): BandejaCorreoTab(), ConversacionItem(), fechaHora(), MensajeBloque(), nombreCarpeta(), AdjuntoCorreo, Carpeta, Conversacion (+8 more)
-
-### Community 39 - "SupabaseService"
-Cohesion: 0.11
-Nodes (23): AllExceptionsFilter, AppModule, ArrendatariosRealtimeService, ArrendatariosStreamController, AuthModule (common), TAREA_CORREO_SYNC, TAREA_CXP_COMPLEMENTOS, Cron Task Identifiers (+15 more)
-
-### Community 40 - "solicitudes.controller.ts"
-Cohesion: 0.17
-Nodes (19): CfdiFiles, boolDesdeForm, CrearDevolucionDto, crearDevolucionSchema, CrearLineaCapturaDto, crearLineaCapturaSchema, CrearSinXmlDto, crearSinXmlSchema (+11 more)
-
-### Community 41 - "parametros.controller.ts"
-Cohesion: 0.2
-Nodes (18): CuentaCrearDto, cuentaCrearSchema, CuentaEditarDto, cuentaEditarSchema, FechaCxpCrearDto, fechaCxpCrearSchema, FechaCxpToggleDto, fechaCxpToggleSchema (+10 more)
-
-### Community 42 - "ventas.controller.ts"
-Cohesion: 0.18
-Nodes (19): EXT_POR_MIME, ComentarioDto, comentarioSchema, CrearPlanPagosDto, crearPlanPagosSchema, DocDto, docSchema, EscrituraFechaDto (+11 more)
-
-### Community 43 - "FideicomisoController"
-Cohesion: 0.14
-Nodes (22): AportacionPagoModal, AportacionesPage, AportacionesService, comoActor audited write (trg_auditoria), PDP (Plan de Pagos), Clave de permiso (segModulos), ConfigFideService, ConsultasService (+14 more)
-
-### Community 45 - "fideicomiso.api.ts"
-Cohesion: 0.09
-Nodes (20): CfgDoc, CfgPdp, CfgPropiedadFide, CfgPropiedadOpt, ClaveCelda, ComentarioPartida, ConceptoInput, ContaConcepto (+12 more)
-
-### Community 46 - "changelog.service.ts"
-Cohesion: 0.15
-Nodes (10): ChangelogController, ChangelogModule, ChangelogService, FilaChangelog, TIPOS_VALIDOS, CambioChangelog, ChangelogResponse, TipoCambio (+2 more)
-
-### Community 49 - "api.ts"
-Cohesion: 0.17
-Nodes (16): authApi, AuthContext, AuthContextValue, Estado, VerComo, LoginResult, PerfilUsuario, PermisoUsuario (+8 more)
-
-### Community 50 - "SolicitudesService"
-Cohesion: 0.1
-Nodes (21): RPC: cxp_puede_insertar, DB Table: catProveedores, DB Table: cxp, DB Table: cxpComentarios, CambioCxp (interface), RealtimeService (CxP), SolicitudesController, crearDevolucionSchema (+13 more)
-
-### Community 51 - "permiso.guard.ts"
-Cohesion: 0.19
-Nodes (11): PermisoGuard, RequierePermiso(), activoSchema, CuentaDto, cuentaSchema, ResponderDto, responderSchema, AprobarDto (+3 more)
-
-### Community 52 - "DashboardCobranzaPage.tsx"
-Cohesion: 0.1
-Nodes (6): ContratoPorVencer, ConceptoDesglose, EstadoFiltro, Grupo, SortCol, TipState
-
-### Community 53 - "AuthService"
-Cohesion: 0.14
-Nodes (20): AuthContext, AuthContextValue (interface), AuthProvider, CambiarContrasenaPage, LoginPage, ProtectedRoute, VerComoModal, authApi (+12 more)
-
-### Community 54 - "ContabilidadPage.tsx"
-Cohesion: 0.11
-Nodes (6): anioActualMX(), CampoTexto, ContabilidadPage(), NOMBRE_MES, MESES, PivoteFila
-
-### Community 55 - "PermisoGuard"
-Cohesion: 0.16
-Nodes (19): AuditoriaController, AuditoriaModule, AuditoriaService, RegistroAuditoria, AuthUser, AuthenticatedRequest, ClientesController, RBAC server-side (segModulosUsuarios) (+11 more)
-
-### Community 56 - "PermisosService"
+### Community 33 - "Community 33"
 Cohesion: 0.12
-Nodes (19): RPC: seg_aplicar_plantilla_a_usuario, RPC: seg_crear_plantilla_desde_usuario, RPC: segmodulosusuarios_smu, catUsers (DB table), crm_responsableComercial (DB table), segModulosUsuarios (DB table), DB Table: segPlantillasPermisos, PermisosController (+11 more)
+Nodes (14): AuthModule, validateEnv(), RegistroCronModule, SupabaseModule, HealthController, HealthModule, ArrendatariosModule, AuthApiModule (+6 more)
 
-### Community 57 - "ArrendatariosPage"
-Cohesion: 0.15
-Nodes (19): AplicarPagoModal (arrendatarios), AppShell, ArrendatariosPage, CancelarAnticipadoModal, ConfigArrendatarioModal, ConsultaInpcModal, DashboardCobranzaPage, DetallePartida (+11 more)
-
-### Community 58 - "ConfigFideModal.tsx"
+### Community 21 - "Community 21"
 Cohesion: 0.11
-Nodes (12): DOC_CATALOGO, ID_OPC, MEDIO_OPC, NAVE_OPC, PM_OPC, TabId, TABS, TIPO_OPC (+4 more)
+Nodes (11): SoporteGuard, OrigenEjecucion, RegistroEjecucion, RegistroCronService, META_TAREAS, CronJobBd, CronRunBd, TareaBackend (+3 more)
 
-### Community 59 - "reportes-arre.service.ts"
+### Community 2 - "Community 2"
+Cohesion: 0.08
+Nodes (37): AuthUser, AuthenticatedRequest, CurrentUser, JwtAuthGuard, PermisoGuard, ZodValidationPipe, loginSchema, LoginDto (+29 more)
+
+### Community 13 - "Community 13"
+Cohesion: 0.09
+Nodes (13): RequierePermiso(), SseMessage, SseMessage, AprobacionStreamController, SseMessage, PagosStreamController, CambioCxp, RealtimeService (+5 more)
+
+### Community 18 - "Community 18"
+Cohesion: 0.09
+Nodes (12): envSchema, Env, SupabaseService, CambioArre, RegistroAuditoria, EXT_POR_MIME, FondoLogo, LogoConfig (+4 more)
+
+### Community 26 - "Community 26"
+Cohesion: 0.15
+Nodes (23): EXT_POR_MIME, FECHA, crearPlanRentaSchema, CrearPlanRentaDto, CAMPOS_EDITABLES, editarCampoSchema, EditarCampoDto, conceptoFinanciadoSchema (+15 more)
+
+### Community 12 - "Community 12"
+Cohesion: 0.06
+Nodes (3): toNum(), toBool(), ArrendatariosController
+
+### Community 62 - "Community 62"
 Cohesion: 0.14
-Nodes (11): ArrePdpCanceladoRow, CancelacionReporteRow, EstadoCuentaCabecera, EstadoCuentaCorrida, EstadoCuentaNave, EstadoCuentaPartida, EstadoCuentaPlanOpcion, FiltrosCancelaciones (+3 more)
+Nodes (11): FiltrosCancelaciones, EstadoCuentaPlanOpcion, EstadoCuentaNave, EstadoCuentaCabecera, EstadoCuentaPartida, EstadoCuentaCorrida, PlanCabeceraRow, normConcepto() (+3 more)
 
-### Community 60 - "PermisosService"
+### Community 140 - "Community 140"
+Cohesion: 0.25
+Nodes (3): AuditoriaController, AuditoriaModule, AuditoriaService
+
+### Community 159 - "Community 159"
+Cohesion: 0.53
+Nodes (4): SessionTokens, PerfilUsuario, PermisoUsuario, LoginResult
+
+### Community 47 - "Community 47"
+Cohesion: 0.15
+Nodes (10): ChangelogController, ChangelogModule, FilaChangelog, TIPOS_VALIDOS, ChangelogService, TIPOS_CAMBIO, TipoCambio, CambioChangelog (+2 more)
+
+### Community 128 - "Community 128"
+Cohesion: 0.39
+Nodes (7): MIME_LOGO, dominioSchema, DominioDto, correoSchema, CorreoDto, dimensionesLogoSchema, DimensionesLogoDto
+
+### Community 5 - "Community 5"
+Cohesion: 0.07
+Nodes (14): activoSchema, cuentaSchema, CuentaDto, responderSchema, ResponderDto, CorreoService, CriptoService, Credenciales (+6 more)
+
+### Community 127 - "Community 127"
+Cohesion: 0.25
+Nodes (3): bancoSchema, BancoDto, BancosService
+
+### Community 48 - "Community 48"
+Cohesion: 0.16
+Nodes (12): BloqueoService, CfdiFiles, idCategoria, justificacion, monto, nuevaFacturaPpdSchema, NuevaFacturaPpdDto, nuevaParcialPpdSchema (+4 more)
+
+### Community 1 - "Community 1"
+Cohesion: 0.06
+Nodes (20): ConceptoCfdi, CfdiData, RET_ISR_POR_REGIMEN, REGIMENES_CON_RETENCION, num(), str(), parser, limpiarBom() (+12 more)
+
+### Community 36 - "Community 36"
+Cohesion: 0.13
+Nodes (9): ClavesSatController, claveSatSchema, ClaveSatDto, editarClaveSatSchema, EditarClaveSatDto, statusClaveSatSchema, StatusClaveSatDto, ReglaRetencion (+1 more)
+
+### Community 27 - "Community 27"
+Cohesion: 0.11
+Nodes (13): EXT_POR_MIME, toBool(), toNum(), PagosController, registrarPagoSchema, RegistrarPagoDto, asignarMovimientoSchema, AsignarMovimientoDto (+5 more)
+
+### Community 37 - "Community 37"
+Cohesion: 0.13
+Nodes (9): ProveedoresController, TIPOS_CUENTA, PERSONALIDADES, crearProveedorSchema, statusProveedorSchema, CrearProveedorDto, EditarProveedorDto, StatusProveedorDto (+1 more)
+
+### Community 42 - "Community 42"
+Cohesion: 0.17
+Nodes (19): CfdiFiles, editarSolicitudSchema, EditarSolicitudDto, crearSolicitudSchema, CrearSolicitudDto, idProveedor, idCategoria, total (+11 more)
+
+### Community 81 - "Community 81"
+Cohesion: 0.13
+Nodes (8): concepto, PropiedadArrendada, CrearPlanRentaInput, ConceptoInput, CONCEPTOS_PRESET, CONCEPTOS_BASE, GeneralesForm(), RenovarPlanModal()
+
+### Community 78 - "Community 78"
+Cohesion: 0.2
+Nodes (5): IndicadoresController, IndicadoresModule, TipoCambio, UltimoInpc, IndicadoresService
+
+### Community 43 - "Community 43"
+Cohesion: 0.2
+Nodes (18): inpcCrearSchema, InpcCrearDto, inpcEditarSchema, InpcEditarDto, cuentaCrearSchema, CuentaCrearDto, cuentaEditarSchema, CuentaEditarDto (+10 more)
+
+### Community 91 - "Community 91"
+Cohesion: 0.29
+Nodes (11): SITUACIONES_EDITABLES, crearParqueSchema, editarParqueSchema, agregarNavesSchema, editarNaveSchema, CrearParqueDto, EditarParqueDto, EditarNaveDto (+3 more)
+
+### Community 22 - "Community 22"
+Cohesion: 0.08
+Nodes (4): ParquesController, DisponibilidadController, ParquesModule, ParquesService
+
+### Community 63 - "Community 63"
 Cohesion: 0.11
 Nodes (3): PermisosController, PermisosModule, PermisosService
 
-### Community 61 - "ReportesArrePage.tsx"
-Cohesion: 0.16
-Nodes (11): CancelacionReporteRow, EstadoCuentaPartida, Celda, descargar(), exportarCSV(), ESTADO_COLOR, exportarPDF(), exportarPDFConEncabezado() (+3 more)
+### Community 69 - "Community 69"
+Cohesion: 0.14
+Nodes (3): UsuariosController, UsuariosModule, UsuariosService
 
-### Community 62 - "fideicomiso.module.ts"
-Cohesion: 0.12
-Nodes (6): AportacionesService, ComentarioPartida, PagoRegistrado, DispersionesService, DispersionOpciones, FideicomisoModule
+### Community 28 - "Community 28"
+Cohesion: 0.14
+Nodes (7): FiltrosDashboard, PropScope, ParcialRow, AggPagos, ReporteGrafico, resumenVacio(), DashboardService
 
-### Community 63 - "claves-sat.controller.ts"
-Cohesion: 0.19
-Nodes (8): ClaveSatDto, claveSatSchema, EditarClaveSatDto, editarClaveSatSchema, StatusClaveSatDto, statusClaveSatSchema, ClavesSatService, ReglaRetencion
-
-### Community 64 - "CronPage.tsx"
-Cohesion: 0.19
-Nodes (8): cronApi, duracion(), fechaHora(), CronPage(), CronEjecucionBackend, CronJobBd, CronRunBd, TareaBackend
-
-### Community 65 - "ClientesPage.tsx"
-Cohesion: 0.21
-Nodes (11): ClienteModal(), desdeCliente(), vacio(), CHIPS, Cliente, ClienteInput, clientesApi, TipoCliente (+3 more)
-
-### Community 66 - "ParametrosService"
-Cohesion: 0.13
-Nodes (17): RPC: prescategorias_obtener_con_presupuesto, DB Table: PresCategorias, DB Table: PresDetalle, DB Table: cxp_fechas_habilitadas, DB Table: inpc, External API: Banxico SIE, IndicadoresController, IndicadoresModule (+9 more)
-
-### Community 67 - "moneda()"
-Cohesion: 0.16
-Nodes (8): PdpTabla(), DesgloseModal(), DispersionesPage(), mesAnio(), MESES_LARGO, DispersionPlanFila, DispersionResumen, moneda()
-
-### Community 68 - "AportacionesPage.tsx"
-Cohesion: 0.18
-Nodes (10): AportacionesPage(), AportacionPagoModal(), ComentariosAportacionModal(), ConfigFideModal(), PdpTab(), hoyMexico(), PagoFila, RegistrarPagoInput (+2 more)
-
-### Community 69 - "DashboardVentasPage"
-Cohesion: 0.15
-Nodes (17): DashboardVentasPage, RentasTab, EscriturasPage, PagoDetalleModal, PlanTab, PlanesPage, RentaAdministradaTab, RentaGarantizadaTab (+9 more)
-
-### Community 70 - "pagos.controller.ts"
-Cohesion: 0.21
-Nodes (12): EXT_POR_MIME, toBool(), toNum(), AprobadosSinPagoDto, aprobadosSinPagoSchema, AsignarMovimientoDto, asignarMovimientoSchema, RegistrarPagoDto (+4 more)
-
-### Community 71 - "ppd.controller.ts"
-Cohesion: 0.22
-Nodes (12): CfdiFiles, DispensarComplementoDto, dispensarComplementoSchema, idCategoria, justificacion, monto, NuevaFacturaPpdDto, nuevaFacturaPpdSchema (+4 more)
-
-### Community 72 - "indicadores.service.ts"
-Cohesion: 0.2
-Nodes (5): IndicadoresController, IndicadoresModule, IndicadoresService, TipoCambio, UltimoInpc
-
-### Community 75 - "PlanPagoForm.tsx"
-Cohesion: 0.13
-Nodes (8): ConceptoInput, CrearPlanRentaInput, PropiedadArrendada, CONCEPTOS_BASE, CONCEPTOS_PRESET, GeneralesForm(), RenovarPlanModal(), concepto
-
-### Community 76 - "parquesApi"
-Cohesion: 0.23
-Nodes (15): AgregarNavesModal, ComentariosModal, ConfigPropietarioModal, DashboardGraficoPage, DisponibilidadPage, EditarNaveModal, ParqueModal, ParquesPage (+7 more)
-
-### Community 79 - "PendientesPage.tsx"
-Cohesion: 0.19
-Nodes (9): ESTADOS_FILTRO, FiltrosPendientes, PendienteCxP, pendientesApi, Responsable, MESES, moneda(), PendientesPage() (+1 more)
-
-### Community 80 - "fideicomisoApi (cliente HTTP del módulo)"
-Cohesion: 0.22
-Nodes (14): ComentariosAportacionModal, CondicionesTab (Config: Adhesiones), ConfigFideModal, DatosTab (Config: Datos Generales), DocsTab (Config: Documentos), PdpTab (Config: Plan de Pagos), PdpTabla (tabla editable de partidas), PropsTab (Config: Propiedades/Naves) (+6 more)
-
-### Community 81 - "SoporteWidget.tsx"
-Cohesion: 0.22
-Nodes (10): EscalarPayload, MensajeSoporte, RespuestaSoporte, SesionSoporte, soporteApi, Burbuja(), hora(), MD (+2 more)
-
-### Community 84 - "UsuariosPage.tsx"
-Cohesion: 0.26
-Nodes (8): Props, VerComoModal(), Usuario, usuariosApi, ACCESSORS, nombreTabla(), QKEY, UsuariosPage()
-
-### Community 85 - "ProveedoresPage.tsx"
+### Community 110 - "Community 110"
 Cohesion: 0.27
-Nodes (10): PERSONALIDADES, Proveedor, ProveedorDto, proveedoresApi, TIPOS_CUENTA, ACCESSORS, ProveedoresPage(), QKEY (+2 more)
+Nodes (4): fmt(), Db, EscrituraRow, EscriturasService
 
-### Community 86 - "ConfiguracionService"
+### Community 109 - "Community 109"
+Cohesion: 0.31
+Nodes (4): TIPO_MOVIMIENTO, fmt(), Db, PagosVentaService
+
+### Community 38 - "Community 38"
 Cohesion: 0.17
-Nodes (13): ClientesModule, TIPOS_CLIENTE, clienteSchema, ClientesService, Tabla inversionista (Clientes), ConfiguracionController, ConfiguracionModule, correoSchema (configuracion) (+5 more)
+Nodes (20): EXT_POR_MIME, FECHA, registrarPagoSchema, RegistrarPagoDto, crearPlanPagosSchema, CrearPlanPagosDto, inversionistaSchema, InversionistaDto (+12 more)
 
-### Community 87 - "router (createBrowserRouter)"
+### Community 70 - "Community 70"
+Cohesion: 0.17
+Nodes (6): FiltrosReporte, EstadoCuentaRow, VencidoRow, ResumenParqueRow, EvolucionRow, ReportesService
+
+### Community 10 - "Community 10"
+Cohesion: 0.06
+Nodes (3): toNum(), toBool(), VentasController
+
+### Community 19 - "Community 19"
+Cohesion: 0.08
+Nodes (21): rootEl, Props, State, ErrorBoundary, AuthProvider(), PpdPage(), SolicitudesPage(), TipoCambio (+13 more)
+
+### Community 31 - "Community 31"
+Cohesion: 0.15
+Nodes (16): BrandingEffects(), Logo(), RecuperarPage(), DominiosResponse, FondoLogo, LogoConfig, LOGO_DEFAULT, configuracionApi (+8 more)
+
+### Community 39 - "Community 39"
+Cohesion: 0.21
+Nodes (19): base, IconEye(), IconEyeOff(), IconMenu(), IconGear(), IconChevron(), IconLogout(), IconCxP() (+11 more)
+
+### Community 4 - "Community 4"
+Cohesion: 0.07
+Nodes (37): isoADmy(), InputFecha(), Props, EditarSolicitudModal(), justOk(), Props, CampoJustificacion(), useCatalogos() (+29 more)
+
+### Community 17 - "Community 17"
+Cohesion: 0.11
+Nodes (20): OpcionSelect, SearchSelect(), moneda(), DispensarComplementoModal(), moneda(), fecha(), NuevaFacturaPpd(), moneda() (+12 more)
+
+### Community 67 - "Community 67"
+Cohesion: 0.17
+Nodes (10): TabDef, Tabs(), ComentariosModal(), moneda(), num(), TABS, PlanesPage(), PlanTab() (+2 more)
+
+### Community 3 - "Community 3"
+Cohesion: 0.06
+Nodes (41): Toggle(), Align, Props, SortableTh(), Dir, Valor, Accessors, useSort() (+33 more)
+
+### Community 25 - "Community 25"
+Cohesion: 0.13
+Nodes (18): AppShell(), SidebarProps, Sidebar(), AuthContextValue, AuthContext, nombreUsuario(), LoginPage(), ProtectedRoute() (+10 more)
+
+### Community 0 - "Community 0"
+Cohesion: 0.05
+Nodes (58): OpcionFiltro, ColumnFilter(), DashboardCobranzaPage(), useArrendatariosRealtime(), moneda(), hoyISO(), BANCOS_CAPTURA, Metodo (+50 more)
+
+### Community 29 - "Community 29"
+Cohesion: 0.09
+Nodes (23): NavePendiente, AplicarPagoModal(), MesGratis, InpcRow, DatosGeneralesArre, DocArreRow, ParqueOpcion, NaveDisponible (+15 more)
+
+### Community 111 - "Community 111"
+Cohesion: 0.2
+Nodes (6): ArrendatarioOpt, nombreArrendatario(), ArrendatariosPage(), SUBTABS, ConfigArrendatarioModal(), PlanPagoForm()
+
+### Community 30 - "Community 30"
+Cohesion: 0.13
+Nodes (16): ArrePdpVigente, PlanRenta, ResumenPartida, DetallePartida, RenovarInput, arrendatariosApi, MESES, moneda() (+8 more)
+
+### Community 57 - "Community 57"
+Cohesion: 0.15
+Nodes (12): CancelacionReporteRow, EstadoCuentaPartida, Celda, descargar(), exportarCSV(), exportarPDF(), urlADataURL(), exportarPDFConEncabezado() (+4 more)
+
+### Community 53 - "Community 53"
+Cohesion: 0.1
+Nodes (6): ContratoPorVencer, EstadoFiltro, SortCol, ConceptoDesglose, Grupo, TipState
+
+### Community 54 - "Community 54"
+Cohesion: 0.18
+Nodes (15): authApi, VerComo, Estado, CambiarContrasenaPage(), PerfilUsuario, PermisoUsuario, LoginResult, setAccessToken() (+7 more)
+
+### Community 20 - "Community 20"
+Cohesion: 0.1
+Nodes (17): Props, Usuario, usuariosApi, QKEY, nombreTabla(), ACCESSORS, UsuariosPage(), RegistroPage() (+9 more)
+
+### Community 83 - "Community 83"
+Cohesion: 0.21
+Nodes (11): changelogApi, fechaCorta(), ESTILO_TIPO, ORDEN_TIPO, VersionCard(), ChangelogPage(), TipoCambio, CambioChangelog (+3 more)
+
+### Community 73 - "Community 73"
 Cohesion: 0.23
-Nodes (13): Home (landing page), DashboardPage (Fideicomiso Dashboard/Adhesiones), DesgloseModal (Desglose Detallado + export PNG/CSV), DispersionesPage, Concepto: Dispersión, Gotcha: RPC trae campos invertidos (rfc=NOMBRE), format helpers (moneda/numero/porcentaje/fechaCorta), Convención de Tablas (sticky/azul/sort/filtro) (+5 more)
+Nodes (11): vacio(), desdeCliente(), ClienteModal(), TipoCliente, Cliente, ClienteInput, CHIPS, clientesApi (+3 more)
 
-### Community 88 - "VencidosTab"
-Cohesion: 0.24
-Nodes (13): EstadoCuentaTab, FiltrosBar, ReportesPage, VencidosTab, buildEvolucion, EstadoCuentaRow, EvolucionRow, ResumenParqueRow (+5 more)
+### Community 40 - "Community 40"
+Cohesion: 0.15
+Nodes (16): nombreCarpeta(), fechaHora(), BandejaCorreoTab(), ConversacionItem(), MensajeBloque(), CuentaCorreo, CuentaInput, Conversacion (+8 more)
 
-### Community 89 - "usuarios.controller.ts"
-Cohesion: 0.27
-Nodes (7): ZodValidationPipe, RcDto, rcSchema, SoporteDto, soporteSchema, StatusDto, statusSchema
+### Community 66 - "Community 66"
+Cohesion: 0.19
+Nodes (8): cronApi, fechaHora(), duracion(), SeccionPgCron(), CronJobBd, CronRunBd, TareaBackend, CronEjecucionBackend
 
-### Community 91 - "pagos-venta.service.ts"
-Cohesion: 0.27
-Nodes (5): Db, fmt(), PagosVentaService, TIPO_MOVIMIENTO, RegistrarPagoDto
+### Community 133 - "Community 133"
+Cohesion: 0.31
+Nodes (6): Banco, BancoDto, bancosApi, QKEY, ACCESSORS, BancosPage()
 
-### Community 92 - "HistorialPanel.tsx"
+### Community 101 - "Community 101"
 Cohesion: 0.21
-Nodes (9): auditoriaApi, CambioCampo, RegistroAuditoria, ACCIONES, fmtFecha(), HistorialPanel(), ORIGEN, Props (+1 more)
+Nodes (8): PendienteCxP, Responsable, FiltrosPendientes, ESTADOS_FILTRO, pendientesApi, MESES, moneda(), PendientesPage()
 
-### Community 93 - "ChangelogService"
+### Community 100 - "Community 100"
+Cohesion: 0.27
+Nodes (10): Proveedor, ProveedorDto, TIPOS_CUENTA, PERSONALIDADES, proveedoresApi, QKEY, ACCESSORS, ProveedoresPage() (+2 more)
+
+### Community 15 - "Community 15"
+Cohesion: 0.1
+Nodes (25): Props, AgregarNavesModal(), Props, EditarNaveModal(), Props, ParqueModal(), ParqueListado, ResumenKvas (+17 more)
+
+### Community 85 - "Community 85"
+Cohesion: 0.16
+Nodes (12): CambioCampo, RegistroAuditoria, auditoriaApi, Props, ACCIONES, ORIGEN, fmtFecha(), HistorialPanel() (+4 more)
+
+### Community 71 - "Community 71"
+Cohesion: 0.13
+Nodes (6): SUBTABS, ConfigPropietarioModal(), InversionistaOpt, nombreInversionista(), PropiedadRow, InversionistaInput
+
+### Community 120 - "Community 120"
+Cohesion: 0.27
+Nodes (9): COLORS, MESES_CORTO, moneda(), compacto(), Vista, AtrasoRow, DashboardGraficoPage(), Kpi() (+1 more)
+
+### Community 72 - "Community 72"
+Cohesion: 0.16
+Nodes (10): moneda(), num(), LineaApilada(), ACCESSORS, TABS, DashboardVentasPage(), Linea, TarjetaResumen() (+2 more)
+
+### Community 143 - "Community 143"
+Cohesion: 0.29
+Nodes (5): moneda(), PagoDetalleModal(), RegistrarPagoVentaInput, hoyMexico(), TIPO_MOVIMIENTO
+
+### Community 6 - "Community 6"
+Cohesion: 0.06
+Nodes (30): Celda, descargar(), exportarCSV(), exportarJSON(), exportarPDF(), EstadoCuentaRow, VencidoRow, ResumenParqueRow (+22 more)
+
+### Community 84 - "Community 84"
+Cohesion: 0.13
+Nodes (13): ResumenTarjeta, Tarjetas, PagoRealizado, Inversionista, DocRow, ParqueOpcion, NaveDisponible, RentaGarantizadaRow (+5 more)
+
+### Community 112 - "Community 112"
+Cohesion: 0.18
+Nodes (10): Json, Database, DatabaseWithoutInternals, DefaultSchema, Tables, TablesInsert, TablesUpdate, Enums (+2 more)
+
+### Community 168 - "Community 168"
+Cohesion: 0.4
+Nodes (4): AuthUser, Permiso, ApiError, Paginated
+
+### Community 102 - "Community 102"
+Cohesion: 0.17
+Nodes (13): ClientesModule, clienteSchema, TIPOS_CLIENTE, ClientesService, Tabla inversionista (Clientes), ConfiguracionController, ConfiguracionModule, dominioSchema (+5 more)
+
+### Community 35 - "Community 35"
+Cohesion: 0.16
+Nodes (24): CorreoController, CorreoModule, cuentaSchema, responderSchema, CorreoService, Tabla correo_mensajes, Tabla correo_adjuntos, CriptoService (+16 more)
+
+### Community 52 - "Community 52"
+Cohesion: 0.13
+Nodes (21): MotivoDto, AprobarDto, AprobacionService, BancosController, BancoDto, BancosService, BloqueoService, ComplementosScheduler (+13 more)
+
+### Community 116 - "Community 116"
+Cohesion: 0.22
+Nodes (10): ComplementoPagoData, PagoRep, DoctoRelacionadoRep, parsearComplementoPago(), PpdController, NuevaFacturaPpdDto, NuevaParcialPpdDto, DispensarComplementoDto (+2 more)
+
+### Community 158 - "Community 158"
+Cohesion: 0.38
+Nodes (6): ClavesSatController, ClaveSatDto, EditarClaveSatDto, StatusClaveSatDto, ClavesSatService, ReglaRetencion
+
+### Community 58 - "Community 58"
+Cohesion: 0.15
+Nodes (19): AppModule (raíz NestJS), bootstrap (main.ts), envSchema (esquema Zod env), validateEnv (validación env), RegistroCronModule, RegistroCronService, AllExceptionsFilter, ZodValidationPipe (+11 more)
+
+### Community 75 - "Community 75"
 Cohesion: 0.21
-Nodes (12): ChangelogPage, VersionCard, changelogApi, ChangelogController, ChangelogModule, ChangelogService, CambioChangelog, ChangelogResponse (+4 more)
+Nodes (16): AuthModule (common), AuthUser, AuthenticatedRequest, CurrentUser (decorator), JwtAuthGuard, PermisoGuard, RequierePermiso (decorator), SoporteGuard (+8 more)
 
-### Community 94 - "configuracion.controller.ts"
-Cohesion: 0.29
-Nodes (9): MIME_LOGO, CorreoDto, correoSchema, DimensionesLogoDto, dimensionesLogoSchema, DominioDto, dominioSchema, FondoLogo (+1 more)
-
-### Community 95 - "EscriturasService"
-Cohesion: 0.27
-Nodes (4): Db, EscrituraRow, EscriturasService, fmt()
-
-### Community 96 - "api"
-Cohesion: 0.2
-Nodes (9): indicadoresApi, TipoCambio, UltimoInpc, api, setAccessToken, verComoActivo (modo solo-lectura), Home(), MESES (+1 more)
-
-### Community 97 - "ConfigArrendatarioModal.tsx"
-Cohesion: 0.22
-Nodes (5): ArrendatarioOpt, SUBTABS, PlanPagoForm(), TabDef, Tabs()
-
-### Community 98 - "database.types.ts"
-Cohesion: 0.18
-Nodes (10): CompositeTypes, Constants, Database, DatabaseWithoutInternals, DefaultSchema, Enums, Json, Tables (+2 more)
-
-### Community 99 - "Módulo Configuraciones"
-Cohesion: 0.2
-Nodes (11): Módulo Configuraciones, Submódulo Parámetros (Configuraciones), Submódulo Sistema / Branding (Configuraciones), Submódulo Usuarios (Configuraciones), Tabla catClavesProdServ (Claves SAT), Tabla catUsers, Tabla PresCategorias (cuentas de presupuesto), Tabla SPHConfiguraciones (+3 more)
-
-### Community 100 - "Módulo Correo (buzón de facturas)"
-Cohesion: 0.18
-Nodes (11): Bandeja + Hilos de conversación (Correo), Integración IMAP/SMTP (imapflow + nodemailer), Módulo Correo (buzón de facturas), Tabla correo_adjuntos, Tabla correo_cuentas, Tabla correo_mensajes, Módulo Cron / Tareas programadas, Schedulers NestJS (@Cron) (+3 more)
-
-### Community 101 - "KardexService"
-Cohesion: 0.18
-Nodes (5): KardexFila, KardexInversionistaOpt, KardexPropiedadOpt, KardexReporte, KardexService
-
-### Community 102 - "proveedores.controller.ts"
-Cohesion: 0.38
-Nodes (7): CrearProveedorDto, crearProveedorSchema, EditarProveedorDto, PERSONALIDADES, StatusProveedorDto, statusProveedorSchema, TIPOS_CUENTA
-
-### Community 104 - "auditoria.module.ts"
-Cohesion: 0.22
-Nodes (4): AuditoriaController, AuditoriaModule, AuditoriaService, RegistroAuditoria
-
-### Community 109 - "SolicitudAprobar"
-Cohesion: 0.24
-Nodes (10): AccionAprobar, AprobarSolicitudModal, AprobarSolicitudesPage, EditarSolicitudModal, NuevaFacturaPpd, NuevaParcialPpd, PresupuestoAprobacion, SolicitudAprobar (+2 more)
-
-### Community 110 - "kardex-export.ts"
-Cohesion: 0.27
-Nodes (9): numero(), cargarLogo(), COLUMNAS, exportarKardexExcel(), exportarKardexPDF(), formula(), KardexExportOpts, LogoCargado (+1 more)
-
-### Community 111 - "KardexPage.tsx"
-Cohesion: 0.24
-Nodes (6): DashboardPage(), AdhesionFila, fideicomisoApi, KardexFila, porcentaje(), KardexPage()
-
-### Community 117 - "BandejaCorreoTab"
-Cohesion: 0.33
-Nodes (9): BandejaCorreoTab, CuerpoHtml (inner component), Hilo (inner component), CorreoPage, CuentaCorreoTab, Conversacion, CuentaCorreo, MensajeCorreo (+1 more)
-
-### Community 118 - "Módulo Inversionistas / Propietarios (Ve"
-Cohesion: 0.28
-Nodes (9): Submódulo Permisos RBAC (Configuraciones), Tabla segModulos, Escrituras (/ventas/escrituras, clave 630), Módulo Inversionistas / Propietarios (Ventas), Planes de Pagos (/ventas/planes, clave 610), Tablero Disponibilidad Parques (/parques/disponibilidad), Módulo Parques, Tabla naves (+1 more)
-
-### Community 119 - "ConsultasService"
-Cohesion: 0.22
-Nodes (3): ConsultasService, InversionistaTicketOpt, PropiedadTicketOpt
-
-### Community 120 - "permisos.controller.ts"
-Cohesion: 0.46
-Nodes (6): AccesoDto, accesoSchema, AplicarPlantillaDto, aplicarPlantillaSchema, CrearPlantillaDto, crearPlantillaSchema
-
-### Community 123 - "parametrosApi"
-Cohesion: 0.39
-Nodes (8): FechasCxpTab, InpcTab, ParametrosPage, PresupuestoMensualModal, CuentaItem, FechaCxp, InpcItem, parametrosApi
-
-### Community 124 - "MontseChat"
-Cohesion: 0.32
-Nodes (8): ChartBlockIA, MensajeAI, MontseChat, GraficoIA, MensajeIA, SesionIA, montseApi, useMontse
-
-### Community 125 - "index.ts"
-Cohesion: 0.25
-Nodes (6): apiKey, cors, jwt, Mensaje, supabase, tokens
-
-### Community 128 - "CancelacionesTab"
-Cohesion: 0.33
-Nodes (7): CancelacionesTab, EstadoCuentaTab, ReportesArrePage, exportarCSV (re-export), exportarPDF, exportarPDFConEncabezado, exportarPDFEstadoCuenta
-
-### Community 129 - "SistemaPage"
-Cohesion: 0.38
-Nodes (7): FaviconUploader, ListaAutorizados, LogoUploader, SistemaPage, FondoLogo, LogoConfig, configuracionApi
-
-### Community 130 - "Tabla cxp (central de pagos)"
-Cohesion: 0.29
-Nodes (7): Complemento de Pago REP + Candado escalonado, Flujo de Pago CxP (Captura→Autorización→Pago→Conciliación), Webhook N8N (comprobante de pago PDF), Solicitudes PPD (parcialidades diferidas), SSE Realtime CxP (stream de pagos/aprobación), Tabla cxp (central de pagos), Tabla cxp_ppd (maestro facturas PPD)
-
-### Community 134 - "reportes.service.ts"
-Cohesion: 0.33
-Nodes (5): EstadoCuentaRow, EvolucionRow, FiltrosReporte, ResumenParqueRow, VencidoRow
-
-### Community 137 - "PlanPagoForm"
-Cohesion: 0.47
-Nodes (6): CargosForm, ConceptosList, GeneralesForm, PlanCabeceraAcciones, PlanPagoForm, PreviewCorrida
-
-### Community 138 - "ClienteModal"
-Cohesion: 0.47
-Nodes (6): ClienteModal, ClientesPage, Cliente (interface), ClienteInput (interface), TipoCliente (type), clientesApi
-
-### Community 139 - "HistorialPanel"
-Cohesion: 0.4
-Nodes (6): HistorialPanel, UsuariosPage, RegistroAuditoria, auditoriaApi, usuariosApi, Usuario
-
-### Community 140 - "Gestión de Cobranza (/ventas, clave 600)"
-Cohesion: 0.33
-Nodes (6): Dashboard Gráfico Ventas (/ventas/dashboard), Gestión de Cobranza (/ventas, clave 600), Montse AI (asistente conversacional OpenRouter), Reportes Ventas (estado de cuenta + vencidos), Tabla pagos (cobros PDP), Tabla pdp + pdpDetalle (plan de pagos)
-
-### Community 141 - "Módulo CxP (Cuentas por Pagar)"
-Cohesion: 0.33
-Nodes (6): Módulo CxP (Cuentas por Pagar), Tabla catBancos, Tabla catProveedores, Tabla movbancarios (conciliación bancaria), Módulo Fideicomiso (stub v2), Tabla fidePdpDispersion
-
-### Community 142 - "KB: Módulo Fideicomiso"
-Cohesion: 0.33
-Nodes (6): Concepto: Configuración del propietario (⚙️), Concepto: Contabilidad (pivote), Concepto: Kardex / Reportes, KB: Módulo Fideicomiso, Módulo Fideicomiso (v2.21.0 completo), Índice maestro Base de Conocimiento
-
-### Community 143 - "index.ts"
-Cohesion: 0.4
-Nodes (4): ApiError, AuthUser, Paginated, Permiso
-
-### Community 144 - "Tabla inversionista"
-Cohesion: 0.4
-Nodes (5): ClienteModal (formulario alta/edición), Módulo Clientes, Permiso 300 (Clientes), Tabla inversionista, Vista v_naves (parques + propietario + arrendatario)
-
-### Community 146 - "ProveedorModal"
-Cohesion: 0.83
-Nodes (4): ProveedorModal, ProveedoresPage, Proveedor, proveedoresApi
-
-### Community 147 - "ClavesSatTab"
+### Community 180 - "Community 180"
 Cohesion: 0.67
-Nodes (4): ClaveModal (SAT), ClavesSatTab, ClaveSat, clavesSatApi
+Nodes (3): TAREA_CORREO_SYNC, TAREA_CXP_COMPLEMENTOS, Cron Task Identifiers
 
-### Community 148 - "permisosApi"
-Cohesion: 0.67
-Nodes (4): PermisosPage, PermisoUsuario, PlantillaPermiso, permisosApi
-
-### Community 149 - "Tabla inpc (parámetros INPC)"
+### Community 173 - "Community 173"
 Cohesion: 0.5
-Nodes (4): Tabla inpc (parámetros INPC), Indicador INPC (landing), Módulo Landing / Indicadores, Tipo de Cambio USD/MXN (Banxico API)
+Nodes (4): ArrendatariosRealtimeService, ArrendatariosStreamController, arrePdpDetalle (DB table), movbancarios (DB table)
 
-### Community 153 - "BancosPage"
-Cohesion: 0.67
-Nodes (3): BancosPage, Banco, bancosApi
+### Community 103 - "Community 103"
+Cohesion: 0.18
+Nodes (13): catUsers (DB table), segModulosUsuarios (DB table), SseAuthGuard, PermisosController, PermisosModule, accesoSchema, aplicarPlantillaSchema, crearPlantillaSchema (+5 more)
 
-### Community 154 - "Migración: Parámetros claves visualizaci"
+### Community 32 - "Community 32"
+Cohesion: 0.11
+Nodes (25): ArrendatariosController, ArrendatariosModule, crearPlanRentaSchema, aplicarPagoSchema, cancelarAnticipadoSchema, renovarPlanSchema, vincularNaveArreSchema, docArreSchema (+17 more)
+
+### Community 169 - "Community 169"
+Cohesion: 0.5
+Nodes (5): AuditoriaController, AuditoriaModule, AuditoriaService, RegistroAuditoria, auditoria (tabla BD)
+
+### Community 74 - "Community 74"
+Cohesion: 0.18
+Nodes (16): AuthController, AuthApiModule, loginSchema, cambiarContrasenaSchema, AuthService, PerfilUsuario, PermisoUsuario, LoginResult (+8 more)
+
+### Community 107 - "Community 107"
+Cohesion: 0.21
+Nodes (12): ChangelogController, ChangelogModule, ChangelogService, VersionChangelog, ChangelogResponse, CambioChangelog, v2_changelog (tabla BD), changelogApi (+4 more)
+
+### Community 122 - "Community 122"
+Cohesion: 0.2
+Nodes (10): RealtimeService (CxP), CambioCxp (interface), SolicitudesController, editarSolicitudSchema, crearSolicitudSchema, crearUrgenteSchema, crearLineaCapturaSchema, crearDevolucionSchema (+2 more)
+
+### Community 113 - "Community 113"
+Cohesion: 0.2
+Nodes (11): SolicitudesService, validarCfdi (method), SolicitudesService.crear, SolicitudesService.crearUrgente, SolicitudesService.crearLineaCaptura, SolicitudesService.crearDevolucion, SolicitudesService.crearSinXml, BUCKET_CFDI (CFDIproveedores) (+3 more)
+
+### Community 152 - "Community 152"
+Cohesion: 0.33
+Nodes (7): IndicadoresController, IndicadoresModule, IndicadoresService, TipoCambio (interface), UltimoInpc (interface), DB Table: inpc, External API: Banxico SIE
+
+### Community 121 - "Community 121"
+Cohesion: 0.22
+Nodes (10): ParametrosController, ParametrosModule, inpcCrearSchema, cuentaCrearSchema, fechaCxpCrearSchema, ParametrosService, DB Table: PresCategorias, DB Table: PresDetalle (+2 more)
+
+### Community 8 - "Community 8"
+Cohesion: 0.06
+Nodes (47): ParquesController, DisponibilidadController, ParquesModule, crearParqueSchema, editarNaveSchema, SITUACIONES_EDITABLES, ParquesService, ParqueListado (interface) (+39 more)
+
+### Community 161 - "Community 161"
+Cohesion: 0.33
+Nodes (6): StatusDto, RcDto, SoporteDto, UsuariosService, UsuarioListado (interface), crm_responsableComercial (DB table)
+
+### Community 96 - "Community 96"
+Cohesion: 0.14
+Nodes (14): ErrorBoundary, IconMenu, IconGear, IconChevron, IconLogout, IconCxP, IconParque, IconMail (+6 more)
+
+### Community 105 - "Community 105"
+Cohesion: 0.26
+Nodes (13): Logo, SearchSelect, Tabs, THEAD_STICKY (constant), AplicarPagoModal (arrendatarios), arrendatariosApi, ArrendatariosPage, CancelarAnticipadoModal (+5 more)
+
+### Community 124 - "Community 124"
+Cohesion: 0.24
+Nodes (10): SortableTh (encabezado ordenable), useSort (orden de tablas), AuthContext, LoginPage, ProtectedRoute, useAuth (contexto de autenticación), VerComoModal, soporteAdminApi (auditoría y tickets) (+2 more)
+
+### Community 162 - "Community 162"
+Cohesion: 0.47
+Nodes (6): PlanPagoForm, GeneralesForm, PlanCabeceraAcciones, CargosForm, ConceptosList, PreviewCorrida
+
+### Community 153 - "Community 153"
+Cohesion: 0.33
+Nodes (7): exportarPDF, exportarPDFConEncabezado, exportarPDFEstadoCuenta, exportarCSV (re-export), ReportesArrePage, EstadoCuentaTab, CancelacionesTab
+
+### Community 163 - "Community 163"
+Cohesion: 0.47
+Nodes (6): ClienteModal, clientesApi, Cliente (interface), ClienteInput (interface), TipoCliente (type), ClientesPage
+
+### Community 154 - "Community 154"
+Cohesion: 0.38
+Nodes (7): configuracionApi, LogoConfig, FondoLogo, FaviconUploader, ListaAutorizados, LogoUploader, SistemaPage
+
+### Community 134 - "Community 134"
+Cohesion: 0.33
+Nodes (9): correoApi, CuentaCorreo, Conversacion, MensajeCorreo, BandejaCorreoTab, Hilo (inner component), CuerpoHtml (inner component), CorreoPage (+1 more)
+
+### Community 123 - "Community 123"
+Cohesion: 0.24
+Nodes (10): AplicarPagoModal (cxp), aprobarApi, SolicitudAprobar, PresupuestoAprobacion, AprobarSolicitudesPage, AprobarSolicitudModal, AccionAprobar, EditarSolicitudModal (+2 more)
+
+### Community 181 - "Community 181"
 Cohesion: 0.67
-Nodes (3): Permiso segModulos clave 215 (Claves SAT), Permiso segModulos clave 216 (Pizarra de Avisos), Migración: Parámetros claves visualización
+Nodes (3): bancosApi, Banco, BancosPage
+
+### Community 16 - "Community 16"
+Cohesion: 0.09
+Nodes (36): NuevaUrgente, NuevaLineaCaptura, NuevaDevolucion, NuevaSinXml, ModalShell, useCatalogos, NuevaSolicitudPago, PagarSolicitudesPage (+28 more)
+
+### Community 174 - "Community 174"
+Cohesion: 0.83
+Nodes (4): proveedoresApi, Proveedor, ProveedoresPage, ProveedorModal
+
+### Community 175 - "Community 175"
+Cohesion: 0.67
+Nodes (4): clavesSatApi, ClaveSat, ClavesSatTab, ClaveModal (SAT)
+
+### Community 144 - "Community 144"
+Cohesion: 0.39
+Nodes (8): FechasCxpTab, InpcTab, parametrosApi, InpcItem, CuentaItem, FechaCxp, ParametrosPage, PresupuestoMensualModal
+
+### Community 86 - "Community 86"
+Cohesion: 0.23
+Nodes (15): AgregarNavesModal, DisponibilidadPage, EditarNaveModal, ParqueModal, parquesApi, ParqueListado, NaveItem, DisponibilidadItem (+7 more)
+
+### Community 176 - "Community 176"
+Cohesion: 0.67
+Nodes (4): permisosApi, PermisoUsuario, PlantillaPermiso, PermisosPage
+
+### Community 156 - "Community 156"
+Cohesion: 0.33
+Nodes (7): auditoriaApi, RegistroAuditoria, HistorialPanel, Usuario, usuariosApi, UsuariosPage (módulo Usuarios), InvitacionesPanel (lista de invitaciones)
+
+### Community 93 - "Community 93"
+Cohesion: 0.19
+Nodes (14): DashboardVentasPage, RentasTab, PagoDetalleModal, PlanesPage, PlanTab, RentaGarantizadaTab, RentaAdministradaTab, TarjetaResumen (+6 more)
+
+### Community 182 - "Community 182"
+Cohesion: 0.67
+Nodes (3): EscriturasPage, EscrituraRow, ApiRequestError
+
+### Community 104 - "Community 104"
+Cohesion: 0.24
+Nodes (13): exportarCSV, exportarJSON, exportarPDF, reportesApi, EstadoCuentaRow, VencidoRow, ResumenParqueRow, EvolucionRow (+5 more)
+
+### Community 147 - "Community 147"
+Cohesion: 0.32
+Nodes (8): ChartBlockIA, montseApi, GraficoIA, MensajeIA, SesionIA, MontseChat, MensajeAI, useMontse
+
+### Community 94 - "Community 94"
+Cohesion: 0.21
+Nodes (14): Home (landing page), router (rutas SPA), DashboardPage (Fideicomiso Dashboard/Adhesiones), DesgloseModal (Desglose Detallado + export PNG/CSV), DispersionesPage, format helpers (moneda/numero/porcentaje/fechaCorta), exportarKardexPDF / exportarKardexExcel, KardexPage (Reportes/Kardex) (+6 more)
+
+### Community 7 - "Community 7"
+Cohesion: 0.05
+Nodes (47): Migración: Cancelación Anticipada, Tabla: arrePdp (cancelación anticipada), Función: v2_arrepdp_cancelar_anticipado, Tabla: arrenPropiedades (referenciada en cancelación), Tabla: arrePdpDetalle (cancelación anticipada), Tabla: naves (liberada en cancelación), Permiso segModulos clave 24 (Liberar), Permiso segModulos clave 25 (Configuracion) (+39 more)
+
+### Community 183 - "Community 183"
+Cohesion: 0.67
+Nodes (3): Migración: Parámetros claves visualización, Permiso segModulos clave 215 (Claves SAT), Permiso segModulos clave 216 (Pizarra de Avisos)
+
+### Community 170 - "Community 170"
+Cohesion: 0.4
+Nodes (5): Módulo Clientes, Tabla inversionista, ClienteModal (formulario alta/edición), Permiso 300 (Clientes), Vista v_naves (parques + propietario + arrendatario)
+
+### Community 88 - "Community 88"
+Cohesion: 0.14
+Nodes (15): Módulo Configuraciones, Submódulo Usuarios (Configuraciones), Submódulo Parámetros (Configuraciones), Submódulo Sistema / Branding (Configuraciones), Tabla catUsers, Tabla SPHConfiguraciones, Tabla inpc (parámetros INPC), Tabla PresCategorias (cuentas de presupuesto) (+7 more)
+
+### Community 135 - "Community 135"
+Cohesion: 0.28
+Nodes (9): Submódulo Permisos RBAC (Configuraciones), Tabla segModulos, Módulo Inversionistas / Propietarios (Ventas), Planes de Pagos (/ventas/planes, clave 610), Escrituras (/ventas/escrituras, clave 630), Módulo Parques, Tabla parques, Tabla naves (+1 more)
+
+### Community 114 - "Community 114"
+Cohesion: 0.18
+Nodes (11): Módulo Correo (buzón de facturas), Tabla correo_cuentas, Tabla correo_mensajes, Tabla correo_adjuntos, Integración IMAP/SMTP (imapflow + nodemailer), Bandeja + Hilos de conversación (Correo), Módulo Cron / Tareas programadas, Tabla v2_cron_ejecuciones (+3 more)
+
+### Community 165 - "Community 165"
+Cohesion: 0.33
+Nodes (6): Módulo CxP (Cuentas por Pagar), Tabla catProveedores, Tabla catBancos, Tabla movbancarios (conciliación bancaria), Módulo Fideicomiso (stub v2), Tabla fidePdpDispersion
+
+### Community 157 - "Community 157"
+Cohesion: 0.29
+Nodes (7): Tabla cxp (central de pagos), Tabla cxp_ppd (maestro facturas PPD), Flujo de Pago CxP (Captura→Autorización→Pago→Conciliación), Solicitudes PPD (parcialidades diferidas), Complemento de Pago REP + Candado escalonado, SSE Realtime CxP (stream de pagos/aprobación), Webhook N8N (comprobante de pago PDF)
+
+### Community 166 - "Community 166"
+Cohesion: 0.33
+Nodes (6): Gestión de Cobranza (/ventas, clave 600), Dashboard Gráfico Ventas (/ventas/dashboard), Tabla pdp + pdpDetalle (plan de pagos), Tabla pagos (cobros PDP), Montse AI (asistente conversacional OpenRouter), Reportes Ventas (estado de cuenta + vencidos)
+
+### Community 14 - "Community 14"
+Cohesion: 0.1
+Nodes (31): Db, Db, ContaConcepto, RegistroConta, EXT_POR_MIME, anioActual, anioSchema, mesSchema (+23 more)
+
+### Community 64 - "Community 64"
+Cohesion: 0.12
+Nodes (6): PagoRegistrado, ComentarioPartida, AportacionesService, DispersionOpciones, DispersionesService, FideicomisoModule
+
+### Community 136 - "Community 136"
+Cohesion: 0.22
+Nodes (3): InversionistaTicketOpt, PropiedadTicketOpt, ConsultasService
+
+### Community 115 - "Community 115"
+Cohesion: 0.18
+Nodes (5): KardexFila, KardexReporte, KardexInversionistaOpt, KardexPropiedadOpt, KardexService
+
+### Community 76 - "Community 76"
+Cohesion: 0.18
+Nodes (10): AportacionesPage(), AportacionPagoModal(), ComentariosAportacionModal(), ConfigFideModal(), PdpTab(), PagoFila, RegistrarPagoInput, TIPO_MOVIMIENTO (+2 more)
+
+### Community 59 - "Community 59"
+Cohesion: 0.11
+Nodes (12): TABS, TabId, PM_OPC, MEDIO_OPC, NAVE_OPC, ID_OPC, DOC_CATALOGO, TIPO_OPC (+4 more)
+
+### Community 41 - "Community 41"
+Cohesion: 0.16
+Nodes (17): PdpTabla(), DashboardPage(), KardexFila, AdhesionFila, moneda(), numero(), porcentaje(), fechaCorta() (+9 more)
+
+### Community 55 - "Community 55"
+Cohesion: 0.11
+Nodes (6): NOMBRE_MES, anioActualMX(), CampoTexto, ContabilidadPage(), MESES, PivoteFila
+
+### Community 90 - "Community 90"
+Cohesion: 0.16
+Nodes (6): DesgloseModal(), MESES_LARGO, mesAnio(), DispersionesPage(), DispersionResumen, DispersionPlanFila
+
+### Community 45 - "Community 45"
+Cohesion: 0.09
+Nodes (20): KardexInversionistaOpt, KardexPropiedadOpt, KardexReporte, DispersionOpciones, MesCorto, ContaConcepto, SaldoBanco, ClaveCelda (+12 more)
+
+### Community 97 - "Community 97"
+Cohesion: 0.26
+Nodes (14): AportacionesService, ConfigFideService, ConsultasService, ContabilidadService, DispersionesService, KardexService, FideicomisoController, FideicomisoModule (+6 more)
+
+### Community 92 - "Community 92"
+Cohesion: 0.22
+Nodes (14): ComentariosAportacionModal, ConfigFideModal, DatosTab (Config: Datos Generales), DocsTab (Config: Documentos), PropsTab (Config: Propiedades/Naves), CondicionesTab (Config: Adhesiones), PdpTab (Config: Plan de Pagos), PdpTabla (tabla editable de partidas) (+6 more)
+
+### Community 164 - "Community 164"
+Cohesion: 0.33
+Nodes (6): Módulo Fideicomiso (v2.21.0 completo), Índice maestro Base de Conocimiento, KB: Módulo Fideicomiso, Concepto: Kardex / Reportes, Concepto: Contabilidad (pivote), Concepto: Configuración del propietario (⚙️)
+
+### Community 172 - "Community 172"
+Cohesion: 0.4
+Nodes (4): kb, casos, sel, pasa
+
+### Community 46 - "Community 46"
+Cohesion: 0.14
+Nodes (7): mods, cxp, sel, DocModuloKb, SeleccionKb, normalizar(), KbService
+
+### Community 95 - "Community 95"
+Cohesion: 0.27
+Nodes (11): mensajeSchema, MensajeDto, renombrarSchema, RenombrarDto, escalarSchema, EscalarDto, MensajeSoporte, PerfilUsuario (+3 more)
+
+### Community 77 - "Community 77"
+Cohesion: 0.17
+Nodes (8): SoporteModule, SoporteAdminController, SesionAdmin, MensajeAdmin, ConversacionAdmin, TicketAdmin, atenderTicketSchema, AtenderTicketDto
+
+### Community 82 - "Community 82"
+Cohesion: 0.21
+Nodes (11): SesionSoporte, MensajeSoporte, RespuestaSoporte, EscalarPayload, soporteApi, hora(), MD, Burbuja() (+3 more)
+
+### Community 148 - "Community 148"
+Cohesion: 0.25
+Nodes (6): Mensaje, cors, jwt, supabase, apiKey, tokens
+
+### Community 145 - "Community 145"
+Cohesion: 0.29
+Nodes (8): ERP SPH v2 (NestJS + React + Supabase), Frontera de confianza (frontend nunca habla con Supabase), Coexistencia FlutterFlow v1 y v2, SupabaseService (admin service_role / auth anon), JwtAuthGuard, PermisoGuard + @RequierePermiso, api.ts (cliente HTTP frontend), SoporteWidget (burbuja flotante global)
+
+### Community 87 - "Community 87"
+Cohesion: 0.16
+Nodes (15): Auditoria (trigger fn_auditoria + comoActor), Módulo CxP (KB), Tabla cxp (solicitud de pago), cxp_ppd (maestro factura PPD), Control de saldo PPD (Disponible = total - parciales), Parser CFDI 4.0 backend (cfdi.ts), pagos.service.ts (Pagar solicitudes), ppd.service.ts (+7 more)
+
+### Community 68 - "Community 68"
+Cohesion: 0.17
+Nodes (17): Montse AI (asistente de datos, proxy edge ia-chat), Indice maestro de Base de Conocimiento, GLOSARIO.md (terminos transversales), OBSOLESCENCIA-BD.md, Router de KB por palabras clave (mapas inversos), Propuesta - Agente de IA de Soporte, Restriccion read-only (rol v2_soporte_ro), RAG fase 1 - enrutamiento por palabras clave (+9 more)
+
+### Community 60 - "Community 60"
+Cohesion: 0.15
+Nodes (6): ReportesCxpController, reporteEstadoCuentaSchema, ReporteEstadoCuentaDto, ReporteCxpRow, TotalesReporteCxp, ReportesCxpService
+
+### Community 11 - "Community 11"
+Cohesion: 0.09
+Nodes (9): InvitacionesController, InvitacionesMailer, InvitacionesModule, invitarSchema, InvitarDto, aceptarSchema, AceptarDto, InvitacionListado (+1 more)
+
+### Community 23 - "Community 23"
+Cohesion: 0.12
+Nodes (23): moneda(), hoyISO(), COLS_EXCEL, exportarReporteExcel(), exportarReportePDF(), descargar(), ReporteCxpRow, TotalesReporteCxp (+15 more)
+
+### Community 61 - "Community 61"
+Cohesion: 0.18
+Nodes (11): soporteAdminApi, fechaHora(), Tab, ModalConversacion(), ESTADOS, ModalTicket(), SesionAdmin, MensajeAdmin (+3 more)
+
+### Community 149 - "Community 149"
+Cohesion: 0.39
+Nodes (8): ReportesCxpController, ReportesCxpService, reporteEstadoCuentaSchema, ReporteCxpRow (fila reporte CxP, API), reportesCxpApi (cliente web), ReporteCxpRow (fila reporte CxP, web), exportarReporteExcel / exportarReportePDF, ReportesCxpPage (página web reportes CxP)
+
+### Community 151 - "Community 151"
+Cohesion: 0.52
+Nodes (7): SoporteModule (Agente IA Soporte), SoporteController, SoporteService, SoporteAdminController, SoporteAdminService (auditoría), KbService (RAG router KB), soporte schemas (mensaje/escalar/atender)
+
+### Community 146 - "Community 146"
+Cohesion: 0.39
+Nodes (8): RegistroPage (página pública de registro), invitacionesApi (cliente de invitaciones), InvitarUsuarioModal (modal invitar), lib/api (cliente HTTP, puerta de datos), v2_invitaciones (tabla de invitaciones), Reglas inviolables v2 (frontera de confianza), Registro por invitación (v2.26.0), Módulo Configuraciones (KB)
+
+### Community 155 - "Community 155"
+Cohesion: 0.43
+Nodes (7): soporteApi (cliente agente IA soporte), SoporteWidget (widget flotante de chat), useSoporte (hook lógica del agente), Índice maestro de la base de conocimiento, Directorio de Contactos y Responsables (KB), Agente de IA de Soporte (KB), Regla: el agente SOLO informa (rol v2_soporte_ro)
 
 ## Ambiguous Edges - Review These
 - `Catalogos` → `indicadoresApi`  [AMBIGUOUS]
   version2/apps/web/src/features/indicadores/indicadores.api.ts · relation: shares_data_with
 
 ## Knowledge Gaps
-- **635 isolated node(s):** `envSchema`, `OrigenEjecucion`, `RegistroEjecucion`, `CambioArre`, `SseMessage` (+630 more)
+- **654 isolated node(s):** `envSchema`, `OrigenEjecucion`, `RegistroEjecucion`, `CambioArre`, `SseMessage` (+649 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **70 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -716,15 +861,15 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **What is the exact relationship between `Catalogos` and `indicadoresApi`?**
   _Edge tagged AMBIGUOUS (relation: shares_data_with) - confidence is low._
-- **Why does `PagosService` connect `PagosService` to `pagos.controller.ts`, `cxp.module.ts`?**
-  _High betweenness centrality (0.155) - this node is a cross-community bridge._
-- **Why does `base` connect `icons.tsx` to `PagosService`?**
-  _High betweenness centrality (0.152) - this node is a cross-community bridge._
-- **Why does `concepto` connect `PlanPagoForm.tsx` to `solicitudes.controller.ts`?**
-  _High betweenness centrality (0.139) - this node is a cross-community bridge._
+- **Why does `concepto` connect `Community 81` to `Community 42`?**
+  _High betweenness centrality (0.204) - this node is a cross-community bridge._
+- **Why does `api` connect `Community 85` to `Community 0`, `Community 3`, `Community 4`, `Community 133`, `Community 6`, `Community 15`, `Community 17`, `Community 19`, `Community 20`, `Community 147`, `Community 29`, `Community 31`, `Community 40`, `Community 54`, `Community 66`, `Community 73`, `Community 83`, `Community 84`, `Community 93`, `Community 94`, `Community 100`, `Community 101`, `Community 104`?**
+  _High betweenness centrality (0.197) - this node is a cross-community bridge._
+- **Why does `router (rutas SPA)` connect `Community 94` to `Community 104`, `Community 92`, `Community 124`, `Community 146`, `Community 182`, `Community 156`, `Community 93`?**
+  _High betweenness centrality (0.175) - this node is a cross-community bridge._
 - **What connects `envSchema`, `OrigenEjecucion`, `RegistroEjecucion` to the rest of the system?**
-  _635 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `useSort()` be split into smaller, more focused modules?**
-  _Cohesion score 0.04 - nodes in this community are weakly interconnected._
-- **Should `PpdPage.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.05 - nodes in this community are weakly interconnected._
+  _654 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Community 33` be split into smaller, more focused modules?**
+  _Cohesion score 0.12 - nodes in this community are weakly interconnected._
+- **Should `Community 21` be split into smaller, more focused modules?**
+  _Cohesion score 0.11 - nodes in this community are weakly interconnected._

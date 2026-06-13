@@ -6482,6 +6482,60 @@ export type Database = {
         }
         Relationships: []
       }
+      v2_invitaciones: {
+        Row: {
+          agregadoACorreos: boolean
+          apellidos: string | null
+          creadoEn: string
+          email: string
+          estado: string
+          fecAcepta: string | null
+          fecExpira: string
+          fum: string | null
+          fumUser: string | null
+          id: string
+          idPerfil: number
+          invitadoPor: string | null
+          nombre: string | null
+          tokenHash: string
+          uidCreado: string | null
+        }
+        Insert: {
+          agregadoACorreos?: boolean
+          apellidos?: string | null
+          creadoEn?: string
+          email: string
+          estado?: string
+          fecAcepta?: string | null
+          fecExpira: string
+          fum?: string | null
+          fumUser?: string | null
+          id?: string
+          idPerfil?: number
+          invitadoPor?: string | null
+          nombre?: string | null
+          tokenHash: string
+          uidCreado?: string | null
+        }
+        Update: {
+          agregadoACorreos?: boolean
+          apellidos?: string | null
+          creadoEn?: string
+          email?: string
+          estado?: string
+          fecAcepta?: string | null
+          fecExpira?: string
+          fum?: string | null
+          fumUser?: string | null
+          id?: string
+          idPerfil?: number
+          invitadoPor?: string | null
+          nombre?: string | null
+          tokenHash?: string
+          uidCreado?: string | null
+        }
+        Relationships: []
+      }
       v2_cron_ejecuciones: {
         Row: {
           creado_en: string

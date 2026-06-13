@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usuariosApi } from './usuarios.api';
 import type { Usuario } from './types';
 import { HistorialPanel } from './HistorialPanel';
+import { InvitarUsuarioModal } from './InvitarUsuarioModal';
+import { InvitacionesPanel } from './InvitacionesPanel';
 import { Toggle } from '@/components/Toggle';
 import { IconHistorial } from '@/components/icons';
 import {
@@ -37,6 +39,8 @@ export function UsuariosPage() {
   const [busqueda, setBusqueda] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [historialDe, setHistorialDe] = useState<Usuario | null>(null);
+  const [mostrarInvitar, setMostrarInvitar] = useState(false);
+  const [mostrarInvitaciones, setMostrarInvitaciones] = useState(false);
   // Columnas de la tabla (para el colSpan de filas de estado).
   const cols = puedeGestionarSoporte ? 9 : 8;
 
@@ -99,13 +103,31 @@ export function UsuariosPage() {
         <h1 className="text-2xl font-bold tracking-tight text-gray-800">
           Usuarios
         </h1>
-        <input
-          type="search"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre o correo…"
-          className="w-64 max-w-full rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30"
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="search"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por nombre o correo…"
+            className="w-64 max-w-full rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30"
+          />
+          <button
+            onClick={() => setMostrarInvitaciones((v) => !v)}
+            className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+              mostrarInvitaciones
+                ? 'border-[#1f2a4d] bg-[#1f2a4d] text-white'
+                : 'border-gray-300 text-[#3f5b87] hover:bg-gray-50'
+            }`}
+          >
+            Invitaciones
+          </button>
+          <button
+            onClick={() => setMostrarInvitar(true)}
+            className="rounded-lg bg-[#1f2a4d] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#172039]"
+          >
+            + Invitar usuario
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -254,6 +276,10 @@ export function UsuariosPage() {
         </table>
         </div>
 
+        {mostrarInvitaciones && (
+          <InvitacionesPanel onClose={() => setMostrarInvitaciones(false)} />
+        )}
+
         {historialDe && (
           <HistorialPanel
             uid={historialDe.uid}
@@ -262,6 +288,16 @@ export function UsuariosPage() {
           />
         )}
       </div>
+
+      {mostrarInvitar && (
+        <InvitarUsuarioModal
+          onClose={() => setMostrarInvitar(false)}
+          onInvitado={() => {
+            setMostrarInvitaciones(true);
+            queryClient.invalidateQueries({ queryKey: ['invitaciones'] });
+          }}
+        />
+      )}
     </div>
   );
 }

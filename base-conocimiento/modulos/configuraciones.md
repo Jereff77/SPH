@@ -1,13 +1,13 @@
 ---
 modulo: Configuraciones
 estado: desarrollado
-version_doc: 1.1
-ultima_actualizacion: 2026-06-05
+version_doc: 1.2
+ultima_actualizacion: 2026-06-12
 submodulos: [Usuarios, Parámetros, Permisos, Sistema, Cambiar contraseña]
-rutas: [/configuraciones/usuarios, /configuraciones/parametros, /configuraciones/permisos, /configuraciones/sistema, /configuraciones/cambiar-contrasena]
+rutas: [/configuraciones/usuarios, /configuraciones/parametros, /configuraciones/permisos, /configuraciones/sistema, /configuraciones/cambiar-contrasena, /registro]
 claves_permiso: [200, 203, 210, 212, 213, 214, 215, 216, 220, 221]
-tablas: [catUsers, crm_responsableComercial, segModulos, segModulosUsuarios, segPlantillasPermisos, segDetallesPlantilla, inpc, PresCategorias, PresDetalle, Presupuestos, v_resumenPresupuesto, cxp_fechas_habilitadas, catClavesProdServ, SPHConfiguraciones]
-palabras_clave: [usuarios, permisos, plantillas, parámetros, INPC, cuentas, presupuesto, fechas CxP, claves SAT, retención, IVA, ISR, CFDI, logos, favicon, dominios, correos autorizados, contraseña, soporte, responsable comercial]
+tablas: [catUsers, crm_responsableComercial, v2_invitaciones, segModulos, segModulosUsuarios, segPlantillasPermisos, segDetallesPlantilla, inpc, PresCategorias, PresDetalle, Presupuestos, v_resumenPresupuesto, cxp_fechas_habilitadas, catClavesProdServ, SPHConfiguraciones]
+palabras_clave: [usuarios, invitación, invitar usuario, registro, alta de usuario, correo autorizado, permisos, plantillas, parámetros, INPC, cuentas, presupuesto, fechas CxP, claves SAT, retención, IVA, ISR, CFDI, logos, favicon, dominios, correos autorizados, contraseña, soporte, responsable comercial]
 relacionado_con: [autenticacion, auditoria, parques, cxp]
 ---
 
@@ -51,6 +51,39 @@ Equivalente v1: `lib/pages/web_app/i09_configuraciones/`.
 - **Permiso:** 200 para ver; 203 para los toggles de status/esRC. El toggle de soporte además exige que
   el actor sea soporte (validado en el backend).
 - **Tabla:** encabezado fijo azul + búsqueda + orden por columnas (convención de diseño).
+
+### 3.1. Invitar usuarios (registro por invitación)
+
+Desde la pantalla de Usuarios (clave **200**) se puede **dar de alta usuarios por invitación**, sin que
+un administrador cree la contraseña por ellos:
+
+- **Botón «+ Invitar usuario»** → modal donde se captura **correo + nombre + apellidos**. Al enviar:
+  - Si ya existe un usuario o una **invitación activa** con ese correo, se rechaza (solo **una invitación
+    activa por correo**).
+  - Si el **dominio del correo no está autorizado** y el correo no está en `CORREOS_AUTORIZADOS`, el
+    sistema lo **agrega automáticamente** a los correos autorizados (para que luego pueda iniciar sesión).
+  - Se crea la invitación (token aleatorio; en BD solo se guarda su **hash SHA-256**) y se envía un correo
+    con el enlace `…/registro?token=XXX` desde una **cuenta SMTP dedicada** (`SMTP_INVITACIONES_*`,
+    independiente del buzón de facturas). Vigencia configurable (`INVITACION_VIGENCIA_DIAS`, por defecto 7).
+- **Botón «Invitaciones»** → panel lateral con todas las invitaciones (Pendiente / Aceptada / Cancelada /
+  Expirada). En las pendientes: **Reenviar** (genera un enlace nuevo) y **Cancelar**.
+  - Al **cancelar**, si ese flujo había agregado el correo a `CORREOS_AUTORIZADOS`, se **revierte** (se
+    quita el correo). Igual al reemplazar una invitación pendiente expirada por una nueva.
+- **Registro (página pública `/registro`):** el invitado abre el enlace; el backend valida el token y
+  precarga correo (fijo) + nombre/apellidos. El invitado confirma sus datos, captura teléfono (opcional)
+  y **define su contraseña** (mín. 8 caracteres). El backend crea el usuario en **Supabase Auth**
+  (`email_confirm`) + `catUsers` (perfil base `idPerfil=5` «Ventas»; **sin permisos** aún — se asignan en
+  Permisos) y marca la invitación **aceptada**. Tras esto el usuario entra por el login normal.
+- **Seguridad:** token de un solo uso con expiración; el correo del registro se toma SIEMPRE de la
+  invitación (no del cliente); endpoints públicos con rate limiting; el front nunca toca Supabase.
+- **Backend:** `apps/api/src/modules/invitaciones/` (`service`, `controller`, `schemas`, `mailer`).
+  Endpoints: `POST/GET /api/invitaciones`, `POST /api/invitaciones/:id/reenviar`,
+  `DELETE /api/invitaciones/:id` (todos clave 200) y los **públicos** `GET /api/invitaciones/validar/:token`
+  + `POST /api/invitaciones/aceptar`.
+- **Front:** `features/usuarios/InvitarUsuarioModal.tsx`, `InvitacionesPanel.tsx`, `invitaciones.api.ts`;
+  página pública `features/registro/RegistroPage.tsx` (ruta `/registro` fuera de `ProtectedRoute`).
+- **BD (objeto nuevo, autorizado):** tabla `public.v2_invitaciones` (RLS ON sin políticas + `trg_auditoria`).
+  SQL en `base-conocimiento/migraciones/2026-06-12-invitaciones.sql`.
 
 ---
 

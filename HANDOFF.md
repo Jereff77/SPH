@@ -5,7 +5,23 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-12 (v2.25.0 — Soporte: auditoría de conversaciones + tickets). Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-12 (v2.26.0 — Registro de usuarios por invitación). Autor: Claude (Opus 4.8).
+>
+> ✨ **v2.26.0 (feature):** **Registro de usuarios por invitación** (Configuraciones → **Usuarios**, clave
+> **200**). Botón **«+ Invitar usuario»** (correo + nombre + apellidos) y panel **«Invitaciones»**
+> (reenviar/cancelar; estados Pendiente/Aceptada/Cancelada/Expirada). El backend valida que no exista usuario
+> ni **invitación activa** con ese correo (solo **una activa por correo**); si el **dominio no está autorizado**
+> agrega el correo a `CORREOS_AUTORIZADOS` automáticamente; crea la invitación (en BD solo el **hash SHA-256**
+> del token) y envía el correo por una **cuenta SMTP dedicada** (`SMTP_INVITACIONES_*`, independiente del buzón
+> de facturas) con el enlace **`{APP_WEB_URL}/registro?token=XXX`**. Página **pública `/registro`**: valida el
+> token, precarga correo (fijo) + nombre/apellidos, el invitado define su contraseña → el backend crea el
+> usuario en **Supabase Auth + `catUsers`** (perfil base 5, **sin permisos** — se asignan en Permisos) y marca
+> la invitación **aceptada**. Al **cancelar** se revierte el correo si ese flujo lo agregó. Backend
+> `modules/invitaciones/` (`service/controller/schemas/mailer`); front `features/usuarios/{InvitarUsuarioModal,
+> InvitacionesPanel,invitaciones.api}` + `features/registro/RegistroPage`. **Objeto NUEVO en BD (autorizado):**
+> tabla `public.v2_invitaciones` (RLS ON sin políticas + `trg_auditoria`); SQL en
+> `base-conocimiento/migraciones/2026-06-12-invitaciones.sql`. **Env nuevas:** `APP_WEB_URL`,
+> `SMTP_INVITACIONES_{HOST,PORT,USER,PASS,FROM}`, `INVITACION_VIGENCIA_DIAS`. Ver `modulos/configuraciones.md`.
 >
 > ✨ **v2.25.0 (feature + fixes):** **Configuraciones → Soporte** (`/configuraciones/soporte`, **SOLO soporte**,
 > sin clave — `SoporteGuard` por `isSupport`, igual que Cron). Pantalla de **auditoría** del Agente de IA con

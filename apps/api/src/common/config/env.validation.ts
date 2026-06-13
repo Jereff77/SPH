@@ -39,6 +39,23 @@ export const envSchema = z.object({
   // De aquí se deriva una llave de 32 bytes (sha256). SECRETO; configúrala en producción.
   // Si está vacía, el módulo de Correo no podrá guardar/usar contraseñas.
   EMAIL_ENCRYPTION_KEY: z.string().default(''),
+
+  // URL base del frontend (apps/web). Se usa para construir el link de las
+  // invitaciones de registro: {APP_WEB_URL}/registro?token=XXX. Si no se define,
+  // cae a CORS_ORIGIN (el origen del frontend ya configurado).
+  APP_WEB_URL: z.string().url().optional(),
+
+  // --- Cuenta SMTP dedicada para enviar las invitaciones de registro ---
+  // Independiente del buzón de facturas (módulo Correo). Si SMTP_INVITACIONES_HOST
+  // está vacío, el envío de invitaciones queda deshabilitado (el backend lo avisa).
+  SMTP_INVITACIONES_HOST: z.string().default(''),
+  SMTP_INVITACIONES_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_INVITACIONES_USER: z.string().default(''),
+  SMTP_INVITACIONES_PASS: z.string().default(''),
+  // Remitente mostrado (From). Si está vacío, se usa SMTP_INVITACIONES_USER.
+  SMTP_INVITACIONES_FROM: z.string().default(''),
+  // Días de validez del link de invitación antes de expirar.
+  INVITACION_VIGENCIA_DIAS: z.coerce.number().int().positive().default(7),
 });
 
 export type Env = z.infer<typeof envSchema>;

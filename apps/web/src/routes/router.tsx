@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { RecuperarPage } from '@/features/auth/RecuperarPage';
+import { RegistroPage } from '@/features/registro/RegistroPage';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import { AppShell } from '@/components/layout/AppShell';
 import { SistemaPage } from '@/features/configuraciones/SistemaPage';
@@ -72,6 +73,7 @@ import { Home } from './Home';
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   { path: '/recuperar', element: <RecuperarPage /> },
+  { path: '/registro', element: <RegistroPage /> },
   {
     element: <ProtectedRoute />,
     children: [

@@ -8,8 +8,8 @@
     "hash": "5240049fdfd28d9e80aaeac55402f002"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\app.module.ts": {
-    "mtime": 1781251320.0762248,
-    "hash": "c97d154fe6ab94b464f750b25c6eb346"
+    "mtime": 1781299780.9035764,
+    "hash": "793aff9c7b9882976b024a67ac5abee6"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\main.ts": {
     "mtime": 1780557771.1696436,
@@ -44,8 +44,8 @@
     "hash": "d9d50458affa4e555c1f91a40ee9b84d"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\common\\config\\env.validation.ts": {
-    "mtime": 1780731902.7561965,
-    "hash": "21c9736f71857332d45be01b5bed2d6e"
+    "mtime": 1781299593.8989966,
+    "hash": "08deda33ee877811b31caba6ec7d095d"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\common\\cron\\cron.tareas.ts": {
     "mtime": 1781220757.4798963,
@@ -300,8 +300,8 @@
     "hash": "d2847285bc0b0bc5928a48662c42681e"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\cxp\\cxp.module.ts": {
-    "mtime": 1781220871.733356,
-    "hash": "5737181a94cac28a6bfe4afefbca2cca"
+    "mtime": 1781287654.1158838,
+    "hash": "15c5f6bcfc3cc0117ccc12f9e5e78fd6"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\cxp\\pagos-stream.controller.ts": {
     "mtime": 1780683984.8408732,
@@ -358,6 +358,18 @@
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\cxp\\realtime.service.ts": {
     "mtime": 1780632819.0544026,
     "hash": "aff222042ebd42d690b920afe21a7aff"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\cxp\\reportes.controller.ts": {
+    "mtime": 1781287636.084224,
+    "hash": "7afb93cb8f69c9513d3be1cb40a454cb"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\cxp\\reportes.schemas.ts": {
+    "mtime": 1781287585.4049993,
+    "hash": "1aec79189d7f4a61d8f915c7f68303c3"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\cxp\\reportes.service.ts": {
+    "mtime": 1781287616.771342,
+    "hash": "709ac8dd4bfa2bd3069f54dd53632d2d"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\cxp\\solicitudes.controller.ts": {
     "mtime": 1781072469.9586134,
@@ -423,6 +435,26 @@
     "mtime": 1780584832.912994,
     "hash": "a0657545a76d4032d80baedb1ba8838b"
   },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\invitaciones\\invitaciones.controller.ts": {
+    "mtime": 1781299754.1617389,
+    "hash": "e4c69f87b20a9efa8f9e82abe08707ea"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\invitaciones\\invitaciones.mailer.ts": {
+    "mtime": 1781299679.090503,
+    "hash": "ba0032d2d340d637f7d57d91c605db88"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\invitaciones\\invitaciones.module.ts": {
+    "mtime": 1781299768.866174,
+    "hash": "f32f53ac57f762a4a61143201f749810"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\invitaciones\\invitaciones.schemas.ts": {
+    "mtime": 1781299657.7122862,
+    "hash": "810261d19859b6175e94f2740e84064e"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\invitaciones\\invitaciones.service.ts": {
+    "mtime": 1781300005.0518305,
+    "hash": "c21a8750c93606c5c912efdc9d25c02b"
+  },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\parametros\\parametros.controller.ts": {
     "mtime": 1781155500.4972124,
     "hash": "d7bf29b6585f15027b3ae7d69126f366"
@@ -476,24 +508,32 @@
     "hash": "f2554723c0e76501e06ce3c8f49e9155"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\soporte\\kb.service.ts": {
-    "mtime": 1781251663.5099897,
-    "hash": "51b11bc71c595ed3d690dcbe7f8fe0b2"
+    "mtime": 1781288871.4570367,
+    "hash": "7d10ca52f941dbc5e0fb8050cdbcd81d"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\soporte\\soporte-admin.controller.ts": {
+    "mtime": 1781295961.4601011,
+    "hash": "f5916d9d013d27cd1ba7968452a28907"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\soporte\\soporte-admin.service.ts": {
+    "mtime": 1781295939.384788,
+    "hash": "8983b71290c5e91c8800c0f7e16fd29d"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\soporte\\soporte.controller.ts": {
-    "mtime": 1781251296.076425,
-    "hash": "d507de2c453bb545a2f0b0839ae111d2"
+    "mtime": 1781297755.2861767,
+    "hash": "544357b01e290307adf075c11ddef40c"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\soporte\\soporte.module.ts": {
-    "mtime": 1781251304.2657745,
-    "hash": "169e70d80cb21a7899da265805ae6d9b"
+    "mtime": 1781295973.1129847,
+    "hash": "0d6a5491274f43cb3867d61b136b778e"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\soporte\\soporte.schemas.ts": {
-    "mtime": 1781251102.302587,
-    "hash": "1e93795b3dc24123d7143ccfa5c265af"
+    "mtime": 1781297708.3059237,
+    "hash": "4fe65690e8ec4eb70015cca41904d589"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\soporte\\soporte.service.ts": {
-    "mtime": 1781251278.478561,
-    "hash": "cc324512527d5ef49bf7905408470779"
+    "mtime": 1781297740.2004268,
+    "hash": "1a2916d5023132b5a158216b46bd8a31"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\api\\src\\modules\\usuarios\\usuarios.controller.ts": {
     "mtime": 1780560295.4761808,
@@ -624,8 +664,8 @@
     "hash": "5b7ec39e6a1dbe61e1f4fba187fdf44b"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\components\\layout\\menu.tsx": {
-    "mtime": 1781236399.4585786,
-    "hash": "556b740518a1551097f72e6058742cdf"
+    "mtime": 1781296093.5927877,
+    "hash": "38905908eac9e5c49170943f7ae177bd"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\components\\layout\\Sidebar.tsx": {
     "mtime": 1781221253.816701,
@@ -903,6 +943,18 @@
     "mtime": 1780632471.3946207,
     "hash": "5524ee4d383f6b4959b8ce0328bd5add"
   },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\cxp\\reportes-export.ts": {
+    "mtime": 1781287751.701652,
+    "hash": "76d03e0fadd8e20dceec83bdc09fa45b"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\cxp\\reportes.api.ts": {
+    "mtime": 1781287718.427651,
+    "hash": "54304d6ffcda265cc1f045085f25018c"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\cxp\\ReportesCxpPage.tsx": {
+    "mtime": 1781287855.5381002,
+    "hash": "e42893c4190a4d82dc1865b9fd25dc20"
+  },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\cxp\\solicitudes.api.ts": {
     "mtime": 1781072499.0576513,
     "hash": "fd24b8b3a0ec4a4aa4039bb19cb80fd9"
@@ -1047,17 +1099,33 @@
     "mtime": 1781146575.9037433,
     "hash": "48fff46e405b389647346ec8a060e649"
   },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\registro\\RegistroPage.tsx": {
+    "mtime": 1781299977.9385657,
+    "hash": "c0319c64ac1e0ccd80925eab74da8560"
+  },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\soporte\\soporte.api.ts": {
-    "mtime": 1781251505.0844083,
-    "hash": "46008f9c4dea44d33fba8a780bd20384"
+    "mtime": 1781297769.32918,
+    "hash": "937399bac8a78b4fd3c82919b7acdc3c"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\soporte\\SoporteWidget.tsx": {
-    "mtime": 1781251565.234804,
-    "hash": "67ac87cf7befd176301011f78a0afa0d"
+    "mtime": 1781297820.0318706,
+    "hash": "0db8b96937047d305c53b35f813a0e4c"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\soporte\\useSoporte.ts": {
-    "mtime": 1781251520.452191,
-    "hash": "3e67136e12ab4dfe4ae26f782dcd7cdf"
+    "mtime": 1781297788.6598752,
+    "hash": "354aea3abc711a044c8ab29f204624f4"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\soporte-admin\\soporte-admin.api.ts": {
+    "mtime": 1781295998.718448,
+    "hash": "b0c5f233dfb321cb84a4a8a0fea75544"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\soporte-admin\\SoporteAdminPage.tsx": {
+    "mtime": 1781296123.1470203,
+    "hash": "7a218ae25aa819f7461d3ee294031a0d"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\soporte-admin\\types.ts": {
+    "mtime": 1781295988.1957858,
+    "hash": "811a6e1647a942926da8f4432c95f215"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\usuarios\\auditoria.api.ts": {
     "mtime": 1780591273.889056,
@@ -1066,6 +1134,18 @@
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\usuarios\\HistorialPanel.tsx": {
     "mtime": 1780591284.8220956,
     "hash": "a71162fc3ff3b1f647a154db04ac182a"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\usuarios\\invitaciones.api.ts": {
+    "mtime": 1781299824.7520425,
+    "hash": "8c30df8a3e048df194407ea3056d7b39"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\usuarios\\InvitacionesPanel.tsx": {
+    "mtime": 1781299870.215325,
+    "hash": "8588deeba8b5b28152994d3dda2b9471"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\usuarios\\InvitarUsuarioModal.tsx": {
+    "mtime": 1781299847.1358435,
+    "hash": "a0bbbbe97f00712904e3106c71dc2d87"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\usuarios\\types.ts": {
     "mtime": 1780547662.17079,
@@ -1076,8 +1156,8 @@
     "hash": "42e99a58b6027c8f0413dc23107a5343"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\usuarios\\UsuariosPage.tsx": {
-    "mtime": 1780591961.7771723,
-    "hash": "015df2e3049b5700202bae6f5e741402"
+    "mtime": 1781299910.692916,
+    "hash": "34c6b7d2d84c53e6d058a603a45243fa"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\features\\ventas\\ComentariosModal.tsx": {
     "mtime": 1780810754.1766675,
@@ -1152,8 +1232,8 @@
     "hash": "0e618c39855a743d5c9ae77b54d93f7d"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\lib\\constants.ts": {
-    "mtime": 1781284037.2805078,
-    "hash": "ca6fc364aca5a3256d28af6f5efd7917"
+    "mtime": 1781326925.7107022,
+    "hash": "26d230e345f8da6f18f305ab44467689"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\lib\\queryClient.ts": {
     "mtime": 1780528266.7821317,
@@ -1172,8 +1252,8 @@
     "hash": "311fd10672165cf092e352ced01955e0"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\apps\\web\\src\\routes\\router.tsx": {
-    "mtime": 1781236414.2217312,
-    "hash": "41115f8ff23000a9a8f060959a970cc9"
+    "mtime": 1781299962.0626507,
+    "hash": "8c823e30f7d6912165c6e50a279ddf8b"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\base-conocimiento\\migraciones\\2026-06-09-v2_changelog.sql": {
     "mtime": 1781032610.6421022,
@@ -1195,6 +1275,10 @@
     "mtime": 1781221369.4581172,
     "hash": "67559c896a7c8bc2b51a16fb8dcb726a"
   },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\base-conocimiento\\migraciones\\2026-06-12-invitaciones.sql": {
+    "mtime": 1781299540.03137,
+    "hash": "7acf7935a378c85b90eccbdb0083cd8c"
+  },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\base-conocimiento\\migraciones\\2026-06-12-soporte-ia.sql": {
     "mtime": 1781277546.3571062,
     "hash": "27d1ddd6d3c972d65ff2eb0b06723542"
@@ -1204,8 +1288,8 @@
     "hash": "37bb61f8013873909f65b5dfe4f51970"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\packages\\types\\src\\database.types.ts": {
-    "mtime": 1781276512.9836357,
-    "hash": "d3dab3e46c3d9db02a85f25b6c8b8977"
+    "mtime": 1781299573.321185,
+    "hash": "08bc84ccd6e7f78ffead0dc10d585c29"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\packages\\types\\src\\index.ts": {
     "mtime": 1780532306.7073588,
@@ -1224,8 +1308,8 @@
     "hash": "a7e1797c57dffc3bfa72da12fd6ea51f"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\HANDOFF.md": {
-    "mtime": 1781284179.883515,
-    "hash": "72be330eb6e76af7af31bf18e6416bb4"
+    "mtime": 1781326968.62438,
+    "hash": "cf8f05abf9d7b0f43bbd911c02815a35"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\pnpm-workspace.yaml": {
     "mtime": 1780528424.7577236,
@@ -1248,8 +1332,8 @@
     "hash": "3c0cac39e71a1ccba04c2941c578a121"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\base-conocimiento\\INDICE.md": {
-    "mtime": 1781251813.3910997,
-    "hash": "483d7f3899e8a48a5f576c1081bada22"
+    "mtime": 1781300156.6054204,
+    "hash": "d2de36a79dd92a86feec9d66b2f14a46"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\base-conocimiento\\OBSOLESCENCIA-BD.md": {
     "mtime": 1781073901.3491726,
@@ -1284,8 +1368,8 @@
     "hash": "461777dcc1ea024506cad711a72df5b2"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\base-conocimiento\\modulos\\configuraciones.md": {
-    "mtime": 1781225601.6974587,
-    "hash": "675ff693ebf41d3704b4d110b80affc5"
+    "mtime": 1781300120.6334078,
+    "hash": "87a4f263e112c58081b5206e342e5477"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\base-conocimiento\\modulos\\correo.md": {
     "mtime": 1781027044.4310212,
@@ -1300,8 +1384,12 @@
     "hash": "e7c5591c6c4cc709073a471cd603ceb7"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\base-conocimiento\\modulos\\cxp.md": {
-    "mtime": 1781284085.0243654,
-    "hash": "290296263197f04465271ed21d41ecaf"
+    "mtime": 1781290323.2650967,
+    "hash": "6c693f131458b069fc48b872eabccd2e"
+  },
+  "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\base-conocimiento\\modulos\\directorio-contactos.md": {
+    "mtime": 1781290267.086257,
+    "hash": "e0834a4294986c0289249007f4f82ea3"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\base-conocimiento\\modulos\\fideicomiso.md": {
     "mtime": 1781244102.4402246,
@@ -1320,8 +1408,8 @@
     "hash": "cdad3ea4c22dd5ae58da4cef88d08753"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\base-conocimiento\\modulos\\soporte-ia.md": {
-    "mtime": 1781251796.81854,
-    "hash": "c107541b52040016fd2d39c4066a964e"
+    "mtime": 1781297850.9675636,
+    "hash": "357d12c7d791847d21828f093919dfb0"
   },
   "D:\\Clientes\\SPH Bines Raices\\Repositorios\\ERP-Codigo\\s-p-h-bines-raices-5723co\\version2\\supabase\\functions\\soporte-chat\\README.md": {
     "mtime": 1781251466.9205172,
