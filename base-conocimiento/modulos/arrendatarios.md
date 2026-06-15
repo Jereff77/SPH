@@ -28,7 +28,7 @@ corrida mensual con ajuste por **INPC**, meses de gracia, conceptos financiados
 
 | Ruta | Clave | Qué hace |
 |---|---|---|
-| `/arrendatarios/planes` | 20 | Selector arrendatario → propiedad → historial de planes (`arrePdp`) → **corrida** (tabla con expandible por partida y edición de campos por doble clic). Botones de acción **gateados por permiso**: **Configuración** (⚙, clave **25**), **Renovar** (clave **23**), **Cancelación anticipada** (clave **22**), **Liberar nave** (clave **24**). **Consulta INPC** (sin gating). |
+| `/arrendatarios/planes` | 20 | Selector arrendatario → propiedad → historial de planes (`arrePdp`) → **corrida** (tabla con expandible por partida y edición de campos por doble clic). Botones de acción **gateados por permiso**: **Configuración** (⚙, clave **25**), **Renovar** (clave **23**), **Cancelación anticipada** (clave **22**), **Liberar nave** (clave **24**). **Consulta INPC** (sin gating). Recuadro **Estado del Contrato** (🟢 Vigente / 🟡 Por Vencer / ⚪ No Vigente) según el **plan seleccionado**, no el contrato global (v2.27.3). |
 | `/arrendatarios/reportes` | 20 | **Reportes** del módulo (visible para quien tenga acceso al módulo). Primer reporte: **Cancelaciones Anticipadas** (tabla ordenable con filtros año/parque/búsqueda + export **CSV/PDF**). Estructurado con pestañas para sumar más reportes. |
 | `/arrendatarios` | 10 | **Dashboard de cobranza** (réplica del de v1): barra de stats (Naves / Naves pendientes / Monto pendiente MXN / Cobrado MXN), toggle **Todos/Pendientes/Pagados**, filtro de **divisa** (Ambos/MXN/USD) y periodo (Mes con "Todos" / Año). **Tabla agrupada por nave+parque+razón social** con columnas Pendiente MXN, USD (pend/cob), Cobrado MXN; **filtros por columna** (nave/parque/razón social/concepto), **orden** por clic, **tooltip de desglose por concepto** al pasar el cursor sobre los montos, filas en rojo (todo pendiente)/verde (todo pagado) y **fila de totales** al pie. Botón **💲** por arrendatario con pendientes → modal. **Sidebar de vencimientos colapsable**: Vencidos (con días) + Próximos a 1/2/3 meses (calculados por `fec_fin`). **Aplicar pago** (modal por razón social: depósitos `movbancarios_sin_aplicar` + naves pendientes con checkbox, validación Exacto/Sobrante/Insuficiente). En vivo por SSE. **Export CSV** (botón ⬇ en el encabezado): exporta lo que se ve (respeta filtros), 1 fila por nave+divisa con columnas Nave/Parque/Razón Social/Divisa/Pago(pendiente)/Cobrado + desglose Renta/Vig/Admin/Mtto/Otros Conceptos + Nota (detalle textual de "otros"). |
 
@@ -83,10 +83,16 @@ actor para auditoría). Crear un plan orquesta **3 RPCs en secuencia**:
   fin del vigente + 1 día** (no se superpone). Al registrar, se crea el plan de renovación **sin tocar
   el vigente** (RPC `v2_arrepdp_renovar`). Reglas: solo renovable a ≤3 meses/vencido, sin segunda
   renovación, sin solape.
-  - **Activación automática**: un job pg_cron diario (`v2-arrepdp-activar-renovaciones`, 02:00) ejecuta
-    `v2_arrepdp_activar_renovaciones()`: cuando el plan vigente vence, la renovación pasa a ser el plan
-    activo (apunta `arrenPropiedades` a ella, `pdpActivo=true`) **sin intervención del usuario**. Corre
-    antes del job de desvinculación (07:30), así esa nave no se libera.
+  - **Activación (v2.27.3)**: al registrar la renovación, la RPC `v2_arrepdp_renovar` ramifica:
+    - **Si hay un contrato vigente activo corriendo** → la renovación queda **programada**: el job pg_cron
+      diario (`v2-arrepdp-activar-renovaciones`, 02:00, `v2_arrepdp_activar_renovaciones()`) la activa cuando
+      el vigente vence (apunta `arrenPropiedades` a ella, `pdpActivo=true`), antes del job de desvinculación
+      (07:30), así la nave no se libera.
+    - **Si NO hay contrato vigente** (el plan anterior ya venció / la nave sin plan activo) → la RPC **la
+      vincula y activa en el acto** (mismo UPDATE que el cron), para que se muestre de inmediato.
+    - ⚠️ **Antes de v2.27.3** la RPC **solo insertaba** el plan y dependía 100% del cron; una renovación hecha
+      cuando ya no había vigente quedaba **creada pero invisible** (no era el plan activo, y el cron exige un
+      plan vencido vinculado para actuar). Ver `migraciones/2026-06-15-arrepdp-renovar-activacion-inmediata.sql`.
 
 - **Cancelación anticipada** (no existía en v1; botón 🛑, clave **22**): termina un contrato **antes**
   de su `fecFin`. Solo aparece en el **plan activo y vigente** (`pdpActivo=true`, `arrePdpVigente≠'No'`).
@@ -204,3 +210,9 @@ actor para auditoría). Crear un plan orquesta **3 RPCs en secuencia**:
   (queda disponible para rentar de nuevo). El contrato cancelado queda en el reporte **Cancelaciones Anticipadas**.
 - "¿Dónde veo los contratos cancelados?" → en **Arrendatarios → Reportes → Cancelaciones Anticipadas**
   (con arrendatario, nave, fechas, motivo y quién canceló; exportable a CSV/PDF).
+- "Renové un contrato pero no aparece / no se activó" → desde **v2.27.3** la renovación se activa al instante
+  si la nave ya **no** tenía contrato vigente; si **sí** había uno corriendo, queda **programada** y el cron
+  (02:00) la activa al vencer. Una renovación **anterior** a v2.27.3 pudo quedar colgada (vínculo
+  `arrenPropiedades` sin plan activo, `idArrePdp` NULL): se corrige re-apuntando el vínculo al plan de la
+  renovación (`pdpActivo=true`). El plan futuro **no** se ve en Planes de Renta hasta que es el activo (la
+  pantalla solo lista vencidos y el activo).

@@ -5,7 +5,7 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-12 (v2.26.0 — Registro de usuarios por invitación). Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-15 (v2.27.3 — Arrendatarios: la renovación se activa al instante cuando no hay contrato vigente + recuadro "Estado del contrato"). Autor: Claude (Opus 4.8).
 >
 > ✨ **v2.26.0 (feature):** **Registro de usuarios por invitación** (Configuraciones → **Usuarios**, clave
 > **200**). Botón **«+ Invitar usuario»** (correo + nombre + apellidos) y panel **«Invitaciones»**

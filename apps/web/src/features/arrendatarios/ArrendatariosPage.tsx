@@ -195,6 +195,12 @@ export function ArrendatariosPage() {
             </select>
           </label>
         )}
+
+        {planSel && (
+          <div className="ml-auto self-center">
+            <EstadoContratoBox vigencia={planSel.arrePdpVigente} />
+          </div>
+        )}
       </div>
 
       {/* Historial de planes */}
@@ -321,6 +327,33 @@ function PlanChip({
         Plazo {plan.plazo ?? '—'} m · {plan.Moneda ?? 'MXN'}
       </div>
     </button>
+  );
+}
+
+/**
+ * Recuadro grande del estado del contrato según el **plan seleccionado**:
+ * verde "VIGENTE" si está vigente, ámbar "POR VENCER" si está por vencer
+ * (3/2/1 meses) y gris "NO VIGENTE" si ya venció ('No').
+ */
+function EstadoContratoBox({ vigencia }: { vigencia: ArrePdpVigente | null }) {
+  const vencido = vigencia == null || vigencia === 'No';
+  const porVencer = vigencia === '3 Meses' || vigencia === '2 Meses' || vigencia === '1 Mes';
+  const estado = vencido ? 'NO VIGENTE' : porVencer ? 'POR VENCER' : 'VIGENTE';
+  const cls = vencido
+    ? 'border-gray-300 text-gray-500'
+    : porVencer
+      ? 'border-amber-400 text-amber-600'
+      : 'border-green-400 text-green-600';
+  return (
+    <div
+      className={`flex min-w-[12rem] flex-col items-center justify-center rounded-xl border-2 bg-white px-8 py-2.5 text-center ${cls}`}
+      title="Estado de vigencia del plan seleccionado"
+    >
+      <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+        Estado del contrato
+      </span>
+      <span className="text-2xl font-extrabold uppercase tracking-wide">{estado}</span>
+    </div>
   );
 }
 
