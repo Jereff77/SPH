@@ -1,7 +1,7 @@
 ---
 documento: Obsolescencia de la base de datos (registro de retiro)
 estado: vivo
-ultima_actualizacion: 2026-06-10
+ultima_actualizacion: 2026-06-15
 palabras_clave: [obsoleto, deprecado, retirar, eliminar, limpieza, RPC, vista, cdg, backup, duplicado, transicion, apagar v1, ia, v_pdpdetalle, reutilizado]
 ---
 
@@ -57,9 +57,15 @@ Residuos de desarrollo. Confirmar que ningún proceso los lee antes de eliminar.
 - **Duplicados por mayúsculas/minúsculas** (Postgres distingue con comillas; parecen accidentales):
   `v_resumenPresupuesto` vs `v_resumenpresupuesto`; `v_pagosTotalAnual` vs `v_pagostotalanual`;
   `v_rentasCombinadas` vs `v_rentascombinadas`. → Confirmar cuál usa cada sistema y unificar.
-- Funciones con par "X" y "X_corregido" (la vieja suele quedar obsoleta): `plan_dispersiones_dinamico`
-  / `_corregido`, `resumen_dispersion_dinamico` / `_corregido`, `resumen_fideicomiso_completo` /
-  `_corregido`.
+- Funciones con par "X" y "X_corregido" en Dispersión de Fideicomiso. ⚠️ **Hallazgo (v2.27.1):** aquí la
+  variante **`_corregido` del plan es la DEFECTUOSA**, no la vieja. `plan_dispersiones_dinamico_corregido`
+  itera `fidePdpDispersion` (periodos planeados) en vez de `pagos` (pagos reales) → infla el Desglose
+  Detallado. v2 volvió a la **original `plan_dispersiones_dinamico`** (la misma que usa v1). →
+  **`plan_dispersiones_dinamico_corregido` = candidata a `DROP`** una vez redesplegado v2.27.1 (nada más
+  la usa: ni v1, ni otras funciones/vistas; ver `migraciones/2026-06-15-fideicomiso-dispersion-drop-rpc.sql`).
+  Las `_corregido` de `resumen_dispersion_dinamico` y `resumen_fideicomiso_completo` daban resultado
+  **idéntico** al original; quedan huérfanas (limpieza menor). La original `plan_dispersiones_dinamico`
+  la usa v1 → **no retirar** mientras v1 viva.
 - Funciones temporales/debug: `dev_pdpdetalle`, `debug_saldos_vencidos`, `temp_validar_telefono`,
   `test_simple_trigger`.
 

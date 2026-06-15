@@ -159,7 +159,7 @@ export function DesgloseModal({
                 <thead>
                   <tr className="border-b text-xs uppercase tracking-wide text-gray-500">
                     <th className="px-3 py-2 text-left">Monto Inversión</th>
-                    <th className="px-3 py-2 text-center">Fecha Pago</th>
+                    <th className="whitespace-nowrap px-3 py-2 text-center">Fecha Pago</th>
                     <th className="px-3 py-2 text-center">Días Efectivos</th>
                     <th className="px-3 py-2 text-center">Rendimiento Anual %</th>
                     <th className="px-3 py-2 text-center">Rendimiento Anual $</th>
@@ -177,7 +177,7 @@ export function DesgloseModal({
                     detalle.map((f, i) => (
                       <tr key={i} className="text-[#3f5b87]">
                         <td className="px-3 py-2 text-left tabular-nums">{moneda(f.monto_pago)}</td>
-                        <td className="px-3 py-2 text-center text-gray-600">{f.fecha_pago}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-center text-gray-600">{f.fecha_pago}</td>
                         <td className="px-3 py-2 text-center text-gray-600">{f.dias_periodo}</td>
                         <td className="px-3 py-2 text-center text-gray-600">{(f.tasa_rendimiento ?? 0).toFixed(2)}%</td>
                         <td className="px-3 py-2 text-right tabular-nums">{moneda(rendAnual(f))}</td>

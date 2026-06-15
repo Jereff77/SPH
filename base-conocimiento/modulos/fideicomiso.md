@@ -1,8 +1,8 @@
 ---
 modulo: Fideicomiso
 estado: parcial
-version_doc: 1.1
-ultima_actualizacion: 2026-06-11
+version_doc: 1.2
+ultima_actualizacion: 2026-06-15
 rutas_v2: [/fideicomiso/dashboard, /fideicomiso/aportaciones, /fideicomiso/adhesiones, /fideicomiso/contabilidad, /fideicomiso/dispersiones, /fideicomiso/reportes]
 rutas_v1: [i06_fideicomiso]
 claves_permiso: [500, 510, 511, 520, 530, 540]
@@ -33,7 +33,7 @@ Hay **un solo fideicomiso** activo: *Fideicomiso Innovación SPH* (`idFide = jsR
 | **Configuración del propietario** (engrane ⚙️ de Aportaciones) | 510 | Réplica COMPLETA de `config_propietario_fide` de v1 (`ConfigFideModal`): selector de propiedad + 5 pestañas. **Datos Generales** (edición de `inversionista`), **Documentos** (subir PDF a bucket `Documentos` + lista + eliminar, sobre `inversionista_docs`), **Propiedades/Naves** (alta de nave-ticket: parque-ticket + nave A–E + ID 1–4 → INSERT `naves`+`propiedades`; lista tipo DatTickets con valor/pagos/avance y **eliminar** vía RPC `propiedades_eliminar_propiedad`), **Adhesiones/Condiciones** (`fideCondiciones`: adhesión, PM, medio, apartado, rendimiento 1–12, Prom9%, comentarios; INSERT/UPDATE), **Plan de Pagos** (genera PDP Único/Enganche/Parcialidad [monto=valor/N, fechas mensuales]; tabla editable de partidas [fecha/monto/tipo] con **recálculo por enganche** vía RPC `pdpdetalle_reevaluar_monto_por_enganche`; totales vs `v_totales`; **Activar** [si cuadran], **Desactivar**, **Eliminar** PDP). Reutiliza `PlanesService` (datos/docs) + `ConfigFideService`. |
 | **Adhesiones** `/fideicomiso/adhesiones` | 520 | Misma vista que Dashboard (`v_fideicomiso`), accesible también con la clave 520. |
 | **Contabilidad** `/fideicomiso/contabilidad` | 520 | Réplica fiel del grid Excel de v1: tabla pivote por año (Ene..Dic + subtotales + GRAN TOTAL), **edición inline** de cada celda/mes, **toggle de IVA** por celda (punto), **notas** por celda (tooltip), fila **Saldo estado de cuenta** (banco) con conciliación vs gran total (tolerancia 0.80, ✓ cuadrado / diferencia), **filtros por columna** (texto y signo +/0/−), **alta de movimientos** (cascada + notas + IVA + monto, con reemplazo si ya existe) y **+ Catálogo** (alta de conceptos). Cada cambio se audita y registra en `fideContaHistorial`. |
-| **Dispersion** `/fideicomiso/dispersiones` | 530 | Por fideicomiso + periodo (1ra..20ma): resumen por adherente (Nombre, Personalidad, Adhesión, Monto Inversión, Renta del Trimestre, Retención ISR, Dispersión Trimestral) ordenable + totales. **Filtros**: por nombre, personalidad (Física/Moral), adhesión, Limpiar, y "Solo con fin de promoción en este periodo" (`dias_promocion>0 && dias_normal>0`). **Clic en el nombre → Desglose Detallado** (tabla por pago: Monto Inversión, Fecha Pago, Días Efectivos, Rendimiento Anual %/$ [=monto×tasa], Renta del Trimestre, Retención ISR, Dispersión Trimestral; Resumen Total) con **export PNG** (html-to-image) y **CSV**. ⚠️ Gotcha: el RPC trae los campos invertidos — **`rfc_inversionista` = NOMBRE**, `nombre_inversionista` = RFC. |
+| **Dispersion** `/fideicomiso/dispersiones` | 530 | Por fideicomiso + periodo (1ra..20ma): resumen por adherente (Nombre, Personalidad, Adhesión, Monto Inversión, Renta del Trimestre, Retención ISR, Dispersión Trimestral) ordenable + totales. **Filtros**: por nombre, personalidad (Física/Moral), adhesión, Limpiar, y "Solo con fin de promoción en este periodo" (`dias_promocion>0 && dias_normal>0`). **Clic en el nombre → Desglose Detallado**: tabla con **una fila por cada ticket/pago de inversión del periodo seleccionado** (Monto Inversión, Fecha Pago, Días Efectivos [prorrateados según cuándo entró el capital al trimestre — p. ej. 81 días si el pago cayó dentro del trimestre], Rendimiento Anual %/$ [=monto×tasa], Renta del Trimestre, Retención ISR, Dispersión Trimestral) + Resumen Total que **suma** esas filas, con **export PNG** (html-to-image) y **CSV**. ⚠️ Gotcha: el RPC trae los campos invertidos — **`rfc_inversionista` = NOMBRE**, `nombre_inversionista` = RFC. |
 | **Reportes** `/fideicomiso/reportes` | 540 | **Kardex** de dispersiones por inversionista **+ filtro por Propiedad** (recalcula KPIs/totales/dona server-side) **+ toggle "Mostrar"**: «Solo los que ya pasaron» (fecfin≤hoy) o «Todos los meses (con cálculos)» — muestra también los cálculos de los meses futuros (las filas futuras ya traen `calculo`/`dispersion`); los totales del pie se ajustan a lo mostrado. Tarjeta resumen: dona Pagados/Pendientes + KPIs (izq) e info Personalidad/Rendimiento (der). **Export a PDF (jsPDF) y Excel (.xlsx, ExcelJS)**, ambos con **logo + diseño** (encabezado azul, tabla, totales); `kardex-export.ts`, ambas libs cargadas de forma diferida. |
 
 ## Reglas de negocio clave (replicadas de v1)
@@ -43,9 +43,15 @@ Hay **un solo fideicomiso** activo: *Fideicomiso Innovación SPH* (`idFide = jsR
   suman **solo de las filas pagadas**.
 - **Rendimiento promedio:** promedio de `rend` sobre **todas** las filas del inversionista.
 - **Fórmula de cálculo mostrada:** `((monto × rend%) / 365) × días` (interés simple proporcional).
-- **Dispersiones:** las calculan las RPC **`_corregido`** (versión vigente; las versiones sin sufijo son
-  obsoletas — ver `OBSOLESCENCIA-BD.md`): `plan_dispersiones_dinamico_corregido`,
-  `resumen_dispersion_dinamico_corregido`, `resumen_fideicomiso_completo_corregido`.
+- **Dispersiones:** las calculan las **mismas RPC que v1** (SIN sufijo, vigentes):
+  `plan_dispersiones_dinamico`, `resumen_dispersion_dinamico`, `resumen_fideicomiso_completo`.
+  ⚠️ **Corrección v2.27.1:** se dejaron de usar las variantes `_corregido`.
+  `plan_dispersiones_dinamico_corregido` está **DEFECTUOSA**: itera `fidePdpDispersion` (periodos de
+  dispersión planeados) en vez de `pagos` (pagos reales), por lo que el Desglose Detallado salía inflado
+  —repetía cada ticket una vez por periodo histórico (verificado en producción: 11 filas en vez de 1, ó
+  25 en vez de 9; montos multiplicados). Las `_corregido` de los **resúmenes** daban resultado idéntico
+  al original. `plan_dispersiones_dinamico_corregido` queda como candidata a `DROP` (ver
+  `OBSOLESCENCIA-BD.md` y `migraciones/2026-06-15-fideicomiso-dispersion-drop-rpc.sql`).
 - **Contabilidad (pivote):** lo generan las funciones Postgres `pivot_contabilidad(p_anio smallint)` y
   `pivot_contabilidad_totales(p_anio smallint)`. El año es **obligatorio** (sin el default 2026 de v1). El
   pivote devuelve además `notas` (JSONB `{mes: texto}`) por fila. El **gran total** es la fila de totales cuyo

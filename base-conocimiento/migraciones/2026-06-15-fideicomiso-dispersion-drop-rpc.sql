@@ -1,0 +1,35 @@
+-- ============================================================================
+-- Fideicomiso → Dispersión (v2.27.1): retiro de la RPC defectuosa del Desglose
+-- ============================================================================
+-- Contexto:
+--   El Desglose Detallado de Dispersión usaba `plan_dispersiones_dinamico_corregido`,
+--   que itera sobre `fidePdpDispersion` (periodos de dispersión PLANEADOS) en vez de
+--   `pagos` (pagos REALES). Resultado: repetía cada ticket/pago una vez por cada
+--   periodo histórico, inflando filas y montos (verificado en producción:
+--   adhesión '1' periodo '10ma' -> 11 filas/$49.5M en vez de 1 fila/$4.5M;
+--   adhesión 'B' -> 25 filas en vez de 9).
+--
+--   El backend v2 volvió a la RPC ORIGINAL `plan_dispersiones_dinamico` (la misma
+--   que usa v1), que devuelve el desglose correcto (una fila por pago real del
+--   periodo seleccionado).
+--
+-- Verificaciones (solo lectura) previas a este DROP:
+--   * Ninguna otra función ni vista de la BD referencia
+--     `plan_dispersiones_dinamico_corregido` (pg_proc.prosrc / pg_views.definition = vacío).
+--   * v1 (FlutterFlow) NO usa ninguna variante `_corregido` (grep en lib/ = 0).
+--   * Solo la usaba el backend v2 (modules/fideicomiso/dispersiones.service.ts), ya corregido.
+--
+-- ⚠️ ORDEN OBLIGATORIO (regla 1 — BD de producción):
+--   1) Desplegar primero el backend v2.27.1 (que ya llama a la RPC original).
+--   2) DESPUÉS aplicar este DROP. Si se aplica antes del redeploy, el Desglose en
+--      producción pasaría de "datos inflados" a "error 500" (RPC inexistente).
+--
+-- Reversible: la definición completa de la función quedó respaldada en la bitácora
+-- de la sesión (.sessions/bitacora.md, 2026-06-15) por si hubiera que recrearla.
+--
+-- NOTA: NO se eliminan `resumen_dispersion_dinamico_corregido` ni
+--   `resumen_fideicomiso_completo_corregido` (daban resultado idéntico al original;
+--   quedan huérfanas pero inofensivas). Solo se retira la del plan, que sí estaba mal.
+-- ============================================================================
+
+DROP FUNCTION IF EXISTS public.plan_dispersiones_dinamico_corregido(text, text, text);

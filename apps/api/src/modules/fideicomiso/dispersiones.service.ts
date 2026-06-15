@@ -10,8 +10,15 @@ export interface DispersionOpciones {
 /**
  * Fideicomiso → Dispersiones (clave 530). Sustituye el WebView inseguro de v1
  * (que instanciaba supabase-js con la anon key en el navegador): aquí el cálculo
- * lo hacen las RPCs **`_corregido`** (versión vigente según OBSOLESCENCIA-BD) y el
- * backend las invoca con parámetros enlazados. El front solo consume el JSON.
+ * lo hacen las **mismas RPCs de negocio que usa v1** (SIN el sufijo `_corregido`) y
+ * el backend las invoca con parámetros enlazados. El front solo consume el JSON.
+ *
+ * ⚠️ Histórico: estas llamadas usaban las variantes `_corregido`, pero
+ * `plan_dispersiones_dinamico_corregido` itera sobre `fidePdpDispersion` (periodos
+ * de dispersión planeados) en vez de `pagos` (pagos reales), por lo que el Desglose
+ * Detallado salía inflado: repetía cada ticket una vez por periodo histórico. Se
+ * volvió a las originales para igualar a v1 (verificado contra producción: las
+ * variantes de resumen daban resultado idéntico; solo la del plan estaba mal).
  */
 @Injectable()
 export class DispersionesService {
@@ -67,7 +74,7 @@ export class DispersionesService {
   /** Resumen completo del fideicomiso para un periodo (todas las adhesiones). */
   async resumenCompleto(idFide: string, noDispersion: string) {
     const { data, error } = await this.supabase.admin.rpc(
-      'resumen_fideicomiso_completo_corregido',
+      'resumen_fideicomiso_completo',
       { p_id_fideicomiso: idFide, p_no_dispersion: noDispersion },
     );
     if (error) throw new InternalServerErrorException(error.message);
@@ -77,7 +84,7 @@ export class DispersionesService {
   /** Plan de dispersiones (detalle por pago) de una adhesión. */
   async planAdhesion(idFide: string, noAdhesion: string, noDispersion?: string) {
     const { data, error } = await this.supabase.admin.rpc(
-      'plan_dispersiones_dinamico_corregido',
+      'plan_dispersiones_dinamico',
       {
         p_id_fideicomiso: idFide,
         p_no_adhesion: noAdhesion,
@@ -95,7 +102,7 @@ export class DispersionesService {
     noDispersion: string,
   ) {
     const { data, error } = await this.supabase.admin.rpc(
-      'resumen_dispersion_dinamico_corregido',
+      'resumen_dispersion_dinamico',
       {
         p_id_fideicomiso: idFide,
         p_no_adhesion: noAdhesion,
