@@ -18,8 +18,12 @@ import { AuthService } from './auth.service.js';
 import {
   loginSchema,
   cambiarContrasenaSchema,
+  recuperarSchema,
+  restablecerSchema,
   type LoginDto,
   type CambiarContrasenaDto,
+  type RecuperarDto,
+  type RestablecerDto,
 } from './auth.schemas.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard.js';
@@ -124,6 +128,36 @@ export class AuthController {
       dto.actual,
       dto.nueva,
     );
+    return { ok: true };
+  }
+
+  /**
+   * POST /api/auth/recuperar  (PÚBLICO)
+   * Inicia el flujo "olvidé mi contraseña": dispara el correo de recuperación de
+   * Supabase. La respuesta es SIEMPRE genérica (no revela si la cuenta existe).
+   */
+  @Post('recuperar')
+  @HttpCode(200)
+  // Anti-abuso del envío de correos: 5 solicitudes por minuto por IP.
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @UsePipes(new ZodValidationPipe(recuperarSchema))
+  async recuperar(@Body() dto: RecuperarDto): Promise<{ ok: true }> {
+    await this.auth.solicitarRecuperacion(dto.usuario);
+    // Mensaje genérico (anti-enumeración): el frontend siempre muestra lo mismo.
+    return { ok: true };
+  }
+
+  /**
+   * POST /api/auth/restablecer  (PÚBLICO)
+   * Fija la nueva contraseña usando el token de recovery del enlace del correo
+   * (el frontend lo extrae del fragmento de la URL y lo reenvía aquí).
+   */
+  @Post('restablecer')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @UsePipes(new ZodValidationPipe(restablecerSchema))
+  async restablecer(@Body() dto: RestablecerDto): Promise<{ ok: true }> {
+    await this.auth.restablecerConToken(dto.accessToken, dto.nueva);
     return { ok: true };
   }
 

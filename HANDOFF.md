@@ -504,14 +504,14 @@ version2/
 │           │   ├── useMediaQuery.ts     # hook responsive
 │           │   └── queryClient.ts       # TanStack Query
 │           ├── routes/
-│           │   ├── router.tsx           # /login, /recuperar públicos; resto bajo ProtectedRoute>AppShell
+│           │   ├── router.tsx           # /login, /recuperar, /restablecer, /registro públicos; resto bajo ProtectedRoute>AppShell
 │           │   └── Home.tsx             # landing: 2 tarjetas + logo claro centrado
 │           ├── components/
 │           │   ├── Logo.tsx             # logo dinámico (fondo claro/oscuro, dimensiones, mini)
 │           │   ├── Toggle.tsx · icons.tsx · BrandingEffects.tsx (favicon)
 │           │   └── layout/              # AppShell (header+sidebar colapsable/drawer), Sidebar, menu
 │           └── features/
-│               ├── auth/               # AuthContext, useAuth, LoginPage, RecuperarPage, ProtectedRoute, format
+│               ├── auth/               # AuthContext, useAuth, LoginPage, RecuperarPage, RestablecerPage, ProtectedRoute, format
 │               ├── configuraciones/    # SistemaPage, LogoUploader, FaviconUploader, ListaAutorizados, api
 │               └── usuarios/           # UsuariosPage, usuarios.api, types
 │
@@ -565,6 +565,15 @@ Está en `apps/api/src/common/`. **Todo módulo nuevo debe apoyarse en esto.**
   - `POST /api/auth/refresh` → renueva desde la cookie.
   - `POST /api/auth/logout` → revoca y limpia la cookie.
   - `GET /api/auth/me` (protegido por `JwtAuthGuard`) → `{ usuario, permisos }`.
+  - `POST /api/auth/cambiar-contrasena` (protegido) → cambia la propia contraseña (verifica la actual).
+  - **Recuperación de contraseña (PÚBLICOS, rate-limited; v2.27.2):**
+    - `POST /api/auth/recuperar` `{usuario}` → resuelve el correo y dispara el **correo de recuperación de
+      Supabase** (`resetPasswordForEmail`, server-side, `redirectTo = APP_WEB_URL/restablecer`). Réplica del
+      flujo de v1 pero sin que el front toque Supabase. No envía a inactivos. Respuesta genérica.
+    - `POST /api/auth/restablecer` `{accessToken, nueva}` → verifica el JWT de recuperación (mismo
+      secreto/issuer/audiencia que `JwtAuthGuard`) y fija la contraseña con `admin.updateUserById`.
+    - ⚠️ Requiere registrar `APP_WEB_URL/restablecer` (+ `http://localhost:5173/restablecer`) en
+      **Supabase → Authentication → URL Configuration → Redirect URLs**, o el enlace del correo cae al Site URL.
 - `auth.service.ts` — **resuelve el correo** desde `usuario`: si es corto, busca `usuario@<dominio
   autorizado>` y los correos específicos cuya parte local coincida, en `catUsers`; si es correo completo,
   valida que su dominio esté autorizado o que esté en la lista de correos. Ambigüedad (>1 coincidencia) →
@@ -576,7 +585,9 @@ Está en `apps/api/src/common/`. **Todo módulo nuevo debe apoyarse en esto.**
 ### Frontend — `apps/web/src/features/auth/`
 - `AuthContext.tsx` — al montar intenta restaurar sesión vía `/auth/refresh` (cookie). Expone
   `login`, `logout`, `usuario`, `permisos`, `tienePermiso(clave)`.
-- `useAuth.ts` · `LoginPage.tsx` · `ProtectedRoute.tsx` · `auth.api.ts` · `types.ts`.
+- `useAuth.ts` · `LoginPage.tsx` · `RecuperarPage.tsx` (solicitar enlace) · `RestablecerPage.tsx` (lee el
+  token de recuperación del fragmento de la URL y lo reenvía al backend) · `ProtectedRoute.tsx` ·
+  `auth.api.ts` · `types.ts`.
 
 ### Correcciones de seguridad aplicadas vs. v1
 | Hallazgo v1 | Corrección v2 |

@@ -6,8 +6,11 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { jwtVerify } from 'jose';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { ConfiguracionService } from '../configuracion/configuracion.service.js';
+import type { Env } from '../../common/config/env.validation.js';
 import type { LoginDto } from './auth.schemas.js';
 import type {
   LoginResult,
@@ -28,6 +31,7 @@ export class AuthService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly configuracion: ConfiguracionService,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   /**
@@ -265,6 +269,110 @@ export class AuthService {
         `No se pudo cambiar la contraseña: ${error.message}`,
       );
     }
+  }
+
+  /**
+   * Solicita la recuperación de contraseña (flujo público "olvidé mi contraseña").
+   * Replica el mecanismo de v1 (resetPasswordForEmail de Supabase) pero ejecutado
+   * server-side: el frontend nunca habla con Supabase. Resuelve el correo a partir
+   * del usuario/correo y, si existe un usuario activo, dispara el correo de
+   * recuperación de Supabase con un enlace de retorno a `${APP_WEB_URL}/restablecer`.
+   *
+   * SIEMPRE retorna sin error (aunque el usuario no exista, sea ambiguo o esté
+   * inactivo): no se revela si la cuenta existe (evita enumeración de usuarios).
+   */
+  async solicitarRecuperacion(usuarioEntrada: string): Promise<void> {
+    let email: string;
+    try {
+      const resuelto = await this.resolverEmail(usuarioEntrada);
+      if (resuelto.tipo !== 'ok') return; // ambiguo / no encontrado -> silencioso
+      email = resuelto.email;
+    } catch (err) {
+      this.logger.warn(
+        `recuperar: error resolviendo "${usuarioEntrada}": ${(err as Error).message}`,
+      );
+      return;
+    }
+
+    // No enviar el correo a usuarios inactivos (mismo bloqueo que el login).
+    const { data: perfil } = await this.supabase.admin
+      .from('catUsers')
+      .select('status')
+      .ilike('email', email)
+      .maybeSingle();
+    if (perfil && perfil.status === false) return;
+
+    // Dispara el correo de recuperación de Supabase (misma plantilla y proyecto que
+    // usaba v1). El enlace regresa a la SPA en /restablecer con el token de recovery
+    // en el fragmento de la URL.
+    const { error } = await this.supabase.auth.auth.resetPasswordForEmail(email, {
+      redirectTo: this.urlRestablecer(),
+    });
+    if (error) {
+      // No se propaga el detalle al cliente (respuesta genérica); solo se registra.
+      this.logger.error(
+        `recuperar: resetPasswordForEmail falló para ${email}: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Restablece la contraseña a partir del token de recovery que Supabase entregó en
+   * el enlace del correo. El backend verifica ese JWT (mismo secreto/issuer que el
+   * resto de la app); si es válido, fija la nueva contraseña con service_role. La
+   * posesión del token (que solo llega al correo del usuario) es la prueba de
+   * identidad, igual que en el flujo nativo de Supabase de v1.
+   */
+  async restablecerConToken(accessToken: string, nueva: string): Promise<void> {
+    const uid = await this.uidDeTokenRecovery(accessToken);
+
+    const { error } = await this.supabase.admin.auth.admin.updateUserById(uid, {
+      password: nueva,
+    });
+    if (error) {
+      throw new InternalServerErrorException(
+        `No se pudo restablecer la contraseña: ${error.message}`,
+      );
+    }
+  }
+
+  /** Verifica el token de recovery de Supabase y devuelve el uid (claim `sub`). */
+  private async uidDeTokenRecovery(accessToken: string): Promise<string> {
+    const secret = new TextEncoder().encode(
+      this.config.get('SUPABASE_JWT_SECRET', { infer: true }),
+    );
+    const issuer = `${this.config
+      .get('SUPABASE_URL', { infer: true })
+      .replace(/\/+$/, '')}/auth/v1`;
+    try {
+      const { payload } = await jwtVerify(accessToken, secret, {
+        algorithms: ['HS256'],
+        issuer,
+        audience: 'authenticated',
+      });
+      const uid = String(payload.sub ?? '');
+      if (!uid) {
+        throw new BadRequestException('El enlace de recuperación no es válido.');
+      }
+      return uid;
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      this.logger.warn(
+        `restablecer: token inválido/expirado: ${(err as Error).message}`,
+      );
+      throw new BadRequestException(
+        'El enlace de recuperación no es válido o ha expirado. Solicita uno nuevo.',
+      );
+    }
+  }
+
+  /** URL de retorno de la SPA para el correo de recuperación. */
+  private urlRestablecer(): string {
+    const base =
+      this.config.get('APP_WEB_URL', { infer: true }) ??
+      this.config.get('CORS_ORIGIN', { infer: true }) ??
+      'http://localhost:5173';
+    return `${base.replace(/\/$/, '')}/restablecer`;
   }
 
   /**

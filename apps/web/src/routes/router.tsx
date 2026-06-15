@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { RecuperarPage } from '@/features/auth/RecuperarPage';
+import { RestablecerPage } from '@/features/auth/RestablecerPage';
 import { RegistroPage } from '@/features/registro/RegistroPage';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
 import { AppShell } from '@/components/layout/AppShell';
@@ -65,7 +66,8 @@ import { AportacionesPage } from '@/features/fideicomiso/AportacionesPage';
 import { Home } from './Home';
 
 /**
- * Rutas públicas: /login y /recuperar.
+ * Rutas públicas: /login, /recuperar (solicitar enlace), /restablecer (fijar la
+ * nueva contraseña con el token del correo) y /registro (alta por invitación).
  * Rutas protegidas: cuelgan de ProtectedRoute (exige sesión) y se renderizan
  * dentro del AppShell (landing con header + sidebar). Los módulos del ERP se
  * añadirán aquí como hijos, idealmente con lazy loading.
@@ -73,6 +75,7 @@ import { Home } from './Home';
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   { path: '/recuperar', element: <RecuperarPage /> },
+  { path: '/restablecer', element: <RestablecerPage /> },
   { path: '/registro', element: <RegistroPage /> },
   {
     element: <ProtectedRoute />,

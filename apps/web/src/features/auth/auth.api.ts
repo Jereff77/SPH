@@ -23,4 +23,18 @@ export const authApi = {
 
   cambiarContrasena: (actual: string, nueva: string) =>
     api.post<{ ok: true }>('/auth/cambiar-contrasena', { actual, nueva }),
+
+  /**
+   * Inicia la recuperación de contraseña. El backend dispara el correo de Supabase;
+   * la respuesta es genérica (no revela si la cuenta existe).
+   */
+  recuperar: (usuario: string) =>
+    api.post<{ ok: true }>('/auth/recuperar', { usuario }),
+
+  /**
+   * Fija la nueva contraseña con el token de recovery (extraído del enlace del
+   * correo). El frontend nunca habla con Supabase: solo reenvía el token al backend.
+   */
+  restablecer: (accessToken: string, nueva: string) =>
+    api.post<{ ok: true }>('/auth/restablecer', { accessToken, nueva }),
 };

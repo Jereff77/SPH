@@ -24,7 +24,7 @@ futuro, en una tabla vectorial `pgvector` para búsqueda semántica).
 
 | Módulo | Estado | Documento | Rutas | Permisos | Palabras clave |
 |---|---|---|---|---|---|
-| Autenticación | ✅ desarrollado | `modulos/autenticacion.md` | /login, /recuperar | — | login, contraseña, usuario, sesión, dominio, correo |
+| Autenticación | ✅ desarrollado | `modulos/autenticacion.md` | /login, /recuperar, /restablecer | — | login, contraseña, usuario, sesión, dominio, correo, recuperar, olvidé mi contraseña, restablecer, enlace de recuperación |
 | Configuraciones | ✅ desarrollado | `modulos/configuraciones.md` | /configuraciones/* · /registro | 200, 203, 210, 220, 221 | usuarios, invitación, invitar usuario, registro, alta de usuario, parámetros, permisos, plantillas, INPC, cuentas, fechas CxP, logos, dominios |
 | Parques | ✅ desarrollado | `modulos/parques.md` | /parques, /parques/disponibilidad | 700, 701, 702, 710 | parque, nave, bodega, KVA, disponibilidad, manzana, lote, GYM |
 | Landing / Indicadores | ✅ desarrollado | `modulos/landing-indicadores.md` | / | — | inicio, tipo de cambio, dólar, INPC, indicadores, Banxico |
@@ -76,7 +76,7 @@ Para cuando el usuario o un error menciona una tabla concreta.
 
 | Ruta | Módulo |
 |---|---|
-| `/login`, `/recuperar` | Autenticación |
+| `/login`, `/recuperar`, `/restablecer` | Autenticación |
 | `/` | Landing / Indicadores |
 | `/clientes` | Clientes |
 | `/ventas`, `/ventas/dashboard`, `/ventas/reportes`, `/ventas/planes`, `/ventas/escrituras` | Inversionistas/Propietarios (Ventas) |
