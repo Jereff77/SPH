@@ -61,6 +61,17 @@ Hay **un solo fideicomiso** activo: *Fideicomiso Innovación SPH* (`idFide = jsR
   movimiento con reemplazo de duplicado (`POST movimientos`, responde 409 con los datos del existente para
   confirmar), alta de concepto (`POST conceptos`), y saldo del banco (`PUT`/`DELETE saldos`). Cada cambio en
   `fideContabilidad` registra una fila en `fideContaHistorial` (antes/después + snapshot), igual que v1.
+- **⚠️ Gotcha — el pivote agrupa por `aplicaIVA` (síntoma: "renglón duplicado"):** `pivot_contabilidad`
+  agrupa por `tipo, concepto, subconcepto, descripcion, aplicaIVA`. Por eso un mismo concepto cuyo mes tenga
+  un `aplicaIVA` **distinto** al de los demás meses aparece **partido en dos renglones** (uno por valor de
+  IVA), aunque en la BD haya un solo registro por mes (no es un duplicado real). El IVA **no es cosmético**:
+  alimenta `BASE IVA`/`IVA (16%)` en `pivot_contabilidad_totales`. **Fix v2.30.2:** al **crear** una celda
+  nueva (edición inline **o** modal «Nuevo») el `aplicaIVA` se **hereda** del concepto en vez de nacer en
+  `false` — backend `ivaDelConcepto()` (mes hermano del mismo concepto/año → catálogo `fideContaConceptos` →
+  `false`), `celdaSchema.aplicaIVA` opcional, el front manda `f.aplicaIVA` y el modal prerellena el IVA desde
+  el catálogo. Antes, el insert inline (`guardarCelda`) **hardcodeaba `aplicaIVA:false`**, lo que partía la
+  fila y dejaba el monto fuera de la base de IVA. Para **fusionar** un renglón ya partido (dato existente):
+  encender el punto de IVA de esa celda (toggle `PATCH celda-iva`) hasta igualar el resto del concepto.
 - **Nota:** el `signo-hint` (Ingreso/Egreso) de v1 referenciaba `fideContaConceptos.es_ingreso`, columna que
   **no existe** en la BD; se omite (no se inventa ese dato).
 

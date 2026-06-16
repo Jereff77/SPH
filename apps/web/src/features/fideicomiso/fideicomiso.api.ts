@@ -312,7 +312,7 @@ export const fideicomisoApi = {
       '/fideicomiso/contabilidad/movimientos',
       dto,
     ),
-  editarCelda: (dto: ClaveCelda & { monto: number }) =>
+  editarCelda: (dto: ClaveCelda & { monto: number; aplicaIVA?: boolean }) =>
     api.patch<{ ok: true }>('/fideicomiso/contabilidad/celda', dto),
   toggleIvaCelda: (dto: ClaveCelda & { aplicaIVA: boolean }) =>
     api.patch<{ ok: true; aplicaIVA: boolean }>(

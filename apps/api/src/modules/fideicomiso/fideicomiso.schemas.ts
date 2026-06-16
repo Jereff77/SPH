@@ -47,10 +47,15 @@ export const movimientoContaSchema = z.object({
 });
 export type MovimientoContaDto = z.infer<typeof movimientoContaSchema>;
 
-/** Edición inline de una celda (mes) de la tabla pivote. */
+/**
+ * Edición inline de una celda (mes) de la tabla pivote. `aplicaIVA` es opcional:
+ * el front envía el IVA de la fila para que, al crear una celda nueva en un mes
+ * sin registro, herede el mismo IVA del concepto y la fila del pivote no se parta.
+ */
 export const celdaSchema = z.object({
   ...claveCelda,
   monto: z.coerce.number().finite('Monto inválido.'),
+  aplicaIVA: z.coerce.boolean().optional(),
 });
 export type CeldaDto = z.infer<typeof celdaSchema>;
 

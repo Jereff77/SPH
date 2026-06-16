@@ -154,6 +154,8 @@ export function ContabilidadPage() {
         subconcepto: v.f.subconcepto || '-',
         descripcion: v.f.descripcion || '-',
         monto: v.monto,
+        // Hereda el IVA de la fila para no partir el concepto al crear un mes nuevo.
+        aplicaIVA: v.f.aplicaIVA === true,
       }),
     onSuccess: () => { notify('✓ Guardado'); recargar(); },
     onError: (e) => notify('Error: ' + (e instanceof ApiRequestError ? e.message : '')),
@@ -572,6 +574,9 @@ function distintos(values: (string | null | undefined)[]): string[] {
   return [...new Set(values.filter((v): v is string => !!v && v !== '-'))].sort((a, b) => a.localeCompare(b, 'es'));
 }
 
+/** Normaliza subconcepto/descripción: vacío/espacios → '-' (centinela de hueco). */
+const norm = (v: string | null | undefined) => { const t = (v || '').trim(); return t === '' ? '-' : t; };
+
 function ModalNuevo({
   anio, onClose, onHecho, notify,
 }: {
@@ -600,6 +605,17 @@ function ModalNuevo({
     () => distintos(conceptos.filter((c) => c.tipo === tipo && c.concepto === concepto && (c.subconcepto || '-') === (sub || '-')).map((c) => c.descripcion)),
     [conceptos, tipo, concepto, sub],
   );
+
+  /* Prerellenar "Aplica IVA" desde el catálogo del concepto elegido, para que el
+     movimiento nuevo nazca con el mismo IVA que el resto del concepto (si capturan
+     IVA distinto al de los otros meses, el pivote partiría la fila en dos). */
+  useEffect(() => {
+    if (!tipo || !concepto) return;
+    const match =
+      conceptos.find((c) => c.tipo === tipo && c.concepto === concepto && norm(c.subconcepto) === norm(sub) && norm(c.descripcion) === norm(desc)) ??
+      conceptos.find((c) => c.tipo === tipo && c.concepto === concepto);
+    if (match) setIva(match.aplicaIVA === true);
+  }, [conceptos, tipo, concepto, sub, desc]);
 
   const m = useMutation({
     mutationFn: (reemplazar: boolean) =>

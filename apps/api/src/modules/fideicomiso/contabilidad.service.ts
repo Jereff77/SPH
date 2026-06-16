@@ -134,6 +134,10 @@ export class ContabilidadService {
         uid: actorUid,
       });
     } else {
+      // Al crear una celda nueva, hereda el IVA del concepto (no hardcodear
+      // `false`): si no coincide con el IVA de los demás meses del mismo
+      // concepto, el pivote partiría la fila en dos (bug de "renglón duplicado").
+      const aplicaIVA = dto.aplicaIVA ?? (await this.ivaDelConcepto(dto));
       const id = await this.insertarRegistro(db, {
         anio: dto.anio,
         mes: dto.mes,
@@ -142,7 +146,7 @@ export class ContabilidadService {
         subconcepto: dto.subconcepto,
         descripcion: dto.descripcion,
         monto: dto.monto,
-        aplicaIVA: false,
+        aplicaIVA,
         notas: null,
         uid: actorUid,
       });
@@ -349,6 +353,44 @@ export class ContabilidadService {
     return r
       ? { id: r.id, monto: r.monto, notas: r.notas, aplicaIVA: r.aplicaIVA, fc: r.fc }
       : null;
+  }
+
+  /**
+   * IVA que corresponde a un concepto al crear una celda nueva. Para que la fila
+   * del pivote quede unificada (no se parta por IVA), hereda el flag de cualquier
+   * mes ya capturado del mismo concepto/año; si no hay ninguno, cae al valor del
+   * catálogo `fideContaConceptos` (match por tipo+concepto). Default: `false`.
+   */
+  private async ivaDelConcepto(clave: {
+    anio: number;
+    tipo: string;
+    concepto: string;
+    subconcepto: string;
+    descripcion: string;
+  }): Promise<boolean> {
+    // 1) Hermano del mismo concepto/año (misma clave, cualquier mes).
+    const { data: hermano } = await this.supabase.admin
+      .from('fideContabilidad')
+      .select('aplicaIVA')
+      .eq('tipo', clave.tipo)
+      .eq('concepto', clave.concepto)
+      .eq('subconcepto', clave.subconcepto)
+      .eq('descripcion', clave.descripcion)
+      .eq('anio', clave.anio)
+      .eq('status', true)
+      .limit(1);
+    if (hermano && hermano.length > 0) return hermano[0]!.aplicaIVA === true;
+
+    // 2) Catálogo de conceptos (match laxo por tipo+concepto).
+    const { data: cat } = await this.supabase.admin
+      .from('fideContaConceptos')
+      .select('aplicaIVA')
+      .eq('tipo', clave.tipo)
+      .eq('concepto', clave.concepto)
+      .limit(1);
+    if (cat && cat.length > 0) return cat[0]!.aplicaIVA === true;
+
+    return false;
   }
 
   private async insertarRegistro(
