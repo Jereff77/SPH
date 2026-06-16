@@ -74,6 +74,16 @@ Hay **un solo fideicomiso** activo: *Fideicomiso Innovación SPH* (`idFide = jsR
   encender el punto de IVA de esa celda (toggle `PATCH celda-iva`) hasta igualar el resto del concepto.
 - **Nota:** el `signo-hint` (Ingreso/Egreso) de v1 referenciaba `fideContaConceptos.es_ingreso`, columna que
   **no existe** en la BD; se omite (no se inventa ese dato).
+- **Contabilidad (exportar a Excel, v2.31.0):** botón «📊 Excel» → modal `ModalExportar` con selección de
+  **uno o varios años** (el año visible viene marcado). La exportación es **client-side** con `ExcelJS`
+  (carga diferida, chunk lazy) en `contabilidad-export.ts` (`exportarContabilidadExcel`), reutilizando el
+  patrón de `kardex-export.ts` (logo vía `configuracionApi.getLogos()`, descarga por Blob). Genera **una hoja
+  por año**, fiel a la pantalla: encabezado azul congelado (`#1f2a4d`) + 4 columnas fijas, columnas
+  `# / Tipo / Concepto / Descripción / Ene..Dic / SubTotal`, negativos en rojo (`numFmt` con sección
+  `[Red]`), marca de IVA (● naranja en la Descripción de los conceptos con `aplicaIVA`), filas de totales
+  (`BASE IVA`/`IVA 16%`/`SIN IVA`/`GRAN TOTAL` en azul) y la fila `Saldo estado de cuenta`. Cada año se pide
+  por separado al backend (`contabilidadPivote`/`contabilidadTotales`/`contabilidadSaldos` en paralelo); se
+  exporta el **reporte completo** del año (no aplica los filtros de columna de la pantalla).
 
 ## Arquitectura v2 (seguridad)
 - **El frontend NUNCA toca Supabase.** Se eliminaron los 3 patrones inseguros de v1: el WebView con HTML

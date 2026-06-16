@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fideicomisoApi, MESES, type PivoteFila } from './fideicomiso.api';
+import { configuracionApi } from '@/features/configuraciones/configuracion.api';
 import { ApiRequestError } from '@/lib/api';
 
 /** Índice 0-based de un mes corto ('Ene'..'Dic') tolerando `string`. */
@@ -84,6 +85,11 @@ export function ContabilidadPage() {
   const saldosQ = useQuery({
     queryKey: ['fide-conta-saldos', anio],
     queryFn: () => fideicomisoApi.contabilidadSaldos(anio),
+  });
+  const { data: logos } = useQuery({
+    queryKey: ['logos'],
+    queryFn: () => configuracionApi.getLogos(),
+    staleTime: 30 * 60 * 1000,
   });
 
   const detalle = useMemo(() => detalleQ.data ?? [], [detalleQ.data]);
@@ -204,6 +210,7 @@ export function ContabilidadPage() {
   /* ── modales ── */
   const [modalNuevo, setModalNuevo] = useState(false);
   const [modalCat, setModalCat] = useState(false);
+  const [modalExport, setModalExport] = useState(false);
 
   return (
     <div className="fide-conta space-y-3">
@@ -219,6 +226,7 @@ export function ContabilidadPage() {
           >
             {anios.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
+          <button className="btn-nuevo btn-nuevo-cat" onClick={() => setModalExport(true)}>📊 Excel</button>
           <button className="btn-nuevo btn-nuevo-cat" onClick={() => setModalCat(true)}>+ Catálogo</button>
           <button className="btn-nuevo" onClick={() => setModalNuevo(true)}>Nuevo</button>
         </div>
@@ -371,6 +379,15 @@ export function ContabilidadPage() {
         <ModalNuevo anio={anio} onClose={() => setModalNuevo(false)} onHecho={() => { recargar(); }} notify={notify} />
       )}
       {modalCat && <ModalCatalogo onClose={() => setModalCat(false)} notify={notify} />}
+      {modalExport && (
+        <ModalExportar
+          anios={anios}
+          anioActual={anio}
+          logoUrl={logos?.claro?.url ?? null}
+          notify={notify}
+          onClose={() => setModalExport(false)}
+        />
+      )}
     </div>
   );
 }
@@ -823,6 +840,82 @@ function ModalCatalogo({ onClose, notify }: { onClose: () => void; notify: (m: s
   );
 }
 
+/* ────────────────────────── Modal: Exportar a Excel ────────────────────────── */
+
+function ModalExportar({
+  anios, anioActual, logoUrl, notify, onClose,
+}: {
+  anios: number[]; anioActual: number; logoUrl: string | null;
+  notify: (m: string) => void; onClose: () => void;
+}) {
+  const [sel, setSel] = useState<Set<number>>(new Set([anioActual]));
+  const [cargando, setCargando] = useState(false);
+
+  const toggle = (a: number) =>
+    setSel((s) => { const n = new Set(s); if (n.has(a)) n.delete(a); else n.add(a); return n; });
+
+  async function exportar() {
+    const seleccion = [...sel].sort((a, b) => a - b);
+    if (seleccion.length === 0) { notify('Selecciona al menos un año'); return; }
+    setCargando(true);
+    try {
+      const datos = await Promise.all(
+        seleccion.map(async (a) => ({
+          anio: a,
+          pivote: await fideicomisoApi.contabilidadPivote(a),
+          totales: await fideicomisoApi.contabilidadTotales(a),
+          saldos: await fideicomisoApi.contabilidadSaldos(a),
+        })),
+      );
+      const mod = await import('./contabilidad-export');
+      await mod.exportarContabilidadExcel({
+        archivo: `Contabilidad_Fideicomiso_${seleccion.join('-')}`,
+        titulo: 'Contabilidad — Fideicomiso',
+        generado: new Date().toLocaleString('es-MX'),
+        logoUrl,
+        anios: datos,
+      });
+      notify('Excel generado ✓');
+      onClose();
+    } catch (e) {
+      notify('Error al exportar: ' + (e instanceof ApiRequestError ? e.message : String(e)));
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  return (
+    <div className="modal-bg open" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal" style={{ width: 320 }}>
+        <div className="modal-head">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="modal-head-title">Exportar a Excel</span>
+            <span className="modal-badge" style={{ background: '#1a6b4a' }}>.xlsx</span>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
+            Selecciona los años a exportar (una hoja por año, con el mismo formato de pantalla):
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {anios.map((a) => (
+              <label key={a} className="exp-anio">
+                <input type="checkbox" checked={sel.has(a)} onChange={() => toggle(a)} /> {a}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn-agregar" disabled={cargando} onClick={() => { void exportar(); }}>
+            {cargando ? 'Generando…' : `Exportar${sel.size > 0 ? ` (${sel.size})` : ''}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Campo({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="m-field">
@@ -926,4 +1019,6 @@ const CSS = `
 .btn-agregar:hover{opacity:.87;}
 .btn-agregar:disabled{opacity:.4;cursor:not-allowed;}
 .toast{position:fixed;bottom:20px;right:20px;z-index:200;background:#1f2a4d;color:#fff;font-size:12px;padding:10px 18px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);}
+.exp-anio{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;padding:5px 8px;border:1px solid #b8b9be;border-radius:6px;background:#fff;color:#1a1a2e;}
+.exp-anio:hover{background:#e0e1e5;}
 `;
