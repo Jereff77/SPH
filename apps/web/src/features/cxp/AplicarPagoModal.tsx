@@ -15,8 +15,9 @@ type Metodo = 'menu' | 'banco' | 'comprobante' | 'captura';
 /**
  * Aplica un pago a una solicitud Aprobada con TRES caminos:
  *  - "banco": asignar un movimiento de `movbancarios` existente.
- *  - "comprobante": subir el PDF del comprobante; el webhook N8N extrae los
- *    datos y se registra el pago (creando el movimiento).
+ *  - "comprobante": subir el PDF del comprobante; el backend lo lee (parser
+ *    determinista local y, si no reconoce el formato, fallback de IA) y se
+ *    registra el pago (creando el movimiento).
  *  - "captura": elegir banco (Banbajío/Actinver), capturar el monto y subir una
  *    captura/comprobante (PDF/JPG/PNG); sin lectura automática.
  */
@@ -179,7 +180,7 @@ function OpcionBanco({
   );
 }
 
-// ----------------------- Opción B: comprobante PDF (N8N) ---------------------
+// ------------------ Opción B: comprobante PDF (lectura backend) --------------
 
 function OpcionComprobante({
   solicitud,

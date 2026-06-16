@@ -11,6 +11,7 @@ import { PDFParse } from 'pdf-parse';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { ClavesSatService } from './claves-sat.service.js';
 import { BloqueoService } from './bloqueo.service.js';
+import { firmarDocumentos } from './documentos.util.js';
 import {
   parsearCfdi,
   validarDeducciones,
@@ -101,11 +102,20 @@ export class SolicitudesService {
 
     // Enriquecer: Categoría/Clasificación (PresCategorias), Justificación (primer
     // comentario) y "Asignado a" (responsable).
-    const [cuentas, justif, nombres] = await Promise.all([
+    const [cuentas, justif, nombres, firmadas] = await Promise.all([
       this.resolverCuentas(filas.map((r) => r.idCategoria)),
       this.resolverJustificaciones(filas.map((r) => r.idCxp)),
       this.resolverUsuarios(filas.map((r) => r.uidGerente)),
+      firmarDocumentos(
+        this.supabase.admin,
+        filas.flatMap((r) => [r.urlCFDI, r.urlXLM]),
+        BUCKET_CFDI,
+      ),
     ]);
+    for (const r of filas) {
+      r.urlCFDI = r.urlCFDI ? (firmadas.get(r.urlCFDI) ?? null) : null;
+      r.urlXLM = r.urlXLM ? (firmadas.get(r.urlXLM) ?? null) : null;
+    }
     return filas.map((r) => ({
       ...r,
       categoria: cuentas.get(r.idCategoria)?.cuenta ?? null,

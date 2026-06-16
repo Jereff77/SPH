@@ -1,13 +1,13 @@
 ---
 modulo: CxP (Cuentas por Pagar)
 estado: parcial              # Proveedores, Bancos, Solicitudes (alta+listado), Pendientes y Pagar en v2; resto por fases
-version_doc: 0.5
-ultima_actualizacion: 2026-06-10
+version_doc: 0.6
+ultima_actualizacion: 2026-06-15
 submodulos: [Proveedores, Bancos, Solicitudes, "Pagar solicitudes", Aprobación, Pago/Conciliación, Reportes, "Claves SAT"]
 rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes, /cxp/pagar]
 claves_permiso: [400, 401, 402, 410, 420, 430, 431, 440, 441, 450, 460, 470]
 tablas: [cxp, catProveedores, catBancos, catClavesProdServ, cxpComentarios, cxp_fechas_habilitadas, movbancarios, PresCategorias, v_resumenPresupuesto, SPHConfiguraciones]
-palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, N8N, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, retención, IVA, ISR, tiempo real, SSE]
+palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, lectura de comprobante, documentos privados, URL firmada, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, retención, IVA, ISR, tiempo real, SSE]
 relacionado_con: [configuraciones, inversionistas, fideicomiso]
 ---
 
@@ -151,7 +151,11 @@ parametrizadas desde el backend.
    editable**.
 4. La **conciliación** (asignar un `movbancarios` y marcar `aplicado=true`, pasar a estado pagado) mueve
    pagos reales: es la parte más sensible.
-5. CFDI se guarda en el bucket `CFDIproveedores`; el **comprobante de pago** en el bucket `cxp`.
+5. CFDI se guarda en el bucket `CFDIproveedores`; el **comprobante de pago** en el bucket `cxp`. **Ambos
+   buckets son PRIVADOS (desde v2.28.0).** El backend NO devuelve URLs públicas: genera **URLs firmadas** al
+   vuelo (helper `documentos.util.ts`, expiración 2 h) en cada listado/modal. Las URLs públicas históricas
+   guardadas en `urlCFDI`/`urlXLM`/`imgComp` se normalizan al firmar (sin migrar datos). El acceso público
+   directo a estos buckets está bloqueado (HTTP 400).
 6. **`idCategoria = '-'` (sin categoría real):** un trigger fuerza la solicitud a **Guardado** al crearla
    o al intentar **enviarla** (no se puede enviar a aprobación sin categoría válida). El backend además
    bloquea el envío con mensaje claro. Los ya **Pagados** no se tocan.
@@ -198,16 +202,16 @@ atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
 - ✅ **Aprobar Solicitudes** (430, bandeja del aprobador): regresar/rechazar/aprobar con validación de
   presupuesto + reasignar fuera de presupuesto + marca `autorizadoFP` + tiempo real (SSE).
 - ✅ **Pagar solicitudes** (tesorería): listado con filtros estilo Excel + **tiempo real (SSE)** +
-  **registrar pago en 3 vías** (asignar `movbancarios` del proveedor · comprobante PDF vía N8N ·
-  captura de pantalla con banco Banbajío/Actinver) + desaplicar (401) + batch aprobados sin pago
-  (402). Validación de monto = total.
+  **registrar pago en 3 vías** (asignar `movbancarios` del proveedor · comprobante PDF leído por el backend
+  —parser local + fallback IA— · captura de pantalla con banco Banbajío/Actinver) + desaplicar (401) +
+  batch aprobados sin pago (402). Validación de monto = total.
 - ✅ **Tipos de solicitud especiales**: Urgentes, Línea de Captura, Devoluciones y Facturas sin XML
   (ver sección "Tipos de solicitud especiales" más abajo).
 - ⏳ **Dashboard** (440/441), **Reportes** (460), conciliación avanzada (automática/parciales/importación
   de estado de cuenta).
-- Decisiones acordadas: reutilizar RPCs de negocio seguras; el CFDI se parsea en el backend (sin N8N),
-  pero el **comprobante de pago** sí sigue usando el webhook N8N por ahora; las escrituras quedan
-  auditadas con el usuario real.
+- Decisiones acordadas: reutilizar RPCs de negocio seguras; **tanto el CFDI como el comprobante de pago se
+  leen en el backend (sin N8N)** — el comprobante con parser determinista local + fallback de IA (edge
+  `comprobante-extraer`); las escrituras quedan auditadas con el usuario real.
 
 ---
 
@@ -310,14 +314,20 @@ Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un mod
 - Al asignar (`POST /cxp/pagos/:idCxp/asignar`): `movbancarios.aplicado=true` + `UPDATE cxp`
   (`montoAplicado`, `idEstado=6`, `pagador`, `fecPago`, `idMovBancarios`) + comentario.
 
-**B) Capturar desde comprobante (PDF, automático)** — usa el **webhook de N8N** (heredado de v1)
-- El usuario sube el PDF; el **backend** lo guarda (bucket `cxp`) y llama al webhook
-  `…/webhook/13755874-…` enviando `{ "url": "<URL del PDF>" }`.
-- Mapea la respuesta `$.data.output.*` (FechadeOperacion, Importe, NombredelOrdenante,
-  CuentaDestino, BancoDestino, NombreBeneficiario, ConceptodePago, Referencia, NoAutorizacion,
-  ClaveRastreo) y **prellena el formulario**. Endpoint: `POST /cxp/pagos/:idCxp/analizar-comprobante`.
-- "Registrar pago" (`POST /cxp/pagos/:idCxp`) crea el `movbancarios` y aplica el pago (sin
-  re-subir el PDF; usa `urlComprobante`). El webhook lo llama el **backend**, no el front.
+**B) Capturar desde comprobante (PDF, automático)** — lectura **integrada en el backend** (desde v2.28.0; ya **no** usa N8N)
+- El usuario sube el PDF; el **backend** lo guarda (bucket `cxp`), **extrae su texto** con `pdf-parse` y lo
+  pasa por una **cascada de lectura**:
+  1. **Parser determinista local** (`comprobantes.parser.ts`) para los formatos conocidos (hoy **BanBajío**,
+     ~80%): instantáneo, sin red, sin costo.
+  2. Si el formato no se reconoce → **fallback de IA**: edge `comprobante-extraer` (proxy a OpenRouter,
+     `gpt-4o-mini`, custodia `OPENROUTER_API_KEY`); recibe el **texto** (nunca el PDF ni una URL) y devuelve
+     los campos.
+  3. Si la IA falla → captura manual (todos los campos del modal son editables).
+- Mapea los campos (FechadeOperacion, Importe, NombredelOrdenante, CuentaDestino, BancoDestino,
+  NombreBeneficiario, ConceptodePago, Referencia, NoAutorizacion, ClaveRastreo) y **prellena el formulario**.
+  Endpoint: `POST /cxp/pagos/:idCxp/analizar-comprobante`.
+- "Registrar pago" (`POST /cxp/pagos/:idCxp`) crea el `movbancarios` y aplica el pago (usa `urlComprobante`).
+- **Añadir un formato nuevo:** agregar `detecta`/`parsea` en `comprobantes.parser.ts` (registro `FORMATOS`).
 
 **C) Captura de pantalla del pago** (manual, sin lectura automática)
 - El usuario elige el **banco** (`Banbajío` / `Actinver`), captura el **monto** (= total) y sube una
@@ -346,15 +356,18 @@ Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un mod
 
 ### Archivos
 - Backend: `pagos.{service,controller,schemas}.ts`, `pagos-stream.controller.ts`,
-  `realtime.service.ts`, `sse-auth.guard.ts`. Webhook N8N + parseo de importe/fecha en el service.
+  `realtime.service.ts`, `sse-auth.guard.ts`, **`comprobantes.parser.ts`** (parser determinista de
+  comprobantes) y **`documentos.util.ts`** (firma de documentos al vuelo). Edge **`comprobante-extraer`**
+  (fallback IA, en `supabase/functions/`).
 - Frontend: `PagarSolicitudesPage.tsx`, `pagos.api.ts`, `AplicarPagoModal.tsx` (3 opciones: banco /
-  comprobante N8N / captura), `TransferenciaModal.tsx`, `usePagosRealtime.ts`;
+  comprobante (lectura backend) / captura), `TransferenciaModal.tsx`, `usePagosRealtime.ts`;
   `components/tabla/ColumnFilter.tsx` (filtro Excel).
 
 ### Pendiente (fase futura)
 - Conciliación automática por monto, drag-drop, 1 pago↔N solicitudes, pagos parciales,
   importación del estado de cuenta bancario.
-- El webhook de N8N se sigue usando tal cual; luego se integrará al backend (como el CFDI).
+- Lectura de comprobante: sumar los parsers deterministas de los **otros 2 formatos** de banco (hoy caen al
+  fallback de IA hasta que se agreguen a `comprobantes.parser.ts`).
 
 ---
 

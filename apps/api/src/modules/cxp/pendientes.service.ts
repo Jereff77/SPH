@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { firmarDocumentos } from './documentos.util.js';
 
 export interface FiltrosPendientes {
   anio?: number;
@@ -25,6 +26,8 @@ export class PendientesService {
   private readonly logger = new Logger(PendientesService.name);
 
   constructor(private readonly supabase: SupabaseService) {}
+
+  private readonly BUCKET_CFDI = 'CFDIproveedores';
 
   private readonly COLS =
     'idCxp, uidr, estado, nombreProveedor, nomCFDI, fecCFDI, fecSolicitud, folio, concepto, subtotal, total, montoAplicado, urlXLM, urlCFDI, numSem, numMes, numAnio, rangoSemana, idEstado, idCategoria, uidGerente, idMovBancarios, moneda';
@@ -82,13 +85,25 @@ export class PendientesService {
       ...filas.map((r) => r.uidr),
     ]);
 
-    return filas.map((r) => ({
+    const resultado = filas.map((r) => ({
       ...r,
       cuenta: cuentas.get(r.idCategoria)?.cuenta ?? null,
       seccion: cuentas.get(r.idCategoria)?.seccion ?? null,
       nomGerente: r.uidGerente ? (nombres.get(r.uidGerente) ?? null) : null,
       nomSolicitante: r.uidr ? (nombres.get(r.uidr) ?? null) : null,
     }));
+
+    const firmadas = await firmarDocumentos(
+      this.supabase.admin,
+      resultado.flatMap((r) => [r.urlCFDI, r.urlXLM]),
+      this.BUCKET_CFDI,
+    );
+    for (const r of resultado) {
+      r.urlCFDI = r.urlCFDI ? (firmadas.get(r.urlCFDI) ?? null) : null;
+      r.urlXLM = r.urlXLM ? (firmadas.get(r.urlXLM) ?? null) : null;
+    }
+
+    return resultado;
   }
 
   private async resolverCuentas(ids: (string | null)[]) {

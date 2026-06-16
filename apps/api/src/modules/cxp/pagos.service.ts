@@ -6,20 +6,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
+import { PDFParse } from 'pdf-parse';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { parsearComprobante } from './comprobantes.parser.js';
+import { firmarDocumento, firmarDocumentos } from './documentos.util.js';
 import type { RegistrarPagoDto } from './pagos.schemas.js';
 
 const ID_ALFABETO =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
 const BUCKET_COMPROBANTES = 'cxp';
-
-/**
- * Webhook de N8N que lee el PDF del comprobante de pago y devuelve sus datos.
- * (Heredado de v1; por ahora se sigue usando tal cual — luego se integrará.)
- */
-const N8N_COMPROBANTE_URL =
-  'https://sph-n8n.fn5wy3.easypanel.host/webhook/13755874-c1bc-4e5d-97fe-22fe29a1c531';
+const BUCKET_CFDI = 'CFDIproveedores';
 
 /** Estados de pago realizado (para "Mostrar pagos realizados"). */
 const ESTADOS_PAGADOS = [6, 7];
@@ -131,6 +128,17 @@ export class PagosService {
       solicitoNombre: r.uidr ? (nombres.get(r.uidr) ?? null) : null,
       autorizoNombre: r.autorizo ? (nombres.get(r.autorizo) ?? null) : null,
     }));
+
+    // Firmar los documentos (buckets privados de CxP): URL firmada al vuelo.
+    const firmadas = await firmarDocumentos(
+      this.supabase.admin,
+      enriquecidas.flatMap((r) => [r.urlCFDI, r.urlXLM]),
+      BUCKET_CFDI,
+    );
+    for (const r of enriquecidas) {
+      r.urlCFDI = r.urlCFDI ? (firmadas.get(r.urlCFDI) ?? null) : null;
+      r.urlXLM = r.urlXLM ? (firmadas.get(r.urlXLM) ?? null) : null;
+    }
 
     const totales = enriquecidas.reduce(
       (acc, r) => {
@@ -408,9 +416,18 @@ export class PagosService {
     for (const m of [...(porNombre.data ?? []), ...(porImporte.data ?? [])]) {
       if (!mapa.has(m.idmov)) mapa.set(m.idmov, m);
     }
-    return [...mapa.values()].sort((a, b) =>
+    const movs = [...mapa.values()].sort((a, b) =>
       (b.fecOperacion ?? '').localeCompare(a.fecOperacion ?? ''),
     );
+    const firmadas = await firmarDocumentos(
+      this.supabase.admin,
+      movs.map((m) => m.imgComp),
+      BUCKET_COMPROBANTES,
+    );
+    return movs.map((m) => ({
+      ...m,
+      imgComp: m.imgComp ? (firmadas.get(m.imgComp) ?? null) : null,
+    }));
   }
 
   /** Asigna un movimiento bancario existente a la solicitud (lo aplica). */
@@ -490,10 +507,25 @@ export class PagosService {
     return m ? `${m[1]!.padStart(2, '0')}:${m[2]}` : '';
   }
 
+  /** Extrae el texto de un PDF (igual patrón que solicitudes.service). */
+  private async textoDePdf(pdf: Buffer): Promise<string> {
+    const parser = new PDFParse({ data: new Uint8Array(pdf) });
+    try {
+      const res = await parser.getText();
+      return res.text ?? '';
+    } catch (e) {
+      this.logger.warn(`No se pudo extraer texto del comprobante: ${(e as Error).message}`);
+      return '';
+    } finally {
+      await parser.destroy().catch(() => undefined);
+    }
+  }
+
   /**
-   * Sube el comprobante PDF al bucket y lo procesa con el webhook de N8N, que
-   * devuelve los datos del pago. Devuelve los datos mapeados + la URL del PDF
-   * (para registrar el pago sin re-subirlo).
+   * Sube el comprobante PDF al bucket y extrae sus datos. Primero intenta un
+   * parser determinista local (sin red ni IA); si el formato no se reconoce,
+   * cae al fallback de IA (edge `comprobante-extraer`). Devuelve los datos
+   * mapeados + la URL del PDF (para registrar el pago sin re-subirlo).
    */
   async analizarComprobante(
     idCxp: string,
@@ -524,24 +556,36 @@ export class PagosService {
       .from(BUCKET_COMPROBANTES)
       .getPublicUrl(path).data.publicUrl;
 
-    // Llamar al webhook de N8N con la URL del PDF.
-    let json: { data?: { output?: Record<string, unknown> } };
+    // 1º: parser determinista local (sin red, sin IA). Cubre los formatos
+    // conocidos (p.ej. BanBajío). Si reconoce el formato y obtiene los campos
+    // clave, devolvemos sin llamar a ningún servicio externo.
+    const texto = await this.textoDePdf(pdf);
+    const local = parsearComprobante(texto);
+    if (local) {
+      this.logger.log(`Comprobante leído localmente (formato: ${local.tipo}).`);
+      return { datos: local.datos, urlComprobante };
+    }
+    this.logger.warn(
+      'Formato de comprobante no reconocido por el parser local; usando fallback de IA.',
+    );
+
+    // Fallback: leer el comprobante con IA (edge `comprobante-extraer`, que
+    // custodia el secreto OPENROUTER_API_KEY). Le pasamos el TEXTO ya extraído
+    // (nunca el PDF ni una URL pública), así no se expone el documento.
+    let o: Record<string, unknown>;
     try {
-      const res = await fetch(N8N_COMPROBANTE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: urlComprobante }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      json = (await res.json()) as typeof json;
+      const { data, error: edgeErr } = await this.supabase.admin.functions.invoke<{
+        datos?: Record<string, unknown>;
+      }>('comprobante-extraer', { body: { texto } });
+      if (edgeErr) throw edgeErr;
+      o = data?.datos ?? {};
     } catch (e) {
-      this.logger.error(`Webhook comprobante falló: ${(e as Error).message}`);
+      this.logger.error(`Fallback de IA del comprobante falló: ${(e as Error).message}`);
       throw new InternalServerErrorException(
         'No se pudo leer el comprobante automáticamente. Capture los datos manualmente.',
       );
     }
 
-    const o = json.data?.output ?? {};
     const str = (k: string) => (o[k] === null || o[k] === undefined ? '' : String(o[k]).trim());
     const datos: DatosComprobante = {
       fecOperacion: this.parseFecha(o['FechadeOperacion']),
@@ -576,7 +620,11 @@ export class PagosService {
       )
       .eq('idmov', sol.idMovBancarios)
       .maybeSingle();
-    return mov ?? null;
+    if (!mov) return null;
+    return {
+      ...mov,
+      imgComp: await firmarDocumento(this.supabase.admin, mov.imgComp, BUCKET_COMPROBANTES),
+    };
   }
 
   /** Desaplica el pago (permiso 401): revierte la solicitud a Aprobado (4). */

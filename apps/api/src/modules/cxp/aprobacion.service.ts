@@ -8,6 +8,9 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { firmarDocumentos } from './documentos.util.js';
+
+const BUCKET_CFDI = 'CFDIproveedores';
 
 const ID_ALFABETO =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -52,12 +55,19 @@ export class AprobacionService {
     if (error) throw new InternalServerErrorException(error.message);
     const filas = data ?? [];
 
-    const [cuentas, nombres] = await Promise.all([
+    const [cuentas, nombres, firmadas] = await Promise.all([
       this.resolverCuentas(filas.map((r) => r.idCategoria)),
       this.resolverUsuarios(filas.map((r) => r.uidr)),
+      firmarDocumentos(
+        this.supabase.admin,
+        filas.flatMap((r) => [r.urlCFDI, r.urlXLM]),
+        BUCKET_CFDI,
+      ),
     ]);
     return filas.map((r) => ({
       ...r,
+      urlCFDI: r.urlCFDI ? (firmadas.get(r.urlCFDI) ?? null) : null,
+      urlXLM: r.urlXLM ? (firmadas.get(r.urlXLM) ?? null) : null,
       cuenta: cuentas.get(r.idCategoria)?.cuenta ?? null,
       seccion: cuentas.get(r.idCategoria)?.seccion ?? null,
       justificacion: r.ultimoComentario ?? null,

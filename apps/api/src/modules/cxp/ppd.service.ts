@@ -10,6 +10,7 @@ import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { SolicitudesService } from './solicitudes.service.js';
 import { BloqueoService } from './bloqueo.service.js';
 import { parsearComplementoPago, validarRepContra } from './cfdi.js';
+import { firmarDocumentos } from './documentos.util.js';
 import type { NuevaFacturaPpdDto, NuevaParcialPpdDto } from './ppd.schemas.js';
 
 const BUCKET_CFDI = 'CFDIproveedores';
@@ -200,9 +201,17 @@ export class PpdService {
       }),
     );
 
+    const firmadas = await firmarDocumentos(
+      this.supabase.admin,
+      [m.urlCFDI, m.urlXLM],
+      BUCKET_CFDI,
+    );
+
     return {
       maestro: {
         ...m,
+        urlCFDI: m.urlCFDI ? (firmadas.get(m.urlCFDI) ?? null) : null,
+        urlXLM: m.urlXLM ? (firmadas.get(m.urlXLM) ?? null) : null,
         categoria: cuentas.get(m.idCategoria)?.cuenta ?? null,
         clasificacion: cuentas.get(m.idCategoria)?.seccion ?? null,
       },

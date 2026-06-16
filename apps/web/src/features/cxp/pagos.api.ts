@@ -66,7 +66,7 @@ export interface MovBancario {
   tipo: string | null;
 }
 
-/** Datos extraídos del comprobante por el webhook N8N. */
+/** Datos extraídos del comprobante por el backend (parser local o IA). */
 export interface DatosComprobante {
   fecOperacion: string;
   horaOperacion: string;
