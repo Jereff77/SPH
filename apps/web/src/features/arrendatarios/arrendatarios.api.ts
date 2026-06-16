@@ -250,6 +250,21 @@ export interface CancelacionReporteRow {
   moneda: string | null;
 }
 
+/** Fila del reporte de Vencimientos: contrato activo vencido o por vencer. */
+export interface VencimientoReporteRow {
+  idArrePdp: string;
+  idNavArrend: string;
+  arrendatario: string;
+  parque: string | null;
+  nave: string | null;
+  fecInicio: string | null;
+  fecFin: string | null;
+  /** 'No' (vencido) | '1 Mes' | '2 Meses' | '3 Meses'. */
+  estado: string;
+  rentaBase: number;
+  moneda: string | null;
+}
+
 /** Plan (arrePdp) de una nave para el selector del estado de cuenta. */
 export interface EstadoCuentaPlanOpcion {
   idArrePdp: string;
@@ -425,6 +440,8 @@ export const arrendatariosApi = {
   // Reportes
   reporteCancelaciones: (f: { anio?: number; parque?: string; busqueda?: string }) =>
     api.get<CancelacionReporteRow[]>(`/arrendatarios/reportes/cancelaciones${dq(f)}`),
+  reporteVencimientos: () =>
+    api.get<VencimientoReporteRow[]>('/arrendatarios/reportes/vencimientos'),
   estadoCuentaOpciones: () =>
     api.get<EstadoCuentaNave[]>('/arrendatarios/reportes/estado-cuenta/opciones'),
   estadoCuentaCorrida: (idArrePdp: string) =>

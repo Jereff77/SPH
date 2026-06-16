@@ -11,23 +11,26 @@ import {
   num,
   type CancelacionReporteRow,
   type EstadoCuentaPartida,
+  type VencimientoReporteRow,
 } from './arrendatarios.api';
 import { configuracionApi } from '@/features/configuraciones/configuracion.api';
 import { exportarCSV } from './csv-export';
 import { exportarPDF, exportarPDFEstadoCuenta } from './reportes-arre-export';
 
 const TABS: TabDef[] = [
+  { id: 'vencimientos', label: 'Vencimientos' },
   { id: 'estado', label: 'Estado de Cuenta' },
   { id: 'cancelaciones', label: 'Cancelaciones Anticipadas' },
 ];
 
 export function ReportesArrePage() {
-  const [tab, setTab] = useState('estado');
+  const [tab, setTab] = useState('vencimientos');
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold tracking-tight text-gray-800">Arrendatarios · Reportes</h1>
       <Tabs tabs={TABS} activo={tab} onChange={setTab} />
       <div className="pt-2">
+        {tab === 'vencimientos' && <VencimientosTab />}
         {tab === 'estado' && <EstadoCuentaTab />}
         {tab === 'cancelaciones' && <CancelacionesTab />}
       </div>
@@ -611,6 +614,268 @@ function CancelacionesTab() {
                   <td className="px-4 py-2 text-center">{r.moneda ?? '—'}</td>
                 </tr>
               ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------- Vencimientos -----------------------------
+
+/** Etiqueta amigable del estado de vigencia. */
+const ESTADO_LABEL: Record<string, string> = {
+  No: 'Vencido',
+  '1 Mes': '1 mes',
+  '2 Meses': '2 meses',
+  '3 Meses': '3 meses',
+};
+
+/** Días entre hoy (México) y la fecha de fin: <0 vencido, 0 hoy, >0 por vencer. */
+function diasFin(fecFin: string | null): number | null {
+  if (!fecFin) return null;
+  const f = Date.parse(`${fecFin.slice(0, 10)}T00:00:00Z`);
+  const h = Date.parse(`${hoyMexico()}T00:00:00Z`);
+  if (Number.isNaN(f) || Number.isNaN(h)) return null;
+  return Math.round((f - h) / 86400000);
+}
+
+function diasTexto(fecFin: string | null): string {
+  const d = diasFin(fecFin);
+  if (d == null) return '—';
+  if (d < 0) return `Venció hace ${Math.abs(d)} d`;
+  if (d === 0) return 'Vence hoy';
+  return `Vence en ${d} d`;
+}
+
+function BadgeVigencia({ estado }: { estado: string }) {
+  const estilo: Record<string, string> = {
+    No: 'bg-red-100 text-red-700',
+    '1 Mes': 'bg-orange-100 text-orange-700',
+    '2 Meses': 'bg-amber-100 text-amber-700',
+    '3 Meses': 'bg-yellow-100 text-yellow-800',
+  };
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${estilo[estado] ?? 'bg-gray-100 text-gray-600'}`}
+    >
+      {ESTADO_LABEL[estado] ?? estado}
+    </span>
+  );
+}
+
+function VencimientosTab() {
+  const { data = [], isLoading } = useQuery({
+    queryKey: ['arre-rep-vencimientos'],
+    queryFn: () => arrendatariosApi.reporteVencimientos(),
+  });
+
+  const [estado, setEstado] = useState('');
+  const [parque, setParque] = useState('');
+  const [busqueda, setBusqueda] = useState('');
+
+  const parques = useMemo(
+    () => [...new Set(data.map((r) => r.parque).filter((p): p is string => !!p))].sort(),
+    [data],
+  );
+
+  const filtradas = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    return data.filter((r) => {
+      if (estado && r.estado !== estado) return false;
+      if (parque && r.parque !== parque) return false;
+      if (q && !`${r.arrendatario} ${r.nave ?? ''}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [data, estado, parque, busqueda]);
+
+  const urgencia: Record<string, number> = { No: 0, '1 Mes': 1, '2 Meses': 2, '3 Meses': 3 };
+  const { ordenados, sortKey, dir, toggle } = useSort<VencimientoReporteRow>(filtradas, {
+    arrendatario: (r) => r.arrendatario,
+    parque: (r) => r.parque,
+    nave: (r) => r.nave,
+    fecInicio: (r) => r.fecInicio,
+    fecFin: (r) => r.fecFin,
+    estado: (r) => urgencia[r.estado] ?? 9,
+    dias: (r) => diasFin(r.fecFin) ?? 999999,
+    renta: (r) => r.rentaBase,
+  });
+
+  // Conteos por estado (tarjetas resumen).
+  const conteo = useMemo(() => {
+    const c: Record<string, number> = { No: 0, '1 Mes': 0, '2 Meses': 0, '3 Meses': 0 };
+    for (const r of data) c[r.estado] = (c[r.estado] ?? 0) + 1;
+    return c;
+  }, [data]);
+
+  const COLS = ['Arrendatario', 'Parque', 'Nave', 'Inicio', 'Fin', 'Estado', 'Días', 'Renta base', 'Moneda'];
+  const toRow = (r: VencimientoReporteRow) => [
+    r.arrendatario,
+    r.parque ?? '',
+    r.nave ?? '',
+    fechaCorta(r.fecInicio),
+    fechaCorta(r.fecFin),
+    ESTADO_LABEL[r.estado] ?? r.estado,
+    diasTexto(r.fecFin),
+    r.rentaBase > 0 ? Math.round(r.rentaBase * 100) / 100 : '',
+    r.moneda ?? '',
+  ];
+
+  return (
+    <div className="space-y-3">
+      {/* Tarjetas resumen por estado */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {(['No', '1 Mes', '2 Meses', '3 Meses'] as const).map((e) => (
+          <button
+            key={e}
+            type="button"
+            onClick={() => setEstado(estado === e ? '' : e)}
+            className={`rounded-xl border p-3 text-left transition ${
+              estado === e ? 'border-[#1f2a4d] bg-[#1f2a4d]/5' : 'border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <div className="text-2xl font-bold text-gray-800">{conteo[e]}</div>
+            <div className="mt-0.5">
+              <BadgeVigencia estado={e} />
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Filtros + export */}
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-xs text-gray-600">
+          Estado
+          <select
+            value={estado}
+            onChange={(e) => setEstado(e.target.value)}
+            className="mt-1 block w-40 rounded border px-2 py-1.5 text-sm"
+          >
+            <option value="">Todos</option>
+            <option value="No">Vencido</option>
+            <option value="1 Mes">1 mes</option>
+            <option value="2 Meses">2 meses</option>
+            <option value="3 Meses">3 meses</option>
+          </select>
+        </label>
+        <label className="text-xs text-gray-600">
+          Parque
+          <select
+            value={parque}
+            onChange={(e) => setParque(e.target.value)}
+            className="mt-1 block w-56 rounded border px-2 py-1.5 text-sm"
+          >
+            <option value="">Todos</option>
+            {parques.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-gray-600">
+          Buscar
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Arrendatario o nave…"
+            className="mt-1 block w-56 rounded border px-2 py-1.5 text-sm"
+          />
+        </label>
+        <div className="ml-auto flex gap-2">
+          <button
+            type="button"
+            disabled={ordenados.length === 0}
+            onClick={() => exportarCSV('vencimientos-contratos', COLS, ordenados.map(toRow))}
+            className="rounded-lg border border-[#1f2a4d] px-3 py-2 text-sm font-medium text-[#1f2a4d] hover:bg-[#1f2a4d] hover:text-white disabled:opacity-40"
+          >
+            Export CSV
+          </button>
+          <button
+            type="button"
+            disabled={ordenados.length === 0}
+            onClick={() => exportarPDF('Vencimientos de Contratos', COLS, ordenados.map(toRow))}
+            className="rounded-lg border border-[#1f2a4d] px-3 py-2 text-sm font-medium text-[#1f2a4d] hover:bg-[#1f2a4d] hover:text-white disabled:opacity-40"
+          >
+            Export PDF
+          </button>
+        </div>
+      </div>
+
+      {/* Tabla */}
+      <div className="overflow-auto rounded-xl border bg-white" style={{ maxHeight: '60vh' }}>
+        <table className="min-w-full border-collapse text-sm">
+          <thead className={THEAD_STICKY}>
+            <tr className={THEAD_TR}>
+              <SortableTh campo="arrendatario" sortKey={sortKey} dir={dir} onSort={toggle}>
+                Arrendatario
+              </SortableTh>
+              <SortableTh campo="parque" sortKey={sortKey} dir={dir} onSort={toggle}>
+                Parque
+              </SortableTh>
+              <SortableTh campo="nave" sortKey={sortKey} dir={dir} onSort={toggle}>
+                Nave
+              </SortableTh>
+              <SortableTh campo="fecInicio" sortKey={sortKey} dir={dir} onSort={toggle}>
+                Inicio
+              </SortableTh>
+              <SortableTh campo="fecFin" sortKey={sortKey} dir={dir} onSort={toggle}>
+                Fin
+              </SortableTh>
+              <SortableTh campo="estado" sortKey={sortKey} dir={dir} onSort={toggle} align="center">
+                Estado
+              </SortableTh>
+              <SortableTh campo="dias" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
+                Días
+              </SortableTh>
+              <SortableTh campo="renta" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
+                Renta base
+              </SortableTh>
+              <SortableTh align="center">Moneda</SortableTh>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {isLoading ? (
+              <tr>
+                <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
+                  Cargando…
+                </td>
+              </tr>
+            ) : ordenados.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
+                  No hay contratos vencidos ni por vencer con los filtros actuales.
+                </td>
+              </tr>
+            ) : (
+              ordenados.map((r) => {
+                const d = diasFin(r.fecFin);
+                return (
+                  <tr key={r.idArrePdp} className="hover:bg-gray-50">
+                    <td className="px-4 py-2">{r.arrendatario}</td>
+                    <td className="px-4 py-2">{r.parque ?? '—'}</td>
+                    <td className="px-4 py-2">{r.nave ?? '—'}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{fechaCorta(r.fecInicio)}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{fechaCorta(r.fecFin)}</td>
+                    <td className="px-4 py-2 text-center">
+                      <BadgeVigencia estado={r.estado} />
+                    </td>
+                    <td
+                      className={`px-4 py-2 text-right whitespace-nowrap tabular-nums ${
+                        d != null && d < 0 ? 'font-semibold text-red-600' : 'text-gray-600'
+                      }`}
+                    >
+                      {diasTexto(r.fecFin)}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {r.rentaBase > 0 ? moneda(r.rentaBase, r.moneda ?? 'MXN') : '—'}
+                    </td>
+                    <td className="px-4 py-2 text-center">{r.moneda ?? '—'}</td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

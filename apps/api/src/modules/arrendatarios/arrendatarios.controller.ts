@@ -313,6 +313,12 @@ export class ArrendatariosController {
     });
   }
 
+  @Get('reportes/vencimientos')
+  @RequierePermiso(20)
+  reporteVencimientos() {
+    return this.reportes.vencimientos();
+  }
+
   @Get('reportes/estado-cuenta/opciones')
   @RequierePermiso(20)
   estadoCuentaOpciones() {

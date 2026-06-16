@@ -140,6 +140,14 @@ actor para auditoría). Crear un plan orquesta **3 RPCs en secuencia**:
   (`catUsers.nomCompleto`). Columnas: Arrendatario · Parque · Nave · Inicio · Fin contractual · Fecha
   cancelación · Motivo · Canceló · Moneda. Filtros año/parque/búsqueda + export CSV/PDF.
 - Endpoint `GET /arrendatarios/reportes/cancelaciones` (`@RequierePermiso(20)`).
+- **Vencimientos** (tab, v2.29.0 — **pestaña por defecto**): lista el **contrato activo de cada nave arrendada**
+  (`arrenPropiedades.idArrePdp`, vínculo `status=true`) cuyo estado sea **Vencido** (`arrePdpVigente='No'`) o
+  **por vencer** (`'1 Mes'`/`'2 Meses'`/`'3 Meses'`). Excluye Tickets y contratos cancelados anticipadamente.
+  Backend `reportes-arre.service.ts` → `vencimientos()` (enriquece en memoria, sin vistas; ordena por urgencia
+  Vencido→1→2→3). Columnas: Arrendatario · Parque · Nave · Inicio · Fin · **Estado** (badge de color) · **Días**
+  ("Vence en N d" / "Venció hace N d", calculado en el front con `hoyMexico()`) · Renta base (`rtaBase`) · Moneda.
+  **Tarjetas-resumen** clicables por estado (filtran al hacer clic), filtros estado/parque/búsqueda, export CSV/PDF.
+- Endpoint `GET /arrendatarios/reportes/vencimientos` (`@RequierePermiso(20)`).
 
 ## Objetos nuevos en BD (v2_, autorizados)
 - RPC `v2_arrepdp_renovar(...)` — registra la renovación (inserta `arrePdp` + corrida vía RPCs

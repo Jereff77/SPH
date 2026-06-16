@@ -122,6 +122,32 @@ export interface CancelacionReporteRow {
   moneda: string | null;
 }
 
+/** Fila del reporte de Vencimientos: contrato activo vencido o por vencer. */
+export interface VencimientoReporteRow {
+  idArrePdp: string;
+  idNavArrend: string;
+  arrendatario: string;
+  parque: string | null;
+  nave: string | null;
+  fecInicio: string | null;
+  fecFin: string | null;
+  /** Estado de vigencia: 'No' (vencido) | '1 Mes' | '2 Meses' | '3 Meses'. */
+  estado: string;
+  rentaBase: number;
+  moneda: string | null;
+}
+
+/** Cabecera `arrePdp` mínima para el reporte de vencimientos (select('*') casteado). */
+interface PlanVencRow {
+  idArrePdp: string;
+  fecInicio: string | null;
+  fecFin: string | null;
+  rtaBase: number | null;
+  Moneda: string | null;
+  arrePdpVigente: string | null;
+  canceladoAnticipado: boolean | null;
+}
+
 /**
  * Cabecera `arrePdp` con las columnas v2 de cancelación (aún NO tipadas en
  * `@erp/types` hasta regenerar `database.types.ts` tras aplicar el ALTER). Se
@@ -518,5 +544,94 @@ export class ReportesArreService {
       .sort((x, y) => x.numPartida - y.numPartida);
 
     return { cabecera, partidas };
+  }
+
+  /**
+   * Reporte de **Vencimientos**: por cada nave arrendada (vínculo activo) cuyo
+   * **contrato activo** (`arrenPropiedades.idArrePdp`) esté **vencido** ('No') o
+   * **por vencer** ('1 Mes' / '2 Meses' / '3 Meses'), una fila enriquecida con
+   * arrendatario/parque/nave (excluye Tickets) + fechas + renta base + moneda.
+   * Excluye contratos cancelados anticipadamente. El cálculo de "días" lo hace el
+   * front (zona horaria México). No usa vistas nuevas.
+   */
+  async vencimientos(): Promise<VencimientoReporteRow[]> {
+    const { data: props, error } = await this.supabase.admin
+      .from('arrenPropiedades')
+      .select('idNavArrend, idArrePdp, idArrendador, idNave, idParque')
+      .eq('status', true)
+      .not('idArrePdp', 'is', null);
+    if (error) throw new InternalServerErrorException(error.message);
+    const lista = props ?? [];
+    if (lista.length === 0) return [];
+
+    const orEmpty = (xs: (string | null)[]): string[] => {
+      const s = [...new Set(xs.filter((x): x is string => !!x))];
+      return s.length ? s : [''];
+    };
+
+    // Planes activos vinculados, solo los vencidos / por vencer y no cancelados.
+    const { data: planesRaw, error: pErr } = await this.supabase.admin
+      .from('arrePdp')
+      .select('*')
+      .in('idArrePdp', orEmpty(lista.map((p) => p.idArrePdp)))
+      .eq('status', true);
+    if (pErr) throw new InternalServerErrorException(pErr.message);
+    const ESTADOS = new Set(['No', '1 Mes', '2 Meses', '3 Meses']);
+    const planPorId = new Map(
+      ((planesRaw ?? []) as unknown as PlanVencRow[])
+        .filter((p) => ESTADOS.has(p.arrePdpVigente ?? '') && !p.canceladoAnticipado)
+        .map((p) => [p.idArrePdp, p]),
+    );
+    if (planPorId.size === 0) return [];
+
+    const [{ data: naves }, { data: parques }, { data: invs }] = await Promise.all([
+      this.supabase.admin
+        .from('naves')
+        .select('idNave, numNaveNAME, numNave')
+        .in('idNave', orEmpty(lista.map((p) => p.idNave))),
+      this.supabase.admin
+        .from('parques')
+        .select('idParque, nomParque, esTicket')
+        .in('idParque', orEmpty(lista.map((p) => p.idParque))),
+      this.supabase.admin
+        .from('inversionista')
+        .select('idInversionista, nombre, apellido1, apellido2, razonsocial')
+        .in('idInversionista', orEmpty(lista.map((p) => p.idArrendador))),
+    ]);
+
+    const navePorId = new Map((naves ?? []).map((n) => [n.idNave, n]));
+    const parquePorId = new Map((parques ?? []).map((p) => [p.idParque, p]));
+    const invPorId = new Map((invs ?? []).map((i) => [i.idInversionista, i]));
+
+    const filas: VencimientoReporteRow[] = [];
+    for (const prop of lista) {
+      const plan = prop.idArrePdp ? planPorId.get(prop.idArrePdp) : undefined;
+      if (!plan) continue; // no está en estado vencido/por vencer
+      const parque = prop.idParque ? parquePorId.get(prop.idParque) : undefined;
+      if (parque?.esTicket === true) continue; // Tickets se gestionan en Ventas.
+      const nave = prop.idNave ? navePorId.get(prop.idNave) : undefined;
+      const inv = prop.idArrendador ? invPorId.get(prop.idArrendador) : undefined;
+      filas.push({
+        idArrePdp: plan.idArrePdp,
+        idNavArrend: prop.idNavArrend,
+        arrendatario: inv ? this.nombre(inv) : '—',
+        parque: parque?.nomParque ?? null,
+        nave: nave?.numNaveNAME ?? (nave?.numNave != null ? String(nave.numNave) : null),
+        fecInicio: plan.fecInicio,
+        fecFin: plan.fecFin,
+        estado: plan.arrePdpVigente ?? '',
+        rentaBase: Number(plan.rtaBase) || 0,
+        moneda: plan.Moneda,
+      });
+    }
+
+    // Orden por urgencia (Vencido → 1 → 2 → 3 meses) y, dentro, por fecha de fin.
+    const ORDEN: Record<string, number> = { No: 0, '1 Mes': 1, '2 Meses': 2, '3 Meses': 3 };
+    filas.sort(
+      (a, b) =>
+        (ORDEN[a.estado] ?? 9) - (ORDEN[b.estado] ?? 9) ||
+        (a.fecFin ?? '').localeCompare(b.fecFin ?? ''),
+    );
+    return filas;
   }
 }
