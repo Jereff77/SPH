@@ -17,6 +17,14 @@ export interface ClaveSatInput {
   retieneISR: boolean;
 }
 
+/** Resultado de un lote de importación (lo devuelve el backend por cada chunk). */
+export interface ResultadoImportacion {
+  recibidas: number;
+  creadas: number;
+  actualizadas: number;
+  duplicadasEnArchivo: number;
+}
+
 export const clavesSatApi = {
   listar: () => api.get<ClaveSat[]>('/cxp/claves-sat'),
   crear: (dto: ClaveSatInput) =>
@@ -25,4 +33,6 @@ export const clavesSatApi = {
     api.patch<{ ok: true }>(`/cxp/claves-sat/${idClave}`, dto),
   setStatus: (idClave: string, status: boolean) =>
     api.patch<{ ok: true }>(`/cxp/claves-sat/${idClave}/status`, { status }),
+  importar: (filas: ClaveSatInput[]) =>
+    api.post<ResultadoImportacion>('/cxp/claves-sat/importar', { filas }),
 };

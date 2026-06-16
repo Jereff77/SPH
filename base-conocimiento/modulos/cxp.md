@@ -1,13 +1,13 @@
 ---
 modulo: CxP (Cuentas por Pagar)
 estado: parcial              # Proveedores, Bancos, Solicitudes (alta+listado), Pendientes y Pagar en v2; resto por fases
-version_doc: 0.6
-ultima_actualizacion: 2026-06-15
+version_doc: 0.7
+ultima_actualizacion: 2026-06-16
 submodulos: [Proveedores, Bancos, Solicitudes, "Pagar solicitudes", Aprobación, Pago/Conciliación, Reportes, "Claves SAT"]
 rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes, /cxp/pagar]
 claves_permiso: [400, 401, 402, 410, 420, 430, 431, 440, 441, 450, 460, 470]
 tablas: [cxp, catProveedores, catBancos, catClavesProdServ, cxpComentarios, cxp_fechas_habilitadas, movbancarios, PresCategorias, v_resumenPresupuesto, SPHConfiguraciones]
-palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, lectura de comprobante, documentos privados, URL firmada, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, retención, IVA, ISR, tiempo real, SSE]
+palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, lectura de comprobante, documentos privados, URL firmada, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, carga masiva, layout, plantilla, importación, Excel, retención, IVA, ISR, tiempo real, SSE]
 relacionado_con: [configuraciones, inversionistas, fideicomiso]
 ---
 
@@ -259,12 +259,31 @@ atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
   Parámetros → pestaña "Claves SAT"** (permiso 210).
 - **`SPHConfiguraciones.RFC_RECEPTORES_AUTORIZADOS`** = `GSP17122021A`.
 
+#### Carga masiva de Claves SAT (layout Excel + importación) — v2.30.0
+Para poblar el catálogo en lote (en lugar de una por una) la pestaña **Claves SAT** tiene dos botones:
+- **Descargar layout**: genera `Layout_ClavesSAT_<fecha>.xlsx` (hoja "Claves SAT" con columnas
+  `Clave SAT | Descripción | Retiene IVA | Retiene ISR` + listas Sí/No + hoja de instrucciones). Se crea
+  en el front con `exceljs` (lazy), sin pasar por el backend.
+- **Importar**: el front lee el Excel (`leerLayout`), valida/limpia, **deduplica por clave** (gana la
+  última) y envía las filas al backend **en lotes de 500** (chunking, para no rebasar el límite del body).
+  El endpoint `POST /cxp/claves-sat/importar` (permiso **215**) re-valida cada fila con Zod y hace
+  **upsert por `claveProdServ`** con `comoActor` (auditado): las nuevas se crean, las existentes se
+  **actualizan** (descripción + retenciones) y quedan **activas** (`status=true`). Devuelve `{recibidas,
+  creadas, actualizadas, duplicadasEnArchivo}`; el front acumula y muestra el resumen (más las filas con
+  problema detectadas al leer el Excel). Acepta `Sí/No`, `TRUE/FALSE`, `1/0`, `X`.
+- ⚠️ **Gotcha clave × régimen:** `catClavesProdServ` marca la retención **por clave** (global), pero la
+  retención real depende de **clave × régimen del emisor** (p. ej. la clave `90101500` la usan un **612**
+  sin retención y un **626/RESICO** con 1.25% ISR). Para claves compartidas, el modelo actual puede dar
+  un falso positivo en RESICO al validar. (Pendiente de diseño si se quiere afinar.)
+
 ### Archivos
-- Backend: `cfdi.ts` (parser + `validarDeducciones`), `claves-sat.{schemas,service,controller}.ts`,
+- Backend: `cfdi.ts` (parser + `validarDeducciones`), `claves-sat.{schemas,service,controller}.ts`
+  (incluye `importar` + `importarClavesSatSchema`),
   `solicitudes.service.ts` (`analizar`/`crear`/`validarCfdi`/`textoDePdf`), `solicitudes.controller.ts`
   (endpoints multipart con `FileFieldsInterceptor`). Dependencias: `fast-xml-parser`, `pdf-parse`.
 - Frontend: `NuevaSolicitudPago.tsx` (modal de alta), `MenuTipos` (drawer en `SolicitudesPage.tsx`),
-  `ClavesSatTab.tsx` + `clavesSat.api.ts` (catálogo en Parámetros).
+  `ClavesSatTab.tsx` + `clavesSat.api.ts` (catálogo en Parámetros) + `clavesSatLayout.ts` (descargar/leer
+  el layout Excel para la carga masiva).
 
 ### Pendiente / notas
 - La validación XML↔PDF requiere que el PDF tenga texto (un PDF escaneado/imagen se

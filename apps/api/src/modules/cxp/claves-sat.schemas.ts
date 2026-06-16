@@ -27,3 +27,14 @@ export type EditarClaveSatDto = z.infer<typeof editarClaveSatSchema>;
 
 export const statusClaveSatSchema = z.object({ status: z.boolean() });
 export type StatusClaveSatDto = z.infer<typeof statusClaveSatSchema>;
+
+/**
+ * Importación masiva: un lote de filas (cada una con la misma forma que el alta).
+ * El front lee el Excel, valida/limpia, y envía las filas en lotes (chunks). El
+ * límite por lote acota el tamaño del body; el front itera hasta cargar todo.
+ */
+export const importarClavesSatSchema = z.object({
+  filas: z.array(claveSatSchema).min(1, 'No hay filas para importar.').max(1000),
+});
+
+export type ImportarClavesSatDto = z.infer<typeof importarClavesSatSchema>;

@@ -5,7 +5,7 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-16 (v2.29.0 — Arrendatarios: reporte de Vencimientos [contratos vencidos y por vencer 1/2/3 meses]). Nota: v2.28.0 (CxP) la publicó otra sesión en paralelo. Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-16 (v2.30.0 — CxP: carga masiva de Claves SAT [layout Excel descargable + importación con upsert]). Notas: v2.29.0 (Arrendatarios → Vencimientos) y v2.28.0 (CxP → lectura de comprobantes integrada) las publicaron otras sesiones en paralelo. Autor: Claude (Opus 4.8).
 >
 > ✨ **v2.26.0 (feature):** **Registro de usuarios por invitación** (Configuraciones → **Usuarios**, clave
 > **200**). Botón **«+ Invitar usuario»** (correo + nombre + apellidos) y panel **«Invitaciones»**

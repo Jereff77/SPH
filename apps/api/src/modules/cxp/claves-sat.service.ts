@@ -6,7 +6,19 @@ import {
 } from '@nestjs/common';
 import type { TablesInsert, TablesUpdate } from '@erp/types';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
-import type { ClaveSatDto, EditarClaveSatDto } from './claves-sat.schemas.js';
+import type {
+  ClaveSatDto,
+  EditarClaveSatDto,
+  ImportarClavesSatDto,
+} from './claves-sat.schemas.js';
+
+/** Resultado de un lote de importación masiva. */
+export interface ResultadoImportacion {
+  recibidas: number; // filas que llegaron en este lote
+  creadas: number; // claves nuevas insertadas
+  actualizadas: number; // claves existentes sobrescritas
+  duplicadasEnArchivo: number; // filas repetidas dentro del mismo lote (gana la última)
+}
 
 export interface ReglaRetencion {
   retieneIVA: boolean;
@@ -90,6 +102,57 @@ export class ClavesSatService {
       this.logger.error(`Error status clave SAT ${idClave}: ${error.message}`);
       throw new InternalServerErrorException('No se pudo cambiar el estado.');
     }
+  }
+
+  /**
+   * Importa un lote de claves (upsert por `claveProdServ`). Las claves del
+   * archivo quedan ACTIVAS (status=true); las existentes se sobrescriben en
+   * descripción y retenciones. Devuelve el conteo de creadas/actualizadas para
+   * el resumen. Se procesa por lotes desde el front (chunks), por eso recibe un
+   * subconjunto cada vez.
+   */
+  async importar(dto: ImportarClavesSatDto, uid: string): Promise<ResultadoImportacion> {
+    const recibidas = dto.filas.length;
+
+    // Deduplicar dentro del lote por claveProdServ (gana la última ocurrencia).
+    const porClave = new Map<string, ClaveSatDto>();
+    for (const f of dto.filas) porClave.set(f.claveProdServ, f);
+    const unicas = [...porClave.values()];
+    const claves = unicas.map((f) => f.claveProdServ);
+
+    // ¿Cuáles ya existen? (para contar creadas vs actualizadas).
+    const { data: existentes, error: errSel } = await this.supabase.admin
+      .from('catClavesProdServ')
+      .select('claveProdServ')
+      .in('claveProdServ', claves);
+    if (errSel) throw new InternalServerErrorException(errSel.message);
+    const yaExisten = new Set((existentes ?? []).map((r) => r.claveProdServ));
+
+    const filas: TablesInsert<'catClavesProdServ'>[] = unicas.map((f) => ({
+      claveProdServ: f.claveProdServ,
+      descripcion: f.descripcion || null,
+      retieneIVA: f.retieneIVA,
+      retieneISR: f.retieneISR,
+      status: true,
+      uidr: uid,
+    }));
+
+    const { error } = await this.supabase
+      .comoActor(uid)
+      .from('catClavesProdServ')
+      .upsert(filas, { onConflict: 'claveProdServ' });
+    if (error) {
+      this.logger.error(`Error importando claves SAT: ${error.message}`);
+      throw new InternalServerErrorException('No se pudo importar el lote de claves.');
+    }
+
+    const actualizadas = unicas.filter((f) => yaExisten.has(f.claveProdServ)).length;
+    return {
+      recibidas,
+      creadas: unicas.length - actualizadas,
+      actualizadas,
+      duplicadasEnArchivo: recibidas - unicas.length,
+    };
   }
 
   /**

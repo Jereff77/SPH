@@ -11,9 +11,11 @@ import { ClavesSatService } from './claves-sat.service.js';
 import {
   claveSatSchema,
   editarClaveSatSchema,
+  importarClavesSatSchema,
   statusClaveSatSchema,
   type ClaveSatDto,
   type EditarClaveSatDto,
+  type ImportarClavesSatDto,
   type StatusClaveSatDto,
 } from './claves-sat.schemas.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
@@ -65,5 +67,14 @@ export class ClavesSatController {
   ) {
     await this.svc.setStatus(idClave, body.status, actor.uid);
     return { ok: true };
+  }
+
+  /** Importación masiva (un lote por llamada; el front itera en chunks). */
+  @Post('importar')
+  async importar(
+    @CurrentUser() actor: AuthUser,
+    @Body(new ZodValidationPipe(importarClavesSatSchema)) dto: ImportarClavesSatDto,
+  ) {
+    return this.svc.importar(dto, actor.uid);
   }
 }
