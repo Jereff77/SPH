@@ -1,14 +1,14 @@
 ---
 modulo: Arrendatarios
 estado: desarrollado
-version_doc: 1.2
-ultima_actualizacion: 2026-06-10
+version_doc: 1.3
+ultima_actualizacion: 2026-06-15
 rutas_v2: [/arrendatarios, /arrendatarios/planes, /arrendatarios/reportes]
 rutas_v1: [i02_arrendatarios]
 claves_permiso: [10, 20, 21, 22, 23, 24, 25]
 tablas: [inversionista, arrenPropiedades, arrePdp, arrePdpDetalle, arreConceptos, inversionista_docs, naves, parques, inpc, movbancarios, v_arrendadasNaves, catUsers, segModulos]
-rpcs: [arrepdp_crear_plan_simple_rpc, arrepdp_generar_corrida_desde_plan_simple, arrepdpdetalle_aplicar_meses_gracia, arrepdpdetalle_obtener_resumen_por_plan, arrepdpdetalle_actualizar_campo_manual, arrepdp_agregar_concepto_financiado, arrepdp_eliminar_plan_con_restricciones, aplicar_pago_arrendatario, pagos_arrendatarios, contratos_por_vencer, contratos_vencidos_sin_renovacion, movbancarios_sin_aplicar, v2_arrepdp_renovar, v2_arrepdp_activar_renovaciones, v2_arrepdp_cancelar_anticipado]
-palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón]
+rpcs: [arrepdp_crear_plan_simple_rpc, arrepdp_generar_corrida_desde_plan_simple, arrepdpdetalle_aplicar_meses_gracia, arrepdpdetalle_obtener_resumen_por_plan, arrepdpdetalle_actualizar_campo_manual, arrepdpdetalle_calcular_anio_por_plan, arrepdpdetalle_recalcular_anos_contrato, actualizar_anios_planes_nuevos, actualizar_ciclo_plan_pago, actualizar_inpc_por_ciclo, arrepdp_agregar_concepto_financiado, arrepdp_eliminar_plan_con_restricciones, aplicar_pago_arrendatario, pagos_arrendatarios, contratos_por_vencer, contratos_vencidos_sin_renovacion, movbancarios_sin_aplicar, v2_arrepdp_renovar, v2_arrepdp_activar_renovaciones, v2_arrepdp_cancelar_anticipado]
+palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón]
 relacionado_con: [parques, clientes, inversionistas, cxp]
 ---
 
@@ -63,6 +63,81 @@ actor para auditoría). Crear un plan orquesta **3 RPCs en secuencia**:
 1. `arrepdp_crear_plan_simple_rpc` → cabecera (`arrePdp`).
 2. `arrepdp_generar_corrida_desde_plan_simple` → detalle/corrida (`arrePdpDetalle`).
 3. `arrepdpdetalle_aplicar_meses_gracia` → marca los meses de gracia.
+
+> 📌 **El monto NO se almacena, se calcula.** En `arrePdpDetalle`, **`cantidad = pm2 × constM2`** e
+> **`inpcTotal = INPC + ptsINPC`** son **columnas generadas**. Por eso editar el `INPC` de una partida
+> **no cambia el monto por sí solo**: el monto solo se mueve si cambia el `pm2`. El INPC incrementa el
+> `pm2` del año **N** respecto al año **N−1** con la fórmula
+> `pm2[N] = pm2[N−1] × (1 + (INPC[N] + ptsINPC[N]) / 100)`. Ese recálculo del `pm2` lo hace la RPC
+> `arrepdpdetalle_actualizar_campo_manual` **solo cuando el año editado es ≥ 2** (el año 1 es la base, no
+> se incrementa).
+
+## ⚠️ Gotcha crítico — desfase del `anio` por concepto (diagnóstico de "actualizar el INPC manual no funciona")
+
+> **Para el agente de soporte: esto NO es un bug del código de v2 ni de la RPC de edición; es un problema
+> de DATOS.** El mismo síntoma aparece igual en v1 (Flutter) y en v2, porque ambos invocan la misma RPC
+> con los mismos parámetros.
+
+**Síntoma que reporta el usuario:** "al actualizar manualmente el INPC de un concepto **en el año 2** (o
+posterior), el cambio se aplica **desde el año 1** y/o **el monto no cambia**". Se nota sobre todo en
+**Renta** (la tabla principal de la corrida muestra los valores de la Renta), pero **puede ocurrir en
+CUALQUIER concepto**: Administración, Mantenimiento, Vigilancia y también conceptos financiados / KVA
+(p. ej. **Adecuaciones**, **Otros servicios inmobiliarios**).
+
+**Causa raíz.** Dentro de una **misma partida (mes)**, la fila de un concepto puede quedar con un `anio`
+**distinto (un número menor)** que el del resto de conceptos de esa misma partida. Cómo se produce:
+
+1. Al generar la corrida (`arrepdp_generar_corrida_desde_plan_simple`), la **Renta** se inserta con
+   `fecha` = **día 1** del mes y **Admin/Mtto/Vig** con `fecha` = **día 2** (`+1 día`); los conceptos
+   financiados llevan sus propias fechas.
+2. Dos crons diarios (07:00) recalculan `anio`/`ciclo` **por tiempo transcurrido**:
+   `actualizar-anios-planes-diario` → **`actualizar_anios_planes_nuevos()`** y
+   `actualizar-ciclo-planes-diario` → `actualizar_ciclo_plan_pago()`. La fórmula es
+   `FLOOR( (fecha − fecha_inicio_plan) / 365.25 días ) + 1`, con `fecha_inicio_plan = MIN(fecha)` del plan.
+3. En el **mes de aniversario**, el concepto cuya `fecha` cae **exactamente** en el aniversario (p. ej. la
+   Renta de 1/5/2026 = **365 días** desde 1/5/2025 → `365 / 365.25 < 1`) queda en el **año anterior**,
+   mientras que los conceptos con `+1 día` (2/5/2026 = **366 días** → `≥ 1`) quedan en el **año correcto**.
+   → ese concepto queda con `anio` **una unidad por debajo** del resto de su partida.
+
+**Por qué rompe la edición manual del INPC.** La RPC
+`arrepdpdetalle_actualizar_campo_manual(idArrePdp, anio, concepto, campo, valor)` aplica el cambio con
+`WHERE concepto = … AND anio >= anio_de_la_fila` y **solo recalcula `pm2` si `anio >= 2`**. Si la fila del
+concepto en el mes de aniversario quedó con `anio = 1`:
+- el `UPDATE … WHERE anio >= 1` **machaca el INPC de TODO el primer año** ("lo modifica desde el año 1"), y
+- como `anio < 2`, **no recalcula el `pm2`** → **el monto no cambia**.
+
+**Cómo diagnosticarlo (consultas de SOLO LECTURA).**
+
+```sql
+-- (A) Todas las filas con anio desalineado respecto al resto de su partida (todo el sistema)
+with f as (
+  select "idArrePdp", "numPartida", concepto, anio,
+         max(anio) over (partition by "idArrePdp","numPartida") as anio_part
+  from public."arrePdpDetalle"
+  where status = true and "numPartida" > 0
+)
+select "idArrePdp", "numPartida", concepto, anio, anio_part
+from f where anio <> anio_part
+order by "idArrePdp", "numPartida";
+
+-- (B) Para un plan concreto, comparar el anio por concepto en la partida sospechosa:
+select "numPartida", concepto, fecha::date, anio, "INPC", "ptsINPC", pm2, cantidad
+from public."arrePdpDetalle"
+where "idArrePdp" = '<idArrePdp>' and "numPartida" = <n> and status = true
+order by concepto;
+```
+
+Señal inequívoca: dentro de una misma `numPartida`, un concepto tiene `anio` **menor** que los demás
+(normalmente con `fecha` en el **día 1** mientras los otros están en el **día 2**).
+
+**Corrección (es de DATOS; requiere autorización — `arrePdpDetalle` es tabla compartida con v1):**
+realinear el `anio` de las filas desfasadas **por número de partida** (`((numPartida−1)/12)+1`, depósito
+= año 0), igual que ya hace la RPC `arrepdpdetalle_recalcular_anos_contrato`. Para que **no se repita**, la
+causa de fondo está en el cálculo por días/365.25 de `actualizar_anios_planes_nuevos()` /
+`actualizar_ciclo_plan_pago()` (crons de v1): deberían calcular por número de partida o por meses con
+`date_trunc('month', …)`. Tras realinear el `anio`, si ese mes de aniversario debía llevar el incremento de
+INPC y quedó sin él, se aplica el INPC del año correspondiente (ya con el `anio` correcto, la RPC manual
+recalcula bien).
 
 ## Reglas de negocio
 
@@ -205,6 +280,11 @@ actor para auditoría). Crear un plan orquesta **3 RPCs en secuencia**:
 - "No puedo editar la renta" → el plan probablemente está en **vigencia `No`**
   (vencido) o **no está activo**; solo los planes vigentes y activos permiten editar
   partidas.
+- "Actualizo el INPC manual de un concepto en el año 2 y se aplica al año 1 / el monto no cambia" → es el
+  **desfase del `anio` por concepto**: esa fila quedó con un `anio` menor que el resto de su partida (mes de
+  aniversario). Pasa en **cualquier concepto** (Renta, Admin/Mtto/Vig, Adecuaciones, Otros servicios). Ver
+  la sección **"⚠️ Gotcha crítico — desfase del `anio` por concepto"** de este documento para el diagnóstico
+  (consultas) y la corrección. **No es un fallo del código de v2 ni de la RPC** (ocurre igual en v1).
 - "El depósito no me deja aplicar" → es **Insuficiente** (importe menor a la suma de
   partidas) o las partidas son de **otra divisa** que el depósito.
 - "El arrendatario no aparece" → debe estar marcado como `arrendatario`/`usuarioFinal`

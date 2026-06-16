@@ -37,7 +37,10 @@ palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parq
   `parques`: `kvasAlta/Media` (total), `*Disponibles` (libre) y `*Utilizados` (**columna generada** =
   total − disponibles). Las KVA's **por nave** aún no se desarrollan.
 - **INPC:** Índice Nacional de Precios al Consumidor (tabla `inpc`). Se usa para actualizar rentas y
-  como indicador en el landing. Lo gestiona Configuraciones → Parámetros.
+  como indicador en el landing. Lo gestiona Configuraciones → Parámetros. En la **corrida de renta** el
+  INPC se captura por partida/concepto (`arrePdpDetalle.INPC` + `ptsINPC`) y al editarlo manualmente el
+  `pm2` del año se recalcula `pm2[N] = pm2[N−1] × (1 + (INPC+ptsINPC)/100)`. Si "actualizar el INPC manual
+  no funciona", ver el gotcha del **desfase del `anio` por concepto** en `modulos/arrendatarios.md`.
 - **Tipo de cambio (USD/MXN):** indicador del landing; se obtiene de **Banxico** (serie SF43718, FIX)
   a través del backend (el token nunca se expone al frontend).
 - **Tipo de pago** (`pdpDetalle.tipoPago`): clasifica cada parcialidad de un plan de pagos de venta.
@@ -58,6 +61,17 @@ palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parq
   (se filtran).
 - **`fc`, `fum`, `fumUser`, `idUser`:** metadatos de auditoría básica (fecha de creación, última
   modificación y usuario). La auditoría detallada (antes/después) vive en la tabla `auditoria`.
+- **`anio` (en `arrePdpDetalle`, corrida de renta):** año del contrato de cada partida (0 = depósito,
+  1 = primer año, 2 = segundo…). ⚠️ **Gotcha:** los crons diarios `actualizar_anios_planes_nuevos()` /
+  `actualizar_ciclo_plan_pago()` lo recalculan **por días/365.25** desde el inicio del plan; como cada
+  concepto tiene la `fecha` con un día distinto (Renta día 1, Admin/Mtto/Vig día 2), en el **mes de
+  aniversario** un concepto puede quedar con `anio` **una unidad por debajo** del resto de su partida. Eso
+  rompe la **actualización manual del INPC** (la RPC filtra `WHERE anio >= …` y solo recalcula si `anio ≥
+  2`). Diagnóstico y corrección detallados en `modulos/arrendatarios.md` → "Gotcha crítico — desfase del
+  `anio` por concepto".
+- **`cantidad` / `inpcTotal` (en `arrePdpDetalle`):** **columnas GENERADAS** (`cantidad = pm2 × constM2`,
+  `inpcTotal = INPC + ptsINPC`). No se escriben directamente: cambian solas al cambiar `pm2`/`constM2` o
+  `INPC`/`ptsINPC`. Por eso editar el INPC no mueve el monto salvo que se recalcule el `pm2`.
 
 ## Seguridad, identidad y soporte
 
