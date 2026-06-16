@@ -18,8 +18,15 @@
       "input_tokens": 245575,
       "output_tokens": 5000,
       "files": 43
+    },
+    {
+      "date": "2026-06-16T02:13:25.004780+00:00",
+      "input_tokens": 272797,
+      "output_tokens": 0,
+      "files": 39,
+      "scope": "version2 (update)"
     }
   ],
-  "total_input_tokens": 1445575,
+  "total_input_tokens": 1718372,
   "total_output_tokens": 232789
 }
