@@ -5,7 +5,7 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-16 (v2.30.0 — CxP: carga masiva de Claves SAT [layout Excel descargable + importación con upsert]). Notas: v2.29.0 (Arrendatarios → Vencimientos) y v2.28.0 (CxP → lectura de comprobantes integrada) las publicaron otras sesiones en paralelo. Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-17 (v2.33.1 — CxP: la pantalla **Aprobar Solicitudes** ahora muestra en el modal la **justificación del solicitante** y **«Solicita»**; el dato ya viajaba del backend, solo faltaba presentarlo). Notas: v2.30.0–v2.33.0 (Claves SAT, Vencimientos, Ventas/Fideicomiso, filtros multi-selección, IVA en Gestión de Pagos) las publicaron otras sesiones en paralelo; ver `.sessions/bitacora.md` y `v2_changelog`. Autor: Claude (Opus 4.8).
 >
 > ✨ **v2.26.0 (feature):** **Registro de usuarios por invitación** (Configuraciones → **Usuarios**, clave
 > **200**). Botón **«+ Invitar usuario»** (correo + nombre + apellidos) y panel **«Invitaciones»**

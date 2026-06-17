@@ -133,11 +133,27 @@ export function AprobarSolicitudModal({
                 {[solicitud.cuenta, solicitud.seccion].filter(Boolean).join(' / ') || solicitud.idCategoria}
               </span>
             </div>
+            {solicitud.solicitadoPor && (
+              <div className={fila}>
+                <span className="text-gray-500">Solicita</span>
+                <span className="text-right text-gray-700">{solicitud.solicitadoPor}</span>
+              </div>
+            )}
             <div className={fila}>
               <span className="text-gray-500">Subtotal</span>
               <span className="font-semibold text-gray-800">{moneda(solicitud.subtotal)}</span>
             </div>
           </div>
+
+          {/* Justificación del solicitante (lo que escribió al enviar la solicitud) */}
+          {solicitud.justificacion && (
+            <div className="space-y-1 rounded-lg border border-indigo-100 bg-indigo-50/60 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Justificación del solicitante
+              </p>
+              <p className="whitespace-pre-wrap text-sm text-gray-700">{solicitud.justificacion}</p>
+            </div>
+          )}
 
           {/* Panel de presupuesto */}
           {pres && pres.presupuestable && (
@@ -178,7 +194,7 @@ export function AprobarSolicitudModal({
             </div>
           )}
 
-          {/* Justificación */}
+          {/* Comentario del aprobador (motivo al regresar/rechazar; opcional al aprobar) */}
           <label className="block text-xs text-gray-600">
             {meta.label}
             <textarea

@@ -1,8 +1,8 @@
 ---
 modulo: CxP (Cuentas por Pagar)
 estado: parcial              # Proveedores, Bancos, Solicitudes (alta+listado), Pendientes y Pagar en v2; resto por fases
-version_doc: 0.7
-ultima_actualizacion: 2026-06-16
+version_doc: 0.8
+ultima_actualizacion: 2026-06-17
 submodulos: [Proveedores, Bancos, Solicitudes, "Pagar solicitudes", Aprobación, Pago/Conciliación, Reportes, "Claves SAT"]
 rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes, /cxp/pagar]
 claves_permiso: [400, 401, 402, 410, 420, 430, 431, 440, 441, 450, 460, 470]
@@ -454,6 +454,12 @@ Total, Monto Aplicado, Balance, Urgente, Acciones) con encabezado fijo azul (reg
   Solicitado por.
 
 ### Acciones (modal con motivo; solo en estado Enviado)
+- **Contenido del modal**: datos de la solicitud (proveedor, folio, concepto, cuenta, subtotal y **«Solicita»**
+  = quién la pidió), la **justificación que escribió el solicitante** al enviarla (panel destacado; campo
+  `justificacion` ← `cxp.ultimoComentario`, vía `aprobacion.service`) y el **panel de presupuesto** de la
+  categoría. El campo de texto inferior es el **comentario del aprobador** (obligatorio al Regresar/Rechazar;
+  opcional al Aprobar). *(v2.33.1: se añadieron al modal la justificación del solicitante y «Solicita»; el dato
+  ya viajaba del backend, solo faltaba mostrarlo.)*
 - **Regresar** (`POST /:idCxp/regresar`, motivo obligatorio): `idEstado→1` (al solicitante para corregir).
 - **Rechazar** (`POST /:idCxp/rechazar`, motivo obligatorio): `idEstado→3` (la factura debe refacturarse).
 - **Aprobar** (`POST /:idCxp/aprobar`): pre-valida `cxp_puede_autorizar()`; llama la RPC
