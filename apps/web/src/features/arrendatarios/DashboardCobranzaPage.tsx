@@ -10,6 +10,7 @@ import {
 import { AplicarPagoModal } from './AplicarPagoModal';
 import { useArrendatariosRealtime } from './useArrendatariosRealtime';
 import { exportarCSV } from './csv-export';
+import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
 
 type EstadoFiltro = 'all' | 'pend' | 'paid';
 type SortCol = 'nave' | 'parque' | 'razon_social';
@@ -70,8 +71,9 @@ const addMonths = (date: Date, n: number): Date => {
   return d;
 };
 
-const incluye = (v: string | null, q: string): boolean =>
-  !q || (v ?? '').toLowerCase().includes(q.toLowerCase());
+/** Ordena en español (con numérico) — para las opciones de los filtros de columna. */
+const ordenarEs = (xs: string[]): string[] =>
+  [...xs].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 
 export function DashboardCobranzaPage() {
   const queryClient = useQueryClient();
@@ -80,7 +82,11 @@ export function DashboardCobranzaPage() {
   const [mes, setMes] = useState<number>(ahora.getMonth() + 1); // 0 = Todos
   const [estado, setEstado] = useState<EstadoFiltro>('all');
   const [divisaFiltro, setDivisaFiltro] = useState<'ambos' | 'MXN' | 'USD'>('ambos');
-  const [cf, setCf] = useState({ nave: '', parque: '', rs: '', conc: '' });
+  // Filtros de columna multi-selección (regla de diseño 7c).
+  const [naveSel, setNaveSel] = useState<Set<string>>(new Set());
+  const [parqueSel, setParqueSel] = useState<Set<string>>(new Set());
+  const [rsSel, setRsSel] = useState<Set<string>>(new Set());
+  const [concSel, setConcSel] = useState<Set<string>>(new Set());
   const [sortCol, setSortCol] = useState<SortCol>('parque');
   const [sortAsc, setSortAsc] = useState(true);
   const [tip, setTip] = useState<TipState | null>(null);
@@ -116,19 +122,25 @@ export function DashboardCobranzaPage() {
   }, [queryClient]);
   useArrendatariosRealtime(onCambio);
 
+  // Opciones distintas para los filtros de columna (valores presentes).
+  const optNave = useMemo(() => ordenarEs([...new Set(filas.map((r) => r.nave ?? '').filter(Boolean))]), [filas]);
+  const optParque = useMemo(() => ordenarEs([...new Set(filas.map((r) => r.parque ?? '').filter(Boolean))]), [filas]);
+  const optRS = useMemo(() => ordenarEs([...new Set(filas.map((r) => r.razon_social ?? '').filter(Boolean))]), [filas]);
+  const optConc = useMemo(() => ordenarEs([...new Set(filas.map((r) => r.concepto ?? '').filter(Boolean))]), [filas]);
+
   // 1) Filtro por divisa + estado + columnas (sobre las filas individuales).
   const filasFiltradas = useMemo(() => {
     return filas.filter((r) => {
       if (divisaFiltro !== 'ambos' && (r.divisa || 'MXN') !== divisaFiltro) return false;
       if (estado === 'pend' && r.fec_pago) return false;
       if (estado === 'paid' && !r.fec_pago) return false;
-      if (!incluye(r.nave, cf.nave)) return false;
-      if (!incluye(r.parque, cf.parque)) return false;
-      if (!incluye(r.razon_social, cf.rs)) return false;
-      if (!incluye(r.concepto, cf.conc)) return false;
+      if (naveSel.size > 0 && !naveSel.has(r.nave ?? '')) return false;
+      if (parqueSel.size > 0 && !parqueSel.has(r.parque ?? '')) return false;
+      if (rsSel.size > 0 && !rsSel.has(r.razon_social ?? '')) return false;
+      if (concSel.size > 0 && !concSel.has(r.concepto ?? '')) return false;
       return true;
     });
-  }, [filas, divisaFiltro, estado, cf]);
+  }, [filas, divisaFiltro, estado, naveSel, parqueSel, rsSel, concSel]);
 
   // 2) Agrupación por nave+parque+razón social, con desglose por concepto.
   const grupos = useMemo(() => {
@@ -326,7 +338,7 @@ export function DashboardCobranzaPage() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-800">Arrendatarios · Cobranza</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-800">Arrendatarios · Gestión de Pagos</h1>
         <button
           type="button"
           onClick={exportar}
@@ -413,6 +425,12 @@ export function DashboardCobranzaPage() {
             </button>
           ))}
         </div>
+
+        {/* Filtro de Concepto (no tiene columna propia en la tabla agrupada) */}
+        <div className="flex items-center gap-1.5 rounded-lg bg-[#1f2a4d] px-3 text-xs font-semibold text-white">
+          <span>Concepto</span>
+          <FiltroColumnaOpciones etiqueta="Concepto" opciones={optConc} seleccion={concSel} onChange={setConcSel} />
+        </div>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[1fr_250px]">
@@ -421,34 +439,27 @@ export function DashboardCobranzaPage() {
           <table className="min-w-full border-collapse text-sm">
             <thead>
               <tr className="bg-[#1f2a4d] text-left text-xs font-semibold uppercase tracking-wide text-white [&>th]:sticky [&>th]:top-0 [&>th]:z-20 [&>th]:bg-[#1f2a4d] [&>th]:px-3 [&>th]:py-2">
-                <th className="cursor-pointer hover:bg-[#2a376a]" onClick={() => sortBy('nave')}>
-                  Nave{ind('nave')}
+                <th className="hover:bg-[#2a376a]">
+                  <div className="flex items-center gap-1">
+                    <button type="button" onClick={() => sortBy('nave')} className="uppercase tracking-wide hover:text-white/80">Nave{ind('nave')}</button>
+                    <FiltroColumnaOpciones etiqueta="Nave" opciones={optNave} seleccion={naveSel} onChange={setNaveSel} />
+                  </div>
                 </th>
-                <th className="cursor-pointer hover:bg-[#2a376a]" onClick={() => sortBy('parque')}>
-                  Parque{ind('parque')}
+                <th className="hover:bg-[#2a376a]">
+                  <div className="flex items-center gap-1">
+                    <button type="button" onClick={() => sortBy('parque')} className="uppercase tracking-wide hover:text-white/80">Parque{ind('parque')}</button>
+                    <FiltroColumnaOpciones etiqueta="Parque" opciones={optParque} seleccion={parqueSel} onChange={setParqueSel} />
+                  </div>
                 </th>
-                <th className="cursor-pointer hover:bg-[#2a376a]" onClick={() => sortBy('razon_social')}>
-                  Razón Social{ind('razon_social')}
+                <th className="hover:bg-[#2a376a]">
+                  <div className="flex items-center gap-1">
+                    <button type="button" onClick={() => sortBy('razon_social')} className="uppercase tracking-wide hover:text-white/80">Razón Social{ind('razon_social')}</button>
+                    <FiltroColumnaOpciones etiqueta="Razón Social" opciones={optRS} seleccion={rsSel} onChange={setRsSel} />
+                  </div>
                 </th>
                 <th className="text-right">Pendiente</th>
                 <th className="text-right">Cobrado</th>
                 <th className="text-center">Opciones</th>
-              </tr>
-              <tr className="bg-[#20456b] [&>th]:sticky [&>th]:top-[33px] [&>th]:z-20 [&>th]:bg-[#20456b] [&>th]:px-2 [&>th]:py-1">
-                <th>
-                  <FiltroCol valor={cf.nave} onChange={(v) => setCf({ ...cf, nave: v })} ph="nave…" />
-                </th>
-                <th>
-                  <FiltroCol valor={cf.parque} onChange={(v) => setCf({ ...cf, parque: v })} ph="parque…" />
-                </th>
-                <th>
-                  <FiltroCol valor={cf.rs} onChange={(v) => setCf({ ...cf, rs: v })} ph="razón social…" />
-                </th>
-                <th>
-                  <FiltroCol valor={cf.conc} onChange={(v) => setCf({ ...cf, conc: v })} ph="concepto…" />
-                </th>
-                <th />
-                <th />
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -618,25 +629,6 @@ function Stat({ label, valor, clase }: { label: string; valor: string; clase?: s
       <span className="text-[10px] uppercase tracking-wide text-gray-400">{label}</span>
       <span className={`text-base font-bold ${clase ?? 'text-[#1f2a4d]'}`}>{valor}</span>
     </div>
-  );
-}
-
-function FiltroCol({
-  valor,
-  onChange,
-  ph,
-}: {
-  valor: string;
-  onChange: (v: string) => void;
-  ph: string;
-}) {
-  return (
-    <input
-      value={valor}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={ph}
-      className="w-full rounded border border-white/25 bg-white/10 px-1.5 py-0.5 text-[11px] text-white placeholder:text-white/40 outline-none focus:bg-white/20"
-    />
   );
 }
 

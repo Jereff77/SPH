@@ -54,7 +54,7 @@ export const MENU: MenuGrupo[] = [
     label: 'Arrendatarios',
     Icon: IconArrendatarios,
     items: [
-      { label: 'Dashboard', to: '/arrendatarios', clave: 10 },
+      { label: 'Gestión de Pagos', to: '/arrendatarios', clave: 10 },
       { label: 'Planes de Renta', to: '/arrendatarios/planes', clave: 20 },
       { label: 'Reportes', to: '/arrendatarios/reportes', clave: 20 },
     ],
