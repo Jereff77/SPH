@@ -62,6 +62,19 @@ function toNum(v: string | undefined, def: number): number {
 function toBool(v: string | undefined): boolean {
   return v === 'true' || v === '1';
 }
+/**
+ * Lista de meses (1-12) desde el query `meses` (CSV, p. ej. "1,3,6"). Si no
+ * llega, cae al `mes` único (compat). Filtra valores fuera de rango.
+ */
+function toMeses(meses: string | undefined, mes: string | undefined, def: number): number[] {
+  const fuente = meses && meses.trim() ? meses : mes;
+  if (!fuente || !fuente.trim()) return [def];
+  const nums = fuente
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n >= 1 && n <= 12);
+  return nums.length ? [...new Set(nums)] : [def];
+}
 
 /**
  * Módulo Ventas (Inversionistas/Propietarios). Dashboard (clave 600) y Planes +
@@ -91,12 +104,13 @@ export class VentasController {
   tabla(
     @Query('anio') anio?: string,
     @Query('mes') mes?: string,
+    @Query('meses') meses?: string,
     @Query('activo') activo?: string,
   ) {
     const ahora = new Date();
     return this.dashboard.tabla({
       anio: toNum(anio, ahora.getFullYear()),
-      mes: toNum(mes, ahora.getMonth() + 1),
+      meses: toMeses(meses, mes, ahora.getMonth() + 1),
       activo: activo === undefined ? true : toBool(activo),
     });
   }
@@ -106,12 +120,13 @@ export class VentasController {
   tarjetas(
     @Query('anio') anio?: string,
     @Query('mes') mes?: string,
+    @Query('meses') meses?: string,
     @Query('activo') activo?: string,
   ) {
     const ahora = new Date();
     return this.dashboard.tarjetas(
       toNum(anio, ahora.getFullYear()),
-      toNum(mes, ahora.getMonth() + 1),
+      toMeses(meses, mes, ahora.getMonth() + 1),
       activo === undefined ? true : toBool(activo),
     );
   }
@@ -121,12 +136,13 @@ export class VentasController {
   rentas(
     @Query('anio') anio?: string,
     @Query('mes') mes?: string,
+    @Query('meses') meses?: string,
     @Query('tipo') tipo?: string,
   ) {
     const ahora = new Date();
     return this.dashboard.rentas(
       toNum(anio, ahora.getFullYear()),
-      toNum(mes, ahora.getMonth() + 1),
+      toMeses(meses, mes, ahora.getMonth() + 1),
       tipo || 'Todos',
     );
   }

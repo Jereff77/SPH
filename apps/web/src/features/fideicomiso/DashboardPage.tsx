@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fideicomisoApi, type AdhesionFila } from './fideicomiso.api';
 import { useSort } from '@/components/tabla/useSort';
 import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
+import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
 import { moneda, porcentaje, fechaCorta } from './format';
 
 /**
@@ -12,25 +13,60 @@ import { moneda, porcentaje, fechaCorta } from './format';
  * Medio, Bloque, $ Apartado, Fecha 1er Pago, Cantidad Partidas, Valor Ticket y
  * Rendimiento. Solo lectura; el front nunca toca Supabase.
  */
+
+/** Valores distintos de una columna (sin vacíos), ordenados es-MX. */
+function opcionesDe(
+  filas: AdhesionFila[],
+  sel: (f: AdhesionFila) => string | null | undefined,
+): string[] {
+  return [...new Set(filas.map((f) => sel(f) ?? '').filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, 'es', { numeric: true }),
+  );
+}
+
 export function DashboardPage() {
   const [busca, setBusca] = useState('');
+
+  // Filtros de columna (multi-selección: una o varias opciones — regla de diseño 7c)
+  const [invSel, setInvSel] = useState<Set<string>>(new Set());
+  const [adhSel, setAdhSel] = useState<Set<string>>(new Set());
+  const [pmSel, setPmSel] = useState<Set<string>>(new Set());
+  const [medioSel, setMedioSel] = useState<Set<string>>(new Set());
+  const [bloqueSel, setBloqueSel] = useState<Set<string>>(new Set());
 
   const { data: filas = [], isLoading, isError } = useQuery({
     queryKey: ['fide-adhesiones'],
     queryFn: () => fideicomisoApi.adhesiones(),
   });
 
+  // Valores distintos por columna (para los filtros multi-selección).
+  const optInv = useMemo(() => opcionesDe(filas, (f) => f.razonsocial), [filas]);
+  const optAdh = useMemo(() => opcionesDe(filas, (f) => f.noAdhesion), [filas]);
+  const optPm = useMemo(() => opcionesDe(filas, (f) => f.PM), [filas]);
+  const optMedio = useMemo(() => opcionesDe(filas, (f) => f.Medio), [filas]);
+  const optBloque = useMemo(() => opcionesDe(filas, (f) => f.bloque), [filas]);
+
   const filtradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    if (!q) return filas;
-    return filas.filter(
-      (f) =>
-        (f.razonsocial ?? '').toLowerCase().includes(q) ||
-        (f.noAdhesion ?? '').toLowerCase().includes(q) ||
-        (f.Medio ?? '').toLowerCase().includes(q) ||
-        (f.bloque ?? '').toLowerCase().includes(q),
-    );
-  }, [filas, busca]);
+    return filas.filter((f) => {
+      if (
+        q &&
+        !(
+          (f.razonsocial ?? '').toLowerCase().includes(q) ||
+          (f.noAdhesion ?? '').toLowerCase().includes(q) ||
+          (f.Medio ?? '').toLowerCase().includes(q) ||
+          (f.bloque ?? '').toLowerCase().includes(q)
+        )
+      )
+        return false;
+      if (invSel.size > 0 && !invSel.has(f.razonsocial ?? '')) return false;
+      if (adhSel.size > 0 && !adhSel.has(f.noAdhesion ?? '')) return false;
+      if (pmSel.size > 0 && !pmSel.has(f.PM ?? '')) return false;
+      if (medioSel.size > 0 && !medioSel.has(f.Medio ?? '')) return false;
+      if (bloqueSel.size > 0 && !bloqueSel.has(f.bloque ?? '')) return false;
+      return true;
+    });
+  }, [filas, busca, invSel, adhSel, pmSel, medioSel, bloqueSel]);
 
   const { ordenados, sortKey, dir, toggle } = useSort<AdhesionFila>(
     filtradas,
@@ -87,19 +123,34 @@ export function DashboardPage() {
         <table className="w-full min-w-[1100px] text-sm">
           <thead className={THEAD_STICKY}>
             <tr className={THEAD_TR}>
-              <SortableTh campo="razonsocial" sortKey={sortKey} dir={dir} onSort={toggle}>
+              <SortableTh
+                campo="razonsocial" sortKey={sortKey} dir={dir} onSort={toggle}
+                filtro={<FiltroColumnaOpciones etiqueta="Inversionista" opciones={optInv} seleccion={invSel} onChange={setInvSel} />}
+              >
                 Inversionista
               </SortableTh>
-              <SortableTh campo="noAdhesion" sortKey={sortKey} dir={dir} onSort={toggle} align="center">
+              <SortableTh
+                campo="noAdhesion" sortKey={sortKey} dir={dir} onSort={toggle} align="center"
+                filtro={<FiltroColumnaOpciones etiqueta="No. Adhesión" opciones={optAdh} seleccion={adhSel} onChange={setAdhSel} />}
+              >
                 No. Adhesion
               </SortableTh>
-              <SortableTh campo="PM" sortKey={sortKey} dir={dir} onSort={toggle} align="center">
+              <SortableTh
+                campo="PM" sortKey={sortKey} dir={dir} onSort={toggle} align="center"
+                filtro={<FiltroColumnaOpciones etiqueta="PM" opciones={optPm} seleccion={pmSel} onChange={setPmSel} />}
+              >
                 PM
               </SortableTh>
-              <SortableTh campo="Medio" sortKey={sortKey} dir={dir} onSort={toggle}>
+              <SortableTh
+                campo="Medio" sortKey={sortKey} dir={dir} onSort={toggle}
+                filtro={<FiltroColumnaOpciones etiqueta="Medio" opciones={optMedio} seleccion={medioSel} onChange={setMedioSel} />}
+              >
                 Medio
               </SortableTh>
-              <SortableTh campo="bloque" sortKey={sortKey} dir={dir} onSort={toggle} align="center">
+              <SortableTh
+                campo="bloque" sortKey={sortKey} dir={dir} onSort={toggle} align="center"
+                filtro={<FiltroColumnaOpciones etiqueta="Bloque" opciones={optBloque} seleccion={bloqueSel} onChange={setBloqueSel} />}
+              >
                 Bloque
               </SortableTh>
               <SortableTh campo="Apartado" sortKey={sortKey} dir={dir} onSort={toggle} align="right">

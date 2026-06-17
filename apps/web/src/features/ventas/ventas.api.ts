@@ -282,12 +282,12 @@ function dq(params: Record<string, string | number | undefined>): string {
 export const ventasApi = {
   // Dashboard
   filtros: () => api.get<{ anios: number[] }>('/ventas/dashboard/filtros'),
-  tabla: (anio: number, mes: number, activo: boolean) =>
-    api.get<PagoVentaRow[]>(`/ventas/dashboard/tabla${dq({ anio, mes, activo: String(activo) })}`),
-  tarjetas: (anio: number, mes: number, activo: boolean) =>
-    api.get<Tarjetas>(`/ventas/dashboard/tarjetas${dq({ anio, mes, activo: String(activo) })}`),
-  rentas: (anio: number, mes: number, tipo: string) =>
-    api.get<RentaCombinadaRow[]>(`/ventas/dashboard/rentas${dq({ anio, mes, tipo })}`),
+  tabla: (anio: number, meses: number[], activo: boolean) =>
+    api.get<PagoVentaRow[]>(`/ventas/dashboard/tabla${dq({ anio, meses: meses.join(','), activo: String(activo) })}`),
+  tarjetas: (anio: number, meses: number[], activo: boolean) =>
+    api.get<Tarjetas>(`/ventas/dashboard/tarjetas${dq({ anio, meses: meses.join(','), activo: String(activo) })}`),
+  rentas: (anio: number, meses: number[], tipo: string) =>
+    api.get<RentaCombinadaRow[]>(`/ventas/dashboard/rentas${dq({ anio, meses: meses.join(','), tipo })}`),
   detallePagos: (idPdpDet: string) =>
     api.get<PagoRealizado[]>(`/ventas/dashboard/pagos/${idPdpDet}`),
   eliminarPago: (idPago: string) =>

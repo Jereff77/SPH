@@ -10,6 +10,7 @@ import {
 } from '@/components/tabla/SortableTh';
 import { useSort, type Accessors } from '@/components/tabla/useSort';
 import { ApiRequestError } from '@/lib/api';
+import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
 
 const QKEY = ['cxp-proveedores'];
 
@@ -24,6 +25,8 @@ const ACCESSORS: Accessors<Proveedor> = {
 export function ProveedoresPage() {
   const queryClient = useQueryClient();
   const [busqueda, setBusqueda] = useState('');
+  const [bancoSel, setBancoSel] = useState<Set<string>>(new Set());
+  const [tipoCtaSel, setTipoCtaSel] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [editar, setEditar] = useState<Proveedor | null>(null);
   const [alta, setAlta] = useState(false);
@@ -55,16 +58,37 @@ export function ProveedoresPage() {
     onSettled: () => invalidar(),
   });
 
+  const optBanco = useMemo(
+    () =>
+      [...new Set(data.map((p) => p.nombreBanco ?? '').filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b, 'es', { numeric: true }),
+      ),
+    [data],
+  );
+
+  const optTipoCta = useMemo(
+    () =>
+      [...new Set(data.map((p) => p.tipoCuenta ?? '').filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b, 'es', { numeric: true }),
+      ),
+    [data],
+  );
+
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter(
-      (p) =>
-        p.razonSocial.toLowerCase().includes(q) ||
-        p.rfc.toLowerCase().includes(q) ||
-        (p.nombreBanco ?? '').toLowerCase().includes(q),
-    );
-  }, [data, busqueda]);
+    return data.filter((p) => {
+      if (
+        q &&
+        !p.razonSocial.toLowerCase().includes(q) &&
+        !p.rfc.toLowerCase().includes(q) &&
+        !(p.nombreBanco ?? '').toLowerCase().includes(q)
+      )
+        return false;
+      if (bancoSel.size > 0 && !bancoSel.has(p.nombreBanco ?? '')) return false;
+      if (tipoCtaSel.size > 0 && !tipoCtaSel.has(p.tipoCuenta ?? '')) return false;
+      return true;
+    });
+  }, [data, busqueda, bancoSel, tipoCtaSel]);
 
   const { ordenados, sortKey, dir, toggle } = useSort(filtrados, ACCESSORS, {
     key: 'razonSocial',
@@ -109,10 +133,36 @@ export function ProveedoresPage() {
               <SortableTh campo="rfc" sortKey={sortKey} dir={dir} onSort={toggle}>
                 RFC
               </SortableTh>
-              <SortableTh campo="banco" sortKey={sortKey} dir={dir} onSort={toggle}>
+              <SortableTh
+                campo="banco"
+                sortKey={sortKey}
+                dir={dir}
+                onSort={toggle}
+                filtro={
+                  <FiltroColumnaOpciones
+                    etiqueta="Banco"
+                    opciones={optBanco}
+                    seleccion={bancoSel}
+                    onChange={setBancoSel}
+                  />
+                }
+              >
                 Banco
               </SortableTh>
-              <SortableTh campo="tipoCuenta" sortKey={sortKey} dir={dir} onSort={toggle}>
+              <SortableTh
+                campo="tipoCuenta"
+                sortKey={sortKey}
+                dir={dir}
+                onSort={toggle}
+                filtro={
+                  <FiltroColumnaOpciones
+                    etiqueta="Tipo cuenta"
+                    opciones={optTipoCta}
+                    seleccion={tipoCtaSel}
+                    onChange={setTipoCtaSel}
+                  />
+                }
+              >
                 Tipo cuenta
               </SortableTh>
               <SortableTh>No. cuenta</SortableTh>

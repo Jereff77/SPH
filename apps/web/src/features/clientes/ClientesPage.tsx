@@ -10,6 +10,7 @@ import {
 import { ClienteModal } from './ClienteModal';
 import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
 import { useSort, type Accessors } from '@/components/tabla/useSort';
+import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
 
 const fechaCorta = (iso: string | null): string => {
   if (!iso) return '—';
@@ -53,6 +54,7 @@ export function ClientesPage() {
   const [editar, setEditar] = useState<Cliente | null>(null);
   const [nuevo, setNuevo] = useState(false);
   const [eliminando, setEliminando] = useState<string | null>(null);
+  const [persSel, setPersSel] = useState<Set<string>>(new Set());
 
   const { data: clientes = [], isLoading } = useQuery({
     queryKey: ['clientes', tipo],
@@ -61,15 +63,24 @@ export function ClientesPage() {
 
   const refrescar = () => queryClient.invalidateQueries({ queryKey: ['clientes'] });
 
+  const optPers = useMemo(
+    () =>
+      [...new Set(clientes.map((c) => c.personalidad ?? '').filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, 'es', { numeric: true }),
+      ),
+    [clientes],
+  );
+
   const filtrados = useMemo(() => {
     const q = norm(busca.trim());
-    if (!q) return clientes;
-    return clientes.filter((c) =>
-      [c.razonsocial, c.nombre, c.apellido1, c.apellido2, c.RFC, c.CURP, c.correo, c.telefono]
+    return clientes.filter((c) => {
+      if (persSel.size > 0 && !persSel.has(c.personalidad ?? '')) return false;
+      if (!q) return true;
+      return [c.razonsocial, c.nombre, c.apellido1, c.apellido2, c.RFC, c.CURP, c.correo, c.telefono]
         .filter(Boolean)
-        .some((v) => norm(String(v)).includes(q)),
-    );
-  }, [clientes, busca]);
+        .some((v) => norm(String(v)).includes(q));
+    });
+  }, [clientes, busca, persSel]);
 
   const { ordenados, sortKey, dir, toggle } = useSort(filtrados, ACCESSORS, {
     key: 'razonsocial',
@@ -132,7 +143,20 @@ export function ClientesPage() {
           <thead className={THEAD_STICKY}>
             <tr className={THEAD_TR}>
               <th className="px-3 py-3 text-center">Opciones</th>
-              <SortableTh campo="personalidad" sortKey={sortKey} dir={dir} onSort={toggle}>
+              <SortableTh
+                campo="personalidad"
+                sortKey={sortKey}
+                dir={dir}
+                onSort={toggle}
+                filtro={
+                  <FiltroColumnaOpciones
+                    etiqueta="Personalidad"
+                    opciones={optPers}
+                    seleccion={persSel}
+                    onChange={setPersSel}
+                  />
+                }
+              >
                 Personalidad
               </SortableTh>
               <SortableTh campo="idContpac" sortKey={sortKey} dir={dir} onSort={toggle}>

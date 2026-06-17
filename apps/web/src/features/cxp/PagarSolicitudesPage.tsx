@@ -15,7 +15,7 @@ import {
   THEAD_STICKY,
   THEAD_TR,
 } from '@/components/tabla/SortableTh';
-import { ColumnFilter, type OpcionFiltro } from '@/components/tabla/ColumnFilter';
+import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
 import { useSort, type Accessors } from '@/components/tabla/useSort';
 import { useAuth } from '@/features/auth/useAuth';
 
@@ -56,16 +56,24 @@ const esUrl = (u: string | null): u is string => !!u && /^https?:\/\//.test(u);
 // Estados que se pueden mostrar/filtrar en la pantalla de pagos.
 const ESTADOS_FILTRO = [4, 2, 3, 5, 6, 7, 99];
 
+/** Etiqueta de estado de una fila (para el filtro de columna por valor visible). */
+const estadoLabel = (r: PagoRow) =>
+  r.idEstado != null ? (ESTADOS_CXP[r.idEstado]?.etiqueta ?? String(r.idEstado)) : '';
+
 export function PagarSolicitudesPage() {
   const { tienePermiso } = useAuth();
   const queryClient = useQueryClient();
   const ahora = new Date();
   const [anio, setAnio] = useState(ahora.getFullYear());
   const [mes, setMes] = useState(ahora.getMonth() + 1);
-  const [idEstado, setIdEstado] = useState<number | ''>(4);
-  const [idProveedor, setIdProveedor] = useState('');
-  const [cuenta, setCuenta] = useState('');
-  const [seccion, setSeccion] = useState('');
+  // Filtros de columna multi-selección (client-side — regla de diseño 7c).
+  // El estado arranca en "Aprobado" (equivale al default idEstado=4 de antes).
+  const [estadoSel, setEstadoSel] = useState<Set<string>>(
+    () => new Set([ESTADOS_CXP[4]?.etiqueta ?? 'Aprobado']),
+  );
+  const [proveedorSel, setProveedorSel] = useState<Set<string>>(new Set());
+  const [categoriaSel, setCategoriaSel] = useState<Set<string>>(new Set());
+  const [clasifSel, setClasifSel] = useState<Set<string>>(new Set());
   const [pagarDe, setPagarDe] = useState<PagoRow | null>(null);
   const [verPagoDe, setVerPagoDe] = useState<PagoRow | null>(null);
 
@@ -75,15 +83,8 @@ export function PagarSolicitudesPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const params: ListarPagosParams = {
-    anio,
-    mes,
-    idEstado: idEstado === '' ? undefined : idEstado,
-    idProveedor: idProveedor || undefined,
-    cuenta: cuenta || undefined,
-    seccion: seccion || undefined,
-  };
-
+  // Se carga el periodo completo (todos los estados); los filtros de columna
+  // (Estado/Proveedor/Categoría/Clasificación) se aplican en cliente.
   const {
     data,
     isLoading,
@@ -91,8 +92,8 @@ export function PagarSolicitudesPage() {
     refetch,
     isFetching,
   } = useQuery({
-    queryKey: ['cxp-pagos', params],
-    queryFn: () => pagosApi.listar(params),
+    queryKey: ['cxp-pagos', anio, mes],
+    queryFn: () => pagosApi.listar({ anio, mes } satisfies ListarPagosParams),
   });
 
   // Tiempo real: ante cualquier cambio en cxp (incluso desde v1), refresca.
@@ -101,38 +102,61 @@ export function PagarSolicitudesPage() {
   }, [queryClient]);
   usePagosRealtime(onCambio);
 
-  const filas = data?.filas ?? [];
-  const totales = data?.totales ?? { subtotal: 0, total: 0, montoAplicado: 0 };
-  const { ordenados, sortKey, dir, toggle } = useSort(filas, ACCESSORS, {
+  const filas = useMemo(() => data?.filas ?? [], [data]);
+
+  // Opciones de los filtros de columna (valores presentes en el periodo cargado).
+  const optEstado = useMemo(() => {
+    const presentes = new Set(filas.map((r) => r.idEstado));
+    return ESTADOS_FILTRO.filter((e) => presentes.has(e)).map(
+      (e) => ESTADOS_CXP[e]?.etiqueta ?? String(e),
+    );
+  }, [filas]);
+  const optProveedor = useMemo(
+    () => [...new Set(filas.map((r) => r.nombreProveedor ?? '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')),
+    [filas],
+  );
+  const optCategoria = useMemo(
+    () => [...new Set(filas.map((r) => r.cuenta ?? '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')),
+    [filas],
+  );
+  const optClasif = useMemo(
+    () => [...new Set(filas.map((r) => r.seccion ?? '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')),
+    [filas],
+  );
+
+  const filtradas = useMemo(
+    () =>
+      filas.filter((r) => {
+        if (estadoSel.size > 0 && !estadoSel.has(estadoLabel(r))) return false;
+        if (proveedorSel.size > 0 && !proveedorSel.has(r.nombreProveedor ?? '')) return false;
+        if (categoriaSel.size > 0 && !categoriaSel.has(r.cuenta ?? '')) return false;
+        if (clasifSel.size > 0 && !clasifSel.has(r.seccion ?? '')) return false;
+        return true;
+      }),
+    [filas, estadoSel, proveedorSel, categoriaSel, clasifSel],
+  );
+
+  const { ordenados, sortKey, dir, toggle } = useSort(filtradas, ACCESSORS, {
     key: 'fecSol',
     dir: 'desc',
   });
 
-  const cuentas = useMemo(
+  // Totales del pie sobre lo filtrado (cuadran con la tabla).
+  const totales = useMemo(
     () =>
-      [...new Set((opts?.categorias ?? []).map((c) => c.cuenta).filter(Boolean))] as string[],
-    [opts],
-  );
-  const secciones = useMemo(
-    () =>
-      [...new Set((opts?.categorias ?? []).map((c) => c.seccion).filter(Boolean))] as string[],
-    [opts],
+      filtradas.reduce(
+        (t, r) => {
+          t.total += r.total ?? 0;
+          t.montoAplicado += r.montoAplicado ?? 0;
+          return t;
+        },
+        { total: 0, montoAplicado: 0 },
+      ),
+    [filtradas],
   );
 
   const selCls =
     'rounded-lg border px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30';
-
-  // Opciones para los filtros de columna (estilo Excel).
-  const optEstado: OpcionFiltro[] = ESTADOS_FILTRO.map((e) => ({
-    value: String(e),
-    label: ESTADOS_CXP[e]?.etiqueta ?? String(e),
-  }));
-  const optProveedor: OpcionFiltro[] = (opts?.proveedores ?? []).map((p) => ({
-    value: p.idProveedor,
-    label: p.razonSocial,
-  }));
-  const optCuenta: OpcionFiltro[] = cuentas.map((c) => ({ value: c, label: c }));
-  const optSeccion: OpcionFiltro[] = secciones.map((s) => ({ value: s, label: s }));
 
   return (
     <div className="flex h-[calc(100vh-3.5rem-2rem)] flex-col gap-3 md:h-[calc(100vh-3.5rem-3rem)]">
@@ -190,11 +214,9 @@ export function PagarSolicitudesPage() {
                 dir={dir}
                 onSort={toggle}
                 filtro={
-                  <ColumnFilter
-                    opciones={optEstado}
-                    valor={idEstado === '' ? '' : String(idEstado)}
-                    onChange={(v) => setIdEstado(v === '' ? '' : Number(v))}
-                    ancho={190}
+                  <FiltroColumnaOpciones
+                    etiqueta="Estado" opciones={optEstado}
+                    seleccion={estadoSel} onChange={setEstadoSel}
                   />
                 }
               >
@@ -207,11 +229,9 @@ export function PagarSolicitudesPage() {
                 dir={dir}
                 onSort={toggle}
                 filtro={
-                  <ColumnFilter
-                    opciones={optProveedor}
-                    valor={idProveedor}
-                    onChange={setIdProveedor}
-                    ancho={300}
+                  <FiltroColumnaOpciones
+                    etiqueta="Proveedor" opciones={optProveedor}
+                    seleccion={proveedorSel} onChange={setProveedorSel}
                   />
                 }
               >
@@ -228,11 +248,9 @@ export function PagarSolicitudesPage() {
                 dir={dir}
                 onSort={toggle}
                 filtro={
-                  <ColumnFilter
-                    opciones={optCuenta}
-                    valor={cuenta}
-                    onChange={setCuenta}
-                    ancho={200}
+                  <FiltroColumnaOpciones
+                    etiqueta="Categoría" opciones={optCategoria}
+                    seleccion={categoriaSel} onChange={setCategoriaSel}
                   />
                 }
               >
@@ -244,11 +262,9 @@ export function PagarSolicitudesPage() {
                 dir={dir}
                 onSort={toggle}
                 filtro={
-                  <ColumnFilter
-                    opciones={optSeccion}
-                    valor={seccion}
-                    onChange={setSeccion}
-                    ancho={200}
+                  <FiltroColumnaOpciones
+                    etiqueta="Clasificación" opciones={optClasif}
+                    seleccion={clasifSel} onChange={setClasifSel}
                   />
                 }
               >

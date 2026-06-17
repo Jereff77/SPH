@@ -4,6 +4,18 @@ import { ventasApi, type EscrituraRow } from './ventas.api';
 import { ApiRequestError } from '@/lib/api';
 import { useSort } from '@/components/tabla/useSort';
 import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
+import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
+import { configuracionApi } from '@/features/configuraciones/configuracion.api';
+
+/** Valores distintos de una columna (sin vacíos), ordenados es-MX. */
+function opcionesCol(
+  filas: EscrituraRow[],
+  sel: (f: EscrituraRow) => string | null | undefined,
+): string[] {
+  return [...new Set(filas.map((f) => sel(f) ?? '').filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, 'es', { numeric: true }),
+  );
+}
 
 const moneda = (n: number | null | undefined): string =>
   (n ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
@@ -52,13 +64,22 @@ function fechaCorta(iso: string | null): string {
 export function EscriturasPage() {
   const queryClient = useQueryClient();
   const [busca, setBusca] = useState('');
+  const [naveSel, setNaveSel] = useState<Set<string>>(new Set());
+  const [invSel, setInvSel] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [exportando, setExportando] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['ventas-escrituras'],
     queryFn: () => ventasApi.escrituras(),
   });
-  const filas = data?.filas ?? [];
+  const filas = useMemo(() => data?.filas ?? [], [data]);
+
+  const { data: logos } = useQuery({
+    queryKey: ['logos'],
+    queryFn: () => configuracionApi.getLogos(),
+    staleTime: 30 * 60 * 1000,
+  });
 
   const invalidar = () =>
     queryClient.invalidateQueries({ queryKey: ['ventas-escrituras'] });
@@ -85,17 +106,28 @@ export function EscriturasPage() {
   });
   const guardando = mFecha.isPending || mMonto.isPending;
 
-  // Filtro de búsqueda (nave / inversionista / no. de pago).
+  // Opciones distintas para los filtros de columna (multi-selección — regla 7c).
+  const optNave = useMemo(() => opcionesCol(filas, (f) => f.nave), [filas]);
+  const optInv = useMemo(() => opcionesCol(filas, (f) => f.inversionista), [filas]);
+
+  // Buscador global (nave / inversionista / no. de pago) + filtros de columna.
   const filtradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    if (!q) return filas;
-    return filas.filter(
-      (f) =>
-        (f.nave ?? '').toLowerCase().includes(q) ||
-        (f.inversionista ?? '').toLowerCase().includes(q) ||
-        String(f.numPago ?? '').includes(q),
-    );
-  }, [filas, busca]);
+    return filas.filter((f) => {
+      if (
+        q &&
+        !(
+          (f.nave ?? '').toLowerCase().includes(q) ||
+          (f.inversionista ?? '').toLowerCase().includes(q) ||
+          String(f.numPago ?? '').includes(q)
+        )
+      )
+        return false;
+      if (naveSel.size > 0 && !naveSel.has(f.nave ?? '')) return false;
+      if (invSel.size > 0 && !invSel.has(f.inversionista ?? '')) return false;
+      return true;
+    });
+  }, [filas, busca, naveSel, invSel]);
 
   const { ordenados, sortKey, dir, toggle } = useSort<EscrituraRow>(
     filtradas,
@@ -151,16 +183,45 @@ export function EscriturasPage() {
     setEdit(null);
   }
 
+  // Exporta a Excel lo que se ve (respeta búsqueda, filtros de columna y orden).
+  async function exportar() {
+    setExportando(true);
+    try {
+      const mod = await import('./escrituras-export');
+      await mod.exportarEscriturasExcel({
+        archivo: 'Escrituras_Fechas_de_escrituracion',
+        titulo: 'Escrituras — Fechas de escrituración',
+        generado: new Date().toLocaleString('es-MX'),
+        logoUrl: logos?.claro?.url ?? null,
+        filas: ordenados,
+      });
+    } catch (e) {
+      setError(e instanceof ApiRequestError ? e.message : 'No se pudo exportar.');
+    } finally {
+      setExportando(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight text-gray-800">
           Fechas de escrituración
         </h1>
-        <span className="text-sm text-gray-500">
-          {filtradas.length} registros · Total{' '}
-          <strong className="text-gray-700">{moneda(totalMostrado)}</strong>
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-500">
+            {filtradas.length} registros · Total{' '}
+            <strong className="text-gray-700">{moneda(totalMostrado)}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => { void exportar(); }}
+            disabled={exportando || ordenados.length === 0}
+            className="rounded-lg bg-[#1a7f4b] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {exportando ? 'Generando…' : '📊 Excel'}
+          </button>
+        </div>
       </div>
 
       <input
@@ -181,13 +242,19 @@ export function EscriturasPage() {
           <thead className={THEAD_STICKY}>
             <tr className={THEAD_TR}>
               <SortableTh>Tipo Pago</SortableTh>
-              <SortableTh campo="nave" sortKey={sortKey} dir={dir} onSort={toggle}>
+              <SortableTh
+                campo="nave" sortKey={sortKey} dir={dir} onSort={toggle}
+                filtro={<FiltroColumnaOpciones etiqueta="Nave" opciones={optNave} seleccion={naveSel} onChange={setNaveSel} />}
+              >
                 Nave
               </SortableTh>
               <SortableTh campo="numPago" sortKey={sortKey} dir={dir} onSort={toggle} align="center">
                 No. de pago
               </SortableTh>
-              <SortableTh campo="inversionista" sortKey={sortKey} dir={dir} onSort={toggle}>
+              <SortableTh
+                campo="inversionista" sortKey={sortKey} dir={dir} onSort={toggle}
+                filtro={<FiltroColumnaOpciones etiqueta="Inversionista" opciones={optInv} seleccion={invSel} onChange={setInvSel} />}
+              >
                 Inversionista
               </SortableTh>
               <SortableTh campo="fecha" sortKey={sortKey} dir={dir} onSort={toggle} align="center">

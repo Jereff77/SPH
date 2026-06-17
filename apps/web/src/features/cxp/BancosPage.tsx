@@ -7,6 +7,7 @@ import {
   THEAD_TR,
 } from '@/components/tabla/SortableTh';
 import { useSort, type Accessors } from '@/components/tabla/useSort';
+import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
 import { ApiRequestError } from '@/lib/api';
 
 const QKEY = ['cxp-bancos'];
@@ -20,6 +21,7 @@ const ACCESSORS: Accessors<Banco> = {
 export function BancosPage() {
   const queryClient = useQueryClient();
   const [busqueda, setBusqueda] = useState('');
+  const [tipoSel, setTipoSel] = useState<Set<string>>(new Set());
   const [editar, setEditar] = useState<Banco | null>(null);
   const [alta, setAlta] = useState(false);
 
@@ -30,16 +32,26 @@ export function BancosPage() {
 
   const invalidar = () => queryClient.invalidateQueries({ queryKey: QKEY });
 
+  const optTipo = useMemo(
+    () =>
+      [...new Set(data.map((b) => b.tipo ?? '').filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, 'es', { numeric: true }),
+      ),
+    [data],
+  );
+
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter(
-      (b) =>
+    return data.filter((b) => {
+      if (q && !(
         b.nombre.toLowerCase().includes(q) ||
         b.codigo.toLowerCase().includes(q) ||
-        (b.tipo ?? '').toLowerCase().includes(q),
-    );
-  }, [data, busqueda]);
+        (b.tipo ?? '').toLowerCase().includes(q)
+      )) return false;
+      if (tipoSel.size > 0 && !tipoSel.has(b.tipo ?? '')) return false;
+      return true;
+    });
+  }, [data, busqueda, tipoSel]);
 
   const { ordenados, sortKey, dir, toggle } = useSort(filtrados, ACCESSORS, {
     key: 'nombre',
@@ -76,7 +88,20 @@ export function BancosPage() {
               <SortableTh campo="codigo" sortKey={sortKey} dir={dir} onSort={toggle}>
                 Código
               </SortableTh>
-              <SortableTh campo="tipo" sortKey={sortKey} dir={dir} onSort={toggle}>
+              <SortableTh
+                campo="tipo"
+                sortKey={sortKey}
+                dir={dir}
+                onSort={toggle}
+                filtro={
+                  <FiltroColumnaOpciones
+                    etiqueta="Tipo"
+                    opciones={optTipo}
+                    seleccion={tipoSel}
+                    onChange={setTipoSel}
+                  />
+                }
+              >
                 Tipo
               </SortableTh>
               <SortableTh align="center">Editar</SortableTh>

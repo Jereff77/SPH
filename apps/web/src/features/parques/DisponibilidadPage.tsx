@@ -4,6 +4,7 @@ import { parquesApi, type DisponibilidadItem } from './parques.api';
 import { EditarNaveModal } from './EditarNaveModal';
 import { situacionBadge } from './situacion';
 import { useAuth } from '@/features/auth/useAuth';
+import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
 
 const fmt = (n: number) => n.toLocaleString('es-MX');
 
@@ -15,6 +16,7 @@ export function DisponibilidadPage() {
 
   const [idParque, setIdParque] = useState('');
   const [filtro, setFiltro] = useState('');
+  const [situacionSel, setSituacionSel] = useState<Set<string>>(new Set());
   const [naveEdit, setNaveEdit] = useState<DisponibilidadItem | null>(null);
 
   const { data: parques = [] } = useQuery({
@@ -33,16 +35,26 @@ export function DisponibilidadPage() {
     enabled: !!idParque,
   });
 
+  const optSituacion = useMemo(
+    () =>
+      [...new Set(naves.map((n) => n.situacion ?? '').filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, 'es', { numeric: true }),
+      ),
+    [naves],
+  );
+
   const filtradas = useMemo(() => {
     const q = filtro.trim().toLowerCase();
-    if (!q) return naves;
-    return naves.filter(
-      (n) =>
+    return naves.filter((n) => {
+      if (situacionSel.size > 0 && !situacionSel.has(n.situacion ?? '')) return false;
+      if (!q) return true;
+      return (
         (n.numNaveNAME ?? '').toLowerCase().includes(q) ||
         (n.situacion ?? '').toLowerCase().includes(q) ||
-        (n.nombre ?? '').toLowerCase().includes(q),
-    );
-  }, [naves, filtro]);
+        (n.nombre ?? '').toLowerCase().includes(q)
+      );
+    });
+  }, [naves, filtro, situacionSel]);
 
   const refrescar = () =>
     queryClient.invalidateQueries({ queryKey: ['disponibilidad', idParque] });
@@ -83,7 +95,17 @@ export function DisponibilidadPage() {
           <thead>
             <tr className="border-b bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
               <th className="px-3 py-2">Nave</th>
-              <th className="px-3 py-2">Situación</th>
+              <th className="px-3 py-2">
+                <div className="relative inline-flex items-center gap-1">
+                  Situación
+                  <FiltroColumnaOpciones
+                    etiqueta="Situación"
+                    opciones={optSituacion}
+                    seleccion={situacionSel}
+                    onChange={setSituacionSel}
+                  />
+                </div>
+              </th>
               <th className="px-3 py-2 text-center">Mza</th>
               <th className="px-3 py-2 text-center">Lote</th>
               <th className="px-3 py-2 text-right">Terreno</th>

@@ -14,6 +14,7 @@ import {
   THEAD_TR,
 } from '@/components/tabla/SortableTh';
 import { ColumnFilter, type OpcionFiltro } from '@/components/tabla/ColumnFilter';
+import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
 import { useSort, type Accessors } from '@/components/tabla/useSort';
 
 const moneda = (n: number | null | undefined) =>
@@ -44,10 +45,25 @@ const OPT_ESTADO: OpcionFiltro[] = ESTADOS_APROBAR.map((e) => ({
   label: e.label,
 }));
 
+/** Valor mostrado en cada columna categórica (para los filtros multi). */
+const nombreDe = (r: SolicitudAprobar) => r.nombreProveedor ?? r.nomCFDI ?? '';
+const cuentaClasif = (r: SolicitudAprobar) => [r.cuenta, r.seccion].filter(Boolean).join(' / ');
+/** Valores distintos de una columna (sin vacíos), ordenados es-MX. */
+function opcionesCol(data: SolicitudAprobar[], sel: (r: SolicitudAprobar) => string): string[] {
+  return [...new Set(data.map(sel).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, 'es', { numeric: true }),
+  );
+}
+
 export function AprobarSolicitudesPage() {
   const queryClient = useQueryClient();
   const [idEstado, setIdEstado] = useState(2);
   const [busqueda, setBusqueda] = useState('');
+  // Filtros de columna multi-selección (regla de diseño 7c)
+  const [nombreSel, setNombreSel] = useState<Set<string>>(new Set());
+  const [conceptoSel, setConceptoSel] = useState<Set<string>>(new Set());
+  const [cuentaSel, setCuentaSel] = useState<Set<string>>(new Set());
+  const [solicitadoSel, setSolicitadoSel] = useState<Set<string>>(new Set());
   const [accionDe, setAccionDe] = useState<{
     solicitud: SolicitudAprobar;
     accion: AccionAprobar;
@@ -63,22 +79,28 @@ export function AprobarSolicitudesPage() {
   }, [queryClient]);
   useCxpRealtime('/cxp/aprobar/stream', onCambio);
 
+  const optNombre = useMemo(() => opcionesCol(data, nombreDe), [data]);
+  const optConcepto = useMemo(() => opcionesCol(data, (r) => r.concepto ?? ''), [data]);
+  const optCuenta = useMemo(() => opcionesCol(data, cuentaClasif), [data]);
+  const optSolicitado = useMemo(() => opcionesCol(data, (r) => r.solicitadoPor ?? ''), [data]);
+
   const filtradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter((r) =>
-      [
-        r.nombreProveedor,
-        r.nomCFDI,
-        r.concepto,
-        r.justificacion,
-        r.cuenta,
-        r.solicitadoPor,
-      ]
-        .filter(Boolean)
-        .some((v) => (v as string).toLowerCase().includes(q)),
-    );
-  }, [data, busqueda]);
+    return data.filter((r) => {
+      if (
+        q &&
+        ![r.nombreProveedor, r.nomCFDI, r.concepto, r.justificacion, r.cuenta, r.solicitadoPor]
+          .filter(Boolean)
+          .some((v) => (v as string).toLowerCase().includes(q))
+      )
+        return false;
+      if (nombreSel.size > 0 && !nombreSel.has(nombreDe(r))) return false;
+      if (conceptoSel.size > 0 && !conceptoSel.has(r.concepto ?? '')) return false;
+      if (cuentaSel.size > 0 && !cuentaSel.has(cuentaClasif(r))) return false;
+      if (solicitadoSel.size > 0 && !solicitadoSel.has(r.solicitadoPor ?? '')) return false;
+      return true;
+    });
+  }, [data, busqueda, nombreSel, conceptoSel, cuentaSel, solicitadoSel]);
 
   const { ordenados, sortKey, dir, toggle } = useSort(filtradas, ACCESSORS, {
     key: 'fecCFDI',
@@ -139,14 +161,34 @@ export function AprobarSolicitudesPage() {
               >
                 Estado
               </SortableTh>
-              <SortableTh campo="nombre" sortKey={sortKey} dir={dir} onSort={toggle}>Nombre</SortableTh>
+              <SortableTh
+                campo="nombre" sortKey={sortKey} dir={dir} onSort={toggle}
+                filtro={<FiltroColumnaOpciones etiqueta="Nombre" opciones={optNombre} seleccion={nombreSel} onChange={setNombreSel} />}
+              >
+                Nombre
+              </SortableTh>
               <SortableTh campo="folio" sortKey={sortKey} dir={dir} onSort={toggle}>Folio</SortableTh>
               <SortableTh campo="fecCFDI" sortKey={sortKey} dir={dir} onSort={toggle}>Fecha CFDI</SortableTh>
               <SortableTh campo="monto" sortKey={sortKey} dir={dir} onSort={toggle} align="right">Monto</SortableTh>
-              <SortableTh campo="concepto" sortKey={sortKey} dir={dir} onSort={toggle}>Concepto</SortableTh>
+              <SortableTh
+                campo="concepto" sortKey={sortKey} dir={dir} onSort={toggle}
+                filtro={<FiltroColumnaOpciones etiqueta="Concepto" opciones={optConcepto} seleccion={conceptoSel} onChange={setConceptoSel} />}
+              >
+                Concepto
+              </SortableTh>
               <SortableTh campo="justificacion" sortKey={sortKey} dir={dir} onSort={toggle}>Justificación</SortableTh>
-              <SortableTh campo="cuenta" sortKey={sortKey} dir={dir} onSort={toggle}>Cuenta / Clasif.</SortableTh>
-              <SortableTh campo="solicitado" sortKey={sortKey} dir={dir} onSort={toggle}>Solicitado por</SortableTh>
+              <SortableTh
+                campo="cuenta" sortKey={sortKey} dir={dir} onSort={toggle}
+                filtro={<FiltroColumnaOpciones etiqueta="Cuenta / Clasif." opciones={optCuenta} seleccion={cuentaSel} onChange={setCuentaSel} />}
+              >
+                Cuenta / Clasif.
+              </SortableTh>
+              <SortableTh
+                campo="solicitado" sortKey={sortKey} dir={dir} onSort={toggle}
+                filtro={<FiltroColumnaOpciones etiqueta="Solicitado por" opciones={optSolicitado} seleccion={solicitadoSel} onChange={setSolicitadoSel} />}
+              >
+                Solicitado por
+              </SortableTh>
             </tr>
           </thead>
           <tbody className="divide-y">

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ventasApi,
@@ -12,6 +12,8 @@ import { PagoDetalleModal } from './PagoDetalleModal';
 import { useVentasRealtime } from './useVentasRealtime';
 import { Tabs, type TabDef } from '@/components/Tabs';
 import { SortableTh, THEAD_TR } from '@/components/tabla/SortableTh';
+import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
+import { MultiSearchSelect } from '@/components/MultiSearchSelect';
 import { useSort, type Accessors } from '@/components/tabla/useSort';
 
 /**
@@ -63,20 +65,58 @@ const ACCESSORS: Accessors<PagoVentaRow> = {
   balance: (r) => r.balance,
 };
 
+/** Valores distintos de una columna (sin vacíos), ordenados es-MX. */
+function opcionesCol(
+  filas: PagoVentaRow[],
+  sel: (r: PagoVentaRow) => string | null | undefined,
+): string[] {
+  return [...new Set(filas.map((r) => sel(r) ?? '').filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, 'es', { numeric: true }),
+  );
+}
+
 const TABS: TabDef[] = [
   { id: 'planes', label: 'Planes de pago' },
   { id: 'rg', label: 'Renta Garantizada' },
   { id: 'ra', label: 'Renta Administrada' },
 ];
 
+const TODOS_MESES = Array.from({ length: 12 }, (_, i) => i + 1);
+const OPCIONES_MESES = MESES.map((m, i) => ({ value: String(i + 1), label: m }));
+
 export function DashboardVentasPage() {
   const queryClient = useQueryClient();
   const ahora = new Date();
   const [anio, setAnio] = useState(ahora.getFullYear());
-  const [mes, setMes] = useState(ahora.getMonth() + 1);
+  // Uno o varios meses (1-12). Vacío = todo el año.
+  const [meses, setMeses] = useState<number[]>([ahora.getMonth() + 1]);
   const [activo, setActivo] = useState(true);
   const [tab, setTab] = useState('planes');
   const [pagarDe, setPagarDe] = useState<PagoVentaRow | null>(null);
+
+  // Meses efectivos para consultar: vacío se interpreta como todo el año.
+  const mesesEfectivos = useMemo(
+    () => (meses.length ? [...meses].sort((a, b) => a - b) : TODOS_MESES),
+    [meses],
+  );
+  const mesesKey = mesesEfectivos.join(',');
+  const etiquetaMeses =
+    mesesEfectivos.length >= 12
+      ? 'todo el año'
+      : mesesEfectivos.length === 1
+        ? MESES[mesesEfectivos[0]! - 1]
+        : `${mesesEfectivos.length} meses`;
+
+  // Filtros de columna (multi-selección — regla de diseño 7c)
+  const [propSel, setPropSel] = useState<Set<string>>(new Set());
+  const [cliSel, setCliSel] = useState<Set<string>>(new Set());
+  const [parqueSel, setParqueSel] = useState<Set<string>>(new Set());
+  // Al cambiar de periodo cambian los datos: se limpian los filtros.
+  useEffect(() => {
+    setPropSel(new Set());
+    setCliSel(new Set());
+    setParqueSel(new Set());
+  }, [anio, mesesKey, activo]);
 
   // Cada pestaña de renta filtra v_rentasCombinadas por su tipo_renta.
   const tipoRenta = tab === 'rg' ? 'Garantizada' : tab === 'ra' ? 'Administrada' : '';
@@ -87,19 +127,24 @@ export function DashboardVentasPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Si el año por defecto (año en curso) no está entre los disponibles, usar el más reciente.
+  useEffect(() => {
+    if (filtros?.anios?.length && !filtros.anios.includes(anio)) setAnio(filtros.anios[0]!);
+  }, [filtros, anio]);
+
   const { data: tarjetas } = useQuery({
-    queryKey: ['ventas-tarjetas', anio, mes, activo],
-    queryFn: () => ventasApi.tarjetas(anio, mes, activo),
+    queryKey: ['ventas-tarjetas', anio, mesesKey, activo],
+    queryFn: () => ventasApi.tarjetas(anio, mesesEfectivos, activo),
   });
 
   const { data: filas = [], isLoading } = useQuery({
-    queryKey: ['ventas-tabla', anio, mes, activo],
-    queryFn: () => ventasApi.tabla(anio, mes, activo),
+    queryKey: ['ventas-tabla', anio, mesesKey, activo],
+    queryFn: () => ventasApi.tabla(anio, mesesEfectivos, activo),
   });
 
   const { data: rentas = [], isLoading: cargandoRentas } = useQuery({
-    queryKey: ['ventas-rentas', anio, mes, tipoRenta],
-    queryFn: () => ventasApi.rentas(anio, mes, tipoRenta),
+    queryKey: ['ventas-rentas', anio, mesesKey, tipoRenta],
+    queryFn: () => ventasApi.rentas(anio, mesesEfectivos, tipoRenta),
     enabled: tab === 'rg' || tab === 'ra',
   });
 
@@ -111,7 +156,23 @@ export function DashboardVentasPage() {
   }, [queryClient]);
   useVentasRealtime(onCambio);
 
-  const { ordenados, sortKey, dir, toggle } = useSort(filas, ACCESSORS, {
+  // Opciones distintas para los filtros de columna.
+  const optProp = useMemo(() => opcionesCol(filas, (r) => r.nomDescriptivo), [filas]);
+  const optCli = useMemo(() => opcionesCol(filas, (r) => r.razonsocial), [filas]);
+  const optParque = useMemo(() => opcionesCol(filas, (r) => r.nomParque), [filas]);
+
+  const filtradas = useMemo(
+    () =>
+      filas.filter((r) => {
+        if (propSel.size > 0 && !propSel.has(r.nomDescriptivo ?? '')) return false;
+        if (cliSel.size > 0 && !cliSel.has(r.razonsocial ?? '')) return false;
+        if (parqueSel.size > 0 && !parqueSel.has(r.nomParque ?? '')) return false;
+        return true;
+      }),
+    [filas, propSel, cliSel, parqueSel],
+  );
+
+  const { ordenados, sortKey, dir, toggle } = useSort(filtradas, ACCESSORS, {
     key: 'fecha',
     dir: 'asc',
   });
@@ -119,7 +180,7 @@ export function DashboardVentasPage() {
   // Totales del pie: suma de las filas mostradas (siempre cuadra con la tabla).
   const totales = useMemo(
     () =>
-      filas.reduce(
+      filtradas.reduce(
         (t, r) => {
           t.monto += r.monto ?? 0;
           t.construccion += r.pagos_construccion ?? 0;
@@ -140,7 +201,7 @@ export function DashboardVentasPage() {
           balance: 0,
         },
       ),
-    [filas],
+    [filtradas],
   );
 
   const anios = filtros?.anios?.length ? filtros.anios : [anio];
@@ -165,20 +226,17 @@ export function DashboardVentasPage() {
             ))}
           </select>
         </label>
-        <label className="text-xs text-gray-600">
-          Mes
-          <select
-            value={mes}
-            onChange={(e) => setMes(Number(e.target.value))}
-            className="mt-1 block rounded border px-2 py-1.5 text-sm"
-          >
-            {MESES.map((m, i) => (
-              <option key={m} value={i + 1}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="text-xs text-gray-600">
+          <span className="block">Mes</span>
+          <MultiSearchSelect
+            values={meses.map(String)}
+            onChange={(vals) => setMeses(vals.map(Number).sort((a, b) => a - b))}
+            options={OPCIONES_MESES}
+            placeholder="Todo el año"
+            ordenarAlfabetico={false}
+            className="mt-1 w-44 text-gray-800"
+          />
+        </div>
         <div className="flex gap-1">
           {[
             { v: true, label: 'Activo' },
@@ -211,7 +269,7 @@ export function DashboardVentasPage() {
           ]}
         />
         <TarjetaResumen
-          titulo={`Planes de pago ${MESES[mes - 1]} ${anio}`}
+          titulo={`Planes de pago ${etiquetaMeses} ${anio}`}
           lineas={[
             { label: 'Objetivo', valor: tarjetas?.mes.objetivo ?? 0 },
             { label: 'Cobranza', valor: tarjetas?.mes.cobranza ?? 0 },
@@ -219,7 +277,7 @@ export function DashboardVentasPage() {
           ]}
         />
         <TarjetaResumen
-          titulo={`Cobranza real ${MESES[mes - 1]} ${anio}`}
+          titulo={`Cobranza real ${etiquetaMeses} ${anio}`}
           lineas={[
             { label: 'Objetivo', valor: tarjetas?.mesReal.objetivo ?? 0 },
             { label: 'Cobranza', valor: tarjetas?.mesReal.cobranza ?? 0 },
@@ -239,13 +297,22 @@ export function DashboardVentasPage() {
                 <SortableTh campo="fecha" sortKey={sortKey} dir={dir} onSort={toggle}>
                   Fecha
                 </SortableTh>
-                <SortableTh campo="propiedad" sortKey={sortKey} dir={dir} onSort={toggle}>
+                <SortableTh
+                  campo="propiedad" sortKey={sortKey} dir={dir} onSort={toggle}
+                  filtro={<FiltroColumnaOpciones etiqueta="Propiedad" opciones={optProp} seleccion={propSel} onChange={setPropSel} />}
+                >
                   Propiedad
                 </SortableTh>
-                <SortableTh campo="cliente" sortKey={sortKey} dir={dir} onSort={toggle}>
+                <SortableTh
+                  campo="cliente" sortKey={sortKey} dir={dir} onSort={toggle}
+                  filtro={<FiltroColumnaOpciones etiqueta="Cliente" opciones={optCli} seleccion={cliSel} onChange={setCliSel} />}
+                >
                   Cliente
                 </SortableTh>
-                <SortableTh campo="parque" sortKey={sortKey} dir={dir} onSort={toggle}>
+                <SortableTh
+                  campo="parque" sortKey={sortKey} dir={dir} onSort={toggle}
+                  filtro={<FiltroColumnaOpciones etiqueta="Parque" opciones={optParque} seleccion={parqueSel} onChange={setParqueSel} />}
+                >
                   Parque
                 </SortableTh>
                 <SortableTh campo="numPago" sortKey={sortKey} dir={dir} onSort={toggle} align="center">

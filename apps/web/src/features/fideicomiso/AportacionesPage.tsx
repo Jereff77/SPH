@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fideicomisoApi, type PagoFila } from './fideicomiso.api';
 import { ApiRequestError } from '@/lib/api';
 import { SearchSelect, type OpcionSelect } from '@/components/SearchSelect';
+import { MultiSearchSelect } from '@/components/MultiSearchSelect';
 import { useSort } from '@/components/tabla/useSort';
 import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
 import { IconGear } from '@/components/icons';
@@ -20,7 +21,7 @@ import { ConfigFideModal } from './ConfigFideModal';
 export function AportacionesPage() {
   const queryClient = useQueryClient();
   const [inv, setInv] = useState('');
-  const [prop, setProp] = useState('');
+  const [propsSel, setPropsSel] = useState<string[]>([]);
   const [modalPago, setModalPago] = useState<PagoFila | null>(null);
   const [modalComent, setModalComent] = useState<PagoFila | null>(null);
   const [avisoConfig, setAvisoConfig] = useState(false);
@@ -39,10 +40,15 @@ export function AportacionesPage() {
     enabled: !!inv,
   });
 
+  // Plan de pagos combinado de TODAS las propiedades seleccionadas (un solo
+  // inversionista, una o varias propiedades). Cada fila ya trae su propiedad.
   const { data: pagos = [], isLoading } = useQuery({
-    queryKey: ['fide-aport-pagos', prop],
-    queryFn: () => fideicomisoApi.aportacionesPagos(prop),
-    enabled: !!prop,
+    queryKey: ['fide-aport-pagos', [...propsSel].sort()],
+    queryFn: async () => {
+      const listas = await Promise.all(propsSel.map((p) => fideicomisoApi.aportacionesPagos(p)));
+      return listas.flat();
+    },
+    enabled: propsSel.length > 0,
   });
 
   const optInv: OpcionSelect[] = useMemo(
@@ -54,9 +60,20 @@ export function AportacionesPage() {
     [props],
   );
 
+  // Conservar solo las propiedades seleccionadas que sigan disponibles (al
+  // cambiar de inversionista o recargar el catálogo de propiedades).
+  useEffect(() => {
+    const disp = new Set(optProp.map((o) => o.value));
+    setPropsSel((prev) => {
+      const next = prev.filter((p) => disp.has(p));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [optProp]);
+
   const { ordenados, sortKey, dir, toggle } = useSort<PagoFila>(
     pagos,
     {
+      propiedad: (p) => p.nomDescriptivo,
       numPago: (p) => p.numPago,
       tipoPago: (p) => p.tipoPago,
       fecha: (p) => p.fecha,
@@ -66,7 +83,7 @@ export function AportacionesPage() {
       balance: (p) => (p.pagos ?? 0) - (p.monto ?? 0),
       avance: (p) => (p.porcentaje_avance != null ? Number(p.porcentaje_avance) : null),
     },
-    { key: 'numPago', dir: 'asc' },
+    { key: 'propiedad', dir: 'asc' },
   );
 
   const totales = useMemo(
@@ -84,7 +101,7 @@ export function AportacionesPage() {
   );
 
   const refetchPagos = () =>
-    queryClient.invalidateQueries({ queryKey: ['fide-aport-pagos', prop] });
+    queryClient.invalidateQueries({ queryKey: ['fide-aport-pagos'] });
 
   const mFecha = useMutation({
     mutationFn: ({ id, fecha }: { id: string; fecha: string }) =>
@@ -117,7 +134,7 @@ export function AportacionesPage() {
           <label className="block text-xs font-medium text-gray-500">Inversionista</label>
           <SearchSelect
             value={inv}
-            onChange={(v) => { setInv(v); setProp(''); }}
+            onChange={(v) => { setInv(v); setPropsSel([]); }}
             options={optInv}
             placeholder="Selecciona inversionista…"
             className="mt-1 w-[320px]"
@@ -138,34 +155,39 @@ export function AportacionesPage() {
         )}
         <div>
           <label className="block text-xs font-medium text-gray-500">Propiedad</label>
-          <SearchSelect
-            value={prop}
-            onChange={setProp}
+          <MultiSearchSelect
+            values={propsSel}
+            onChange={setPropsSel}
             options={optProp}
-            placeholder={inv ? 'Selecciona propiedad…' : 'Elige un inversionista primero'}
+            placeholder={inv ? 'Selecciona una o varias…' : 'Elige un inversionista primero'}
             disabled={!inv}
             className="mt-1 w-[320px]"
           />
         </div>
-        {prop && <span className="mb-1.5 self-end text-xs text-gray-400">{prop}</span>}
+        {propsSel.length > 0 && (
+          <span className="mb-1.5 self-end text-xs text-gray-400">
+            {propsSel.length} propiedad{propsSel.length > 1 ? 'es' : ''}
+          </span>
+        )}
       </div>
 
       {error && (
         <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       )}
 
-      {!prop && (
+      {propsSel.length === 0 && (
         <p className="rounded-lg border border-dashed bg-gray-50 px-4 py-8 text-center text-sm text-gray-400">
-          Selecciona inversionista y propiedad para ver su plan de pagos.
+          Selecciona un inversionista y una o varias propiedades para ver su plan de pagos.
         </p>
       )}
 
-      {prop && (
+      {propsSel.length > 0 && (
         <div className="max-h-[calc(100vh-20rem)] overflow-auto rounded-xl border bg-white shadow-sm">
           <table className="w-full min-w-[1000px] text-sm">
             <thead className={THEAD_STICKY}>
               <tr className={THEAD_TR}>
                 <SortableTh align="center">#</SortableTh>
+                <SortableTh campo="propiedad" sortKey={sortKey} dir={dir} onSort={toggle}>Propiedad</SortableTh>
                 <SortableTh campo="tipoPago" sortKey={sortKey} dir={dir} onSort={toggle}>Tipo Pago</SortableTh>
                 <SortableTh campo="fecha" sortKey={sortKey} dir={dir} onSort={toggle} align="center">Fecha Plan</SortableTh>
                 <SortableTh campo="monto" sortKey={sortKey} dir={dir} onSort={toggle} align="right">Plan de Pagos</SortableTh>
@@ -178,10 +200,10 @@ export function AportacionesPage() {
             </thead>
             <tbody className="divide-y">
               {isLoading && (
-                <tr><td colSpan={9} className="px-4 py-6 text-center text-gray-400">Cargando…</td></tr>
+                <tr><td colSpan={10} className="px-4 py-6 text-center text-gray-400">Cargando…</td></tr>
               )}
               {!isLoading && ordenados.length === 0 && (
-                <tr><td colSpan={9} className="px-4 py-6 text-center text-gray-400">Sin plan de pagos.</td></tr>
+                <tr><td colSpan={10} className="px-4 py-6 text-center text-gray-400">Sin plan de pagos.</td></tr>
               )}
               {ordenados.map((p, i) => {
                 const balance = (p.pagos ?? 0) - (p.monto ?? 0);
@@ -189,6 +211,7 @@ export function AportacionesPage() {
                 return (
                   <tr key={p.idPdpDet ?? i} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-center text-gray-500">{i + 1}</td>
+                    <td className="px-4 py-2 text-gray-600">{p.nomDescriptivo ?? '—'}</td>
                     <td className="px-4 py-2 text-gray-700">{p.tipoPago ?? '-'}</td>
                     <td className="px-4 py-2 text-center">
                       {enEdicion ? (
@@ -261,7 +284,7 @@ export function AportacionesPage() {
             {ordenados.length > 0 && (
               <tfoot>
                 <tr className="sticky bottom-0 bg-[#1f2a4d] font-semibold text-white">
-                  <td className="px-4 py-2 text-center" colSpan={3}>TOTALES ({ordenados.length})</td>
+                  <td className="px-4 py-2 text-center" colSpan={4}>TOTALES ({ordenados.length})</td>
                   <td className="px-4 py-2 text-right tabular-nums">{moneda(totales.plan)}</td>
                   <td className="px-4 py-2" />
                   <td className="px-4 py-2 text-right tabular-nums">{moneda(totales.pagos)}</td>

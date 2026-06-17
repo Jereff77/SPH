@@ -364,6 +364,23 @@
      display lo decide el navegador y no es controlable). Migrar los `type="date"` existentes a `InputFecha`
      cuando se toquen esas pantallas.
 
+7c. **🔽 FILTROS MULTI-SELECCIÓN (regla de diseño).** En **toda** la app, los **filtros de columna/criterio**
+   de una tabla deben permitir seleccionar **una o varias opciones** (nunca selección única), salvo indicación
+   distinta del usuario.
+   - **Patrón de implementación:** usar el componente compartido
+     **`components/tabla/FiltroColumnaOpciones.tsx`** (embudo + popover con buscador interno, botones
+     "Seleccionar todos / Limpiar" y lista de checkboxes). Una **selección vacía = sin filtro** (se muestran
+     todas las filas). Se pasa al prop `filtro` de `SortableTh`. Semántica: **AND entre columnas** distintas;
+     **OR entre las opciones** marcadas dentro de una misma columna. Conviene **limpiar los filtros** cuando
+     cambie el conjunto de datos base (p. ej. al cambiar de periodo) para no arrastrar valores "fantasma".
+   - **Alcance:** aplica a los filtros que **eligen valores presentes en una columna/criterio**. **NO** obliga
+     a volver multi-selección los **selectores que definen qué datos se cargan** del servidor (p. ej. el
+     fideicomiso o el periodo en Dispersión): esos son *contexto de consulta*, no filtros de la tabla, y
+     cambiarlos a multi implica lógica de backend/totales (se evalúa caso por caso).
+   - **Migración:** convertir los filtros de selección única (texto de un término o dropdown de un valor)
+     existentes a `FiltroColumnaOpciones` **cuando se toquen esas pantallas**. Primera aplicada:
+     **Fideicomiso → Dispersión** (Nombre / Personalidad / Adhesión).
+
 8. **📚 BASE DE CONOCIMIENTO (regla de documentación para el agente de soporte).** Existe una KB en
    `version2/base-conocimiento/` pensada para un **futuro agente de IA de soporte** (explicar cómo usar
    el sistema, diagnosticar problemas y decidir cuándo escalar a ticket). En consecuencia:

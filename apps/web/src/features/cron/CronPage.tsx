@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/useAuth';
 import {
@@ -7,6 +7,7 @@ import {
   THEAD_TR,
 } from '@/components/tabla/SortableTh';
 import { useSort } from '@/components/tabla/useSort';
+import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
 import { cronApi, duracion, fechaHora } from './cron.api';
 import type { CronJobBd, TareaBackend } from './types';
 
@@ -65,6 +66,7 @@ export function CronPage() {
 
 function SeccionPgCron() {
   const [expandido, setExpandido] = useState<number | null>(null);
+  const [estadoSel, setEstadoSel] = useState<Set<string>>(new Set());
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['cron', 'jobs'],
     queryFn: cronApi.jobs,
@@ -82,6 +84,23 @@ function SeccionPgCron() {
   const { ordenados, sortKey, dir, toggle } = useSort(data ?? [], accessors, {
     key: 'jobname',
   });
+
+  const optEstado = useMemo(
+    () =>
+      [...new Set((data ?? []).map((j) => j.ultimoEstado ?? '').filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, 'es', { numeric: true }),
+      ),
+    [data],
+  );
+
+  const filasFiltradas = useMemo(
+    () =>
+      ordenados.filter((j) => {
+        if (estadoSel.size > 0 && !estadoSel.has(j.ultimoEstado ?? '')) return false;
+        return true;
+      }),
+    [ordenados, estadoSel],
+  );
 
   return (
     <section>
@@ -124,7 +143,21 @@ function SeccionPgCron() {
                 <SortableTh campo="ultima" sortKey={sortKey} dir={dir} onSort={toggle}>
                   Última ejecución
                 </SortableTh>
-                <SortableTh campo="estado" sortKey={sortKey} dir={dir} onSort={toggle} align="center">
+                <SortableTh
+                  campo="estado"
+                  sortKey={sortKey}
+                  dir={dir}
+                  onSort={toggle}
+                  align="center"
+                  filtro={
+                    <FiltroColumnaOpciones
+                      etiqueta="Estado"
+                      opciones={optEstado}
+                      seleccion={estadoSel}
+                      onChange={setEstadoSel}
+                    />
+                  }
+                >
                   Estado
                 </SortableTh>
                 <SortableTh campo="total" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
@@ -133,7 +166,7 @@ function SeccionPgCron() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {ordenados.map((j) => (
+              {filasFiltradas.map((j) => (
                 <FilasJobBd
                   key={j.jobid}
                   job={j}
@@ -143,7 +176,7 @@ function SeccionPgCron() {
                   }
                 />
               ))}
-              {ordenados.length === 0 && (
+              {filasFiltradas.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
                     No hay jobs programados.
@@ -259,13 +292,40 @@ function HistorialJobBd({ jobid }: { jobid: number }) {
 // Sección 2: schedulers NestJS (tareas del backend)
 // ---------------------------------------------------------------------------
 
+/** Deriva el valor de estado visible de una tarea backend (igual que en el render). */
+function estadoTareaBackend(t: TareaBackend): string {
+  if (!t.activa) return 'inactiva';
+  if (t.corriendo) return 'running';
+  return 'exito';
+}
+
 function SeccionBackend() {
   const [expandido, setExpandido] = useState<string | null>(null);
+  const [estadoSel, setEstadoSel] = useState<Set<string>>(new Set());
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['cron', 'backend'],
     queryFn: cronApi.backend,
     staleTime: 15_000,
   });
+
+  const filas = useMemo(() => data ?? [], [data]);
+
+  const optEstado = useMemo(
+    () =>
+      [...new Set(filas.map((t) => estadoTareaBackend(t)))].sort((a, b) =>
+        a.localeCompare(b, 'es', { numeric: true }),
+      ),
+    [filas],
+  );
+
+  const filasFiltradas = useMemo(
+    () =>
+      filas.filter((t) => {
+        if (estadoSel.size > 0 && !estadoSel.has(estadoTareaBackend(t))) return false;
+        return true;
+      }),
+    [filas, estadoSel],
+  );
 
   return (
     <section>
@@ -298,14 +358,24 @@ function SeccionBackend() {
               <tr className={THEAD_TR}>
                 <th className="px-4 py-3 text-left">Tarea</th>
                 <th className="px-4 py-3 text-left">Programación</th>
-                <th className="px-4 py-3 text-center">Estado</th>
+                <th className="px-4 py-3 text-center">
+                  <div className="relative inline-flex items-center gap-1">
+                    Estado
+                    <FiltroColumnaOpciones
+                      etiqueta="Estado"
+                      opciones={optEstado}
+                      seleccion={estadoSel}
+                      onChange={setEstadoSel}
+                    />
+                  </div>
+                </th>
                 <th className="px-4 py-3 text-left">Próxima</th>
                 <th className="px-4 py-3 text-left">Última (en memoria)</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {(data ?? []).map((t) => (
+              {filasFiltradas.map((t) => (
                 <FilasTareaBackend
                   key={t.nombre}
                   tarea={t}

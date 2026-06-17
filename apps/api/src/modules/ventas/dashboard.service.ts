@@ -3,7 +3,8 @@ import { SupabaseService } from '../../common/supabase/supabase.service.js';
 
 export interface FiltrosDashboard {
   anio: number;
-  mes: number;
+  /** Uno o varios meses (1-12). Vacío o los 12 = todo el año. */
+  meses: number[];
   activo: boolean;
 }
 
@@ -75,6 +76,17 @@ export class DashboardService {
 
   private rangoAnio(anio: number): [string, string] {
     return [`${anio}-01-01`, `${anio + 1}-01-01`];
+  }
+
+  /** Conjunto de meses válido (1-12). Vacío → todos los meses (todo el año). */
+  private mesesSet(meses: number[]): Set<number> {
+    const v = meses.filter((m) => Number.isInteger(m) && m >= 1 && m <= 12);
+    return new Set(v.length ? v : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  }
+
+  /** Mes (1-12) de una fecha ISO `yyyy-MM-dd`, o 0 si no hay fecha. */
+  private mesDe(fecha: string | null): number {
+    return fecha ? Number(fecha.slice(5, 7)) : 0;
   }
 
   private chunk<T>(arr: T[], size: number): T[][] {
@@ -223,14 +235,21 @@ export class DashboardService {
 
   // ------------------------------- endpoints -------------------------------
 
-  /** Tabla principal (planes de pago) del año/mes, en el universo activo+1000. */
+  /** Tabla principal (planes de pago) del año/meses, en el universo activo+1000. */
   async tabla(f: FiltrosDashboard) {
     const scope = await this.scopePropiedades(f.activo);
     const scopeIds = [...scope.keys()];
     if (scopeIds.length === 0) return [];
 
-    const [ini, fin] = this.rangoMes(f.anio, f.mes);
-    const parciales = await this.fetchParcialidades(scopeIds, ini, fin);
+    // Se cargan las parcialidades del año y se filtran por los meses pedidos
+    // (permite meses no contiguos o todo el año en una sola consulta).
+    const [ini, fin] = this.rangoAnio(f.anio);
+    const set = this.mesesSet(f.meses);
+    const parcialesAnio = await this.fetchParcialidades(scopeIds, ini, fin);
+    const parciales =
+      set.size >= 12
+        ? parcialesAnio
+        : parcialesAnio.filter((p) => set.has(this.mesDe(p.fecha)));
     if (parciales.length === 0) return [];
 
     const [agg, montoTotal] = await Promise.all([
@@ -297,20 +316,21 @@ export class DashboardService {
    * - `mesReal`: mismo objetivo del mes, pero la cobranza son los pagos
    *   **realizados durante el mes** (por fecha de pago), incl. atrasados/adelantados.
    */
-  async tarjetas(anio: number, mes: number, activo: boolean) {
+  async tarjetas(anio: number, meses: number[], activo: boolean) {
     const scope = await this.scopePropiedades(activo);
     const scopeIds = [...scope.keys()];
     if (scopeIds.length === 0) {
       return { anual: resumenVacio(), mes: resumenVacio(), mesReal: resumenVacio() };
     }
 
-    const [mesIni, mesFin] = this.rangoMes(anio, mes);
     const [anioIni, anioFin] = this.rangoAnio(anio);
+    const set = this.mesesSet(meses);
 
-    const [parcMes, parcAnio] = await Promise.all([
-      this.fetchParcialidades(scopeIds, mesIni, mesFin),
-      this.fetchParcialidades(scopeIds, anioIni, anioFin),
-    ]);
+    // Se carga el año una sola vez y las parcialidades de los meses pedidos
+    // salen filtrando en memoria (la tarjeta "mes" pasa a ser "de los meses").
+    const parcAnio = await this.fetchParcialidades(scopeIds, anioIni, anioFin);
+    const parcMes =
+      set.size >= 12 ? parcAnio : parcAnio.filter((p) => set.has(this.mesDe(p.fecha)));
 
     const objetivoMes = parcMes.reduce((a, p) => a + (p.monto ?? 0), 0);
     const objetivoAnual = parcAnio.reduce((a, p) => a + (p.monto ?? 0), 0);
@@ -318,7 +338,7 @@ export class DashboardService {
     const [cobranzaMes, cobranzaAnual, cobranzaReal] = await Promise.all([
       this.sumPagosDeParcialidades(parcMes.map((p) => p.idPdpDet)),
       this.sumPagosDeParcialidades(parcAnio.map((p) => p.idPdpDet)),
-      this.cobranzaRealDelMes(scopeIds, mesIni, mesFin),
+      this.cobranzaRealDeMeses(scopeIds, anio, [...set]),
     ]);
 
     const t = (objetivo: number, cobranza: number) => ({
@@ -439,6 +459,21 @@ export class DashboardService {
     return Math.max(0, Math.round((b - a) / 86_400_000));
   }
 
+  /** Cobranza real (pagos por fecha de pago) sumada sobre varios meses. */
+  private async cobranzaRealDeMeses(
+    scopeIds: string[],
+    anio: number,
+    meses: number[],
+  ): Promise<number> {
+    const sumas = await Promise.all(
+      meses.map((m) => {
+        const [ini, fin] = this.rangoMes(anio, m);
+        return this.cobranzaRealDelMes(scopeIds, ini, fin);
+      }),
+    );
+    return sumas.reduce((a, b) => a + b, 0);
+  }
+
   /** Pagos realizados durante el mes (por fecha de pago), dentro del universo. */
   private async cobranzaRealDelMes(
     scopeIds: string[],
@@ -459,42 +494,41 @@ export class DashboardService {
   }
 
   /** 2ª pestaña: Renta Garantizada / Administrada (sigue usando `v_rentasCombinadas`). */
-  async rentas(anio: number, mes: number, tipo: string) {
+  async rentas(anio: number, meses: number[], tipo: string) {
+    const set = this.mesesSet(meses);
     let q = this.supabase.admin
       .from('v_rentasCombinadas')
       .select('*')
-      .eq('yearExtraido', anio)
-      .eq('mes', mes);
+      .eq('yearExtraido', anio);
+    if (set.size < 12) q = q.in('mes', [...set]);
     if (tipo && tipo !== 'Todos') q = q.eq('tipo_renta', tipo);
     const { data, error } = await q.order('nomDescriptivo', { ascending: true });
     if (error) throw new InternalServerErrorException(error.message);
     return data ?? [];
   }
 
-  /** Años disponibles para el combo (min/max de las fechas de parcialidades). */
+  /**
+   * Años disponibles para el combo: los **años distintos que existen en las
+   * parcialidades de PLANES ACTIVOS** (mismo universo que la tabla:
+   * `pdpActivo=true`, sin Tickets, inversionista real). No es un rango continuo
+   * (que generaba años intermedios sin datos) ni toma planes inactivos. Se
+   * descartan además fechas de captura claramente erróneas (años fuera de
+   * `[2000, añoActual+20]`, p. ej. 0025 o 2303).
+   */
   async filtros() {
-    const [min, max] = await Promise.all([
-      this.supabase.admin
-        .from('pdpDetalle')
-        .select('fecha')
-        .not('fecha', 'is', null)
-        .order('fecha', { ascending: true })
-        .limit(1)
-        .maybeSingle(),
-      this.supabase.admin
-        .from('pdpDetalle')
-        .select('fecha')
-        .not('fecha', 'is', null)
-        .order('fecha', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
     const actual = new Date().getFullYear();
-    const yMin = min.data?.fecha ? Number(min.data.fecha.slice(0, 4)) : actual;
-    const yMax = max.data?.fecha ? Number(max.data.fecha.slice(0, 4)) : actual;
-    const anios: number[] = [];
-    for (let y = yMax; y >= yMin; y--) anios.push(y);
-    return { anios: anios.length ? anios : [actual] };
+    const scope = await this.scopePropiedades(true);
+    const scopeIds = [...scope.keys()];
+    if (scopeIds.length === 0) return { anios: [actual] };
+
+    const parciales = await this.fetchParcialidades(scopeIds, '1900-01-01', '9999-12-31');
+    const anios = new Set<number>();
+    for (const p of parciales) {
+      const y = p.fecha ? Number(p.fecha.slice(0, 4)) : NaN;
+      if (Number.isFinite(y) && y >= 2000 && y <= actual + 20) anios.add(y);
+    }
+    const lista = [...anios].sort((a, b) => b - a);
+    return { anios: lista.length ? lista : [actual] };
   }
 
   /** Detalle de pagos realizados de una parcialidad (`pagos` por idPdpDet). */

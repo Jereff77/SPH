@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fideicomisoApi, type DispersionResumen } from './fideicomiso.api';
 import { useSort } from '@/components/tabla/useSort';
 import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
+import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
 import { moneda, fechaCorta } from './format';
 import { DesgloseModal } from './DesgloseModal';
 
@@ -19,43 +20,6 @@ function mesAnio(iso: string | null | undefined): string {
   return `${MESES_LARGO[mi] ?? ''} ${y}`.trim();
 }
 
-const norm = (s: string) =>
-  s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
-
-/** Filtro de columna estilo Excel (embudo + popover), pensado para el prop `filtro` de SortableTh. */
-function FiltroColumna({ activo, children }: { activo: boolean; children: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, [open]);
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
-        title="Filtrar"
-        className={`rounded px-1 text-[10px] leading-none ${activo ? 'bg-white/25 text-white' : 'text-white/50 hover:text-white'}`}
-      >
-        ▼
-      </button>
-      {open && (
-        <div
-          className="absolute left-0 top-full z-30 mt-1 w-56 rounded-lg border bg-white p-2 text-left normal-case tracking-normal text-gray-700 shadow-lg"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /**
  * Fideicomiso → Dispersión (clave 530). Réplica del WebView de v1: por fideicomiso
  * + periodo, resumen por adherente con **filtros por columna estilo Excel**
@@ -67,10 +31,10 @@ export function DispersionesPage() {
   const [idFide, setIdFide] = useState('');
   const [noDisp, setNoDisp] = useState('');
 
-  // Filtros (estilo Excel, en los encabezados)
-  const [busNombre, setBusNombre] = useState('');
+  // Filtros de columna (estilo Excel, multi-selección: una o varias opciones)
+  const [nombreSel, setNombreSel] = useState<Set<string>>(new Set());
   const [persSel, setPersSel] = useState<Set<string>>(new Set());
-  const [busAdhesion, setBusAdhesion] = useState('');
+  const [adhesionSel, setAdhesionSel] = useState<Set<string>>(new Set());
   const [soloFinProm, setSoloFinProm] = useState(false);
 
   const [desglose, setDesglose] = useState<DispersionResumen | null>(null);
@@ -94,6 +58,14 @@ export function DispersionesPage() {
     enabled: !!idFide && !!noDisp,
   });
 
+  // Al cambiar de fideicomiso/periodo se limpian los filtros (evita selecciones
+  // "fantasma" de valores que ya no están en el nuevo conjunto de datos).
+  useEffect(() => {
+    setNombreSel(new Set());
+    setPersSel(new Set());
+    setAdhesionSel(new Set());
+  }, [idFide, noDisp]);
+
   const periodo = useMemo(() => opciones?.periodos.find((p) => p.noDispersion === noDisp), [opciones, noDisp]);
   const fideTitulo = useMemo(
     () => opciones?.fideicomisos.find((f) => f.idFide === idFide)?.titulo ?? 'Fideicomiso',
@@ -104,23 +76,32 @@ export function DispersionesPage() {
   // Nombre real = rfc_inversionista (campos invertidos en el RPC).
   const nombreDe = (r: DispersionResumen) => r.rfc_inversionista || r.nombre_inversionista || 'Sin Nombre';
 
-  // Personalidades presentes (para el filtro de columna).
+  // Valores distintos presentes (para los filtros de columna multi-selección).
+  const nombres = useMemo(
+    () => [...new Set(resumen.map(nombreDe))].sort((a, b) => a.localeCompare(b, 'es')),
+    [resumen],
+  );
   const personalidades = useMemo(
     () => [...new Set(resumen.map((r) => r.tipo_persona).filter((x): x is string => !!x))].sort(),
     [resumen],
   );
+  const adhesiones = useMemo(
+    () =>
+      [...new Set(resumen.map((r) => r.no_adhesion ?? '').filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, 'es', { numeric: true }),
+      ),
+    [resumen],
+  );
 
   const filtrado = useMemo(() => {
-    const qn = norm(busNombre);
-    const qa = busAdhesion.trim().toLowerCase();
     return resumen.filter((r) => {
-      if (qn && !norm(nombreDe(r)).includes(qn)) return false;
+      if (nombreSel.size > 0 && !nombreSel.has(nombreDe(r))) return false;
       if (persSel.size > 0 && !persSel.has(r.tipo_persona ?? '')) return false;
-      if (qa && !(r.no_adhesion ?? '').toLowerCase().includes(qa)) return false;
+      if (adhesionSel.size > 0 && !adhesionSel.has(r.no_adhesion ?? '')) return false;
       if (soloFinProm && !((r.dias_promocion ?? 0) > 0 && (r.dias_normal ?? 0) > 0)) return false;
       return true;
     });
-  }, [resumen, busNombre, persSel, busAdhesion, soloFinProm]);
+  }, [resumen, nombreSel, persSel, adhesionSel, soloFinProm]);
 
   const { ordenados, sortKey, dir, toggle } = useSort<DispersionResumen>(
     filtrado,
@@ -150,13 +131,6 @@ export function DispersionesPage() {
       ),
     [filtrado],
   );
-
-  const togglePers = (p: string) =>
-    setPersSel((s) => {
-      const n = new Set(s);
-      if (n.has(p)) n.delete(p); else n.add(p);
-      return n;
-    });
 
   return (
     <div className="space-y-4">
@@ -197,18 +171,10 @@ export function DispersionesPage() {
               <SortableTh
                 campo="nombre" sortKey={sortKey} dir={dir} onSort={toggle}
                 filtro={
-                  <FiltroColumna activo={!!busNombre}>
-                    <input
-                      value={busNombre}
-                      onChange={(e) => setBusNombre(e.target.value)}
-                      placeholder="Buscar por nombre…"
-                      autoFocus
-                      className="w-full rounded border px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-[#3f5b87]/30"
-                    />
-                    {busNombre && (
-                      <button onClick={() => setBusNombre('')} className="mt-1 text-xs text-[#3f5b87] hover:underline">Limpiar</button>
-                    )}
-                  </FiltroColumna>
+                  <FiltroColumnaOpciones
+                    etiqueta="Nombre" opciones={nombres}
+                    seleccion={nombreSel} onChange={setNombreSel}
+                  />
                 }
               >
                 Nombre
@@ -216,18 +182,10 @@ export function DispersionesPage() {
               <SortableTh
                 campo="personalidad" sortKey={sortKey} dir={dir} onSort={toggle} align="center"
                 filtro={
-                  <FiltroColumna activo={persSel.size > 0}>
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Personalidad</div>
-                    {personalidades.map((p) => (
-                      <label key={p} className="mt-1 flex items-center gap-2 text-xs">
-                        <input type="checkbox" checked={persSel.has(p)} onChange={() => togglePers(p)} />
-                        {p}
-                      </label>
-                    ))}
-                    {persSel.size > 0 && (
-                      <button onClick={() => setPersSel(new Set())} className="mt-1 text-xs text-[#3f5b87] hover:underline">Limpiar</button>
-                    )}
-                  </FiltroColumna>
+                  <FiltroColumnaOpciones
+                    etiqueta="Personalidad" opciones={personalidades}
+                    seleccion={persSel} onChange={setPersSel}
+                  />
                 }
               >
                 Personalidad
@@ -235,18 +193,10 @@ export function DispersionesPage() {
               <SortableTh
                 campo="no_adhesion" sortKey={sortKey} dir={dir} onSort={toggle} align="center"
                 filtro={
-                  <FiltroColumna activo={!!busAdhesion}>
-                    <input
-                      value={busAdhesion}
-                      onChange={(e) => setBusAdhesion(e.target.value)}
-                      placeholder="Buscar por adhesión…"
-                      autoFocus
-                      className="w-full rounded border px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-[#3f5b87]/30"
-                    />
-                    {busAdhesion && (
-                      <button onClick={() => setBusAdhesion('')} className="mt-1 text-xs text-[#3f5b87] hover:underline">Limpiar</button>
-                    )}
-                  </FiltroColumna>
+                  <FiltroColumnaOpciones
+                    etiqueta="Adhesión" opciones={adhesiones}
+                    seleccion={adhesionSel} onChange={setAdhesionSel}
+                  />
                 }
               >
                 Adhesión

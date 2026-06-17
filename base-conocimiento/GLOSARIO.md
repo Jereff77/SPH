@@ -11,6 +11,19 @@ palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parq
 > consulta y está aquí, esta es la definición canónica. Los documentos de módulo enlazan a este
 > glosario para no repetir (ni contradecir) estas definiciones.
 
+## Interfaz transversal
+
+- **Filtros de tabla (multi-selección)** — En todas las pantallas con tabla, los **encabezados de
+  columna** tienen un **embudo** (▼) que abre un filtro con **buscador + casillas**: se pueden elegir
+  **una o varias** opciones (p. ej. varios estatus, proveedores, parques). Sin nada marcado = se ven
+  todas las filas; entre columnas distintas el filtro es "Y", dentro de una columna es "O". Los
+  **totales del pie se recalculan** según lo filtrado. Es **regla de diseño 7c** (ver `HANDOFF.md` §1);
+  el componente compartido es `apps/web/src/components/tabla/FiltroColumnaOpciones.tsx` (y
+  `MultiSearchSelect.tsx` para selectores de formulario con varias opciones, p. ej. el **Mes** de
+  Gestión de Cobranza, que admite varios meses o todo el año). Los **selectores que cargan datos del
+  servidor** (Año, Inversionista, Periodo) NO son filtros de tabla y siguen siendo de una sola opción
+  (salvo donde se habilitó multi explícitamente, como el Mes de Cobranza).
+
 ## Entidades de negocio
 
 - **Inversionista** (`inversionista`, PK `idInversionista`): persona/empresa que es **dueña** de una
