@@ -140,6 +140,7 @@ export interface VencimientoReporteRow {
 /** Cabecera `arrePdp` mínima para el reporte de vencimientos (select('*') casteado). */
 interface PlanVencRow {
   idArrePdp: string;
+  idNavArrend: string | null;
   fecInicio: string | null;
   fecFin: string | null;
   rtaBase: number | null;
@@ -547,56 +548,129 @@ export class ReportesArreService {
   }
 
   /**
-   * Reporte de **Vencimientos**: por cada nave arrendada (vínculo activo) cuyo
-   * **contrato activo** (`arrenPropiedades.idArrePdp`) esté **vencido** ('No') o
-   * **por vencer** ('1 Mes' / '2 Meses' / '3 Meses'), una fila enriquecida con
-   * arrendatario/parque/nave (excluye Tickets) + fechas + renta base + moneda.
-   * Excluye contratos cancelados anticipadamente. El cálculo de "días" lo hace el
-   * front (zona horaria México). No usa vistas nuevas.
+   * Reporte de **Vencimientos**. Dos grupos, ambos sin Tickets ni cancelados:
+   * - **Por vencer** ('1 Mes' / '2 Meses' / '3 Meses'): el contrato **activo** de la
+   *   nave (vínculo `arrenPropiedades.status=true`), que sigue corriendo.
+   * - **Vencidos** ('No'): planes cuya `fecFin` ya pasó y cuya nave **no tiene ningún
+   *   contrato vigente** (no renovado/re-rentado) — misma regla que el sidebar del
+   *   dashboard (`contratos_vencidos_sin_renovacion`). Al vencer, la nave se libera
+   *   (vínculo `status=false`), por eso NO pueden salir del vínculo activo; se
+   *   enriquecen por `idNavArrend` aunque el vínculo esté inactivo.
+   *
+   * Cada fila lleva arrendatario/parque/nave + fechas + renta base + moneda. El
+   * cálculo de "días" lo hace el front (zona horaria México). No usa vistas nuevas.
    */
   async vencimientos(): Promise<VencimientoReporteRow[]> {
-    const { data: props, error } = await this.supabase.admin
-      .from('arrenPropiedades')
-      .select('idNavArrend, idArrePdp, idArrendador, idNave, idParque')
-      .eq('status', true)
-      .not('idArrePdp', 'is', null);
-    if (error) throw new InternalServerErrorException(error.message);
-    const lista = props ?? [];
-    if (lista.length === 0) return [];
+    // "Hoy" en zona horaria de México (YYYY-MM-DD) para comparar contra fecFin.
+    const hoy = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Mexico_City',
+    }).format(new Date());
+    const finISO = (f: string | null): string | null => (f ? String(f).slice(0, 10) : null);
 
     const orEmpty = (xs: (string | null)[]): string[] => {
       const s = [...new Set(xs.filter((x): x is string => !!x))];
       return s.length ? s : [''];
     };
 
-    // Planes activos vinculados, solo los vencidos / por vencer y no cancelados.
-    const { data: planesRaw, error: pErr } = await this.supabase.admin
-      .from('arrePdp')
-      .select('*')
-      .in('idArrePdp', orEmpty(lista.map((p) => p.idArrePdp)))
-      .eq('status', true);
+    // Vínculos activos (para los contratos "por vencer", que siguen corriendo).
+    const [{ data: props, error }, { data: planesRaw, error: pErr }] = await Promise.all([
+      this.supabase.admin
+        .from('arrenPropiedades')
+        .select('idNavArrend, idArrePdp, idArrendador, idNave, idParque')
+        .eq('status', true)
+        .not('idArrePdp', 'is', null),
+      this.supabase.admin.from('arrePdp').select('*').eq('status', true),
+    ]);
+    if (error) throw new InternalServerErrorException(error.message);
     if (pErr) throw new InternalServerErrorException(pErr.message);
-    const ESTADOS = new Set(['No', '1 Mes', '2 Meses', '3 Meses']);
-    const planPorId = new Map(
-      ((planesRaw ?? []) as unknown as PlanVencRow[])
-        .filter((p) => ESTADOS.has(p.arrePdpVigente ?? '') && !p.canceladoAnticipado)
-        .map((p) => [p.idArrePdp, p]),
-    );
-    if (planPorId.size === 0) return [];
 
+    const activos = props ?? [];
+    const planes = (planesRaw ?? []) as unknown as PlanVencRow[];
+    const planPorId = new Map(planes.map((p) => [p.idArrePdp, p]));
+
+    // Naves con algún contrato vigente (fecFin nula o >= hoy) → descarta los
+    // vencidos que ya fueron renovados / re-rentados.
+    const navesConVigente = new Set(
+      planes
+        .filter((p) => p.idNavArrend && (!p.fecFin || (finISO(p.fecFin) as string) >= hoy))
+        .map((p) => p.idNavArrend as string),
+    );
+
+    const POR_VENCER = new Set(['1 Mes', '2 Meses', '3 Meses']);
+
+    // Candidato: el plan + el vínculo (nave/parque/arrendatario) + el estado a mostrar.
+    interface Candidato {
+      plan: PlanVencRow;
+      idNavArrend: string;
+      idArrendador: string | null;
+      idNave: string | null;
+      idParque: string | null;
+      estado: string;
+    }
+    const cands: Candidato[] = [];
+    const incluidos = new Set<string>();
+
+    // A) Por vencer: vínculo activo + plan en estado 1/2/3 Meses.
+    for (const ap of activos) {
+      const plan = ap.idArrePdp ? planPorId.get(ap.idArrePdp) : undefined;
+      if (!plan || plan.canceladoAnticipado) continue;
+      if (!POR_VENCER.has(plan.arrePdpVigente ?? '')) continue;
+      cands.push({
+        plan,
+        idNavArrend: ap.idNavArrend,
+        idArrendador: ap.idArrendador,
+        idNave: ap.idNave,
+        idParque: ap.idParque,
+        estado: plan.arrePdpVigente ?? '',
+      });
+      incluidos.add(plan.idArrePdp);
+    }
+
+    // B) Vencidos sin renovación: fecFin < hoy y la nave no tiene contrato vigente.
+    const vencidos = planes.filter(
+      (p) =>
+        !p.canceladoAnticipado &&
+        !!p.fecFin &&
+        (finISO(p.fecFin) as string) < hoy &&
+        !!p.idNavArrend &&
+        !navesConVigente.has(p.idNavArrend) &&
+        !incluidos.has(p.idArrePdp),
+    );
+    // El vínculo pudo liberarse (status=false): se lee por idNavArrend sin filtrar status.
+    const { data: propsVenc } = await this.supabase.admin
+      .from('arrenPropiedades')
+      .select('idNavArrend, idArrendador, idNave, idParque')
+      .in('idNavArrend', orEmpty(vencidos.map((p) => p.idNavArrend)));
+    const propVencPorNav = new Map((propsVenc ?? []).map((p) => [p.idNavArrend, p]));
+    for (const p of vencidos) {
+      const ap = p.idNavArrend ? propVencPorNav.get(p.idNavArrend) : undefined;
+      cands.push({
+        plan: p,
+        idNavArrend: p.idNavArrend ?? '',
+        idArrendador: ap?.idArrendador ?? null,
+        idNave: ap?.idNave ?? null,
+        idParque: ap?.idParque ?? null,
+        estado: 'No',
+      });
+      incluidos.add(p.idArrePdp);
+    }
+
+    if (cands.length === 0) return [];
+
+    // Enriquecer nave/parque/arrendatario de todos los candidatos.
     const [{ data: naves }, { data: parques }, { data: invs }] = await Promise.all([
       this.supabase.admin
         .from('naves')
         .select('idNave, numNaveNAME, numNave')
-        .in('idNave', orEmpty(lista.map((p) => p.idNave))),
+        .in('idNave', orEmpty(cands.map((c) => c.idNave))),
       this.supabase.admin
         .from('parques')
         .select('idParque, nomParque, esTicket')
-        .in('idParque', orEmpty(lista.map((p) => p.idParque))),
+        .in('idParque', orEmpty(cands.map((c) => c.idParque))),
       this.supabase.admin
         .from('inversionista')
         .select('idInversionista, nombre, apellido1, apellido2, razonsocial')
-        .in('idInversionista', orEmpty(lista.map((p) => p.idArrendador))),
+        .in('idInversionista', orEmpty(cands.map((c) => c.idArrendador))),
     ]);
 
     const navePorId = new Map((naves ?? []).map((n) => [n.idNave, n]));
@@ -604,24 +678,22 @@ export class ReportesArreService {
     const invPorId = new Map((invs ?? []).map((i) => [i.idInversionista, i]));
 
     const filas: VencimientoReporteRow[] = [];
-    for (const prop of lista) {
-      const plan = prop.idArrePdp ? planPorId.get(prop.idArrePdp) : undefined;
-      if (!plan) continue; // no está en estado vencido/por vencer
-      const parque = prop.idParque ? parquePorId.get(prop.idParque) : undefined;
+    for (const c of cands) {
+      const parque = c.idParque ? parquePorId.get(c.idParque) : undefined;
       if (parque?.esTicket === true) continue; // Tickets se gestionan en Ventas.
-      const nave = prop.idNave ? navePorId.get(prop.idNave) : undefined;
-      const inv = prop.idArrendador ? invPorId.get(prop.idArrendador) : undefined;
+      const nave = c.idNave ? navePorId.get(c.idNave) : undefined;
+      const inv = c.idArrendador ? invPorId.get(c.idArrendador) : undefined;
       filas.push({
-        idArrePdp: plan.idArrePdp,
-        idNavArrend: prop.idNavArrend,
+        idArrePdp: c.plan.idArrePdp,
+        idNavArrend: c.idNavArrend,
         arrendatario: inv ? this.nombre(inv) : '—',
         parque: parque?.nomParque ?? null,
         nave: nave?.numNaveNAME ?? (nave?.numNave != null ? String(nave.numNave) : null),
-        fecInicio: plan.fecInicio,
-        fecFin: plan.fecFin,
-        estado: plan.arrePdpVigente ?? '',
-        rentaBase: Number(plan.rtaBase) || 0,
-        moneda: plan.Moneda,
+        fecInicio: c.plan.fecInicio,
+        fecFin: c.plan.fecFin,
+        estado: c.estado,
+        rentaBase: Number(c.plan.rtaBase) || 0,
+        moneda: c.plan.Moneda,
       });
     }
 

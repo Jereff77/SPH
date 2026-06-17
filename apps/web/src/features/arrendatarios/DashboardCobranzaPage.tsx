@@ -82,6 +82,8 @@ export function DashboardCobranzaPage() {
   const [mes, setMes] = useState<number>(ahora.getMonth() + 1); // 0 = Todos
   const [estado, setEstado] = useState<EstadoFiltro>('all');
   const [divisaFiltro, setDivisaFiltro] = useState<'ambos' | 'MXN' | 'USD'>('ambos');
+  // Mostrar montos con IVA (lo que cuadra con la transferencia) o sin IVA (base).
+  const [incluirIva, setIncluirIva] = useState(true);
   // Filtros de columna multi-selección (regla de diseño 7c).
   const [naveSel, setNaveSel] = useState<Set<string>>(new Set());
   const [parqueSel, setParqueSel] = useState<Set<string>>(new Set());
@@ -163,7 +165,7 @@ export function DashboardCobranzaPage() {
         };
         map.set(key, g);
       }
-      const m = r.monto ?? 0;
+      const m = (incluirIva ? r.monto : (r.base ?? r.monto)) ?? 0;
       const mxn = esMXN(r.divisa);
       if (!r.fec_pago) {
         if (mxn) g.mxnPend += m;
@@ -181,7 +183,7 @@ export function DashboardCobranzaPage() {
       g.conceptos[conc] = c;
     }
     return [...map.values()];
-  }, [filasFiltradas]);
+  }, [filasFiltradas, incluirIva]);
 
   // 3) Orden (por defecto parque, luego nave).
   const gruposOrden = useMemo(() => {
@@ -338,7 +340,10 @@ export function DashboardCobranzaPage() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-800">Arrendatarios · Gestión de Pagos</h1>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-800">Arrendatarios · Gestión de Pagos</h1>
+          <p className="text-xs text-gray-400">{incluirIva ? 'Montos con IVA incluido' : 'Montos sin IVA (base)'}</p>
+        </div>
         <button
           type="button"
           onClick={exportar}
@@ -422,6 +427,25 @@ export function DashboardCobranzaPage() {
               }`}
             >
               {d === 'ambos' ? 'Ambos' : d}
+            </button>
+          ))}
+        </div>
+
+        {/* Toggle IVA: con IVA (lo que cobra la transferencia) o sin IVA (base) */}
+        <div className="flex items-stretch overflow-hidden rounded-lg border" title="Mostrar los montos con IVA incluido o sin IVA">
+          {([
+            { v: true, label: 'Con IVA' },
+            { v: false, label: 'Sin IVA' },
+          ] as const).map((b) => (
+            <button
+              key={String(b.v)}
+              type="button"
+              onClick={() => setIncluirIva(b.v)}
+              className={`border-r px-3 text-xs font-semibold last:border-r-0 ${
+                incluirIva === b.v ? 'bg-[#1f2a4d] text-white' : 'text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              {b.label}
             </button>
           ))}
         </div>

@@ -349,7 +349,12 @@ export interface PagoArreRow {
   parque: string | null;
   razon_social: string | null;
   concepto: string | null;
+  /** Monto **con IVA incluido** (`base + iva`); es el que cuadra con la transferencia. */
   monto: number | null;
+  /** Monto sin IVA (cantidad de la partida). */
+  base?: number | null;
+  /** IVA de la partida (0 para Depósito Garantía). */
+  iva?: number | null;
   divisa: string | null;
   fec_pago: string | null;
   id_arrepdp: string | null;

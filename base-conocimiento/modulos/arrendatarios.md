@@ -72,6 +72,39 @@ actor para auditoría). Crear un plan orquesta **3 RPCs en secuencia**:
 > `arrepdpdetalle_actualizar_campo_manual` **solo cuando el año editado es ≥ 2** (el año 1 es la base, no
 > se incrementa).
 
+## IVA en la corrida (v2 — 2026-06-16)
+
+> 📌 **Los conceptos de la corrida son SIN IVA**, pero las **transferencias bancarias** que paga el
+> arrendatario llegan **con IVA del 16% incluido** (MXN y USD por igual). Por eso la cobranza muestra y
+> valida **monto + IVA**.
+
+- **Tasa:** sale de **`catParametros`** (`idCorto='iva'`, `valor=0.16`). *(No está en `SPHConfiguraciones`.)*
+- **Regla de negocio:** el 16% aplica a **todos los conceptos EXCEPTO "Deposito Garantia"** (garantía, no
+  contraprestación → IVA 0).
+- **Columna persistida:** **`arrePdpDetalle.iva` `numeric NOT NULL DEFAULT 0`** = monto del IVA de la
+  partida. Como `cantidad` es **generada**, el IVA lo mantiene un **trigger** (no es columna generada
+  porque la tasa vive en `catParametros`, no en el DDL):
+  - Función **`v2_arrepdpdetalle_calc_iva()`**: `iva = round(pm2 × constM2 × tasa, 2)`; `0` para Depósito
+    Garantía. Usa `pm2 × constM2` (no `cantidad`) porque las **columnas generadas no existen en triggers
+    BEFORE**.
+  - Triggers **`trg_v2_iva_ins`** (BEFORE INSERT, siempre) y **`trg_v2_iva_upd`** (BEFORE UPDATE **OF**
+    `pm2`,`constM2`,`concepto`). Así los crons diarios de v1 que tocan `anio`/`ciclo`/`fecPago` **no** lo
+    disparan; el cron de **INPC** sí (cambia `pm2`) → recalcula el IVA, que es lo correcto.
+  - SQL en `base-conocimiento/migraciones/2026-06-16-arrepdpdetalle-iva.sql` (incluye el backfill de las
+    30,409 filas, hecho sin auditar con DISABLE/ENABLE de `trg_auditoria`).
+- **Backend (`cobranza.service.ts`):** `pagos()` devuelve `monto = cantidad + iva` (+ `base` e `iva`
+  sueltos); `aplicarPago()` valida el depósito contra `cantidad + iva` → así la transferencia con IVA da
+  **"Exacto"**. El helper **`ivaDePartida(cantidad, concepto, tasa)`** replica EXACTAMENTE la regla del
+  trigger (mantener ambos en sincronía); la tasa se lee de `catParametros` y se cachea 5 min.
+- **Frontend:** el backend devuelve por fila `monto` (con IVA), `base` (sin IVA) e `iva`. El tablero tiene
+  un **toggle "Con IVA / Sin IVA"** (junto al filtro de divisa) que cambia la fuente del monto en tabla,
+  totales, tooltip y export CSV (`base` vs `base+iva`); la nota del encabezado refleja el modo. ⚠️ El
+  **modal de aplicar pago siempre usa CON IVA** (es lo que cobra la transferencia y lo que valida el
+  backend), independientemente del toggle — lleva la aclaración "(con IVA)".
+- ⚠️ **Pendiente (no incluido aquí):** los **Reportes** de arrendatarios (Estado de Cuenta) y otros
+  módulos que lean `cantidad` siguen mostrando importes **sin IVA**; si se requiere IVA ahí, usar la
+  columna `arrePdpDetalle.iva` ya persistida.
+
 ## ⚠️ Gotcha crítico — desfase del `anio` por concepto (diagnóstico de "actualizar el INPC manual no funciona")
 
 > **Para el agente de soporte: esto NO es un bug del código de v2 ni de la RPC de edición; es un problema
@@ -215,13 +248,19 @@ recalcula bien).
   (`catUsers.nomCompleto`). Columnas: Arrendatario · Parque · Nave · Inicio · Fin contractual · Fecha
   cancelación · Motivo · Canceló · Moneda. Filtros año/parque/búsqueda + export CSV/PDF.
 - Endpoint `GET /arrendatarios/reportes/cancelaciones` (`@RequierePermiso(20)`).
-- **Vencimientos** (tab, v2.29.0 — **pestaña por defecto**): lista el **contrato activo de cada nave arrendada**
-  (`arrenPropiedades.idArrePdp`, vínculo `status=true`) cuyo estado sea **Vencido** (`arrePdpVigente='No'`) o
-  **por vencer** (`'1 Mes'`/`'2 Meses'`/`'3 Meses'`). Excluye Tickets y contratos cancelados anticipadamente.
-  Backend `reportes-arre.service.ts` → `vencimientos()` (enriquece en memoria, sin vistas; ordena por urgencia
-  Vencido→1→2→3). Columnas: Arrendatario · Parque · Nave · Inicio · Fin · **Estado** (badge de color) · **Días**
-  ("Vence en N d" / "Venció hace N d", calculado en el front con `hoyMexico()`) · Renta base (`rtaBase`) · Moneda.
-  **Tarjetas-resumen** clicables por estado (filtran al hacer clic), filtros estado/parque/búsqueda, export CSV/PDF.
+- **Vencimientos** (tab, v2.29.0 — **pestaña por defecto**): dos grupos (excluye Tickets y cancelados):
+  - **Por vencer** (`'1 Mes'`/`'2 Meses'`/`'3 Meses'`): el **contrato activo** de la nave (vínculo
+    `arrenPropiedades.status=true`), que sigue corriendo.
+  - **Vencidos** (`'No'`): planes con **`fecFin` < hoy** cuya nave **no tiene contrato vigente** (no
+    renovado/re-rentado) — misma regla que el sidebar del dashboard (`contratos_vencidos_sin_renovacion`).
+  - ⚠️ **Gotcha corregido (2026-06-17)**: al vencer, la nave **se libera** (vínculo `status=false`), así que
+    los vencidos **NO** pueden salir del vínculo activo. La versión anterior partía solo del vínculo activo →
+    mostraba 1/2/3 meses pero **nunca los vencidos**. Ahora los vencidos se enriquecen por `idNavArrend`
+    aunque el vínculo esté inactivo. (Comparado en BD: 18 por-vencer + 21 vencidos sin renovación.)
+  - Backend `reportes-arre.service.ts` → `vencimientos()` (enriquece en memoria, sin vistas; "hoy" en zona
+    México; ordena por urgencia Vencido→1→2→3). Columnas: Arrendatario · Parque · Nave · Inicio · Fin ·
+    **Estado** (badge) · **Días** ("Vence en N d"/"Venció hace N d", front con `hoyMexico()`) · Renta base
+    (`rtaBase`) · Moneda. **Tarjetas-resumen** clicables por estado, filtros estado/parque/búsqueda, export CSV/PDF.
 - Endpoint `GET /arrendatarios/reportes/vencimientos` (`@RequierePermiso(20)`).
 
 ## Objetos nuevos en BD (v2_, autorizados)
@@ -259,8 +298,10 @@ recalcula bien).
 - `arrePdp` — cabecera del plan (`idArrePdp`, fechas, plazo, depósito, precios m²,
   INPC/INPCPlus, `Moneda`, `arrePdpVigente`).
 - `arrePdpDetalle` — corrida/partidas (`numPartida`, `anio`, `concepto`, `pm2`,
-  `constM2`, `INPC`, `ptsINPC`, `cantidad`, `tieneMesGratis`, `fecPago`,
-  `comprobantePago`).
+  `constM2`, `INPC`, `ptsINPC`, `cantidad`, **`iva`** (v2; monto de IVA, ver "IVA en la
+  corrida"), `tieneMesGratis`, `fecPago`, `comprobantePago`).
+- `catParametros` — parámetros de negocio (`idCorto`, `valor`). Incluye **`idCorto='iva'`**
+  (tasa de IVA = 0.16) usado por el trigger de IVA y la cobranza.
 - `arreConceptos` — conceptos financiados (KVAs/adecuaciones).
 - `inversionista_docs` — documentos (bucket público `Documentos`).
 - `naves` (`Arrendada`), `parques`, `inpc`, `movbancarios` (depósitos `idtipo=2`).

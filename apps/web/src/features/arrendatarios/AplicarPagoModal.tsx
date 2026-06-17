@@ -179,7 +179,7 @@ export function AplicarPagoModal({
           {/* Naves con pago pendiente */}
           <div className="flex flex-col gap-2 overflow-auto border-t p-4 md:border-l md:border-t-0">
             <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Naves con pago pendiente
+              Naves con pago pendiente <span className="font-normal normal-case text-gray-400">(con IVA)</span>
             </div>
             {naves.length === 0 ? (
               <p className="px-2 py-4 text-center text-xs text-gray-400">Sin partidas pendientes.</p>

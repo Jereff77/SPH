@@ -651,6 +651,7 @@ export type Database = {
           inc_x_inpc: number
           INPC: number
           inpcTotal: number | null
+          iva: number
           moneda: string
           montoDividido: boolean
           numPartida: number | null
@@ -682,6 +683,7 @@ export type Database = {
           inc_x_inpc?: number
           INPC?: number
           inpcTotal?: number | null
+          iva?: number
           moneda?: string
           montoDividido?: boolean
           numPartida?: number | null
@@ -713,6 +715,7 @@ export type Database = {
           inc_x_inpc?: number
           INPC?: number
           inpcTotal?: number | null
+          iva?: number
           moneda?: string
           montoDividido?: boolean
           numPartida?: number | null
