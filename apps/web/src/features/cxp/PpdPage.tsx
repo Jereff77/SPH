@@ -155,17 +155,41 @@ export function PpdPage() {
                 ordenados.map((f) => {
                   const sinSaldo = f.disponible <= 0.01;
                   return (
-                    <tr key={f.idCxpPPD} className="border-t hover:bg-gray-50">
-                      <td className="px-4 py-2">
-                        <div className="font-medium text-gray-800">
-                          {f.nombreProveedor ?? f.nomCFDI}
-                        </div>
-                        <div className="truncate text-xs text-gray-400" title={f.concepto ?? ''}>
-                          {f.concepto ?? '—'}
+                    <tr
+                      key={f.idCxpPPD}
+                      className={`border-t ${
+                        f.repVencido
+                          ? 'bg-rose-100 hover:bg-rose-200'
+                          : f.repPendiente
+                            ? 'bg-amber-50 hover:bg-amber-100'
+                            : 'hover:bg-gray-50'
+                      }`}
+                      title={
+                        f.repVencido
+                          ? 'Complemento de pago (REP) vencido'
+                          : f.repPendiente
+                            ? 'Complemento de pago (REP) pendiente'
+                            : undefined
+                      }
+                    >
+                      <td className="px-4 py-2 align-top">
+                        <div className="max-w-[500px]">
+                          <div className="font-medium text-gray-800">
+                            {f.nombreProveedor ?? f.nomCFDI}
+                          </div>
+                          <div
+                            className="whitespace-normal break-words text-xs text-gray-400"
+                            title={f.concepto ?? ''}
+                          >
+                            {f.concepto ?? '—'}
+                          </div>
                         </div>
                       </td>
-                      <td className="px-4 py-2 font-mono text-xs text-gray-500" title={f.folio}>
-                        {f.folio.slice(0, 8)}…
+                      <td
+                        className="whitespace-nowrap px-4 py-2 align-top font-mono text-xs text-gray-500"
+                        title={f.folio}
+                      >
+                        {f.folio}
                       </td>
                       <td className="px-4 py-2 text-gray-600">{fechaCorta(f.fecInicio)}</td>
                       <td className="px-4 py-2 text-right text-gray-700">

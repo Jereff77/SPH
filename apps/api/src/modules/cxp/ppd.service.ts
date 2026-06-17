@@ -107,24 +107,49 @@ export class PpdService {
     const ids = lista.map((m) => m.idCxpPPD);
     const { data: parciales, error: pErr } = await this.supabase.admin
       .from('cxp')
-      .select('idCxpPPD, total, montoAplicado, idEstado, moneda')
+      .select(
+        'idCxpPPD, total, montoAplicado, idEstado, moneda, uuidComplemento, complementoExento, fecPago',
+      )
       .in('idCxpPPD', ids)
       .eq('status', true);
     if (pErr) throw new InternalServerErrorException(pErr.message);
 
     const agg = new Map<
       string,
-      { solicitado: number; pagado: number; num: number; moneda: string }
+      {
+        solicitado: number;
+        pagado: number;
+        num: number;
+        moneda: string;
+        repPendiente: boolean; // alguna parcialidad pagada sin REP ni dispensa
+        repVencido: boolean; // …y con más de 15 días desde el pago (bloquea)
+      }
     >();
     for (const p of parciales ?? []) {
       if (!p.idCxpPPD) continue;
       const a =
-        agg.get(p.idCxpPPD) ?? { solicitado: 0, pagado: 0, num: 0, moneda: 'MXN' };
+        agg.get(p.idCxpPPD) ?? {
+          solicitado: 0,
+          pagado: 0,
+          num: 0,
+          moneda: 'MXN',
+          repPendiente: false,
+          repVencido: false,
+        };
       a.moneda = p.moneda ?? a.moneda;
       if (p.idEstado !== 3) {
         a.solicitado += p.total ?? 0;
         a.num += 1;
         if (p.idEstado === 6 || p.idEstado === 7) a.pagado += p.montoAplicado ?? 0;
+      }
+      // Complemento (REP) pendiente/vencido: parcialidad pagada, sin REP y no dispensada.
+      if (
+        (p.idEstado === 6 || p.idEstado === 7) &&
+        !p.uuidComplemento &&
+        !p.complementoExento
+      ) {
+        a.repPendiente = true;
+        if ((this.diasDesde(p.fecPago) ?? 0) > 15) a.repVencido = true;
       }
       agg.set(p.idCxpPPD, a);
     }
@@ -135,6 +160,8 @@ export class PpdService {
         pagado: 0,
         num: 0,
         moneda: 'MXN',
+        repPendiente: false,
+        repVencido: false,
       };
       const total = m.total ?? 0;
       return {
@@ -145,6 +172,8 @@ export class PpdService {
         disponible: round2(total - a.solicitado),
         numParcialidades: a.num,
         avance: total > 0 ? Math.round((a.pagado / total) * 100) : 0,
+        repPendiente: a.repPendiente,
+        repVencido: a.repVencido,
       };
     });
   }

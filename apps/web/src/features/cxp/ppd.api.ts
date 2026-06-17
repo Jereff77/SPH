@@ -29,6 +29,8 @@ export interface FacturaPpd {
   disponible: number;
   numParcialidades: number;
   avance: number; // % pagado del total
+  repPendiente?: boolean; // alguna parcialidad pagada sin REP ni dispensa
+  repVencido?: boolean; // …y con más de 15 días desde el pago (bloquea al usuario)
 }
 
 /** Una solicitud parcial (abono) de una factura PPD. */

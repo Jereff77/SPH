@@ -652,6 +652,36 @@ Cada pago de una parcialidad PPD obliga al proveedor a emitir un **Complemento d
 - **Front:** en el detalle PPD, columna **Complemento (REP)** por parcialidad pagada: "✓ REP subido" (link
   firmado) / "Pendiente (n d)" en ámbar/rojo (+ botones **Subir** y **Dispensar**) / **"Dispensado (excepción)"**.
   El candado se refleja con el mensaje 403 del backend en el modal de alta.
+- **Resaltado en el listado PPD (v2.34.0):** `PpdService.listar()` devuelve por factura dos banderas —
+  `repPendiente` (alguna parcialidad pagada sin REP ni dispensa) y `repVencido` (…y con **>15 días** desde el
+  pago). En `PpdPage` la fila se pinta en **rojo (`bg-rose-100`)** si `repVencido` y en **ámbar (`bg-amber-50`)**
+  si solo `repPendiente`, para detectar de un vistazo las facturas que requieren el REP (se levanta solo al subir
+  el complemento o dispensarlo). Además, la columna **Proveedor** se acota (máx. 500px; el concepto hace *wrap*
+  hacia abajo en vez de ensanchar la tabla) y **Folio** muestra el folio fiscal completo.
+
+### Regla de negocio del PPD (confirmada 2026-06-17)
+Una factura puede ser **PPD aunque se pague en una sola exhibición**: el proveedor emite el CFDI al **iniciar**
+el trabajo (método de pago PPD) y se paga al **terminarlo**, semanas o meses después. Por eso existen facturas
+PPD pagadas de una vez que **sí requieren** Complemento de Pago (REP). Si el REP no llegará, se **dispensa** por
+excepción (permiso 403); no se "quita el diferido".
+
+### Migración de facturas diferidas previas a la sección PPD (2026-06-17)
+Antes de existir `/cxp/ppd`, varias facturas PPD se subieron como solicitudes normales marcándolas
+`diferido=true` (atajo para tramitarlas con fecha de mes anterior). Quedaron con `cxp.diferido=true` pero **sin
+maestro `cxp_ppd` ni `idCxpPPD`** → disparaban el candado del REP pero **no aparecían** en la sección PPD (ni se
+les podía subir/dispensar el complemento). Se **regularizaron** creando el maestro `cxp_ppd` por factura
+(`folio = idFolioDif`, UUID limpio) y ligando sus parcialidades (`cxp.idCxpPPD`):
+- **Alcance:** todas las diferidas **activas** (idEstado ≠ 3) sin maestro, agrupadas por **folio**. Se crearon
+  **25 maestros** y se ligaron **27 parcialidades**. Los `idCxpPPD` llevan prefijo `mig…` → **reversible**.
+- **Total del maestro:** suma de las parcialidades no rechazadas del folio (evita disponible negativo; **no** se
+  leyó el XML porque el desbloqueo es por dispensa, no por el monto exacto).
+- **Desbloqueo:** las **11** parcialidades pagadas sin REP quedaron listas para que un usuario con permiso
+  **403** las **dispense** desde `/cxp/ppd` (motivo obligatorio, auditado). Afectaba a Mónica (8), Jessamyn (2)
+  y Carlos Carreón (1, JAZA); hoy **solo Carlos Carreón** tiene el 403 → él dispensa por todas (el listado PPD
+  muestra todas las facturas, no solo las propias).
+- ⚠️ La inserción se hizo vía **service_role** (MCP), por lo que la auditoría del alta de maestros no lleva
+  actor JWT (la dispensa posterior sí). **Revertir:** `UPDATE cxp SET "idCxpPPD"=NULL WHERE "idCxpPPD" LIKE
+  'mig%'; DELETE FROM cxp_ppd WHERE "idCxpPPD" LIKE 'mig%';`.
 
 ### Pendiente / notas
 - **Supuesto:** el PPD se trabaja **solo desde v2** de aquí en adelante (no en paralelo desde Flutter), para no

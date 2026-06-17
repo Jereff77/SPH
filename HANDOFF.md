@@ -5,7 +5,7 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-17 (v2.33.1 — CxP: la pantalla **Aprobar Solicitudes** ahora muestra en el modal la **justificación del solicitante** y **«Solicita»**; el dato ya viajaba del backend, solo faltaba presentarlo). Notas: v2.30.0–v2.33.0 (Claves SAT, Vencimientos, Ventas/Fideicomiso, filtros multi-selección, IVA en Gestión de Pagos) las publicaron otras sesiones en paralelo; ver `.sessions/bitacora.md` y `v2_changelog`. Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-17 (v2.34.0 — CxP · **Solicitudes de Pago PPD**: el listado resalta facturas con REP **vencido** (rojo, >15 d) / **pendiente** (ámbar) vía `repVencido`/`repPendiente`; columna **Proveedor** acotada con *wrap* y **Folio** completo. **Migración (BD, autorizada):** 25 facturas viejas `diferido=true` sin maestro PPD regularizadas (`cxp_ppd` + 27 parciales ligadas, prefijo `mig…`, reversible) → ya se pueden **dispensar** desde `/cxp/ppd` (permiso 403, hoy solo Carlos Carreón). **Regla de negocio:** una PPD puede pagarse en una sola exhibición y **sí requiere REP**. Previa v2.33.1 — CxP: **Aprobar Solicitudes** muestra la **justificación del solicitante**). Notas: v2.30.0–v2.33.0 (Claves SAT, Vencimientos, Ventas/Fideicomiso, filtros multi-selección, IVA en Gestión de Pagos) las publicaron otras sesiones en paralelo; ver `.sessions/bitacora.md` y `v2_changelog`. Autor: Claude (Opus 4.8).
 >
 > ✨ **v2.26.0 (feature):** **Registro de usuarios por invitación** (Configuraciones → **Usuarios**, clave
 > **200**). Botón **«+ Invitar usuario»** (correo + nombre + apellidos) y panel **«Invitaciones»**
