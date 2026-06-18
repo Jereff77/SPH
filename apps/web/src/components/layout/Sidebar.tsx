@@ -6,7 +6,6 @@ import { useAuth } from '@/features/auth/useAuth';
 import { VerComoModal } from '@/features/auth/VerComoModal';
 import { nombreUsuario } from '@/features/auth/format';
 import { APP_VERSION } from '@/lib/constants';
-import { useChangelog } from '@/features/changelog/useChangelog';
 import { MENU } from './menu';
 
 /** Grupo del menú al que pertenece una ruta (null en el landing/otras). */
@@ -33,11 +32,10 @@ interface SidebarProps {
 export function Sidebar({ colapsado, onNavegar }: SidebarProps) {
   const { usuario, tienePermiso, esSoporte, activarVerComo } = useAuth();
   const { pathname } = useLocation();
-  // Versión del sistema desde el changelog (fallback a la constante del bundle).
-  const { data: changelog } = useChangelog();
-  const version = changelog?.versionActual
-    ? `v. ${changelog.versionActual}`
-    : APP_VERSION;
+  // La versión mostrada es SIEMPRE la del bundle realmente cargado (`APP_VERSION`),
+  // NO un dato leído de la BD: así solo cambia cuando el usuario carga un bundle
+  // nuevo (deploy + recarga). El changelog (BD) se usa solo en Novedades.
+  const version = APP_VERSION;
   // Al cargar/recargar: abre el grupo de la ruta actual (ninguno en el landing).
   const [grupoAbierto, setGrupoAbierto] = useState<string | null>(() =>
     grupoDeRuta(pathname),

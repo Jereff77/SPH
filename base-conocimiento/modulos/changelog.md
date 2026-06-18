@@ -1,8 +1,8 @@
 ---
 modulo: Changelog / Novedades
 estado: desarrollado
-version_doc: 1.0
-ultima_actualizacion: 2026-06-09
+version_doc: 1.1
+ultima_actualizacion: 2026-06-18
 submodulos: [Novedades (changelog), Versión del sistema]
 rutas: [/configuraciones/novedades]
 claves_permiso: []
@@ -21,8 +21,12 @@ La bitácora oficial de **versiones del sistema**: qué se agregó, cambió o co
 - **Qué es:** un historial de versiones (estilo "notas de la versión") que el usuario consulta en
   **Configuraciones → Novedades**. Muestra cada versión con su **fecha** y la lista de **cambios** agrupados
   por tipo.
-- **Versión del sistema:** la versión que aparece en el **sidebar** (debajo del nombre del usuario, en verde)
-  es la **versión publicada más reciente** del changelog. Al hacer clic en ella se abre Novedades.
+- **Versión del sistema:** la versión que aparece en el **sidebar** (debajo del nombre del usuario) es la del
+  **bundle realmente cargado** en el navegador (`APP_VERSION`), **no** la del changelog. Al hacer clic se abre
+  Novedades. ⚠️ Desde **v2.35.0** (2026-06-18): si el servidor ya tiene una versión más nueva, aparece un
+  **banner "nueva versión disponible"** arriba, con la instrucción para recargar (**Ctrl + Shift + F5** en
+  Windows o **⌘ + Shift + F5** en Mac). Así el usuario sabe que sigue en una versión anterior y fuerza la
+  actualización.
 - **Sinónimos del usuario:** "las novedades", "qué cambió", "qué versión es", "el historial de
   actualizaciones", "las notas de la versión".
 
@@ -62,8 +66,12 @@ Cada cambio tiene un **tipo**, con su color en la pantalla:
 
 ## 4. ⚠️ Detalles no obvios (gotchas)
 
-1. La versión que se ve en el sidebar **no está "quemada" en el programa**: se lee del changelog, así que
-   refleja siempre la última versión publicada.
+1. ⚠️ **(Cambió en v2.35.0)** La versión del sidebar **es la del bundle cargado** (`APP_VERSION` /
+   `APP_VERSION_RAW` en `constants.ts`), **no** la del changelog. Antes se leía del changelog (BD), lo que hacía
+   que "cambiara" sin que el usuario recargara — anulando su utilidad (veía la versión nueva pero seguía con el
+   código viejo). Ahora solo cambia al **desplegar y recargar la página**. El changelog (BD) se usa para la
+   lista de Novedades y para **avisar** (banner) de que hay una versión más nueva, comparando el bundle contra
+   `/version.json` (que el build emite — **no** la BD).
 2. Si una versión está marcada como **no publicada**, no aparece en la lista (sirve para preparar una versión
    antes de anunciarla).
 3. El changelog **registra quién** lo edita (auditoría server-side), aunque eso no se muestra al usuario.
@@ -81,7 +89,8 @@ Cada cambio tiene un **tipo**, con su color en la pantalla:
 |---|---|---|
 | "No veo las Novedades en el menú." | Sesión no iniciada. | Iniciar sesión; el ítem es visible para todos. |
 | "La lista de novedades está vacía." | Aún no se ha cargado el historial en la base (tabla `v2_changelog`). | Escalar: falta aplicar la migración / cargar versiones. |
-| "La versión del sidebar no cambió tras una actualización." | No se registró la nueva versión en el changelog. | Escalar a desarrollo: deben registrar la versión. |
+| "La versión del sidebar no cambió tras una actualización." | El navegador sigue con el bundle anterior en caché (no recargó). | Recargar con **Ctrl + Shift + F5** (Windows) o **⌘ + Shift + F5** (Mac). Si aparece el banner "nueva versión disponible", usar su botón. |
+| "Aparece 'nueva versión disponible' pero ya recargué." | El despliegue (build) aún no termina, o el navegador sirve caché vieja. | Esperar a que termine el deploy y forzar recarga dura (Ctrl/⌘ + Shift + F5). |
 
 **Cuándo escalar a ticket:** la lista no carga (error del servidor) o una versión publicada no aparece.
 
@@ -115,6 +124,8 @@ versión que el primero acaba de crear → **no se tropiezan**.
 ### Comando «documenta todo»
 
 Cuando el usuario dice **«documenta todo»**, el agente ejecuta en orden: (1) registra la versión con la
-función; (2) alinea `APP_VERSION` en `constants.ts`; (3) actualiza la KB; (4) actualiza HANDOFF y
-`contexto.md`; (5) **commit + push en el repo `erp_v2`** con mensaje que empieza por `vN.N.N: …`.
+función; (2) alinea **`APP_VERSION_RAW`** en `constants.ts` (la versión visible y `/version.json` salen del
+**bundle**, no de la BD — ver gotcha 1); (3) actualiza la KB; (4) actualiza HANDOFF y `contexto.md`;
+(5) **commit + push en el repo `erp_v2`** con mensaje que empieza por `vN.N.N: …`.
+**⛔ graphify NO se ejecuta** en el cierre salvo que el usuario lo indique explícitamente (regla 10).
 Detalle completo en **HANDOFF.md → sección 5e**.

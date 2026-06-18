@@ -5,7 +5,7 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-18 (**v2.34.2** — **CxP · Aprobar**: corrige el **rechazo** de solicitudes (daba "Error interno del servidor"): `rechazar()` ahora envía `autorizo`=aprobador del JWT (el trigger `cxp_trigger_validar_fecha` valida la clave 430 contra `COALESCE(autorizo,uidr)`; sin él validaba al solicitante → 500) + nuevo helper `common/filters/cxp-error-mapper.ts` que traduce los 8 errores `CXP_*` de los triggers a 403/400 con mensaje claro. **Clientes**: trigger BD `v2_trg_inversionista_razonsocial` autocompleta la razón social de **personas físicas** con su nombre y normaliza `personalidad` a `'Fisica'/'Moral'` (sin acento, compat v1) → los clientes físicos ya aparecen en Devoluciones. Requiere redeploy **api+web**. Previa **v2.34.1** — Fideicomiso · **Contabilidad**: corrige la edición de celdas — al editar ya no se crea un movimiento duplicado (backend `buscarRegistro` localiza con la MISMA normalización del pivote `NULLIF(TRIM(x),'-')`: cubre `subconcepto/descripcion` en NULL o con espacios) y los conceptos **partidos por IVA** vuelven a ser editables (`rowKey` del front incluye `aplicaIVA`); **saneo de datos autorizado**: 6 registros canonizados + 2 conceptos con IVA unificado. Cambia `apps/api`+`apps/web` → requiere redeploy **api+web**. Previa **v2.34.0** — CxP · **Solicitudes de Pago PPD**: el listado resalta facturas con REP **vencido** (rojo, >15 d) / **pendiente** (ámbar) vía `repVencido`/`repPendiente`; columna **Proveedor** acotada con *wrap* y **Folio** completo. **Migración (BD, autorizada):** 25 facturas viejas `diferido=true` sin maestro PPD regularizadas (`cxp_ppd` + 27 parciales ligadas, prefijo `mig…`, reversible) → ya se pueden **dispensar** desde `/cxp/ppd` (permiso 403, hoy solo Carlos Carreón). **Regla de negocio:** una PPD puede pagarse en una sola exhibición y **sí requiere REP**. Previa v2.33.1 — CxP: **Aprobar Solicitudes** muestra la **justificación del solicitante**). Notas: v2.30.0–v2.33.0 (Claves SAT, Vencimientos, Ventas/Fideicomiso, filtros multi-selección, IVA en Gestión de Pagos) las publicaron otras sesiones en paralelo; ver `.sessions/bitacora.md` y `v2_changelog`. Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-18 (**v2.35.0** — **Versionado**: la versión visible ahora sale del **bundle** (`APP_VERSION`), no de la BD (antes el changelog la cambiaba sin recargar, anulando su propósito) + **banner "nueva versión disponible"** (compara el bundle vs `/version.json` que emite el plugin de Vite; instrucciones Ctrl+Shift+F5 / ⌘+Shift+F5). **Regla nueva (§1.10): graphify solo se refresca con orden EXPLÍCITA del usuario.** Previa **v2.34.2** — **CxP · Aprobar**: corrige el **rechazo** de solicitudes (daba "Error interno del servidor"): `rechazar()` ahora envía `autorizo`=aprobador del JWT (el trigger `cxp_trigger_validar_fecha` valida la clave 430 contra `COALESCE(autorizo,uidr)`; sin él validaba al solicitante → 500) + nuevo helper `common/filters/cxp-error-mapper.ts` que traduce los 8 errores `CXP_*` de los triggers a 403/400 con mensaje claro. **Clientes**: trigger BD `v2_trg_inversionista_razonsocial` autocompleta la razón social de **personas físicas** con su nombre y normaliza `personalidad` a `'Fisica'/'Moral'` (sin acento, compat v1) → los clientes físicos ya aparecen en Devoluciones. Requiere redeploy **api+web**. Previa **v2.34.1** — Fideicomiso · **Contabilidad**: corrige la edición de celdas — al editar ya no se crea un movimiento duplicado (backend `buscarRegistro` localiza con la MISMA normalización del pivote `NULLIF(TRIM(x),'-')`: cubre `subconcepto/descripcion` en NULL o con espacios) y los conceptos **partidos por IVA** vuelven a ser editables (`rowKey` del front incluye `aplicaIVA`); **saneo de datos autorizado**: 6 registros canonizados + 2 conceptos con IVA unificado. Cambia `apps/api`+`apps/web` → requiere redeploy **api+web**. Previa **v2.34.0** — CxP · **Solicitudes de Pago PPD**: el listado resalta facturas con REP **vencido** (rojo, >15 d) / **pendiente** (ámbar) vía `repVencido`/`repPendiente`; columna **Proveedor** acotada con *wrap* y **Folio** completo. **Migración (BD, autorizada):** 25 facturas viejas `diferido=true` sin maestro PPD regularizadas (`cxp_ppd` + 27 parciales ligadas, prefijo `mig…`, reversible) → ya se pueden **dispensar** desde `/cxp/ppd` (permiso 403, hoy solo Carlos Carreón). **Regla de negocio:** una PPD puede pagarse en una sola exhibición y **sí requiere REP**. Previa v2.33.1 — CxP: **Aprobar Solicitudes** muestra la **justificación del solicitante**). Notas: v2.30.0–v2.33.0 (Claves SAT, Vencimientos, Ventas/Fideicomiso, filtros multi-selección, IVA en Gestión de Pagos) las publicaron otras sesiones en paralelo; ver `.sessions/bitacora.md` y `v2_changelog`. Autor: Claude (Opus 4.8).
 >
 > ✨ **v2.26.0 (feature):** **Registro de usuarios por invitación** (Configuraciones → **Usuarios**, clave
 > **200**). Botón **«+ Invitar usuario»** (correo + nombre + apellidos) y panel **«Invitaciones»**
@@ -410,10 +410,9 @@
      **no se tropiezan**. Detalle en la sección 5e.
    - **🗣️ Comando «documenta todo».** Cuando el usuario diga **«documenta todo»**, el agente ejecuta el
      procedimiento completo de cierre (registrar versión → alinear front → KB → HANDOFF → contexto →
-     **graphify `--update` → commit+push** en `erp_v2`). El **graphify va ANTES del commit**, lo corre el
-     **propio agente** (no espera un `/graphify` aparte del usuario), y `version2/graphify-out/` entra en
-     **ese mismo commit** (un solo commit, no dos). **Pasos exactos en la sección 5e.** Cada «documenta
-     todo» = **una versión nueva**.
+     **commit+push** en `erp_v2`). **⛔ graphify NO forma parte del cierre por defecto:** solo se
+     ejecuta/refresca cuando el usuario lo **indique explícitamente** (ver regla 10). **Pasos exactos en la
+     sección 5e.** Cada «documenta todo» = **una versión nueva**.
    - **Qué SÍ se registra** en el changelog: features, fixes, cambios de comportamiento o de seguridad
      **visibles para el usuario**. **Qué NO:** refactors internos, cambios de documentación/KB, ajustes de
      tipos — nada que el usuario perciba. Categorías: `Agregado`, `Cambiado`, `Corregido`, `Eliminado`,
@@ -421,7 +420,7 @@
    - La pantalla es de **solo lectura** (`GET /api/changelog`, `JwtAuthGuard` **sin** `PermisoGuard`). No hay
      UI de edición: el changelog lo escribe el agente que desarrolla, no el usuario final.
 
-10. **🗺️ GRAFO DE CONOCIMIENTO DEL CÓDIGO (graphify) — consultar antes, refrescar después.**
+10. **🗺️ GRAFO DE CONOCIMIENTO DEL CÓDIGO (graphify) — consultar antes; refrescar SOLO con orden explícita del usuario.**
     Existe un grafo navegable del código de `version2/` en **`version2/graphify-out/`**
     (`graph.json`, `GRAPH_REPORT.md` y `graph.html`). Es el **mapa estructural** (quién llama a
     quién, god nodes, puentes entre módulos) y **complementa** la Base de Conocimiento (regla 8):
@@ -432,18 +431,15 @@
       conectan), `/graphify query "<pregunta>"` (contexto amplio). Presta atención a los **god
       nodes** (ej. `SupabaseService`, `api.ts`) y a los **nodos puente** (alta betweenness): tocarlos
       tiene efecto en cascada.
-    - **DESPUÉS de cambios de código**, refresca el grafo de forma incremental:
-      `/graphify version2 --update` — re-extrae **solo** lo nuevo/modificado. Si el cambio es
-      **solo código** (.ts/.tsx), corre sin LLM (AST, gratis y rápido) y poda los nodos de archivos
-      borrados (anti-deriva). Cambios en docs/.md sí requieren `--update` completo. **Lo corre el propio
-      agente** como parte del cierre «documenta todo» (sección 5e, paso 4b), **ANTES del commit** y nunca
-      como un paso aparte que dispare el usuario: se hace una vez por versión (no por commit), y su salida
-      en `version2/graphify-out/` entra en **el mismo commit** de la versión (un solo commit). Así se
-      actualiza también la capa semántica y se evitan carreras de escritura entre agentes.
-    - **Concurrencia (varios agentes):** graphify solo **lee** el código y escribe **únicamente** en
-      `version2/graphify-out/`; nunca toca tu código ni la BD. `--update` es incremental, así que es
-      seguro correrlo aunque otro agente esté trabajando — igual que el changelog (regla 9), el grafo
-      es un recurso compartido que cada agente refresca al cerrar su trabajo.
+    - **⛔ DESPUÉS de cambios de código NO se refresca el grafo automáticamente.** Desde **2026-06-18, por
+      indicación explícita del usuario**, graphify **NO** forma parte del cierre «documenta todo» ni se corre
+      tras los cambios. Solo se ejecuta `/graphify version2 --update` (o cualquier comando de graphify que
+      **escriba** en `version2/graphify-out/`) **cuando el usuario lo pida de forma EXPLÍCITA**. Mientras tanto,
+      `version2/graphify-out/` puede quedar **desactualizado** respecto al código: trátalo como mapa
+      **aproximado** y verifica siempre en el código.
+    - **Lectura siempre permitida:** consultar/leer el grafo (`graph.json`, `GRAPH_REPORT.md`, `/graphify
+      explain|path|query`) está permitido en cualquier momento; lo que queda prohibido por defecto es
+      **regenerarlo/refrescarlo** (escribir en `version2/graphify-out/`) sin orden explícita.
     - **Honestidad del grafo:** cada arista está marcada `EXTRACTED` / `INFERRED` / `AMBIGUOUS`. No
       trates una arista `INFERRED`/`AMBIGUOUS` como un hecho; verifícala en el código.
 
@@ -724,28 +720,25 @@ mostrarla aún, pasa `p_publicada => false` (4.º argumento).
 **🗣️ Procedimiento del comando «DOCUMENTA TODO» (ejecutar EN ORDEN al recibir esa instrucción):**
 1. **Registra la versión** con `v2_changelog_registrar(salto, título, cambios)`. Guarda la versión `N` que
    devuelve (la BD garantiza que es la siguiente real, aunque otro agente haya publicado en paralelo).
-2. **Alinea el front:** pon `APP_VERSION = 'v. N'` en `apps/web/src/lib/constants.ts` (el Sidebar ya lee la
-   versión de la BD en vivo; esto mantiene el *fallback* del bundle coherente con `N`).
+2. **Alinea el front:** pon `APP_VERSION_RAW = 'N'` (sin el prefijo `v. `) en `apps/web/src/lib/constants.ts`.
+   ⚠️ Desde 2026-06-18 la versión visible **sale del bundle, NO de la BD**: el Sidebar muestra `APP_VERSION`
+   (= `'v. ' + APP_VERSION_RAW`) y el plugin de Vite emite `/version.json` con `APP_VERSION_RAW` para avisar
+   de nuevas versiones (banner en `AppShell`). La BD/changelog ya **no** determina la versión mostrada.
 3. **Actualiza la Base de Conocimiento** (regla 8): el/los `base-conocimiento/modulos/<modulo>.md` tocados +
    `INDICE.md`.
 4. **Actualiza el HANDOFF** (lo que cambió) y **`../.sessions/contexto.md`** (entrada de sesión).
-4b. **Refresca el grafo de código (regla 10) — ANTES del commit, lo corre el agente:** ejecuta tú mismo
-   `/graphify version2 --update` (incremental) **como parte de este procedimiento**, sin esperar a que el
-   usuario lo dispare aparte. Así el grafo en `version2/graphify-out/` queda alineado con el código que
-   estás por commitear y su salida se incluye en **el mismo commit** del paso 5 (un solo commit, no dos).
-   Se hace una vez por versión (no por commit): refresca AST + semántica de lo cambiado y evita carreras
-   de escritura entre agentes.
+4b. **⛔ graphify — NO se ejecuta en el cierre (regla 10).** Desde 2026-06-18, por indicación explícita del
+   usuario, **NO** refresques `version2/graphify-out/` como parte de «documenta todo». Solo corre graphify
+   cuando el usuario lo pida de forma EXPLÍCITA; entonces sí su salida entra en el commit de esa instrucción.
 5. **Commit + push en el repo `erp_v2`** — `github.com/Jereff77/SPH`, rama **`erp_v2`**
    (https://github.com/Jereff77/SPH/tree/erp_v2) — **NO** en la carpeta temporal `version2/` (que solo existe
-   para dar acceso al código de v1). Este commit **incluye también** los cambios de `version2/graphify-out/`
-   del paso 4b (todo en **un solo commit**, no uno para el código y otro para el grafo). El mensaje del commit
-   **DEBE empezar con `vN.N.N: …`** para identificarlo.
+   para dar acceso al código de v1). El mensaje del commit **DEBE empezar con `vN.N.N: …`** para identificarlo.
    El push dispara el deploy en EasyPanel. *(Mientras trabajemos desde `version2/`: si el repo `erp_v2` no está
    montado en el entorno, deja preparado el mensaje `vN: …` y avísale al usuario para que sincronice y haga
    push.)*
 
 > Resultado: la versión queda registrada una sola vez (sin choques entre agentes), el commit es rastreable por
-> versión, y el Sidebar la muestra siempre (la lee de la BD).
+> versión, y el Sidebar muestra la versión del **bundle** (`APP_VERSION`), que solo cambia al desplegar y recargar.
 
 ---
 

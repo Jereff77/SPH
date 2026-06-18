@@ -7,6 +7,7 @@ import { STORAGE } from '@/lib/constants';
 import { IconMenu, IconLogout } from '@/components/icons';
 import { Sidebar } from './Sidebar';
 import { SoporteWidget } from '@/features/soporte/SoporteWidget';
+import { AvisoNuevaVersion } from '@/features/version/AvisoNuevaVersion';
 
 /**
  * Layout principal tras el login (landing). Header + sidebar colapsable.
@@ -92,6 +93,9 @@ export function AppShell() {
             </button>
           </div>
         </header>
+
+        {/* Aviso de nueva versión disponible (compara el bundle vs /version.json; sin BD) */}
+        <AvisoNuevaVersion />
 
         {/* Banner de "Ver como" (soporte, solo lectura) */}
         {verComoActivo && (
