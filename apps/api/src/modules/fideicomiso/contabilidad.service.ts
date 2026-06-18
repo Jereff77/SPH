@@ -328,7 +328,26 @@ export class ContabilidadService {
 
   // ------------------------------- Privados -------------------------------
 
-  /** Localiza el registro activo de `fideContabilidad` para una clave de celda. */
+  /**
+   * Canoniza un subconcepto/descripción con el MISMO criterio que el pivote
+   * (`NULLIF(TRIM(x), '-')`): recorta espacios y colapsa `'-'`, `''` y `NULL`
+   * a un único valor de "hueco" (`null`). Imprescindible para que LOCALIZAR un
+   * registro (escritura) use la misma identidad de celda que AGRUPA el pivote
+   * (lectura); si no, un dato almacenado como `NULL` o con espacios sobrantes
+   * nunca se encuentra y se inserta un duplicado fantasma.
+   */
+  private canon(v: string | null | undefined): string | null {
+    const t = (v ?? '').trim();
+    return t === '' || t === '-' ? null : t;
+  }
+
+  /**
+   * Localiza el registro activo de `fideContabilidad` para una clave de celda.
+   * `tipo`/`concepto`/`mes`/`anio` se filtran en el servidor (el pivote tampoco
+   * los normaliza); `subconcepto`/`descripcion` se comparan ya canonizados (igual
+   * que `NULLIF(TRIM(x), '-')` del pivote) para no fallar el match cuando el dato
+   * real difiere del centinela `'-'` (NULL nativo o espacios sobrantes).
+   */
   private async buscarRegistro(clave: {
     anio: number;
     mes: number;
@@ -339,17 +358,20 @@ export class ContabilidadService {
   }): Promise<RegistroConta | null> {
     const { data, error } = await this.supabase.admin
       .from('fideContabilidad')
-      .select('id, monto, notas, aplicaIVA, fc')
+      .select('id, monto, notas, aplicaIVA, fc, subconcepto, descripcion')
       .eq('tipo', clave.tipo)
       .eq('concepto', clave.concepto)
-      .eq('subconcepto', clave.subconcepto)
-      .eq('descripcion', clave.descripcion)
       .eq('mes', clave.mes)
       .eq('anio', clave.anio)
       .eq('status', true)
-      .limit(1);
+      .order('id', { ascending: true });
     if (error) throw new InternalServerErrorException(error.message);
-    const r = data?.[0];
+
+    const sub = this.canon(clave.subconcepto);
+    const desc = this.canon(clave.descripcion);
+    const r = (data ?? []).find(
+      (row) => this.canon(row.subconcepto) === sub && this.canon(row.descripcion) === desc,
+    );
     return r
       ? { id: r.id, monto: r.monto, notas: r.notas, aplicaIVA: r.aplicaIVA, fc: r.fc }
       : null;

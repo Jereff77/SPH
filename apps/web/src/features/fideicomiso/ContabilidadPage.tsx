@@ -43,9 +43,15 @@ function anioActualMX(): number {
   );
 }
 
-/** Clave única de una fila del pivote. */
+/**
+ * Clave única de una fila del pivote. Incluye `aplicaIVA` porque el pivote agrupa
+ * por ese flag: un mismo concepto cuyos meses tengan IVA distinto se devuelve en
+ * DOS filas (una con IVA, otra sin). Sin el flag, ambas comparten clave → `key`
+ * de React duplicada y la edición inline (`edit.key`) se vuelve ambigua (el clic
+ * no abre la celda correcta). Con él, cada renglón es único y editable por separado.
+ */
 const rowKey = (f: PivoteFila) =>
-  `${f.tipo}|${f.concepto}|${f.subconcepto || '-'}|${f.descripcion || '-'}`;
+  `${f.tipo}|${f.concepto}|${f.subconcepto || '-'}|${f.descripcion || '-'}|${f.aplicaIVA ? '1' : '0'}`;
 
 const mesValor = (f: PivoteFila, m: string) => Number((f as unknown as Record<string, number>)[m]) || 0;
 

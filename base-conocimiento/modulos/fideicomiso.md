@@ -72,6 +72,30 @@ Hay **un solo fideicomiso** activo: *Fideicomiso Innovación SPH* (`idFide = jsR
   el catálogo. Antes, el insert inline (`guardarCelda`) **hardcodeaba `aplicaIVA:false`**, lo que partía la
   fila y dejaba el monto fuera de la base de IVA. Para **fusionar** un renglón ya partido (dato existente):
   encender el punto de IVA de esa celda (toggle `PATCH celda-iva`) hasta igualar el resto del concepto.
+  - **⚠️ Efecto en la EDICIÓN (no solo presentación) — FIX front 2026-06-18:** cuando una fila se parte por
+    IVA, las dos filas del pivote comparten `tipo/concepto/subconcepto/descripcion`. Antes, `rowKey` en
+    `ContabilidadPage.tsx` **no incluía `aplicaIVA`**, así que ambas filas tenían la **misma clave** → `key`
+    de React duplicada y la edición inline (`edit?.key === rowKey(f) && edit.mes === m`) se activaba en las
+    DOS filas → al hacer clic, el `<input>` se montaba de forma ambigua y la celda **no se podía editar**.
+    **Fix:** `rowKey` ahora incluye `…|${f.aplicaIVA ? '1' : '0'}`, de modo que cada renglón es único y
+    editable por separado aunque el concepto esté partido. Para **fusionar** el renglón conviene además unificar
+    el IVA del dato (toggle del punto, o saneo). Detectar particiones:
+    `GROUP BY anio,tipo,concepto,NULLIF(TRIM(subconcepto),'-'),NULLIF(TRIM(descripcion),'-') HAVING count(DISTINCT "aplicaIVA")>1`.
+- **⚠️ Gotcha crítico — INSERT fantasma al editar (síntoma: "se duplica y ya no se puede modificar"), FIX
+  v2 2026-06-18:** la localización del registro al escribir debe usar la **misma** identidad de celda que el
+  pivote al leer. `pivot_contabilidad` agrupa/devuelve `subconcepto`/`descripcion` con
+  `NULLIF(TRIM(x),'-')` (colapsa `NULL`/`''`/`'-'` y **recorta espacios**), y el front re-mapea ese `null` a
+  `'-'` (`f.subconcepto || '-'`). Antes, `ContabilidadService.buscarRegistro` localizaba el registro con
+  `.eq('subconcepto', clave).eq('descripcion', clave)` **exacto**: si el dato crudo no era exactamente `'-'`
+  (era `NULL` nativo o tenía espacios sobrantes), el `.eq()` no matcheaba → caía al **INSERT** y creaba un
+  duplicado que el pivote re-agrupaba en la misma fila (monto sumado, "no se asocia", la celda ya no se podía
+  actualizar). **v1 no tenía el bug** porque su WebView usaba `f.subconcepto`/`f.descripcion` crudos contra un
+  pivote cuya salida coincidía con lo almacenado; el `NULLIF(TRIM())` se introdujo en v2 solo en la lectura.
+  **Fix:** `buscarRegistro` ahora es **simétrico** — filtra server-side por `tipo/concepto/mes/anio/status` y
+  resuelve el match de subconcepto/descripción en JS canonizando ambos con `canon(x)` (= `NULLIF(TRIM(x),'-')`).
+  Cubre edición de celda, toggle de IVA y alta de movimiento. **Saneo de datos (autorizado):** se normalizaron
+  los 6 registros que estaban fuera del centinela (`id 21-23` subconcepto `NULL`→`'-'`; `id 304-306` espacio
+  final en `descripcion`→`TRIM`). Para detectar reincidencias: `subconcepto/descripcion IS NULL OR = '' OR <> TRIM(...)`.
 - **Nota:** el `signo-hint` (Ingreso/Egreso) de v1 referenciaba `fideContaConceptos.es_ingreso`, columna que
   **no existe** en la BD; se omite (no se inventa ese dato).
 - **Contabilidad (exportar a Excel, v2.31.0):** botón «📊 Excel» → modal `ModalExportar` con selección de
