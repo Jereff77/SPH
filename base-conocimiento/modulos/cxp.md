@@ -462,6 +462,23 @@ Total, Monto Aplicado, Balance, Urgente, Acciones) con encabezado fijo azul (reg
   ya viajaba del backend, solo faltaba mostrarlo.)*
 - **Regresar** (`POST /:idCxp/regresar`, motivo obligatorio): `idEstado→1` (al solicitante para corregir).
 - **Rechazar** (`POST /:idCxp/rechazar`, motivo obligatorio): `idEstado→3` (la factura debe refacturarse).
+  - ⚠️ **Gotcha + fix (2026-06-18):** el rechazo hace `UPDATE cxp SET idEstado=3`. El trigger de BD
+    `cxp_trigger_validar_fecha` (activo) valida el permiso de autorización (clave 430) contra
+    **`COALESCE(NEW.autorizo, NEW.uidr)`**. Como el rechazo **no seteaba `autorizo`**, el trigger validaba al
+    **solicitante** (sin clave 430) y lanzaba `CXP_ESTADO_NO_AUTORIZADO`, que el backend envolvía en un **500
+    genérico** ("Error interno del servidor"). **Fix:** `rechazar()` ahora envía `autorizo: actorUid` (el
+    aprobador, del JWT) → el trigger valida a la persona correcta **y** queda registrado quién rechazó.
+    Verificado contra el trigger real (rollback): con `autorizo` **PASA**, sin él **FALLA**. *(Aprobar nunca
+    tuvo el bug: usa la RPC `cxp_autorizar_solicitud_pago`, que ya setea `autorizo`. Sweep confirmó que es el
+    ÚNICO endpoint afectado: los demás van a estados 1/2, usan RPC, o la solicitud ya trae `autorizo`.)*
+  - 🆕 **Errores de trigger legibles:** helper `common/filters/cxp-error-mapper.ts` (`mapearErrorCxp`) traduce
+    los `RAISE` de los triggers de `cxp` a HTTP claros: `CXP_ESTADO_NO_AUTORIZADO`→**403**;
+    `CXP_AUTORIZACION_NO_HABILITADA` / `CXP_CFDI_NO_HABILITADO` / `CXP_TIPO_PROVEEDOR_REQUERIDO` /
+    `CXP_ID_PROVEEDOR_REQUERIDO` / `CXP_ENTIDAD_NO_EXISTE` / `CXP_COMISIONISTA_NO_IMPLEMENTADO` /
+    `CXP_TIPO_PROVEEDOR_INVALIDO`→**400** (mensaje en español), en vez del 500. Aplicado en `rechazar`/`regresar`;
+    reutilizable en otras escrituras a `cxp`. El front ya muestra `e.message`, así que el usuario verá el texto claro.
+    ⚠️ Nota: en un día **no habilitado para autorizar** (`cxp_fechas_habilitadas.autorizar=false`), rechazar/aprobar
+    seguirá bloqueado pero ahora con mensaje claro (`CXP_AUTORIZACION_NO_HABILITADA`), no un 500.
 - **Aprobar** (`POST /:idCxp/aprobar`): pre-valida `cxp_puede_autorizar()`; llama la RPC
   `cxp_autorizar_solicitud_pago(idCxp, comentario, p_autorizo = actorUid)`. La RPC valida presupuesto
   (categoría activa, `idCategoria≠'-'`, presupuestable, `total_gastado_comprometido + subtotal ≤
@@ -529,6 +546,11 @@ Total, Monto Aplicado, Balance, Urgente, Acciones) con encabezado fijo azul (reg
 - **Devoluciones**: la contraparte es un **Inversionista** (selector `GET /cxp/solicitudes/inversionistas`:
   `inversionista` activos, no de prueba). Se guarda `idProveedor`=`idInversionista`, `tipoProveedor=2` y
   `nombreProveedor`=`razonsocial` (resuelto en el backend; v1 lo dejaba en null).
+  - ⚠️ **Gotcha (2026-06-18):** ese selector filtra **`razonsocial IS NOT NULL`** y muestra esa columna,
+    por lo que las **personas físicas sin razón social** no aparecían (caso *Mauricio Valdez Salgado*). Se
+    resolvió de fondo con el trigger de BD `v2_trg_inversionista_razonsocial`, que **autocompleta** la
+    `razonsocial` de las físicas con su nombre (ver `modulos/clientes.md` §9 y
+    `migraciones/2026-06-18-inversionista-autocompleta-razonsocial-fisica.sql`). El selector **no** se modificó.
 - **Archivos** (Línea de Captura y Sin XML): PDF al bucket **`CFDIproveedores`**, ruta
   `{yyyy-MM}/{idProveedor}/{idCxp}.pdf` → `urlCFDI`.
 

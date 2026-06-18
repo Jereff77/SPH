@@ -138,7 +138,8 @@ export function ClienteModal({
                 className="mt-1 block w-full rounded border px-2 py-1.5 text-sm"
               >
                 <option value="">—</option>
-                <option value="Física">Física</option>
+                {/* value sin acento ('Fisica') = canónico compatible con v1; la etiqueta sí lleva acento. */}
+                <option value="Fisica">Física</option>
                 <option value="Moral">Moral</option>
               </select>
             </label>

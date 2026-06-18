@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { mapearErrorCxp } from '../../common/filters/cxp-error-mapper.js';
 import { firmarDocumentos } from './documentos.util.js';
 
 const BUCKET_CFDI = 'CFDIproveedores';
@@ -200,7 +201,10 @@ export class AprobacionService {
       .from('cxp')
       .update({ idEstado: 1, ultimoComentario: comentario })
       .eq('idCxp', idCxp);
-    if (error) throw new InternalServerErrorException('No se pudo regresar la solicitud.');
+    if (error) {
+      mapearErrorCxp(error); // traduce errores de trigger CxP a 403/400 claros
+      throw new InternalServerErrorException('No se pudo regresar la solicitud.');
+    }
     await this.comentar(idCxp, comentario, actorUid);
   }
 
@@ -208,11 +212,18 @@ export class AprobacionService {
   async rechazar(idCxp: string, comentario: string, actorUid: string): Promise<void> {
     await this.solicitudDelAprobador(idCxp, actorUid);
     const db = this.supabase.comoActor(actorUid);
+    // `autorizo` = el aprobador real (del JWT). Imprescindible: el trigger de BD
+    // `cxp_trigger_validar_fecha` valida el permiso 430 contra COALESCE(autorizo, uidr);
+    // sin enviarlo, validaría al SOLICITANTE y lanzaría CXP_ESTADO_NO_AUTORIZADO (→500).
+    // Además deja registrado QUIÉN rechazó.
     const { error } = await db
       .from('cxp')
-      .update({ idEstado: 3, ultimoComentario: comentario })
+      .update({ idEstado: 3, ultimoComentario: comentario, autorizo: actorUid })
       .eq('idCxp', idCxp);
-    if (error) throw new InternalServerErrorException('No se pudo rechazar la solicitud.');
+    if (error) {
+      mapearErrorCxp(error); // traduce errores de trigger CxP a 403/400 claros
+      throw new InternalServerErrorException('No se pudo rechazar la solicitud.');
+    }
     await this.comentar(idCxp, comentario, actorUid);
   }
 
