@@ -125,3 +125,10 @@ export const aplicarPagoSchema = z.object({
   fecPago: FECHA,
 });
 export type AplicarPagoDto = z.infer<typeof aplicarPagoSchema>;
+
+/** Desaplicar (revertir) un pago, identificado por su `uidPago`. */
+export const desaplicarPagoSchema = z.object({
+  uidPago: z.string().trim().min(1, 'Falta el identificador del pago.'),
+  motivo: z.string().trim().max(500).optional(),
+});
+export type DesaplicarPagoDto = z.infer<typeof desaplicarPagoSchema>;

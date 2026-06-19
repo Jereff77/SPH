@@ -21,6 +21,7 @@ import {
   cancelarAnticipadoSchema,
   conceptoFinanciadoSchema,
   crearPlanRentaSchema,
+  desaplicarPagoSchema,
   docArreSchema,
   editarCampoSchema,
   renovarPlanSchema,
@@ -29,6 +30,7 @@ import {
   type CancelarAnticipadoDto,
   type ConceptoFinanciadoDto,
   type CrearPlanRentaDto,
+  type DesaplicarPagoDto,
   type DocArreDto,
   type EditarCampoDto,
   type RenovarPlanDto,
@@ -375,8 +377,14 @@ export class ArrendatariosController {
     @Query('busqueda') busqueda?: string,
     @Query('anio') anio?: string,
     @Query('mes') mes?: string,
+    @Query('idArrePdp') idArrePdp?: string,
   ) {
-    return this.cobranza.depositosSinAplicar(busqueda || undefined, toNum(anio), toNum(mes));
+    return this.cobranza.depositosSinAplicar(
+      busqueda || undefined,
+      toNum(anio),
+      toNum(mes),
+      idArrePdp || undefined,
+    );
   }
 
   @Post('cobranza/aplicar-pago')
@@ -386,5 +394,51 @@ export class ArrendatariosController {
     @Body(new ZodValidationPipe(aplicarPagoSchema)) dto: AplicarPagoDto,
   ) {
     return this.cobranza.aplicarPago(dto, actor.uid);
+  }
+
+  /** Desaplica (revierte) un pago previamente aplicado, por su `uidPago`. */
+  @Post('cobranza/desaplicar-pago')
+  @RequierePermiso(10)
+  desaplicarPago(
+    @CurrentUser() actor: AuthUser,
+    @Body(new ZodValidationPipe(desaplicarPagoSchema)) dto: DesaplicarPagoDto,
+  ) {
+    return this.cobranza.desaplicarPago(dto.uidPago, actor.uid, dto.motivo);
+  }
+
+  /** Registro de movimientos: historial de pagos aplicados/desaplicados. */
+  @Get('cobranza/historial-pagos')
+  @RequierePermiso(10)
+  historialPagos(
+    @Query('idArrendador') idArrendador?: string,
+    @Query('idArrePdp') idArrePdp?: string,
+    @Query('limite') limite?: string,
+  ) {
+    return this.cobranza.historialPagos({
+      idArrendador: idArrendador || undefined,
+      idArrePdp: idArrePdp || undefined,
+      limite: toNum(limite),
+    });
+  }
+
+  /**
+   * Importa un estado de cuenta de BanBajío (.xlsx) y registra los SPEI Recibido
+   * faltantes en `movbancarios` (anti-duplicado por rastreo). Devuelve el resumen.
+   */
+  @Post('cobranza/importar-estado-cuenta')
+  @RequierePermiso(10)
+  @UseInterceptors(FileInterceptor('archivo', { limits: { fileSize: LIMITE_ARCHIVO } }))
+  importarEstadoCuenta(
+    @CurrentUser() actor: AuthUser,
+    @UploadedFile() archivo?: Express.Multer.File,
+  ) {
+    if (!archivo) throw new BadRequestException('Falta el archivo del estado de cuenta.');
+    const esXlsx =
+      archivo.mimetype ===
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      archivo.mimetype === 'application/vnd.ms-excel' ||
+      /\.xlsx?$/i.test(archivo.originalname ?? '');
+    if (!esXlsx) throw new BadRequestException('El archivo debe ser un Excel (.xlsx).');
+    return this.cobranza.importarEstadoCuenta(archivo.buffer, actor.uid);
   }
 }

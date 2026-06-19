@@ -315,9 +315,14 @@
    - **Todos los objetos del sistema viejo PERMANECEN INTACTOS**: las RPCs (`cdg`,
      `consulta_segura_parametrizada`, `sum_column`, …), tablas, RLS, Storage, etc. **NO se eliminan ni se
      modifican** mientras los dos sistemas coexistan. El sistema Flutter debe seguir funcionando sin cambios.
-   - **v2 NO reutiliza las RPCs/funciones del sistema viejo.** Si v2 necesita una función en BD, se **crea
-     una función NUEVA** (nombre propio, p. ej. prefijo `v2_…`), siempre **con autorización explícita** del
-     usuario. Lo nuevo se añade; lo viejo no se toca.
+   - **v2 NO reutiliza las RPCs/funciones del sistema viejo.** Si v2 necesita una función/tabla en BD, se
+     **crea una NUEVA** (nombre propio), siempre **con autorización explícita** del usuario. Lo nuevo se
+     añade; lo viejo no se toca.
+     - ⚠️ **Actualización 2026-06-19 (regla del usuario):** los objetos nuevos **ya NO requieren el prefijo
+       `v2_`** (v1 ya no la usa **ningún usuario**, solo existe para validación). Se siguen creando objetos
+       **NUEVOS** (sin reutilizar/alterar los viejos) y **con autorización caso por caso**, pero con nombres
+       limpios sin prefijo (p. ej. tablas `arre_ordenante`, `arre_pagos`). Los objetos `v2_*` ya existentes
+       se conservan tal cual.
    - La retirada de los objetos antiguos y las **remediaciones de seguridad que afectan al esquema** (ver
      sección 9) **se difieren** hasta que v2 esté **completo, probado y validado** con paridad funcional
      respecto al sistema anterior.

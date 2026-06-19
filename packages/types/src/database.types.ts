@@ -25,6 +25,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      arre_ordenante: {
+        Row: {
+          id: string
+          idArrendador: string
+          ordenante: string
+          primeraVez: string
+          ultimaVez: string
+          ultimoImporte: number | null
+          veces: number
+        }
+        Insert: {
+          id?: string
+          idArrendador: string
+          ordenante: string
+          primeraVez?: string
+          ultimaVez?: string
+          ultimoImporte?: number | null
+          veces?: number
+        }
+        Update: {
+          id?: string
+          idArrendador?: string
+          ordenante?: string
+          primeraVez?: string
+          ultimaVez?: string
+          ultimoImporte?: number | null
+          veces?: number
+        }
+        Relationships: []
+      }
+      arre_pagos: {
+        Row: {
+          aplicadoEn: string
+          comprobante: string | null
+          desaplicadoEn: string | null
+          desaplicadoPor: string | null
+          estado: string
+          fc: string
+          fecPago: string
+          id: string
+          idArrePdp: string | null
+          idArrePdpDet: string
+          idArrendador: string | null
+          idmov: string
+          monto: number
+          motivoDesaplicacion: string | null
+          uid: string | null
+          uidPago: string
+        }
+        Insert: {
+          aplicadoEn?: string
+          comprobante?: string | null
+          desaplicadoEn?: string | null
+          desaplicadoPor?: string | null
+          estado?: string
+          fc?: string
+          fecPago: string
+          id?: string
+          idArrePdp?: string | null
+          idArrePdpDet: string
+          idArrendador?: string | null
+          idmov: string
+          monto: number
+          motivoDesaplicacion?: string | null
+          uid?: string | null
+          uidPago: string
+        }
+        Update: {
+          aplicadoEn?: string
+          comprobante?: string | null
+          desaplicadoEn?: string | null
+          desaplicadoPor?: string | null
+          estado?: string
+          fc?: string
+          fecPago?: string
+          id?: string
+          idArrePdp?: string | null
+          idArrePdpDet?: string
+          idArrendador?: string | null
+          idmov?: string
+          monto?: number
+          motivoDesaplicacion?: string | null
+          uid?: string | null
+          uidPago?: string
+        }
+        Relationships: []
+      }
       actividad: {
         Row: {
           comentario: string | null
@@ -8910,6 +8997,10 @@ export type Database = {
       actualizar_inpc_todos_los_planes: { Args: never; Returns: undefined }
       aplicar_pago_arrendatario: {
         Args: { p_fec_pago: string; p_idmov: string; p_ids_detalle: string[] }
+        Returns: undefined
+      }
+      desaplicar_pago_arrendatario: {
+        Args: { p_idmov: string; p_ids_detalle: string[] }
         Returns: undefined
       }
       arrepdp_actualizar_vigencia: { Args: never; Returns: Json }

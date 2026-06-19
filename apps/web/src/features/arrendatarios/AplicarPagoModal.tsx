@@ -5,6 +5,7 @@ import {
   hoyMexico,
   num,
   fechaCorta,
+  MESES,
   type DepositoSinAplicar,
   type PagoArreRow,
 } from './arrendatarios.api';
@@ -37,7 +38,12 @@ export function AplicarPagoModal({
   onClose: () => void;
   onAplicado: () => void;
 }) {
-  const [busca, setBusca] = useState(razonSocial);
+  // El nombre del ordenante casi nunca coincide con el del arrendatario, así que
+  // NO se precarga la búsqueda: se muestran todos los depósitos recibidos sin
+  // aplicar, filtrables por mes/año (ajustables aquí) y buscador (ordenante/concepto).
+  const [busca, setBusca] = useState('');
+  const [mesF, setMesF] = useState<number>(mes);
+  const [anioF, setAnioF] = useState<number>(anio);
   const [deposito, setDeposito] = useState<DepositoSinAplicar | null>(null);
   const [selNaves, setSelNaves] = useState<Set<string>>(
     () => new Set(filasPendientes.map((r) => r.nave ?? '')),
@@ -46,10 +52,32 @@ export function AplicarPagoModal({
   const [msg, setMsg] = useState<string | null>(null);
   const [aplicando, setAplicando] = useState(false);
 
+  const aniosOpc = useMemo(() => {
+    const arr: number[] = [];
+    for (let a = anio + 1; a >= 2024; a--) arr.push(a);
+    return arr;
+  }, [anio]);
+
+  // Plan del arrendatario (para que el backend marque los depósitos "sugeridos").
+  const idArrePdp = useMemo(
+    () => filasPendientes.find((r) => r.id_arrepdp)?.id_arrepdp ?? undefined,
+    [filasPendientes],
+  );
+
   const { data: depositos = [], isLoading: cargandoDep } = useQuery({
-    queryKey: ['arre-depositos', busca, anio, mes],
-    queryFn: () => arrendatariosApi.depositosSinAplicar(busca || undefined, anio, mes),
+    queryKey: ['arre-depositos', busca, anioF, mesF, idArrePdp],
+    queryFn: () =>
+      arrendatariosApi.depositosSinAplicar(
+        busca || undefined,
+        anioF || undefined,
+        mesF || undefined,
+        idArrePdp,
+      ),
   });
+
+  // Dos listas: ⭐ Sugeridos (ordenante que ya pagó a este arrendatario) y el resto.
+  const sugeridos = useMemo(() => depositos.filter((d) => d.sugerido), [depositos]);
+  const otros = useMemo(() => depositos.filter((d) => !d.sugerido), [depositos]);
 
   // Naves pendientes de esta razón social (agrupadas, suma de monto).
   const naves = useMemo<NavePendiente[]>(() => {
@@ -88,7 +116,7 @@ export function AplicarPagoModal({
     });
 
   async function aplicar() {
-    if (!deposito || estado === 'Insuficiente' || selNaves.size === 0) return;
+    if (!deposito || estado !== 'Exacto' || selNaves.size === 0) return;
     // ids de todas las partidas pendientes de las naves seleccionadas.
     const idsDetalle = filasPendientes
       .filter((r) => selNaves.has(r.nave ?? ''))
@@ -115,12 +143,8 @@ export function AplicarPagoModal({
     }
   }
 
-  const colorEstado =
-    estado === 'Insuficiente'
-      ? 'text-red-600'
-      : estado === 'Sobrante'
-        ? 'text-amber-600'
-        : 'text-green-600';
+  // Solo "Exacto" es aplicable: no se permite saldo a favor (Sobrante) ni faltante.
+  const colorEstado = estado === 'Exacto' ? 'text-green-600' : 'text-red-600';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -135,43 +159,88 @@ export function AplicarPagoModal({
         <div className="grid flex-1 grid-cols-1 gap-0 overflow-hidden md:grid-cols-2">
           {/* Depósitos bancarios */}
           <div className="flex flex-col gap-2 overflow-auto p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Depósito bancario
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Depósito bancario
+              </span>
+              <span className="text-[10px] text-gray-400">{depositos.length} sin aplicar</span>
             </div>
             <input
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por nombre del ordenante…"
+              placeholder="Buscar por ordenante o concepto…"
               className="w-full rounded border px-2 py-1.5 text-sm"
             />
+            {/* Filtro de mes/año (el ordenante casi nunca coincide con el arrendatario). */}
+            <div className="flex items-center gap-1.5">
+              <select
+                value={mesF}
+                onChange={(e) => setMesF(Number(e.target.value))}
+                className="flex-1 rounded border px-2 py-1 text-xs text-[#1f2a4d]"
+                title="Mes del depósito"
+              >
+                <option value={0}>Todos los meses</option>
+                {MESES.map((m, i) => (
+                  <option key={m} value={i + 1}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={anioF}
+                onChange={(e) => setAnioF(Number(e.target.value))}
+                className="rounded border px-2 py-1 text-xs text-[#1f2a4d]"
+                title="Año del depósito"
+              >
+                <option value={0}>Todos</option>
+                {aniosOpc.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="flex flex-col gap-1">
               {cargandoDep ? (
                 <p className="px-2 py-4 text-center text-xs text-gray-400">Buscando…</p>
               ) : depositos.length === 0 ? (
                 <p className="px-2 py-4 text-center text-xs text-gray-400">
-                  Sin depósitos sin aplicar.
+                  Sin depósitos para el filtro. Prueba "Todos los meses" o ajusta la búsqueda.
                 </p>
               ) : (
-                depositos.map((d) => (
-                  <button
-                    key={d.idmov}
-                    type="button"
-                    onClick={() => setDeposito(d)}
-                    className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
-                      deposito?.idmov === d.idmov
-                        ? 'border-amber-500 bg-amber-50'
-                        : 'border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <span className="font-semibold text-gray-700">{d.ordenante ?? '—'}</span>
-                      <span className="font-bold text-[#1f2a4d]">{num(d.importe)}</span>
-                    </div>
-                    <div className="text-gray-400">
-                      {fechaCorta(d.fec_operacion)} · {d.rastreo ?? ''} · {d.moneda ?? 'MXN'}
-                    </div>
-                  </button>
-                ))
+                <>
+                  {sugeridos.length > 0 && (
+                    <>
+                      <div className="flex items-center gap-1 px-1 pt-1 text-[10px] font-bold uppercase tracking-wide text-amber-600">
+                        <span>⭐ Sugeridos</span>
+                        <span className="rounded-full bg-amber-100 px-1.5 text-amber-700">
+                          {sugeridos.length}
+                        </span>
+                      </div>
+                      {sugeridos.map((d) => (
+                        <DepositoItem
+                          key={d.idmov}
+                          d={d}
+                          sel={deposito?.idmov === d.idmov}
+                          onClick={() => setDeposito(d)}
+                        />
+                      ))}
+                      {otros.length > 0 && (
+                        <div className="px-1 pt-2 text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                          Todos los demás
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {otros.map((d) => (
+                    <DepositoItem
+                      key={d.idmov}
+                      d={d}
+                      sel={deposito?.idmov === d.idmov}
+                      onClick={() => setDeposito(d)}
+                    />
+                  ))}
+                </>
               )}
             </div>
           </div>
@@ -242,7 +311,12 @@ export function AplicarPagoModal({
           <button
             type="button"
             onClick={aplicar}
-            disabled={aplicando || !deposito || selNaves.size === 0 || estado === 'Insuficiente'}
+            disabled={aplicando || !deposito || selNaves.size === 0 || estado !== 'Exacto'}
+            title={
+              deposito && estado && estado !== 'Exacto'
+                ? 'El depósito debe cubrir exactamente lo seleccionado (sin saldo a favor ni faltante).'
+                : undefined
+            }
             className="rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             {aplicando ? 'Aplicando…' : 'Aplicar pago'}
@@ -250,5 +324,44 @@ export function AplicarPagoModal({
         </div>
       </div>
     </div>
+  );
+}
+
+/** Tarjeta de un depósito bancario en la lista de selección. */
+function DepositoItem({
+  d,
+  sel,
+  onClick,
+}: {
+  d: DepositoSinAplicar;
+  sel: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
+        sel ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span className="font-semibold text-gray-700">
+          {d.sugerido && (
+            <span className="mr-1 text-amber-500" title="Ya pagó antes a este arrendatario">
+              ⭐
+            </span>
+          )}
+          {d.ordenante ?? '—'}
+        </span>
+        <span className="whitespace-nowrap font-bold text-[#1f2a4d]">
+          {num(d.importe)} <span className="text-[10px] opacity-60">{d.moneda ?? 'MXN'}</span>
+        </span>
+      </div>
+      {d.concepto && <div className="truncate text-gray-500">{d.concepto}</div>}
+      <div className="text-gray-400">
+        {fechaCorta(d.fec_operacion)} · {d.rastreo ?? ''}
+      </div>
+    </button>
   );
 }

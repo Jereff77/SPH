@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   arrendatariosApi,
@@ -6,8 +6,11 @@ import {
   num,
   fechaCorta,
   type ContratoPorVencer,
+  type ImportarEstadoCuentaResultado,
 } from './arrendatarios.api';
 import { AplicarPagoModal } from './AplicarPagoModal';
+import { ImportarEstadoCuentaModal } from './ImportarEstadoCuentaModal';
+import { RegistroMovimientosModal } from './RegistroMovimientosModal';
 import { useArrendatariosRealtime } from './useArrendatariosRealtime';
 import { exportarCSV } from './csv-export';
 import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
@@ -94,6 +97,12 @@ export function DashboardCobranzaPage() {
   const [tip, setTip] = useState<TipState | null>(null);
   const [modalRS, setModalRS] = useState<string | null>(null);
   const [colapso, setColapso] = useState<Record<string, boolean>>({});
+  // Importar estado de cuenta (.xlsx)
+  const inputImportRef = useRef<HTMLInputElement>(null);
+  const [importando, setImportando] = useState(false);
+  const [errorImport, setErrorImport] = useState<string | null>(null);
+  const [resultadoImport, setResultadoImport] = useState<ImportarEstadoCuentaResultado | null>(null);
+  const [mostrarRegistro, setMostrarRegistro] = useState(false);
 
   const { data: filtros } = useQuery({
     queryKey: ['arre-cob-filtros'],
@@ -337,6 +346,28 @@ export function DashboardCobranzaPage() {
     exportarCSV('cobranza-arrendatarios', cols, filasCsv);
   }
 
+  /**
+   * Sube el estado de cuenta (.xlsx) al backend, que registra los SPEI recibidos
+   * faltantes en `movbancarios`. Al terminar refresca los depósitos sin aplicar
+   * (para que aparezcan de inmediato en "Aplicar pago") y muestra el resumen.
+   */
+  async function onArchivoImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const archivo = e.target.files?.[0];
+    e.target.value = ''; // permite re-seleccionar el mismo archivo
+    if (!archivo) return;
+    setErrorImport(null);
+    setImportando(true);
+    try {
+      const res = await arrendatariosApi.importarEstadoCuenta(archivo);
+      setResultadoImport(res);
+      void queryClient.invalidateQueries({ queryKey: ['arre-depositos'] });
+    } catch (err) {
+      setErrorImport(err instanceof Error ? err.message : 'No se pudo importar el archivo.');
+    } finally {
+      setImportando(false);
+    }
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -344,16 +375,53 @@ export function DashboardCobranzaPage() {
           <h1 className="text-2xl font-bold tracking-tight text-gray-800">Arrendatarios · Gestión de Pagos</h1>
           <p className="text-xs text-gray-400">{incluirIva ? 'Montos con IVA incluido' : 'Montos sin IVA (base)'}</p>
         </div>
-        <button
-          type="button"
-          onClick={exportar}
-          disabled={gruposOrden.length === 0}
-          title="Exporta a CSV lo que se ve en la tabla (respeta filtros)"
-          className="rounded-lg border border-[#1f2a4d] px-3 py-2 text-sm font-medium text-[#1f2a4d] hover:bg-[#1f2a4d] hover:text-white disabled:opacity-40"
-        >
-          ⬇ Export CSV
-        </button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={inputImportRef}
+            type="file"
+            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            onChange={onArchivoImport}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => setMostrarRegistro(true)}
+            title="Registro de movimientos: historial de pagos aplicados y desaplicados; permite desaplicar (revertir) un pago hecho por error"
+            aria-label="Registro de movimientos"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#1f2a4d] text-lg text-[#1f2a4d] hover:bg-[#1f2a4d] hover:text-white"
+          >
+            📋
+          </button>
+          <button
+            type="button"
+            onClick={() => inputImportRef.current?.click()}
+            disabled={importando}
+            title="Importar estado de cuenta (.xlsx) de BanBajío: registra automáticamente los SPEI recibidos faltantes (sin duplicar) para poder aplicarlos a las rentas"
+            aria-label="Importar estado de cuenta"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#1f2a4d] text-lg text-[#1f2a4d] hover:bg-[#1f2a4d] hover:text-white disabled:opacity-40"
+          >
+            {importando ? '⏳' : '📥'}
+          </button>
+          <button
+            type="button"
+            onClick={exportar}
+            disabled={gruposOrden.length === 0}
+            title="Exportar a CSV lo que se ve en la tabla (respeta los filtros activos)"
+            aria-label="Exportar CSV"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#1f2a4d] text-lg text-[#1f2a4d] hover:bg-[#1f2a4d] hover:text-white disabled:opacity-40"
+          >
+            ⬇
+          </button>
+        </div>
       </div>
+      {errorImport && (
+        <div className="flex items-center justify-between rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          <span>{errorImport}</span>
+          <button onClick={() => setErrorImport(null)} className="text-red-400 hover:text-red-600" aria-label="Cerrar">
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Stats bar */}
       <div className="flex flex-wrap items-stretch gap-2">
@@ -623,6 +691,17 @@ export function DashboardCobranzaPage() {
           onClose={() => setModalRS(null)}
           onAplicado={onCambio}
         />
+      )}
+
+      {resultadoImport && (
+        <ImportarEstadoCuentaModal
+          resultado={resultadoImport}
+          onClose={() => setResultadoImport(null)}
+        />
+      )}
+
+      {mostrarRegistro && (
+        <RegistroMovimientosModal onClose={() => setMostrarRegistro(false)} onCambio={onCambio} />
       )}
     </div>
   );

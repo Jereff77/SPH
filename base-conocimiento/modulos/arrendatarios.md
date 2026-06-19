@@ -8,7 +8,7 @@ rutas_v1: [i02_arrendatarios]
 claves_permiso: [10, 20, 21, 22, 23, 24, 25]
 tablas: [inversionista, arrenPropiedades, arrePdp, arrePdpDetalle, arreConceptos, inversionista_docs, naves, parques, inpc, movbancarios, v_arrendadasNaves, catUsers, segModulos]
 rpcs: [arrepdp_crear_plan_simple_rpc, arrepdp_generar_corrida_desde_plan_simple, arrepdpdetalle_aplicar_meses_gracia, arrepdpdetalle_obtener_resumen_por_plan, arrepdpdetalle_actualizar_campo_manual, arrepdpdetalle_calcular_anio_por_plan, arrepdpdetalle_recalcular_anos_contrato, actualizar_anios_planes_nuevos, actualizar_ciclo_plan_pago, actualizar_inpc_por_ciclo, arrepdp_agregar_concepto_financiado, arrepdp_eliminar_plan_con_restricciones, aplicar_pago_arrendatario, pagos_arrendatarios, contratos_por_vencer, contratos_vencidos_sin_renovacion, movbancarios_sin_aplicar, v2_arrepdp_renovar, v2_arrepdp_activar_renovaciones, v2_arrepdp_cancelar_anticipado]
-palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón]
+palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo]
 relacionado_con: [parques, clientes, inversionistas, cxp]
 ---
 
@@ -104,6 +104,111 @@ actor para auditoría). Crear un plan orquesta **3 RPCs en secuencia**:
 - ⚠️ **Pendiente (no incluido aquí):** los **Reportes** de arrendatarios (Estado de Cuenta) y otros
   módulos que lean `cantidad` siguen mostrando importes **sin IVA**; si se requiere IVA ahí, usar la
   columna `arrePdpDetalle.iva` ya persistida.
+
+## Importar estado de cuenta (BanBajío → `movbancarios`) — v2
+
+> 📌 Botón **📥 "Importar estado de cuenta"** en **Gestión de Pagos** (`/arrendatarios`, clave **10**),
+> junto al export. Sube el **.xlsx de BanBajío** ("ConsultaMovimientos") y registra automáticamente los
+> **SPEI Recibido** que falten en `movbancarios`, para luego **aplicarlos** con el flujo existente (💲).
+
+- **Por qué existe:** los depósitos entrantes se registran en `movbancarios` a partir de las
+  **notificaciones por correo** del banco (asunto `'Instrucción de depósito a tu cuenta'`,
+  `tipo='Depósito'`, `idtipo=2`). Si un correo no llegó/parseó, ese SPEI **no quedó registrado** y no se
+  puede aplicar. El estado de cuenta (Excel) es el respaldo: esta función reconcilia lo faltante.
+- **Qué carga:** solo los renglones cuya **Descripción empieza con "SPEI Recibido"** (los **abonos**).
+  Ignora SPEI enviados, comisiones, compras POS, retiros, traspasos, etc.
+- **Anti-duplicado (garantizado por la BD):** `movbancarios` tiene **`UNIQUE(rastreo)`**. La inserción usa
+  `upsert(..., { onConflict: 'rastreo', ignoreDuplicates: true })` → `INSERT ... ON CONFLICT DO NOTHING`;
+  el `.select()` devuelve **solo las filas nuevas**. El parser además deduplica por rastreo dentro del
+  propio archivo. **Imposible duplicar** un movimiento ya registrado.
+- **Mapeo (Descripción parseada → columnas):** `bancoEmisor`←"Institucion contraparte", `ordenante`←"Ordenante"
+  (normalizado: sin comas/puntos, MAYÚSCULAS), `cancepto`←"Concepto del Pago" (MAYÚSCULAS),
+  `referencia`←"Referencia", `rastreo`←"Clave de Rastreo", `horaOperacion`←"Hora", `fecOperacion`/`importe`
+  de las columnas Fecha/Abonos. Constantes: `asunto='SPEI Recibido'` (marca el origen Excel — distinto del
+  flujo por correo), `tipo='Depósito'`, `manual=true`, `aplicado=false`, `moneda='MXN'`,
+  `ctaDestino='********8480-CUENTA CONECTA BANBAJÍO-1'`, `Operacion='Transferencia Interbancaria SPEI'`,
+  `idmov`=UUID. La Cuenta Ordenante, el RFC Ordenante y el Recibo# del SPEI **no se persisten** (no hay
+  columna; decisión de negocio).
+- ⚠️ **Columnas GENERADAS de `movbancarios` (NO se insertan):** `numAnio`/`numMes` (`EXTRACT` de
+  `fecOperacion`), **`idtipo`** (`CASE` sobre `tipo` → 'Depósito'=2), **`idUnico`**
+  (`referencia-autorizacion-rastreo`). Insertarlas da error "cannot insert into generated column".
+- **Arquitectura:** el **.xlsx se parsea en el BACKEND** (frontera de confianza); el front solo sube el
+  archivo. Backend: `apps/api/.../arrendatarios/estado-cuenta.parser.ts` (**exceljs**) + método
+  `CobranzaService.importarEstadoCuenta(buffer, actorUid)` (escribe vía `comoActor` → auditado por
+  `trg_auditoria`). Endpoint `POST /arrendatarios/cobranza/importar-estado-cuenta` (`@RequierePermiso(10)`,
+  `FileInterceptor('archivo')`, valida mimetype/ext xlsx, límite 15 MB). Front:
+  `arrendatariosApi.importarEstadoCuenta(File)` (postForm) + `DashboardCobranzaPage` (botón icono+tooltip)
+  + `ImportarEstadoCuentaModal` (resumen: leídos/nuevos/ya existían/monto + tabla de nuevos). Tras importar
+  invalida `['arre-depositos']` para que los nuevos aparezcan en **Aplicar pago**.
+- **Validación de formato:** si el archivo no tiene las columnas Fecha/Descripción/Abonos del estado de
+  cuenta BanBajío, responde 400 con mensaje claro. Devuelve `{leidos, totalSpei, nuevos, yaExistian,
+  montoNuevos, filas[]}`.
+- **Gotcha del parseo:** la columna **Descripción** trae todo el SPEI como un solo texto con separadores
+  `|`. Las claves de rastreo de **KAPITAL** (`136-28/05/2026/28-…`) y **BANREGIO** (`058-…`) contienen
+  guiones/barras: el rastreo se captura **completo** hasta "Concepto del Pago:" (no cortar en el primer `-`).
+- **Verificado:** el parser extrae 178 SPEI ($24,571,262.93) del estado de cuenta de mayo 2026; de esos,
+  165 ya estaban y **13 faltaban** ($954,749.21) al momento del desarrollo.
+
+## Aplicar pago — selección del depósito + sugerencias que aprenden (v2)
+
+> 📌 El modal **Aplicar pago** (botón 💲) muestra **TODOS los depósitos recibidos sin aplicar**, no solo
+> los que coinciden con el nombre del arrendatario: el **ordenante casi nunca coincide** con la razón
+> social. Se eligen con **buscador** (ordenante **o** concepto) + **filtro de mes/año** (ajustable en el modal).
+
+- **Problema que resolvía:** antes el modal precargaba la búsqueda con la **razón social** y filtraba por el
+  **mes/año del dashboard**; como el ordenante del SPEI no coincide con el arrendatario (y el depósito puede
+  ser de otro mes), mostraba "Sin depósitos sin aplicar". Ahora el backend `CobranzaService.depositosSinAplicar()`
+  lee **directo** de `movbancarios` (ya **no** usa la RPC de v1 `movbancarios_sin_aplicar`, que quedó intacta),
+  acota a **`idtipo=2`** ("Instrucción de depósito a tu cuenta" + "SPEI Recibido"), `aplicado=false`, búsqueda
+  opcional, mes/año opcionales, orden por fecha, tope 1000. El modal añade selector de mes/año (con "Todos") y
+  muestra el **concepto** de cada depósito.
+- **Sugerencias que aprenden (`arre_ordenante`):** el modal separa en **⭐ Sugeridos** y **Todos los demás**.
+  Un depósito es "sugerido" si su **ordenante** (nombre normalizado: mayúsculas, sin puntuación) ya pagó antes
+  a ese arrendatario. El mapeo vive en **`arre_ordenante`** (`idArrendador, ordenante, veces, ultimoImporte,
+  primeraVez, ultimaVez`; `UNIQUE(idArrendador, ordenante)`; auditada por `trg_auditoria('id')`) y se aprende
+  **al aplicar pagos** (`CobranzaService.aprenderOrdenante`): cada aplicación incrementa el contador del par
+  (arrendatario ↔ ordenante del depósito). **Aprende solo a futuro** — el histórico no guardaba el vínculo
+  `idmov↔partida`, así que arranca vacío. Clave = **nombre del ordenante** (única clave común a los depósitos
+  por correo y por Excel; el RFC/cuenta no se guardan).
+  - Endpoint `GET cobranza/depositos-sin-aplicar?…&idArrePdp=` → si va `idArrePdp`, el backend resuelve el
+    `idArrendador` del plan y marca `sugerido` por fila. El front pasa el `id_arrepdp` de las partidas
+    pendientes del arrendatario.
+
+## Modelo de pagos: `arre_pagos`, aplicación exacta, desaplicar y registro de movimientos (v2)
+
+> 📌 Tabla **`arre_pagos`** = fuente de verdad de las **aplicaciones** de pago (una fila por **partida pagada**,
+> patrón análogo a la tabla `pagos` de Ventas) + **historial** (aplicado/desaplicado). Botón **📋 Registro de
+> movimientos** en Gestión de Pagos. Sin prefijo `v2_`.
+
+- **Aplicación SOLO exacta (regla de negocio):** el depósito debe cubrir **exactamente** lo seleccionado —
+  **no** se permite saldo a favor (sobrante) **ni** faltante (insuficiente). El backend (`aplicarPago`) rechaza
+  ambos; el modal deshabilita "Aplicar pago" si el estado no es *Exacto*. (Decisión: no manejar saldos a favor
+  por ahora; se reconsiderará cuando haya el caso.)
+- **Tabla `arre_pagos`** (creada vía migración; `trg_auditoria`): `id` (uuid), `idArrePdpDet`, `idArrePdp`,
+  `idArrendador`, `idmov` (depósito), `uidPago` (agrupa las partidas de una misma aplicación), `monto`,
+  `fecPago`, `comprobante`, `uid` (quién aplicó), `estado` ('aplicado'/'desaplicado'), `aplicadoEn`,
+  `desaplicadoPor`/`desaplicadoEn`/`motivoDesaplicacion`, `fc`. **Índice único parcial**
+  `WHERE estado='aplicado'` por `idArrePdpDet` → una partida no puede tener dos pagos activos. **Sin FKs
+  estrictas** a tablas v1 (arrePdpDetalle/arrePdp/movbancarios) para no acoplar/bloquear v1; la integridad la
+  valida el backend.
+- **Dual-write (Fase 1, ACTUAL):** al aplicar, la RPC `aplicar_pago_arrendatario` sigue actualizando
+  `arrePdpDetalle` (fecPago/uidPago/cantidadAplicada) **y** además se insertan las filas en `arre_pagos`. Los
+  **lectores** (dashboard `pagos_arrendatarios`, Estado de Cuenta) **siguen leyendo `arrePdpDetalle`** por
+  ahora. ⚠️ **Las 4 columnas de pago de `arrePdpDetalle` NO se eliminan todavía** (eso es la Fase 3).
+- **Desaplicar (revertir):** RPC **`desaplicar_pago_arrendatario(p_idmov, p_ids_detalle)`** (revierte las
+  partidas a pendiente + `movbancarios.aplicado=false`) + el backend marca las filas de `arre_pagos`
+  `estado='desaplicado'` con quién/cuándo/motivo (conserva el historial; no borra). Endpoint
+  `POST cobranza/desaplicar-pago` `{uidPago, motivo?}`.
+- **Registro de movimientos:** `GET cobranza/historial-pagos` agrupa `arre_pagos` por `uidPago` (una entrada
+  por aplicación) enriquecido con ordenante (movbancarios) y razón social (inversionista).
+  `RegistroMovimientosModal.tsx`: tabla con Fecha/Ordenante/Arrendatario/Monto/Partidas/Estado/Aplicado +
+  botón **Desaplicar** (pide motivo). Tras desaplicar invalida `['arre-historial-pagos']` + `['arre-depositos']`.
+- **Plan de migración (expand→migrate→contract):** Fase 1 (esta) ✅ tabla + dual-write + desaplicar + registro.
+  **Fase 2 (pendiente):** migrar los lectores (`pagos_arrendatarios`, Estado de Cuenta, cancelación) a leer de
+  `arre_pagos` + migrar datos históricos (partidas con fecPago → `arre_pagos`). **Fase 3 (pendiente):** dejar de
+  escribir en `arrePdpDetalle` y **eliminar** las 4 columnas de pago (con autorización, v1 apagado).
+- 📌 **Mejora pendiente:** el registro guarda el `uid` de quién aplicó/desaplicó, pero el modal aún no muestra
+  el **nombre** (falta enriquecer con `catUsers.nomCompleto`).
 
 ## ⚠️ Gotcha crítico — desfase del `anio` por concepto (diagnóstico de "actualizar el INPC manual no funciona")
 
@@ -274,6 +379,14 @@ recalcula bien).
 - **Columnas nuevas en `arrePdp`** (tabla compartida, autorizadas): `canceladoAnticipado` (bool),
   `fecCancelacion` (date), `canceladoPor` (uuid), `motivoCancelacion` (text). Auditadas por `trg_auditoria`.
 - **Permisos nuevos en `segModulos`**: clave **24** ('Liberar') y **25** ('Configuracion') — Planes de Renta.
+- **Tabla `arre_ordenante`** (mapeo aprendido ordenante↔arrendatario para sugerir depósitos al aplicar pagos;
+  ver "Aplicar pago — sugerencias"). ⚠️ **SIN prefijo `v2_`**: desde 2026-06-19 los objetos nuevos **ya no
+  llevan el prefijo `v2_`** (decisión del usuario — v1 ya no la usa ningún usuario, solo existe para validación).
+  Auditada por `trg_auditoria('id')`. Se agregó su tipo a `database.types.ts` (Tables: `arre_ordenante`).
+- **Tabla `arre_pagos`** + **RPC `desaplicar_pago_arrendatario(p_idmov, p_ids_detalle)`** (modelo de pagos:
+  fuente de verdad + historial + desaplicar; ver "Modelo de pagos"). Sin prefijo `v2_`; `trg_auditoria('id')`;
+  tipos agregados a `database.types.ts`. La eliminación de las columnas de pago de `arrePdpDetalle` es la
+  Fase 3 (pendiente, NO hecha).
 - SQL en `base-conocimiento/migraciones/2026-06-10-cancelacion-anticipada.sql`. **Tras aplicar el ALTER,
   regenerar `database.types.ts`** (el código usa casts localizados hasta entonces).
 - **Modificado del sistema viejo (autorizado)**: la columna generada `arrePdp."fecFin"` se redefinió
@@ -328,6 +441,10 @@ recalcula bien).
   (consultas) y la corrección. **No es un fallo del código de v2 ni de la RPC** (ocurre igual en v1).
 - "El depósito no me deja aplicar" → es **Insuficiente** (importe menor a la suma de
   partidas) o las partidas son de **otra divisa** que el depósito.
+- "No aparece el depósito de un pago que sí recibimos" → probablemente el correo del banco no se registró.
+  Usa **📥 Importar estado de cuenta** (Gestión de Pagos) y sube el **.xlsx de BanBajío**: registra los
+  **SPEI recibidos** faltantes (sin duplicar, por clave de rastreo) y luego ya puedes aplicarlos con 💲.
+  Ver "Importar estado de cuenta (BanBajío → `movbancarios`)" en este documento.
 - "El arrendatario no aparece" → debe estar marcado como `arrendatario`/`usuarioFinal`
   y activo en **Clientes**.
 - "No veo el botón de Configuración / Renovar / Cancelación / Liberar" → es por **permiso**: cada botón

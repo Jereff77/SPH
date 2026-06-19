@@ -380,12 +380,55 @@ export interface DepositoSinAplicar {
   importe: number | null;
   rastreo: string | null;
   moneda: string | null;
+  /** Concepto del depósito (ayuda a identificar a quién corresponde). */
+  concepto?: string | null;
+  /** true si el ordenante ya pagó antes a este arrendatario (mapeo aprendido). */
+  sugerido?: boolean;
 }
 
 export interface AplicarPagoInput {
   idmov: string;
   idsDetalle: string[];
   fecPago: string;
+}
+
+/** Entrada del registro de movimientos (una aplicación de pago agrupada por uidPago). */
+export interface MovimientoPago {
+  uidPago: string;
+  idmov: string;
+  idArrendador: string | null;
+  fecPago: string;
+  uid: string | null;
+  /** 'aplicado' | 'desaplicado'. */
+  estado: string;
+  aplicadoEn: string;
+  desaplicadoPor: string | null;
+  desaplicadoEn: string | null;
+  motivo: string | null;
+  monto: number;
+  partidas: number;
+  ordenante?: string | null;
+  razonSocial?: string | null;
+}
+
+/** Fila nueva registrada al importar un estado de cuenta. */
+export interface MovimientoImportado {
+  fecOperacion: string | null;
+  ordenante: string | null;
+  bancoEmisor: string | null;
+  cancepto: string | null;
+  importe: number;
+  rastreo: string | null;
+}
+
+/** Resumen de la importación de un estado de cuenta (BanBajío). */
+export interface ImportarEstadoCuentaResultado {
+  leidos: number;
+  totalSpei: number;
+  nuevos: number;
+  yaExistian: number;
+  montoNuevos: number;
+  filas: MovimientoImportado[];
 }
 
 function dq(params: Record<string, string | number | boolean | undefined>): string {
@@ -487,15 +530,30 @@ export const arrendatariosApi = {
     api.get<ContratoPorVencer[]>(`/arrendatarios/cobranza/contratos-por-vencer${dq({ desde, hasta })}`),
   contratosVencidos: () =>
     api.get<ContratoVencido[]>('/arrendatarios/cobranza/contratos-vencidos'),
-  depositosSinAplicar: (busqueda?: string, anio?: number, mes?: number) =>
+  depositosSinAplicar: (busqueda?: string, anio?: number, mes?: number, idArrePdp?: string) =>
     api.get<DepositoSinAplicar[]>(
-      `/arrendatarios/cobranza/depositos-sin-aplicar${dq({ busqueda, anio, mes })}`,
+      `/arrendatarios/cobranza/depositos-sin-aplicar${dq({ busqueda, anio, mes, idArrePdp })}`,
     ),
   aplicarPago: (dto: AplicarPagoInput) =>
-    api.post<{ estado: 'Exacto' | 'Sobrante'; importe: number; total: number }>(
+    api.post<{ estado: 'Exacto'; importe: number; total: number }>(
       '/arrendatarios/cobranza/aplicar-pago',
       dto,
     ),
+  desaplicarPago: (uidPago: string, motivo?: string) =>
+    api.post<{ ok: true; partidas: number; idmov: string }>(
+      '/arrendatarios/cobranza/desaplicar-pago',
+      { uidPago, motivo },
+    ),
+  historialPagos: (p: { idArrendador?: string; idArrePdp?: string; limite?: number } = {}) =>
+    api.get<MovimientoPago[]>(`/arrendatarios/cobranza/historial-pagos${dq(p)}`),
+  importarEstadoCuenta: (archivo: File) => {
+    const fd = new FormData();
+    fd.append('archivo', archivo);
+    return api.postForm<ImportarEstadoCuentaResultado>(
+      '/arrendatarios/cobranza/importar-estado-cuenta',
+      fd,
+    );
+  },
 };
 
 export const MESES = [
