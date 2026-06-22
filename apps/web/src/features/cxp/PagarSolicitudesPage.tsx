@@ -18,6 +18,7 @@ import {
 import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
 import { useSort, type Accessors } from '@/components/tabla/useSort';
 import { useAuth } from '@/features/auth/useAuth';
+import { MultiSearchSelect } from '@/components/MultiSearchSelect';
 
 /** Anchos fijos por columna (px) — el orden coincide con thead/colgroup. */
 const COLS_ANCHO = [
@@ -64,8 +65,8 @@ export function PagarSolicitudesPage() {
   const { tienePermiso } = useAuth();
   const queryClient = useQueryClient();
   const ahora = new Date();
-  const [anio, setAnio] = useState(ahora.getFullYear());
-  const [mes, setMes] = useState(ahora.getMonth() + 1);
+  const [anios, setAnios] = useState<number[]>([ahora.getFullYear()]);
+  const [meses, setMeses] = useState<number[]>([ahora.getMonth() + 1]);
   // Filtros de columna multi-selección (client-side — regla de diseño 7c).
   // El estado arranca en "Aprobado" (equivale al default idEstado=4 de antes).
   const [estadoSel, setEstadoSel] = useState<Set<string>>(
@@ -92,8 +93,8 @@ export function PagarSolicitudesPage() {
     refetch,
     isFetching,
   } = useQuery({
-    queryKey: ['cxp-pagos', anio, mes],
-    queryFn: () => pagosApi.listar({ anio, mes } satisfies ListarPagosParams),
+    queryKey: ['cxp-pagos', anios, meses],
+    queryFn: () => pagosApi.listar({ anio: anios, mes: meses } satisfies ListarPagosParams),
   });
 
   // Tiempo real: ante cualquier cambio en cxp (incluso desde v1), refresca.
@@ -155,9 +156,6 @@ export function PagarSolicitudesPage() {
     [filtradas],
   );
 
-  const selCls =
-    'rounded-lg border px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30';
-
   return (
     <div className="flex h-[calc(100vh-3.5rem-2rem)] flex-col gap-3 md:h-[calc(100vh-3.5rem-3rem)]">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
@@ -165,18 +163,26 @@ export function PagarSolicitudesPage() {
           Pagar solicitudes
         </h1>
         <div className="flex items-center gap-2">
-          <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className={selCls}>
-            {(opts?.anios?.length ? opts.anios : [anio]).map((a) => (
-              <option key={a} value={a}>{a}</option>
-            ))}
-          </select>
-          <select value={mes} onChange={(e) => setMes(Number(e.target.value))} className={selCls}>
-            {MESES.map((m, i) => (
-              <option key={m} value={i + 1}>{m}</option>
-            ))}
-          </select>
+          <MultiSearchSelect
+            values={anios.map(String)}
+            onChange={(vs) => setAnios(vs.map(Number))}
+            options={(opts?.anios?.length ? opts.anios : anios).map((a) => ({ value: String(a), label: String(a) }))}
+            ordenarAlfabetico={false}
+            placeholder="Todos los años"
+          />
+          <MultiSearchSelect
+            values={meses.map(String)}
+            onChange={(vs) => setMeses(vs.map(Number))}
+            options={MESES.map((m, i) => ({ value: String(i + 1), label: m }))}
+            ordenarAlfabetico={false}
+            placeholder="Todos los meses"
+          />
           {tienePermiso(402) && (
-            <AprobadosSinPagoBtn mes={mes} anio={anio} onDone={() => refetch()} />
+            <AprobadosSinPagoBtn
+              mes={meses[0] ?? (new Date().getMonth() + 1)}
+              anio={anios[0] ?? new Date().getFullYear()}
+              onDone={() => refetch()}
+            />
           )}
           <button
             onClick={() => refetch()}

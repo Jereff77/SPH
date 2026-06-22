@@ -392,6 +392,13 @@ Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un mod
 
 ## Reportes — "Estado de Cuenta" (clave 460) — v2  ✅
 
+> 🔽 **Filtros multi-selección (regla 7c, v2.37.0):** los filtros de catálogo de **Reportes (460)**
+> (Proveedor, Tipo de proveedor, Categoría, Sección, Quién solicitó/autorizó/pagó) son de **selección
+> múltiple** (`MultiSearchSelect`). La RPC `cxp_get_estado_cuenta_detalle_v2` recibe escalares: se le pasa
+> el valor único si hay uno y, con varios, se filtra en memoria (igual que ya se hacía con `estados`/fechas).
+> También son multi: **Pendientes (450)** → Estado, Gerente, Año, Mes (query builder `.in()`); y **Pagar
+> (400)** → Año, Mes. Fechas (rango), `urgente` (toggle) y la búsqueda de texto **no** son multi.
+
 Réplica **segura** del reporte HTML embebido de v1 (`/reportescxp`, widget Flutter
 `cxp_reportes_widget.dart` → `FlutterFlowWebView`). En v1 el HTML hablaba **directo a Supabase** con la
 *publishable key embebida* y filtraba en el navegador trayendo todo (riesgos: key en el bundle, sin JWT,

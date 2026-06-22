@@ -9,11 +9,16 @@ import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { firmarDocumentos } from './documentos.util.js';
 
 export interface FiltrosPendientes {
-  anio?: number;
-  mes?: number;
-  idEstado?: number;
+  /** Multi-selección de años. Array vacío/undefined = sin filtro. */
+  anio?: number[];
+  /** Multi-selección de meses (1-12). Array vacío/undefined = sin filtro. */
+  mes?: number[];
+  /** Multi-selección de estados. Array vacío/undefined = sin filtro. */
+  idEstado?: number[];
+  /** Semana única (no es multi). */
   numSem?: number;
-  uidGerente?: string;
+  /** Multi-selección de gerentes (uid). Array vacío/undefined = sin filtro. */
+  uidGerente?: string[];
 }
 
 /**
@@ -68,10 +73,12 @@ export class PendientesService {
       .from('cxp')
       .select(this.COLS)
       .eq('status', true);
-    if (f.anio) q = q.eq('numAnio', f.anio);
-    if (f.mes) q = q.eq('numMes', f.mes);
-    if (f.idEstado != null) q = q.eq('idEstado', f.idEstado);
-    if (f.uidGerente) q = q.eq('uidGerente', f.uidGerente);
+    // Arrays: usar .in() cuando hay valores; si el array está vacío/undefined, no filtrar.
+    if (f.anio?.length) q = q.in('numAnio', f.anio);
+    if (f.mes?.length) q = q.in('numMes', f.mes);
+    if (f.idEstado?.length) q = q.in('idEstado', f.idEstado);
+    if (f.uidGerente?.length) q = q.in('uidGerente', f.uidGerente);
+    // numSem sigue siendo único.
     if (f.numSem) q = q.eq('numSem', f.numSem);
     q = q.order('fecSolicitud', { ascending: false, nullsFirst: false });
 

@@ -5,7 +5,7 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-06-18 (**v2.35.0** — **Versionado**: la versión visible ahora sale del **bundle** (`APP_VERSION`), no de la BD (antes el changelog la cambiaba sin recargar, anulando su propósito) + **banner "nueva versión disponible"** (compara el bundle vs `/version.json` que emite el plugin de Vite; instrucciones Ctrl+Shift+F5 / ⌘+Shift+F5). **Regla nueva (§1.10): graphify solo se refresca con orden EXPLÍCITA del usuario.** Previa **v2.34.2** — **CxP · Aprobar**: corrige el **rechazo** de solicitudes (daba "Error interno del servidor"): `rechazar()` ahora envía `autorizo`=aprobador del JWT (el trigger `cxp_trigger_validar_fecha` valida la clave 430 contra `COALESCE(autorizo,uidr)`; sin él validaba al solicitante → 500) + nuevo helper `common/filters/cxp-error-mapper.ts` que traduce los 8 errores `CXP_*` de los triggers a 403/400 con mensaje claro. **Clientes**: trigger BD `v2_trg_inversionista_razonsocial` autocompleta la razón social de **personas físicas** con su nombre y normaliza `personalidad` a `'Fisica'/'Moral'` (sin acento, compat v1) → los clientes físicos ya aparecen en Devoluciones. Requiere redeploy **api+web**. Previa **v2.34.1** — Fideicomiso · **Contabilidad**: corrige la edición de celdas — al editar ya no se crea un movimiento duplicado (backend `buscarRegistro` localiza con la MISMA normalización del pivote `NULLIF(TRIM(x),'-')`: cubre `subconcepto/descripcion` en NULL o con espacios) y los conceptos **partidos por IVA** vuelven a ser editables (`rowKey` del front incluye `aplicaIVA`); **saneo de datos autorizado**: 6 registros canonizados + 2 conceptos con IVA unificado. Cambia `apps/api`+`apps/web` → requiere redeploy **api+web**. Previa **v2.34.0** — CxP · **Solicitudes de Pago PPD**: el listado resalta facturas con REP **vencido** (rojo, >15 d) / **pendiente** (ámbar) vía `repVencido`/`repPendiente`; columna **Proveedor** acotada con *wrap* y **Folio** completo. **Migración (BD, autorizada):** 25 facturas viejas `diferido=true` sin maestro PPD regularizadas (`cxp_ppd` + 27 parciales ligadas, prefijo `mig…`, reversible) → ya se pueden **dispensar** desde `/cxp/ppd` (permiso 403, hoy solo Carlos Carreón). **Regla de negocio:** una PPD puede pagarse en una sola exhibición y **sí requiere REP**. Previa v2.33.1 — CxP: **Aprobar Solicitudes** muestra la **justificación del solicitante**). Notas: v2.30.0–v2.33.0 (Claves SAT, Vencimientos, Ventas/Fideicomiso, filtros multi-selección, IVA en Gestión de Pagos) las publicaron otras sesiones en paralelo; ver `.sessions/bitacora.md` y `v2_changelog`. Autor: Claude (Opus 4.8).
+> Última actualización: 2026-06-22 (**v2.37.0** — **Ventas — saldos vencidos por cuenta corriente FIFO + filtros multi-selección**: (1) el saldo vencido (Dashboard gráfico 620 + reporte de Vencidos) se calcula con el nuevo **`SaldosVencidosService`** (FIFO por plan: el sobrepago de una parcialidad cubre las demás del **mismo** `idPdp`); antes cada parcialidad se evaluaba aislada e inflaba la cartera (prod **$67.4M→$23.2M**); Dashboard y reporte ahora **cuadran**; las 3 RPCs `v_pdpdetalle_get_saldos_vencidos_*` quedaron **obsoletas** (la vista `v_pdpdetalle` NO se tocó: la usan Estado de Cuenta + filtros). (2) **Filtros multi-selección (regla 7c)** en los reportes de **Ventas, Arrendatarios, Fideicomiso y CxP** (`MultiSearchSelect`, query repetido `?x=a&x=b`, backend filtra en memoria o `.in()`, **sin tocar BD**; los selectores de cascada que cargan datos quedan únicos). (3) **Regla §1 reescrita**: v1 apagado → «**reutilizar antes que duplicar, con análisis de impacto**». ⚠️ Falta `git push` a `erp_v2` (en hold por «no push hasta revisar») + redeploy api+web + changelog v2.37.0 post-deploy. Previa **v2.35.0** — **Versionado**: la versión visible ahora sale del **bundle** (`APP_VERSION`), no de la BD (antes el changelog la cambiaba sin recargar, anulando su propósito) + **banner "nueva versión disponible"** (compara el bundle vs `/version.json` que emite el plugin de Vite; instrucciones Ctrl+Shift+F5 / ⌘+Shift+F5). **Regla nueva (§1.10): graphify solo se refresca con orden EXPLÍCITA del usuario.** Previa **v2.34.2** — **CxP · Aprobar**: corrige el **rechazo** de solicitudes (daba "Error interno del servidor"): `rechazar()` ahora envía `autorizo`=aprobador del JWT (el trigger `cxp_trigger_validar_fecha` valida la clave 430 contra `COALESCE(autorizo,uidr)`; sin él validaba al solicitante → 500) + nuevo helper `common/filters/cxp-error-mapper.ts` que traduce los 8 errores `CXP_*` de los triggers a 403/400 con mensaje claro. **Clientes**: trigger BD `v2_trg_inversionista_razonsocial` autocompleta la razón social de **personas físicas** con su nombre y normaliza `personalidad` a `'Fisica'/'Moral'` (sin acento, compat v1) → los clientes físicos ya aparecen en Devoluciones. Requiere redeploy **api+web**. Previa **v2.34.1** — Fideicomiso · **Contabilidad**: corrige la edición de celdas — al editar ya no se crea un movimiento duplicado (backend `buscarRegistro` localiza con la MISMA normalización del pivote `NULLIF(TRIM(x),'-')`: cubre `subconcepto/descripcion` en NULL o con espacios) y los conceptos **partidos por IVA** vuelven a ser editables (`rowKey` del front incluye `aplicaIVA`); **saneo de datos autorizado**: 6 registros canonizados + 2 conceptos con IVA unificado. Cambia `apps/api`+`apps/web` → requiere redeploy **api+web**. Previa **v2.34.0** — CxP · **Solicitudes de Pago PPD**: el listado resalta facturas con REP **vencido** (rojo, >15 d) / **pendiente** (ámbar) vía `repVencido`/`repPendiente`; columna **Proveedor** acotada con *wrap* y **Folio** completo. **Migración (BD, autorizada):** 25 facturas viejas `diferido=true` sin maestro PPD regularizadas (`cxp_ppd` + 27 parciales ligadas, prefijo `mig…`, reversible) → ya se pueden **dispensar** desde `/cxp/ppd` (permiso 403, hoy solo Carlos Carreón). **Regla de negocio:** una PPD puede pagarse en una sola exhibición y **sí requiere REP**. Previa v2.33.1 — CxP: **Aprobar Solicitudes** muestra la **justificación del solicitante**). Notas: v2.30.0–v2.33.0 (Claves SAT, Vencimientos, Ventas/Fideicomiso, filtros multi-selección, IVA en Gestión de Pagos) las publicaron otras sesiones en paralelo; ver `.sessions/bitacora.md` y `v2_changelog`. Autor: Claude (Opus 4.8).
 >
 > ✨ **v2.26.0 (feature):** **Registro de usuarios por invitación** (Configuraciones → **Usuarios**, clave
 > **200**). Botón **«+ Invitar usuario»** (correo + nombre + apellidos) y panel **«Invitaciones»**
@@ -301,31 +301,31 @@
 
 ## 1. ⛔ Reglas ULTRA-inviolables (acordadas con el cliente)
 
-1. **La base de datos Supabase es de PRODUCCIÓN y está EN USO ACTIVO por el sistema FlutterFlow.**
-   Está **TERMINANTEMENTE PROHIBIDO eliminar, modificar, reemplazar o alterar de cualquier forma** algo de
-   la base de datos —tablas, columnas, RPCs/funciones, RLS, políticas, triggers, vistas, `INSERT/UPDATE/
-   DELETE` de datos, migraciones, edge functions, Storage— **sin la autorización explícita del usuario,
-   caso por caso**. Solo se permiten operaciones de **lectura** (`SELECT` a catálogos, `get_advisors`,
-   `generate_typescript_types`, `list_tables`).
-   - Cualquier cambio se **propone al usuario con el SQL exacto para que él lo revise y lo aplique**, o se
-     pide autorización explícita. **Nunca** actuar por cuenta propia sobre el servidor.
+1. **La base de datos Supabase es de PRODUCCIÓN. v1 (FlutterFlow) ya NO está en operación** — se conserva
+   solo para validación puntual; **ningún usuario lo usa**. Por eso, desde **2026-06-21** la regla de oro
+   cambia de "no tocar nada de v1" a **«reutilizar antes que duplicar, con análisis de impacto»**:
+   - **Primero intentar usar/extender lo que YA existe** (vistas, funciones, tablas) en BD y en código, en
+     lugar de crear objetos paralelos.
+   - **Si hay que MODIFICAR un objeto existente:** (a) **mapear en TODO el proyecto quién lo consume**
+     —en BD las vistas/funciones/triggers que dependan de él; en código `apps/api` y `apps/web`—, (b)
+     **evaluar el impacto** del cambio sobre cada consumidor, y (c) **proponer** el cambio con ese análisis
+     en mano. No se modifica nada "a ciegas".
+   - **Toda mutación de la BD sigue requiriendo autorización explícita del usuario, caso por caso**, con el
+     **SQL exacto** para que él lo revise/aplique. La BD es de producción: **nunca** actuar por cuenta propia
+     sobre el servidor. La **lectura** (`SELECT`, `get_advisors`, `generate_typescript_types`, `list_tables`)
+     es libre.
 
-2. **COEXISTENCIA de ambos sistemas (regla clave).** El sistema **FlutterFlow actual** y el **nuevo (v2)**
-   van a **convivir** durante toda la transición. En consecuencia:
-   - **Todos los objetos del sistema viejo PERMANECEN INTACTOS**: las RPCs (`cdg`,
-     `consulta_segura_parametrizada`, `sum_column`, …), tablas, RLS, Storage, etc. **NO se eliminan ni se
-     modifican** mientras los dos sistemas coexistan. El sistema Flutter debe seguir funcionando sin cambios.
-   - **v2 NO reutiliza las RPCs/funciones del sistema viejo.** Si v2 necesita una función/tabla en BD, se
-     **crea una NUEVA** (nombre propio), siempre **con autorización explícita** del usuario. Lo nuevo se
-     añade; lo viejo no se toca.
-     - ⚠️ **Actualización 2026-06-19 (regla del usuario):** los objetos nuevos **ya NO requieren el prefijo
-       `v2_`** (v1 ya no la usa **ningún usuario**, solo existe para validación). Se siguen creando objetos
-       **NUEVOS** (sin reutilizar/alterar los viejos) y **con autorización caso por caso**, pero con nombres
-       limpios sin prefijo (p. ej. tablas `arre_ordenante`, `arre_pagos`). Los objetos `v2_*` ya existentes
-       se conservan tal cual.
-   - La retirada de los objetos antiguos y las **remediaciones de seguridad que afectan al esquema** (ver
-     sección 9) **se difieren** hasta que v2 esté **completo, probado y validado** con paridad funcional
-     respecto al sistema anterior.
+2. **Retiro de objetos obsoletos (v1).** Como v1 está apagado, cuando v2 reemplaza la lógica de un objeto
+   heredado, ese objeto se **marca como OBSOLETO** (documentado en
+   `base-conocimiento/OBSOLESCENCIA-BD.md`) y se **elimina después**, con autorización — nunca de golpe ni
+   sin verificar antes que **ningún** consumidor vigente lo use.
+   - Los objetos nuevos **ya NO requieren el prefijo `v2_`** (nombres limpios, p. ej. `arre_ordenante`,
+     `arre_pagos`). Los `v2_*`/`arre_*` ya existentes se conservan tal cual.
+   - Las **remediaciones de seguridad que afectan al esquema** (sección 9) siguen evaluándose por impacto
+     antes de aplicarse; ya no se difieren "hasta apagar v1" (v1 ya está apagado), pero sí requieren el
+     análisis de consumidores y la autorización del punto 1.
+   - ⚠️ **Histórico:** hasta 2026-06-19 rigió la **«COEXISTENCIA»** (no tocar NADA de v1; crear solo objetos
+     nuevos). Ese modo terminó al confirmarse que v1 ya no tiene usuarios.
 
 3. **Construir SOBRE el esquema existente.** No se rediseña la base de datos. Se leen/usan las **mismas
    tablas/columnas actuales** (nombres camelCase: `segModulosUsuarios`, `catUsers`, `fidePdpDispersion`,

@@ -76,6 +76,20 @@ function toMeses(meses: string | undefined, mes: string | undefined, def: number
   return nums.length ? [...new Set(nums)] : [def];
 }
 
+/** Query repetible (`?x=a&x=b`) o único → arreglo de strings no vacíos (o undefined). */
+function toArr(v: string | string[] | undefined): string[] | undefined {
+  if (v == null) return undefined;
+  const arr = (Array.isArray(v) ? v : [v]).map((s) => s?.trim()).filter((s): s is string => !!s);
+  return arr.length ? [...new Set(arr)] : undefined;
+}
+/** Igual que `toArr` pero a números (descarta los no finitos). */
+function toNumArr(v: string | string[] | undefined): number[] | undefined {
+  const a = toArr(v);
+  if (!a) return undefined;
+  const nums = a.map((s) => Number(s)).filter((n) => Number.isFinite(n));
+  return nums.length ? [...new Set(nums)] : undefined;
+}
+
 /**
  * Módulo Ventas (Inversionistas/Propietarios). Dashboard (clave 600) y Planes +
  * Configuración (clave 610). Todas las escrituras se auditan (comoActor).
@@ -370,60 +384,60 @@ export class VentasController {
   @Get('reportes/edo-cuenta')
   @RequierePermiso(620)
   reporteEdoCuenta(
-    @Query('anio') anio?: string,
-    @Query('mes') mes?: string,
-    @Query('razonsocial') razonsocial?: string,
-    @Query('parque') parque?: string,
-    @Query('propiedad') propiedad?: string,
+    @Query('anio') anio?: string | string[],
+    @Query('mes') mes?: string | string[],
+    @Query('razonsocial') razonsocial?: string | string[],
+    @Query('parque') parque?: string | string[],
+    @Query('propiedad') propiedad?: string | string[],
   ) {
     return this.reportes.estadoCuenta({
-      anio: anio ? toNum(anio, 0) : null,
-      mes: mes ? toNum(mes, 0) : null,
-      razonsocial,
-      parque,
-      propiedad,
+      anios: toNumArr(anio),
+      meses: toNumArr(mes),
+      razonsocial: toArr(razonsocial),
+      parque: toArr(parque),
+      propiedad: toArr(propiedad),
     });
   }
 
   @Get('reportes/vencidos')
   @RequierePermiso(620)
   reporteVencidos(
-    @Query('anio') anio?: string,
-    @Query('mes') mes?: string,
-    @Query('razonsocial') razonsocial?: string,
-    @Query('parque') parque?: string,
-    @Query('propiedad') propiedad?: string,
+    @Query('anio') anio?: string | string[],
+    @Query('mes') mes?: string | string[],
+    @Query('razonsocial') razonsocial?: string | string[],
+    @Query('parque') parque?: string | string[],
+    @Query('propiedad') propiedad?: string | string[],
   ) {
     return this.reportes.saldosVencidos({
-      anio: anio ? toNum(anio, 0) : null,
-      mes: mes ? toNum(mes, 0) : null,
-      razonsocial,
-      parque,
-      propiedad,
+      anios: toNumArr(anio),
+      meses: toNumArr(mes),
+      razonsocial: toArr(razonsocial),
+      parque: toArr(parque),
+      propiedad: toArr(propiedad),
     });
   }
 
   @Get('reportes/vencidos-resumen')
   @RequierePermiso(620)
   reporteVencidosResumen(
-    @Query('anio') anio?: string,
-    @Query('mes') mes?: string,
-    @Query('razonsocial') razonsocial?: string,
+    @Query('anio') anio?: string | string[],
+    @Query('mes') mes?: string | string[],
+    @Query('razonsocial') razonsocial?: string | string[],
   ) {
     return this.reportes.resumenVencidos({
-      anio: anio ? toNum(anio, 0) : null,
-      mes: mes ? toNum(mes, 0) : null,
-      razonsocial,
+      anios: toNumArr(anio),
+      meses: toNumArr(mes),
+      razonsocial: toArr(razonsocial),
     });
   }
 
   @Get('reportes/vencidos-evolucion')
   @RequierePermiso(620)
   reporteVencidosEvolucion(
-    @Query('razonsocial') razonsocial?: string,
-    @Query('parque') parque?: string,
+    @Query('razonsocial') razonsocial?: string | string[],
+    @Query('parque') parque?: string | string[],
   ) {
-    return this.reportes.evolucionVencidos(razonsocial, parque);
+    return this.reportes.evolucionVencidos(toArr(razonsocial), toArr(parque));
   }
 
   // ============================ Escrituras (630) ============================

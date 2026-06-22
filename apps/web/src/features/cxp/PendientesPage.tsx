@@ -5,6 +5,7 @@ import {
   ESTADOS_FILTRO,
   type PendienteCxP,
 } from './pendientes.api';
+import { MultiSearchSelect } from '@/components/MultiSearchSelect';
 import { ESTADOS_CXP } from './solicitudes.api';
 import { ApiRequestError } from '@/lib/api';
 import { useSort, type Accessors } from '@/components/tabla/useSort';
@@ -43,15 +44,15 @@ export function PendientesPage() {
   const queryClient = useQueryClient();
   const anioActual = new Date().getFullYear();
   const mesActual = new Date().getMonth() + 1;
-  const [anio, setAnio] = useState<number | ''>('');
-  const [mes, setMes] = useState<number | ''>(mesActual);
-  const [idEstado, setIdEstado] = useState<number | ''>('');
+  const [anios, setAnios] = useState<number[]>([]);
+  const [meses, setMeses] = useState<number[]>([mesActual]);
+  const [idEstados, setIdEstados] = useState<number[]>([]);
   const [numSem, setNumSem] = useState<number | ''>('');
-  const [uidGerente, setUidGerente] = useState('');
+  const [uidsGerente, setUidsGerente] = useState<string[]>([]);
   const [busca, setBusca] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const { data: anios = [] } = useQuery({
+  const { data: aniosOpts = [] } = useQuery({
     queryKey: ['cxp-pend-anios'],
     queryFn: () => pendientesApi.anios(),
   });
@@ -61,17 +62,25 @@ export function PendientesPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Si no hay ningún año seleccionado y ya cargaron las opciones, preselecciona el actual.
   useEffect(() => {
-    if (anio === '' && anios.length > 0) {
-      setAnio(anios.includes(anioActual) ? anioActual : anios[0]!);
+    if (anios.length === 0 && aniosOpts.length > 0) {
+      setAnios([aniosOpts.includes(anioActual) ? anioActual : (aniosOpts[0] ?? anioActual)]);
     }
-  }, [anios, anio, anioActual]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aniosOpts]);
 
-  const filtros = { anio: anio || undefined, mes: mes || undefined, idEstado: idEstado === '' ? undefined : idEstado, numSem: numSem || undefined, uidGerente: uidGerente || undefined };
+  const filtros = {
+    anio: anios.length ? anios : undefined,    // anios = estado seleccionado
+    mes: meses.length ? meses : undefined,
+    idEstado: idEstados.length ? idEstados : undefined,
+    numSem: numSem || undefined,
+    uidGerente: uidsGerente.length ? uidsGerente : undefined,
+  };
   const { data = [], isLoading, isError } = useQuery({
-    queryKey: ['cxp-pendientes', anio, mes, idEstado, numSem, uidGerente],
+    queryKey: ['cxp-pendientes', anios, meses, idEstados, numSem, uidsGerente],
     queryFn: () => pendientesApi.listar(filtros),
-    enabled: anio !== '',
+    enabled: anios.length > 0,
   });
 
   const invalidar = () =>
@@ -85,7 +94,7 @@ export function PendientesPage() {
     onMutate: async ({ id, uid }) => {
       setError(null);
       await queryClient.cancelQueries({ queryKey: ['cxp-pendientes'] });
-      const key = ['cxp-pendientes', anio, mes, idEstado, numSem, uidGerente];
+      const key = ['cxp-pendientes', anios, meses, idEstados, numSem, uidsGerente];
       const prev = queryClient.getQueryData<PendienteCxP[]>(key);
       queryClient.setQueryData<PendienteCxP[]>(key, (old) =>
         old?.map((r) => (r.idCxp === id ? { ...r, uidGerente: uid } : r)),
@@ -137,22 +146,23 @@ export function PendientesPage() {
       nomCFDI: (r) => r.nomCFDI || r.nombreProveedor,
       fechaCFDI: (r) => r.fecCFDI,
       concepto: (r) => r.concepto,
-      monto: (r) => (idEstado === 6 ? r.montoAplicado : r.total),
+      monto: (r) => (idEstados.length === 1 && idEstados[0] === 6 ? r.montoAplicado : r.total),
       cuenta: (r) => r.cuenta,
       seccion: (r) => r.seccion,
       solicitante: (r) => r.nomSolicitante,
     }),
-    [idEstado],
+    [idEstados],
   );
   const { ordenados, sortKey, dir, toggle } = useSort(filtrados, accessors);
 
+  const soloEstado6 = idEstados.length === 1 && idEstados[0] === 6;
   const totalMostrado = useMemo(
     () =>
       filtrados.reduce(
-        (acc, r) => acc + (idEstado === 6 ? r.montoAplicado || 0 : r.total || 0),
+        (acc, r) => acc + (soloEstado6 ? r.montoAplicado || 0 : r.total || 0),
         0,
       ),
-    [filtrados, idEstado],
+    [filtrados, soloEstado6],
   );
 
   const selCls =
@@ -173,35 +183,38 @@ export function PendientesPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className={selCls}>
-          {anios.map((a) => (
-            <option key={a} value={a}>{a}</option>
-          ))}
-        </select>
-        <select value={mes} onChange={(e) => setMes(e.target.value ? Number(e.target.value) : '')} className={selCls}>
-          <option value="">Todos los meses</option>
-          {MESES.map((nom, i) => (
-            <option key={nom} value={i + 1}>{nom}</option>
-          ))}
-        </select>
-        <select value={idEstado} onChange={(e) => setIdEstado(e.target.value === '' ? '' : Number(e.target.value))} className={selCls}>
-          <option value="">Todos los estados</option>
-          {ESTADOS_FILTRO.map((e) => (
-            <option key={e.id} value={e.id}>{e.etiqueta}</option>
-          ))}
-        </select>
+        <MultiSearchSelect
+          values={anios.map(String)}
+          onChange={(vs) => setAnios(vs.map(Number))}
+          options={aniosOpts.map((a) => ({ value: String(a), label: String(a) }))}
+          ordenarAlfabetico={false}
+          placeholder="Todos los años"
+        />
+        <MultiSearchSelect
+          values={meses.map(String)}
+          onChange={(vs) => setMeses(vs.map(Number))}
+          options={MESES.map((nom, i) => ({ value: String(i + 1), label: nom }))}
+          ordenarAlfabetico={false}
+          placeholder="Todos los meses"
+        />
+        <MultiSearchSelect
+          values={idEstados.map(String)}
+          onChange={(vs) => setIdEstados(vs.map(Number))}
+          options={ESTADOS_FILTRO.map((e) => ({ value: String(e.id), label: e.etiqueta }))}
+          placeholder="Todos los estados"
+        />
         <select value={numSem} onChange={(e) => setNumSem(e.target.value ? Number(e.target.value) : '')} className={selCls}>
           <option value="">Todas las semanas</option>
           {semanas.map(([n, etq]) => (
             <option key={n} value={n}>{etq}</option>
           ))}
         </select>
-        <select value={uidGerente} onChange={(e) => setUidGerente(e.target.value)} className={selCls}>
-          <option value="">Todos los responsables</option>
-          {responsables.map((r) => (
-            <option key={r.uid} value={r.uid}>{r.nombre}</option>
-          ))}
-        </select>
+        <MultiSearchSelect
+          values={uidsGerente}
+          onChange={setUidsGerente}
+          options={responsables.map((r) => ({ value: r.uid, label: r.nombre }))}
+          placeholder="Todos los responsables"
+        />
         <div className="relative min-w-[18rem] flex-1">
           <input
             value={busca}

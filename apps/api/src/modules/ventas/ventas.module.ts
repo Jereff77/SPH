@@ -3,6 +3,7 @@ import { VentasController } from './ventas.controller.js';
 import { VentasStreamController } from './ventas-stream.controller.js';
 import { MontseController } from './montse.controller.js';
 import { DashboardService } from './dashboard.service.js';
+import { SaldosVencidosService } from './saldos-vencidos.service.js';
 import { PagosVentaService } from './pagos-venta.service.js';
 import { PlanesService } from './planes.service.js';
 import { EscriturasService } from './escrituras.service.js';
@@ -20,6 +21,7 @@ import { SseAuthGuard } from '../cxp/sse-auth.guard.js';
   controllers: [VentasController, VentasStreamController, MontseController],
   providers: [
     DashboardService,
+    SaldosVencidosService,
     PagosVentaService,
     PlanesService,
     EscriturasService,

@@ -19,6 +19,20 @@ import { RequierePermiso } from '../../common/auth/permisos.decorator.js';
 import { CurrentUser } from '../../common/auth/current-user.decorator.js';
 import type { AuthUser } from '../../common/auth/auth.types.js';
 
+/** Query repetible (`?x=a&x=b`) o único → arreglo de strings no vacíos (o undefined). */
+function toArr(v: string | string[] | undefined): string[] | undefined {
+  if (v == null) return undefined;
+  const arr = (Array.isArray(v) ? v : [v]).map((s) => s?.trim()).filter((s): s is string => !!s);
+  return arr.length ? [...new Set(arr)] : undefined;
+}
+/** Igual que `toArr` pero a números (descarta los no finitos). */
+function toNumArr(v: string | string[] | undefined): number[] | undefined {
+  const a = toArr(v);
+  if (!a) return undefined;
+  const nums = a.map((s) => Number(s)).filter((n) => Number.isFinite(n));
+  return nums.length ? [...new Set(nums)] : undefined;
+}
+
 /**
  * CxP > Solicitudes pendientes (dashboard de gestión, clave 450). Muestra todas
  * las solicitudes con filtros; permite cambiar el responsable por registro y
@@ -42,18 +56,18 @@ export class PendientesController {
 
   @Get()
   listar(
-    @Query('anio') anio?: string,
-    @Query('mes') mes?: string,
-    @Query('idEstado') idEstado?: string,
+    @Query('anio') anio?: string | string[],
+    @Query('mes') mes?: string | string[],
+    @Query('idEstado') idEstado?: string | string[],
     @Query('numSem') numSem?: string,
-    @Query('uidGerente') uidGerente?: string,
+    @Query('uidGerente') uidGerente?: string | string[],
   ) {
     return this.svc.listar({
-      anio: anio ? Number(anio) : undefined,
-      mes: mes ? Number(mes) : undefined,
-      idEstado: idEstado != null && idEstado !== '' ? Number(idEstado) : undefined,
+      anio: toNumArr(anio),
+      mes: toNumArr(mes),
+      idEstado: toNumArr(idEstado),
       numSem: numSem ? Number(numSem) : undefined,
-      uidGerente: uidGerente || undefined,
+      uidGerente: toArr(uidGerente),
     });
   }
 

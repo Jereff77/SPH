@@ -106,17 +106,17 @@ export class KardexService {
   }
 
   /**
-   * Reporte Kardex de un inversionista (opcionalmente filtrado por propiedad).
+   * Reporte Kardex de un inversionista (opcionalmente filtrado por una o varias propiedades).
    * Replica la regla de "Pagado" de v1 (`status===true && fecfin<=hoy`, solo fecha).
    */
-  async kardex(nombreInversionista: string, idPropiedad?: string): Promise<KardexReporte> {
+  async kardex(nombreInversionista: string, propiedades?: string[]): Promise<KardexReporte> {
     let q = this.supabase.admin
       .from('fidePdpDispersion')
       .select(
         'idFidePdpD, numMov, monto, fecini, fecfin, dias, rend, comsph, calculo, calculo_comsph, retencion_isr, dispersion, personalidad, idPropiedad, status, nombreInversionista',
       )
       .eq('nombreInversionista', nombreInversionista);
-    if (idPropiedad) q = q.eq('idPropiedad', idPropiedad);
+    if (propiedades && propiedades.length > 0) q = q.in('idPropiedad', propiedades);
     const { data, error } = await q.order('fecfin', { ascending: true, nullsFirst: false });
     if (error) throw new InternalServerErrorException(error.message);
     const rows = data ?? [];
@@ -171,7 +171,10 @@ export class KardexService {
       info: {
         nombreInversionista,
         personalidad: rows[0]?.personalidad ?? null,
-        idPropiedad: idPropiedad ?? rows[0]?.idPropiedad ?? null,
+        idPropiedad:
+          propiedades && propiedades.length === 1
+            ? (propiedades[0] ?? null)
+            : (rows[0]?.idPropiedad ?? null),
         rendimientoPromedio,
       },
       kpis: {

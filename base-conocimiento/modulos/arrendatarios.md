@@ -332,6 +332,13 @@ recalcula bien).
   calcula sola. (Hasta jun-2026 la fórmula no restaba el día; se corrigió.)
 
 ## Reportes (clave 20)
+
+> 🔽 **Filtros multi-selección (regla 7c, v2.37.0):** en *Vencimientos* (Estado, Parque) y *Cancelaciones*
+> (Año, Parque) se puede elegir **uno o varios** valores (`MultiSearchSelect`; filtran en cliente). En
+> **Gestión de Pagos** (Dashboard de Cobranza) el **Año** y el **Mes** también son multi: la RPC
+> `pagos_arrendatarios` se llama una vez por año (con `p_mes=null`) y los meses se filtran en memoria.
+> Los selectores Arrendatario→Nave→Plan (cascada que carga datos) **siguen siendo de selección única**.
+
 - **`/arrendatarios/reportes`** (`ReportesArrePage.tsx`, lazy). Calca el patrón de **Ventas → Reportes**
   (`Tabs` + filtros + tabla `useSort`/`SortableTh` + export). El CSV vive en `csv-export.ts` (ligero, sin
   jsPDF, para que el Dashboard no arrastre jsPDF al bundle principal); el PDF en `reportes-arre-export.ts`

@@ -1,8 +1,8 @@
 ---
 documento: Obsolescencia de la base de datos (registro de retiro)
 estado: vivo
-ultima_actualizacion: 2026-06-15
-palabras_clave: [obsoleto, deprecado, retirar, eliminar, limpieza, RPC, vista, cdg, backup, duplicado, transicion, apagar v1, ia, v_pdpdetalle, reutilizado]
+ultima_actualizacion: 2026-06-21
+palabras_clave: [obsoleto, deprecado, retirar, eliminar, limpieza, RPC, vista, cdg, backup, duplicado, transicion, apagar v1, ia, v_pdpdetalle, reutilizado, saldos_vencidos, cuenta_corriente, fifo]
 ---
 
 # Obsolescencia de la base de datos — qué se podrá eliminar al apagar v1
@@ -11,9 +11,10 @@ palabras_clave: [obsoleto, deprecado, retirar, eliminar, limpieza, RPC, vista, c
 > buckets, políticas, etc.) que **probablemente se podrán eliminar** cuando la versión vieja (v1,
 > FlutterFlow) se apague y v2 quede como único sistema. Se va alimentando conforme detectamos cosas.
 >
-> ⛔ **NADA se elimina ahora.** Rige la regla de **coexistencia**: v1 sigue en producción usando estos
-> objetos. Cualquier `DROP`/`REVOKE`/borrado se difiere hasta que v2 tenga paridad y con **autorización
-> explícita del usuario, caso por caso**. Este documento solo CLASIFICA y PREPARA esa limpieza.
+> ⚠️ **v1 ya está APAGADO (2026-06-21).** Aun así, **nada se elimina automáticamente**: cada `DROP`/`REVOKE`
+> requiere **autorización explícita del usuario, caso por caso**, y **verificar antes** que ningún consumidor
+> vigente (otra vista/función/trigger en BD, o código `apps/api`/`apps/web`) lo use. Este documento CLASIFICA
+> y PREPARA esa limpieza; el retiro se hace por lotes autorizados.
 >
 > Inventario base tomado del esquema real (≈190 funciones, ≈50 vistas) el 2026-06-04. Este documento NO
 > es exhaustivo por diseño: el grueso de objetos pertenece a módulos aún no migrados y se evaluará al
@@ -79,6 +80,7 @@ v2 ya resuelve esto server-side; el objeto v1 quedará sin uso al apagar v1.
 | `presdetalle_obtener_o_crear_registros_mensual` | Lógica propia del backend (la RPC tenía un bug con `claveUnica`). |
 | Verificación de permisos en cliente (`permisos.dart`) | `PermisoGuard` server-side (RBAC con `segModulosUsuarios`). |
 | Bitácora `actividad` escrita desde el cliente | Auditoría por **triggers** (`fn_auditoria` → tabla `auditoria`), no falsificable. |
+| `v_pdpdetalle_get_saldos_vencidos_por_parque`, `v_pdpdetalle_get_resumen_saldos_vencidos_parque`, `v_pdpdetalle_get_evolucion_saldos_vencidos` | **`SaldosVencidosService`** (Ventas, `apps/api/src/modules/ventas/saldos-vencidos.service.ts`): saldo vencido por **cuenta corriente FIFO por plan**. Las 3 RPCs (vía la vista `v_pdpdetalle`) evaluaban **cada parcialidad aislada** (`balance < 0` por registro) e ignoraban el **saldo a favor** de los sobrepagos → inflaban el vencido (en producción, $67.4M vs $23.2M reales). **v2 dejó de llamarlas el 2026-06-21.** ⚠️ La **vista `v_pdpdetalle` NO es obsoleta**: la siguen usando Estado de Cuenta y los filtros (ver §4). |
 
 > Nota: algunas funciones de negocio **sí** se reutilizan en v2 y por ahora **no** son obsoletas:
 > `prescategorias_obtener_con_presupuesto`, `seg_aplicar_plantilla_a_usuario`,
@@ -95,10 +97,13 @@ correspondiente; entonces se marcará cada una como "reutilizar" o "retirar".
 - **Fideicomiso:** `fideicomiso_*`, `fidepdpdispersion_*`, `guardar_dispersiones_*`,
   `resumen_fideicomiso_*`, `plan_dispersiones_*`, vistas `v_fideicomiso`, `v_propiedadesfide`.
 - **CRM:** `crm_*`, `leads_*`, vistas `crm_Agenda`.
-- **PDP / estados de cuenta:** `pdp_*`, `pdpdetalle_*`, `v_pdpdetalle*`. ⚠️ **Excepción:** las RPCs
-  **`v_pdpdetalle_get_*`** (estado_cuenta_detalle, saldos_vencidos_por_parque, resumen/evolución,
-  unique_values, filtros_dependientes) y la **vista `v_pdpdetalle`** las **reutiliza v2** (Ventas → Reportes,
-  desde el backend). **NO retirar** mientras Reportes v2 las use.
+- **PDP / estados de cuenta:** `pdp_*`, `pdpdetalle_*`, `v_pdpdetalle*`. ⚠️ **Excepción (reutilizadas, NO
+  retirar):** v2 usa la **vista `v_pdpdetalle`** y las RPCs **`v_pdpdetalle_get_estado_cuenta_detalle`**,
+  **`v_pdpdetalle_get_unique_values`/`_sin_a3`** y **`v_pdpdetalle_get_filtros_dependientes`** (Ventas →
+  Reportes: Estado de Cuenta + cascada de filtros). En cambio, las 3 RPCs de **vencidos**
+  (`v_pdpdetalle_get_saldos_vencidos_por_parque`, `..._resumen_saldos_vencidos_parque`,
+  `..._evolucion_saldos_vencidos`) **ya NO las usa v2** (reemplazadas por `SaldosVencidosService`) → ver §3
+  (🟡 obsoletas).
 - **Inversionistas/Propietarios:** `propiedades_eliminar_propiedad`, `v_propiedades` (esta última **v2 la
   evita**: calcula desde tablas base), etc.
 - **Integraciones n8n / IA:** vistas `n8n_*`. ⚠️ Los objetos **IA** (`ia_*` como `ia_tokens_disponibles`,

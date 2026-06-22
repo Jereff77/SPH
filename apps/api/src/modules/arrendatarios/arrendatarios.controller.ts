@@ -61,6 +61,12 @@ function toNum(v: string | undefined): number | undefined {
 function toBool(v: string | undefined): boolean {
   return v === 'true' || v === '1';
 }
+/** Query repetible (`?x=a&x=b`) o único → arreglo de números finitos (o undefined). */
+function toNumArr(v: string | string[] | undefined): number[] | undefined {
+  if (v == null) return undefined;
+  const arr = (Array.isArray(v) ? v : [v]).map((s) => Number(s?.trim())).filter((n) => Number.isFinite(n));
+  return arr.length ? [...new Set(arr)] : undefined;
+}
 
 /**
  * Módulo Arrendatarios. Planes de Renta (clave 20) y Dashboard de cobranza
@@ -344,15 +350,15 @@ export class ArrendatariosController {
   @Get('cobranza/pagos')
   @RequierePermiso(10)
   pagosCobranza(
-    @Query('anio') anio?: string,
-    @Query('mes') mes?: string,
+    @Query('anio') anio?: string | string[],
+    @Query('mes') mes?: string | string[],
     @Query('parque') parque?: string,
     @Query('arrendatario') arrendatario?: string,
     @Query('soloPendientes') soloPendientes?: string,
   ) {
     return this.cobranza.pagos({
-      anio: toNum(anio),
-      mes: toNum(mes),
+      anios: toNumArr(anio),
+      meses: toNumArr(mes),
       parque: parque || undefined,
       arrendatario: arrendatario || undefined,
       soloPendientes: toBool(soloPendientes),

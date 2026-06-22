@@ -11,7 +11,7 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { Tabs, type TabDef } from '@/components/Tabs';
-import { SearchSelect } from '@/components/SearchSelect';
+import { MultiSearchSelect } from '@/components/MultiSearchSelect';
 import { useSort } from '@/components/tabla/useSort';
 import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
 import {
@@ -64,6 +64,21 @@ export function ReportesPage() {
 
 // ----------------------------- Barra de filtros -----------------------------
 
+const inSel = (val: string, sel: string[]) => sel.length === 0 || sel.includes(val);
+
+/** ¿El combo cumple los filtros (multi-valor) indicados? (los vacíos no restringen) */
+function cumple(
+  c: { razonsocial: string; parque: string; propiedad: string; anio: string },
+  f: { r?: string[]; p?: string[]; prop?: string[]; a?: number[] },
+): boolean {
+  return (
+    inSel(c.razonsocial, f.r ?? []) &&
+    inSel(c.parque, f.p ?? []) &&
+    inSel(c.propiedad, f.prop ?? []) &&
+    (!f.a?.length || f.a.map(String).includes(c.anio))
+  );
+}
+
 function FiltrosBar({
   sinA3,
   onAplicar,
@@ -71,11 +86,11 @@ function FiltrosBar({
   sinA3: boolean;
   onAplicar: (f: FiltrosReporte) => void;
 }) {
-  const [anio, setAnio] = useState<number | ''>('');
-  const [mes, setMes] = useState<number | ''>('');
-  const [razonsocial, setRazon] = useState('');
-  const [parque, setParque] = useState('');
-  const [propiedad, setPropiedad] = useState('');
+  const [anios, setAnios] = useState<number[]>([]);
+  const [meses, setMeses] = useState<number[]>([]);
+  const [razonsocial, setRazon] = useState<string[]>([]);
+  const [parque, setParque] = useState<string[]>([]);
+  const [propiedad, setPropiedad] = useState<string[]>([]);
 
   // Combinaciones únicas para la cascada bidireccional (una sola carga, cacheada).
   const { data: combos = [] } = useQuery({
@@ -84,33 +99,23 @@ function FiltrosBar({
     staleTime: 10 * 60 * 1000,
   });
 
-  /** ¿El combo cumple los filtros indicados (los omitidos no restringen)? */
-  const cumple = (
-    c: { razonsocial: string; parque: string; propiedad: string; anio: string },
-    f: { r?: string; p?: string; prop?: string; a?: number | '' },
-  ) =>
-    (!f.r || c.razonsocial === f.r) &&
-    (!f.p || c.parque === f.p) &&
-    (!f.prop || c.propiedad === f.prop) &&
-    (!f.a || c.anio === String(f.a));
-
   const uniq = (arr: string[]) =>
     [...new Set(arr.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 
   // Cada lista excluye su propio filtro → cascada bidireccional.
-  const razones = useMemo(
-    () => uniq(combos.filter((c) => cumple(c, { p: parque, prop: propiedad, a: anio })).map((c) => c.razonsocial)),
-    [combos, parque, propiedad, anio],
+  const razonesOpc = useMemo(
+    () => uniq(combos.filter((c) => cumple(c, { p: parque, prop: propiedad, a: anios })).map((c) => c.razonsocial)),
+    [combos, parque, propiedad, anios],
   );
-  const parques = useMemo(
-    () => uniq(combos.filter((c) => cumple(c, { r: razonsocial, prop: propiedad, a: anio })).map((c) => c.parque)),
-    [combos, razonsocial, propiedad, anio],
+  const parquesOpc = useMemo(
+    () => uniq(combos.filter((c) => cumple(c, { r: razonsocial, prop: propiedad, a: anios })).map((c) => c.parque)),
+    [combos, razonsocial, propiedad, anios],
   );
-  const propiedades = useMemo(
-    () => uniq(combos.filter((c) => cumple(c, { r: razonsocial, p: parque, a: anio })).map((c) => c.propiedad)),
-    [combos, razonsocial, parque, anio],
+  const propiedadesOpc = useMemo(
+    () => uniq(combos.filter((c) => cumple(c, { r: razonsocial, p: parque, a: anios })).map((c) => c.propiedad)),
+    [combos, razonsocial, parque, anios],
   );
-  const anios = useMemo(
+  const aniosOpc = useMemo(
     () =>
       [...new Set(combos.filter((c) => cumple(c, { r: razonsocial, p: parque, prop: propiedad })).map((c) => c.anio).filter(Boolean))].sort(
         (a, b) => Number(b) - Number(a),
@@ -118,45 +123,46 @@ function FiltrosBar({
     [combos, razonsocial, parque, propiedad],
   );
 
-  // Limpia una selección si deja de ser compatible con el resto.
-  useEffect(() => { if (razonsocial && !razones.includes(razonsocial)) setRazon(''); }, [razones, razonsocial]);
-  useEffect(() => { if (parque && !parques.includes(parque)) setParque(''); }, [parques, parque]);
-  useEffect(() => { if (propiedad && !propiedades.includes(propiedad)) setPropiedad(''); }, [propiedades, propiedad]);
-  useEffect(() => { if (anio !== '' && !anios.includes(String(anio))) setAnio(''); }, [anios, anio]);
+  // Quita selecciones que dejaron de ser compatibles (devolver el mismo arreglo si no cambia evita bucles).
+  useEffect(() => { setRazon((cur) => { const n = cur.filter((x) => razonesOpc.includes(x)); return n.length === cur.length ? cur : n; }); }, [razonesOpc]);
+  useEffect(() => { setParque((cur) => { const n = cur.filter((x) => parquesOpc.includes(x)); return n.length === cur.length ? cur : n; }); }, [parquesOpc]);
+  useEffect(() => { setPropiedad((cur) => { const n = cur.filter((x) => propiedadesOpc.includes(x)); return n.length === cur.length ? cur : n; }); }, [propiedadesOpc]);
+  useEffect(() => { setAnios((cur) => { const n = cur.filter((x) => aniosOpc.includes(String(x))); return n.length === cur.length ? cur : n; }); }, [aniosOpc]);
 
   const opts = (arr: string[]) => arr.map((v) => ({ value: v, label: v }));
+  const mesesOpts = MESES.map((m, i) => ({ value: String(i + 1), label: m }));
 
   function aplicar() {
-    onAplicar({ anio, mes, razonsocial, parque, propiedad });
+    onAplicar({ anios, meses, razonsocial, parque, propiedad });
   }
   function limpiar() {
-    setAnio('');
-    setMes('');
-    setRazon('');
-    setParque('');
-    setPropiedad('');
+    setAnios([]);
+    setMeses([]);
+    setRazon([]);
+    setParque([]);
+    setPropiedad([]);
     onAplicar({});
   }
 
-  const selCls = 'rounded-lg border px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30';
-
   return (
     <div className="grid grid-cols-1 gap-2 rounded-xl border bg-white p-3 shadow-sm sm:grid-cols-3 lg:grid-cols-6">
-      <select value={anio} onChange={(e) => setAnio(e.target.value ? Number(e.target.value) : '')} className={selCls}>
-        <option value="">Todos los años</option>
-        {anios.map((a) => (
-          <option key={a} value={a}>{a}</option>
-        ))}
-      </select>
-      <select value={mes} onChange={(e) => setMes(e.target.value ? Number(e.target.value) : '')} className={selCls}>
-        <option value="">Todos los meses</option>
-        {MESES.map((m, i) => (
-          <option key={m} value={i + 1}>{m}</option>
-        ))}
-      </select>
-      <SearchSelect value={razonsocial} onChange={setRazon} options={opts(razones)} placeholder="Razón social…" />
-      <SearchSelect value={parque} onChange={setParque} options={opts(parques)} placeholder="Parque…" />
-      <SearchSelect value={propiedad} onChange={setPropiedad} options={opts(propiedades)} placeholder="Propiedad…" />
+      <MultiSearchSelect
+        values={anios.map(String)}
+        onChange={(vs) => setAnios(vs.map(Number))}
+        options={aniosOpc.map((a) => ({ value: a, label: a }))}
+        ordenarAlfabetico={false}
+        placeholder="Todos los años"
+      />
+      <MultiSearchSelect
+        values={meses.map(String)}
+        onChange={(vs) => setMeses(vs.map(Number))}
+        options={mesesOpts}
+        ordenarAlfabetico={false}
+        placeholder="Todos los meses"
+      />
+      <MultiSearchSelect values={razonsocial} onChange={setRazon} options={opts(razonesOpc)} placeholder="Razón social…" />
+      <MultiSearchSelect values={parque} onChange={setParque} options={opts(parquesOpc)} placeholder="Parque…" />
+      <MultiSearchSelect values={propiedad} onChange={setPropiedad} options={opts(propiedadesOpc)} placeholder="Propiedad…" />
       <div className="flex gap-2">
         <button
           type="button"

@@ -13,6 +13,7 @@ import { ImportarEstadoCuentaModal } from './ImportarEstadoCuentaModal';
 import { RegistroMovimientosModal } from './RegistroMovimientosModal';
 import { useArrendatariosRealtime } from './useArrendatariosRealtime';
 import { exportarCSV } from './csv-export';
+import { MultiSearchSelect } from '@/components/MultiSearchSelect';
 import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
 
 type EstadoFiltro = 'all' | 'pend' | 'paid';
@@ -81,8 +82,8 @@ const ordenarEs = (xs: string[]): string[] =>
 export function DashboardCobranzaPage() {
   const queryClient = useQueryClient();
   const ahora = new Date();
-  const [anio, setAnio] = useState(ahora.getFullYear());
-  const [mes, setMes] = useState<number>(ahora.getMonth() + 1); // 0 = Todos
+  const [aniosSeleccionados, setAniosSeleccionados] = useState<number[]>([ahora.getFullYear()]);
+  const [mesesSeleccionados, setMesesSeleccionados] = useState<number[]>([ahora.getMonth() + 1]);
   const [estado, setEstado] = useState<EstadoFiltro>('all');
   const [divisaFiltro, setDivisaFiltro] = useState<'ambos' | 'MXN' | 'USD'>('ambos');
   // Mostrar montos con IVA (lo que cuadra con la transferencia) o sin IVA (base).
@@ -113,8 +114,8 @@ export function DashboardCobranzaPage() {
   // Se carga TODO el periodo (sin filtro de estado/columna); el filtrado, la
   // agrupación y el orden se hacen en cliente, como el dashboard de v1.
   const { data: filas = [], isLoading } = useQuery({
-    queryKey: ['arre-cob-pagos', anio, mes],
-    queryFn: () => arrendatariosApi.cobranza({ anio, mes: mes || undefined }),
+    queryKey: ['arre-cob-pagos', aniosSeleccionados, mesesSeleccionados],
+    queryFn: () => arrendatariosApi.cobranza({ anios: aniosSeleccionados, meses: mesesSeleccionados }),
   });
 
   const { data: porVencer = [] } = useQuery({
@@ -269,7 +270,10 @@ export function DashboardCobranzaPage() {
     });
   }
 
-  const anios = filtros?.anios?.length ? filtros.anios : [anio];
+  // Opciones de año disponibles (de la API de filtros o el año actual como fallback).
+  const aniosDisponibles = filtros?.anios?.length ? filtros.anios : [ahora.getFullYear()];
+  const opcionesAnio = aniosDisponibles.map((a) => ({ value: String(a), label: String(a) }));
+  const opcionesMes = MESES.map((m, i) => ({ value: String(i + 1), label: m }));
 
   // Filas pendientes de la razón social activa (para el modal).
   const pendientesModal = useMemo(
@@ -454,32 +458,25 @@ export function DashboardCobranzaPage() {
         <div className="ml-auto flex flex-col justify-center gap-1 rounded-lg border px-3 py-1.5">
           <div className="flex items-center gap-2">
             <span className="w-8 text-[11px] font-semibold text-gray-400">Mes</span>
-            <select
-              value={mes}
-              onChange={(e) => setMes(Number(e.target.value))}
-              className="rounded border px-2 py-0.5 text-sm font-semibold text-[#1f2a4d]"
-            >
-              <option value={0}>Todos</option>
-              {MESES.map((m, i) => (
-                <option key={m} value={i + 1}>
-                  {m}
-                </option>
-              ))}
-            </select>
+            <MultiSearchSelect
+              values={mesesSeleccionados.map(String)}
+              onChange={(vals) => setMesesSeleccionados(vals.map(Number))}
+              options={opcionesMes}
+              placeholder="Todos"
+              ordenarAlfabetico={false}
+              className="w-40"
+            />
           </div>
           <div className="flex items-center gap-2">
             <span className="w-8 text-[11px] font-semibold text-gray-400">Año</span>
-            <select
-              value={anio}
-              onChange={(e) => setAnio(Number(e.target.value))}
-              className="rounded border px-2 py-0.5 text-sm font-semibold text-[#1f2a4d]"
-            >
-              {anios.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
+            <MultiSearchSelect
+              values={aniosSeleccionados.map(String)}
+              onChange={(vals) => setAniosSeleccionados(vals.map(Number))}
+              options={opcionesAnio}
+              placeholder="Año actual"
+              ordenarAlfabetico={false}
+              className="w-32"
+            />
           </div>
         </div>
 
@@ -686,8 +683,8 @@ export function DashboardCobranzaPage() {
         <AplicarPagoModal
           razonSocial={modalRS}
           filasPendientes={pendientesModal}
-          anio={anio}
-          mes={mes}
+          anio={aniosSeleccionados[0] ?? ahora.getFullYear()}
+          mes={mesesSeleccionados[0] ?? ahora.getMonth() + 1}
           onClose={() => setModalRS(null)}
           onAplicado={onCambio}
         />

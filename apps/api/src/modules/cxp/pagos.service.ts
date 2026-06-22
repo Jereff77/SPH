@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -21,6 +22,21 @@ const BUCKET_CFDI = 'CFDIproveedores';
 /** Estados de pago realizado (para "Mostrar pagos realizados"). */
 const ESTADOS_PAGADOS = [6, 7];
 
+/**
+ * Detecta el error de PostgreSQL `unique_violation` (23505) sobre la clave de
+ * rastreo de `movbancarios`. Sirve para devolver un 409 con un mensaje claro
+ * ("ya existe un pago con esa clave de rastreo") en vez de un 500 genérico que
+ * el filtro global enmascara como "Error interno del servidor".
+ */
+function esRastreoDuplicado(err: {
+  code?: string;
+  message?: string;
+  details?: string;
+}): boolean {
+  const txt = `${err.message ?? ''} ${err.details ?? ''}`.toLowerCase();
+  return err.code === '23505' && (txt.includes('rastreo') || txt.includes('movbancarios'));
+}
+
 /** Datos extraídos del comprobante por el webhook (mapeados a nuestros campos). */
 export interface DatosComprobante {
   fecOperacion: string; // yyyy-MM-dd
@@ -37,8 +53,10 @@ export interface DatosComprobante {
 }
 
 export interface FiltrosPagos {
-  anio?: number;
-  mes?: number;
+  /** Multi-selección de años. Array vacío/undefined = usa default (año actual). */
+  anio?: number[];
+  /** Multi-selección de meses (1-12). Array vacío/undefined = usa default (mes actual). */
+  mes?: number[];
   numSem?: number;
   idEstado?: number;
   idProveedor?: string;
@@ -80,8 +98,9 @@ export class PagosService {
 
   async listar(filtros: FiltrosPagos) {
     const ahora = new Date();
-    const anio = filtros.anio ?? ahora.getFullYear();
-    const mes = filtros.mes ?? ahora.getMonth() + 1;
+    // Arrays: si están vacíos, usar el default (año/mes actual).
+    const anios = filtros.anio?.length ? filtros.anio : [ahora.getFullYear()];
+    const meses = filtros.mes?.length ? filtros.mes : [ahora.getMonth() + 1];
 
     // Estado: explícito → ese; si no, Aprobado (4); con incluirPagados, agrega 6/7.
     let estados: number[];
@@ -93,8 +112,8 @@ export class PagosService {
       .from('cxp')
       .select(this.COLS)
       .eq('status', true)
-      .eq('numAnio', anio)
-      .eq('numMes', mes)
+      .in('numAnio', anios)
+      .in('numMes', meses)
       .in('idEstado', estados);
 
     if (filtros.numSem != null) query = query.eq('numSem', filtros.numSem);
@@ -334,6 +353,17 @@ export class PagosService {
     });
     if (movErr) {
       this.logger.error(`Error insertando movbancario: ${movErr.message}`);
+      // 23505 = unique_violation. La clave de rastreo es ÚNICA: si ya existe, el
+      // pago muy probablemente ya fue registrado. Devolvemos 409 con mensaje claro
+      // (un 500 lo enmascararía como "Error interno del servidor").
+      if (esRastreoDuplicado(movErr)) {
+        throw new ConflictException(
+          `Ya existe un movimiento bancario con la clave de rastreo "${rastreo}". ` +
+            `Es muy probable que este pago ya se haya registrado. Verifícalo en los ` +
+            `movimientos bancarios antes de volver a aplicarlo; si fuera un pago ` +
+            `distinto, usa una clave de rastreo diferente.`,
+        );
+      }
       throw new InternalServerErrorException('No se pudo registrar el movimiento bancario.');
     }
 
@@ -351,6 +381,18 @@ export class PagosService {
       .eq('idCxp', idCxp);
     if (cxpErr) {
       this.logger.error(`Error aplicando pago a cxp ${idCxp}: ${cxpErr.message}`);
+      // Compensación (atomicidad manual): el movimiento ya se insertó (paso 1); si
+      // la factura no se pudo ligar (paso 2), revertimos el INSERT para NO dejar un
+      // movimiento bancario huérfano — que además bloquearía el reintento por la
+      // restricción única de `rastreo`.
+      const { error: rollbackErr } = await db
+        .from('movbancarios')
+        .delete()
+        .eq('idmov', idmov);
+      if (rollbackErr)
+        this.logger.error(
+          `No se pudo revertir el movimiento huérfano ${idmov} tras fallar el pago: ${rollbackErr.message}`,
+        );
       throw new InternalServerErrorException('No se pudo aplicar el pago a la solicitud.');
     }
     await this.sincronizarMaestroPpd(sol.idCxpPPD, db);

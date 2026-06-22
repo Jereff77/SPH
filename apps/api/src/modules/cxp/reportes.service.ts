@@ -2,6 +2,11 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { ReporteEstadoCuentaDto } from './reportes.schemas.js';
 
+/** Devuelve el único elemento si el arreglo trae exactamente uno (para filtrar en la RPC). */
+function uno<T>(a?: T[]): T | undefined {
+  return a && a.length === 1 ? a[0] : undefined;
+}
+
 /** Fila del reporte (RPC `cxp_get_estado_cuenta_detalle_v2`). camelCase real. */
 export interface ReporteCxpRow {
   idCxp: string;
@@ -124,8 +129,10 @@ export class ReportesCxpService {
 
   /**
    * Consulta principal del reporte. Llama a la RPC con los filtros que ésta
-   * soporta y aplica server-side el resto (rango de fechas sobre `fecSolicitud`,
-   * estados multi y búsqueda real). Devuelve el dataset YA filtrado + totales.
+   * soporta:
+   * - Con exactamente 1 valor en un campo multi, lo pasa a la RPC (filtro en BD).
+   * - Con 0 o más de 1 valores, pasa `undefined` a la RPC y filtra en memoria.
+   * Devuelve el dataset YA filtrado + totales.
    */
   async estadoCuenta(
     f: ReporteEstadoCuentaDto,
@@ -133,19 +140,26 @@ export class ReportesCxpService {
     const urgente =
       f.urgente === 'true' ? true : f.urgente === 'false' ? false : undefined;
 
+    // tipoProveedor llega como string[]; la RPC espera un entero o null.
+    const tipoProveedorRpc =
+      f.tipoProveedor?.length === 1
+        ? (() => { const n = Number(f.tipoProveedor[0]); return Number.isFinite(n) ? n : undefined; })()
+        : undefined;
+
     const { data, error } = await this.supabase.admin.rpc(
       'cxp_get_estado_cuenta_detalle_v2',
       {
         p_anio: undefined,
         p_mes: undefined,
-        p_proveedor: this.norm(f.proveedor),
-        p_categoria: this.norm(f.categoria),
-        p_seccion: this.norm(f.seccion),
+        // Pasar a la RPC solo cuando hay exactamente 1 valor (caso común, sin traer de más).
+        p_proveedor: uno(f.proveedor?.filter(Boolean)),
+        p_categoria: uno(f.categoria?.filter(Boolean)),
+        p_seccion: uno(f.seccion?.filter(Boolean)),
         p_estado: undefined, // estados multi → se filtran abajo
-        p_quien_solicito: this.norm(f.quienSolicito),
-        p_quien_autorizo: this.norm(f.quienAutorizo),
-        p_quien_pago: this.norm(f.quienPago),
-        p_tipo_proveedor: f.tipoProveedor ?? undefined,
+        p_quien_solicito: uno(f.quienSolicito?.filter(Boolean)),
+        p_quien_autorizo: uno(f.quienAutorizo?.filter(Boolean)),
+        p_quien_pago: uno(f.quienPago?.filter(Boolean)),
+        p_tipo_proveedor: tipoProveedorRpc,
         p_urgente: urgente,
       },
     );
@@ -153,7 +167,9 @@ export class ReportesCxpService {
 
     let filas = (data ?? []) as unknown as ReporteCxpRow[];
 
-    // --- Filtros server-side adicionales (corrección vs v1) ---
+    // --- Filtros server-side adicionales ---
+
+    // Rango de fechas.
     const desde = this.norm(f.fechaInicio);
     const hasta = this.norm(f.fechaFin);
     if (desde || hasta) {
@@ -166,12 +182,65 @@ export class ReportesCxpService {
       });
     }
 
+    // Multi-valor: proveedores (solo aplica filtrado en memoria cuando hay > 1).
+    const proveedores = (f.proveedor ?? []).filter(Boolean);
+    if (proveedores.length > 1) {
+      const set = new Set(proveedores);
+      filas = filas.filter((r) => r.proveedor != null && set.has(r.proveedor));
+    }
+
+    // Multi-valor: categorías.
+    const categorias = (f.categoria ?? []).filter(Boolean);
+    if (categorias.length > 1) {
+      const set = new Set(categorias);
+      filas = filas.filter((r) => r.categoria != null && set.has(r.categoria));
+    }
+
+    // Multi-valor: secciones.
+    const secciones = (f.seccion ?? []).filter(Boolean);
+    if (secciones.length > 1) {
+      const set = new Set(secciones);
+      filas = filas.filter((r) => r.seccion != null && set.has(r.seccion));
+    }
+
+    // Multi-valor: quién solicitó.
+    const solicitantes = (f.quienSolicito ?? []).filter(Boolean);
+    if (solicitantes.length > 1) {
+      const set = new Set(solicitantes);
+      filas = filas.filter((r) => r.quienSolicito != null && set.has(r.quienSolicito));
+    }
+
+    // Multi-valor: quién autorizó.
+    const autorizadores = (f.quienAutorizo ?? []).filter(Boolean);
+    if (autorizadores.length > 1) {
+      const set = new Set(autorizadores);
+      filas = filas.filter((r) => r.quienAutorizo != null && set.has(r.quienAutorizo));
+    }
+
+    // Multi-valor: quién pagó.
+    const pagadores = (f.quienPago ?? []).filter(Boolean);
+    if (pagadores.length > 1) {
+      const set = new Set(pagadores);
+      filas = filas.filter((r) => r.quienPago != null && set.has(r.quienPago));
+    }
+
+    // Multi-valor: tipo proveedor (> 1 valor → filtro en memoria).
+    const tiposProveedor = (f.tipoProveedor ?? [])
+      .map(Number)
+      .filter((n) => Number.isFinite(n));
+    if (tiposProveedor.length > 1) {
+      const set = new Set(tiposProveedor);
+      filas = filas.filter((r) => r.tipoProveedor != null && set.has(r.tipoProveedor));
+    }
+
+    // Estados (multi).
     const estados = (f.estados ?? []).filter((e) => e && e.trim() !== '');
     if (estados.length > 0) {
       const set = new Set(estados);
       filas = filas.filter((r) => r.estado != null && set.has(r.estado));
     }
 
+    // Búsqueda real por folio / concepto / proveedor.
     const q = this.norm(f.busqueda)?.toLowerCase();
     if (q) {
       filas = filas.filter((r) =>

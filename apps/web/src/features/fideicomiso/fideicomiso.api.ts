@@ -265,9 +265,16 @@ export interface AdhesionFila {
   comentarios: string | null;
 }
 
-function qs(params: Record<string, string | undefined>): string {
+function qs(params: Record<string, string | string[] | undefined>): string {
   const p = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) if (v) p.set(k, v);
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === '') continue;
+    if (Array.isArray(v)) {
+      for (const it of v) if (it !== '') p.append(k, it);
+    } else {
+      p.set(k, v);
+    }
+  }
   const s = p.toString();
   return s ? `?${s}` : '';
 }
@@ -278,7 +285,7 @@ export const fideicomisoApi = {
     api.get<KardexInversionistaOpt[]>('/fideicomiso/kardex/inversionistas'),
   kardexPropiedades: (inversionista: string) =>
     api.get<KardexPropiedadOpt[]>(`/fideicomiso/kardex/propiedades${qs({ inversionista })}`),
-  kardex: (inversionista: string, propiedad?: string) =>
+  kardex: (inversionista: string, propiedad?: string[]) =>
     api.get<KardexReporte>(`/fideicomiso/kardex${qs({ inversionista, propiedad })}`),
 
   // Dispersiones

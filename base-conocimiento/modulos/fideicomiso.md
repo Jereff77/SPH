@@ -128,6 +128,9 @@ Hay **un solo fideicomiso** activo: *Fideicomiso Innovación SPH* (`idFide = jsR
 - **Dashboard (500)** y **Adhesiones (520)** son la misma vista: el endpoint `GET /fideicomiso/adhesiones`
   exige **cualquiera** de las dos (`@RequierePermiso(500, 520)`; el guard ahora soporta "any-of").
 - El **Kardex** es la sección **"Reportes" (540)**.
+  - 🔽 **Multi-selección (regla 7c, v2.37.0):** la **Propiedad** del Kardex es de **selección múltiple**
+    (`MultiSearchSelect`; backend `kardex.service` usa `.in('idPropiedad', …)`). El **Inversionista** (que
+    carga el reporte) **sigue siendo de selección única**.
 
 ## Configuración del propietario (engrane ⚙️) — backend
 `config-fide.service.ts` + endpoints `GET/POST/PATCH/DELETE /fideicomiso/config/*` (clave 510). Reutiliza

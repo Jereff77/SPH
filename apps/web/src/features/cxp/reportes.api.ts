@@ -51,32 +51,40 @@ export interface DependientesReporte {
 export interface FiltrosReporteCxp {
   fechaInicio?: string;
   fechaFin?: string;
-  proveedor?: string;
-  tipoProveedor?: string;
-  categoria?: string;
-  seccion?: string;
+  /** Multi-selección: array vacío = todos. */
+  proveedor?: string[];
+  /** Multi-selección: valores de tipo proveedor (ej. '1','2','3'). */
+  tipoProveedor?: string[];
+  /** Multi-selección: array vacío = todas. */
+  categoria?: string[];
+  /** Multi-selección: array vacío = todas. */
+  seccion?: string[];
   /** Estados multi-selección. */
   estados?: string[];
   urgente?: '' | 'true' | 'false';
-  quienSolicito?: string;
-  quienAutorizo?: string;
-  quienPago?: string;
+  /** Multi-selección: array vacío = todos. */
+  quienSolicito?: string[];
+  /** Multi-selección: array vacío = todos. */
+  quienAutorizo?: string[];
+  /** Multi-selección: array vacío = todos. */
+  quienPago?: string[];
   busqueda?: string;
 }
 
+/** Serializa params; los arreglos se mandan como query repetido (`?x=a&x=b`). */
 function qs(f: FiltrosReporteCxp): string {
   const sp = new URLSearchParams();
   if (f.fechaInicio) sp.set('fechaInicio', f.fechaInicio);
   if (f.fechaFin) sp.set('fechaFin', f.fechaFin);
-  if (f.proveedor) sp.set('proveedor', f.proveedor);
-  if (f.tipoProveedor) sp.set('tipoProveedor', f.tipoProveedor);
-  if (f.categoria) sp.set('categoria', f.categoria);
-  if (f.seccion) sp.set('seccion', f.seccion);
-  if (f.estados && f.estados.length) sp.set('estados', f.estados.join(','));
+  for (const v of f.proveedor ?? []) sp.append('proveedor', v);
+  for (const v of f.tipoProveedor ?? []) sp.append('tipoProveedor', v);
+  for (const v of f.categoria ?? []) sp.append('categoria', v);
+  for (const v of f.seccion ?? []) sp.append('seccion', v);
+  for (const v of f.estados ?? []) sp.append('estados', v);
   if (f.urgente) sp.set('urgente', f.urgente);
-  if (f.quienSolicito) sp.set('quienSolicito', f.quienSolicito);
-  if (f.quienAutorizo) sp.set('quienAutorizo', f.quienAutorizo);
-  if (f.quienPago) sp.set('quienPago', f.quienPago);
+  for (const v of f.quienSolicito ?? []) sp.append('quienSolicito', v);
+  for (const v of f.quienAutorizo ?? []) sp.append('quienAutorizo', v);
+  for (const v of f.quienPago ?? []) sp.append('quienPago', v);
   if (f.busqueda) sp.set('busqueda', f.busqueda);
   const s = sp.toString();
   return s ? `?${s}` : '';

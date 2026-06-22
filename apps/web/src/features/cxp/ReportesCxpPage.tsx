@@ -9,7 +9,8 @@ import {
 } from './reportes.api';
 import { exportarReporteExcel, exportarReportePDF } from './reportes-export';
 import { InputFecha } from '@/components/InputFecha';
-import { SearchSelect, type OpcionSelect } from '@/components/SearchSelect';
+import { MultiSearchSelect } from '@/components/MultiSearchSelect';
+import type { OpcionSelect } from '@/components/SearchSelect';
 import { useSort, type Accessors } from '@/components/tabla/useSort';
 import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
 
@@ -36,15 +37,15 @@ function filtrosIniciales(): FiltrosReporteCxp {
   return {
     fechaInicio: isoLocal(new Date(now.getFullYear(), now.getMonth(), 1)),
     fechaFin: isoLocal(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
-    proveedor: '',
-    tipoProveedor: '',
-    categoria: '',
-    seccion: '',
+    proveedor: [],
+    tipoProveedor: [],
+    categoria: [],
+    seccion: [],
     estados: [],
     urgente: '',
-    quienSolicito: '',
-    quienAutorizo: '',
-    quienPago: '',
+    quienSolicito: [],
+    quienAutorizo: [],
+    quienPago: [],
     busqueda: '',
   };
 }
@@ -62,7 +63,7 @@ const ESTADO_STYLE: Record<string, { bg: string; color: string }> = {
 const ESTADO_DEFAULT = { bg: '#e3f2fd', color: '#1976d2' };
 
 const PER_PAGE = 20;
-const opts = (xs: string[]): OpcionSelect[] => xs.map((x) => ({ value: x, label: x }));
+const toOpts = (xs: string[]): OpcionSelect[] => xs.map((x) => ({ value: x, label: x }));
 
 export default function ReportesCxpPage() {
   const [draft, setDraft] = useState<FiltrosReporteCxp>(filtrosIniciales);
@@ -80,14 +81,17 @@ export default function ReportesCxpPage() {
   });
 
   // Secciones dependientes (cascada proveedor/categoría → secciones).
+  // Pasa el primer elemento del array (la RPC de dependientes espera un escalar).
+  const proveedorCascada = draft.proveedor?.[0];
+  const categoriaCascada = draft.categoria?.[0];
   const { data: dependientes } = useQuery({
-    queryKey: ['cxp-reportes-dependientes', draft.proveedor, draft.categoria],
+    queryKey: ['cxp-reportes-dependientes', proveedorCascada, categoriaCascada],
     queryFn: () =>
       reportesCxpApi.dependientes({
-        proveedor: draft.proveedor,
-        categoria: draft.categoria,
+        proveedor: proveedorCascada,
+        categoria: categoriaCascada,
       }),
-    enabled: !!(draft.proveedor || draft.categoria),
+    enabled: !!(proveedorCascada || categoriaCascada),
   });
 
   const seccionesOpts = dependientes?.secciones ?? combos?.secciones ?? [];
@@ -198,37 +202,37 @@ export default function ReportesCxpPage() {
               </div>
               <div>
                 <label className={lbl}>Proveedor</label>
-                <SearchSelect
-                  value={draft.proveedor ?? ''}
+                <MultiSearchSelect
+                  values={draft.proveedor ?? []}
                   onChange={(v) => set('proveedor', v)}
-                  options={[{ value: '', label: 'Todos los proveedores' }, ...opts(combos?.proveedores ?? [])]}
+                  options={toOpts(combos?.proveedores ?? [])}
                   placeholder="Todos los proveedores"
                 />
               </div>
               <div>
                 <label className={lbl}>Tipo proveedor</label>
-                <select value={draft.tipoProveedor ?? ''} onChange={(e) => set('tipoProveedor', e.target.value)} className={inputCls}>
-                  <option value="">Todos</option>
-                  {TIPOS_PROVEEDOR.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
+                <MultiSearchSelect
+                  values={draft.tipoProveedor ?? []}
+                  onChange={(v) => set('tipoProveedor', v)}
+                  options={TIPOS_PROVEEDOR.map((t) => ({ value: t.value, label: t.label }))}
+                  placeholder="Todos"
+                />
               </div>
               <div>
                 <label className={lbl}>Categoría</label>
-                <SearchSelect
-                  value={draft.categoria ?? ''}
+                <MultiSearchSelect
+                  values={draft.categoria ?? []}
                   onChange={(v) => set('categoria', v)}
-                  options={[{ value: '', label: 'Todas las categorías' }, ...opts(combos?.categorias ?? [])]}
+                  options={toOpts(combos?.categorias ?? [])}
                   placeholder="Todas las categorías"
                 />
               </div>
               <div>
                 <label className={lbl}>Sección</label>
-                <SearchSelect
-                  value={draft.seccion ?? ''}
+                <MultiSearchSelect
+                  values={draft.seccion ?? []}
                   onChange={(v) => set('seccion', v)}
-                  options={[{ value: '', label: 'Todas las secciones' }, ...opts(seccionesOpts)]}
+                  options={toOpts(seccionesOpts)}
                   placeholder="Todas las secciones"
                 />
               </div>
@@ -242,26 +246,29 @@ export default function ReportesCxpPage() {
               </div>
               <div>
                 <label className={lbl}>Quién solicitó</label>
-                <SearchSelect
-                  value={draft.quienSolicito ?? ''}
+                <MultiSearchSelect
+                  values={draft.quienSolicito ?? []}
                   onChange={(v) => set('quienSolicito', v)}
-                  options={[{ value: '', label: 'Todos' }, ...opts(combos?.solicitantes ?? [])]}
+                  options={toOpts(combos?.solicitantes ?? [])}
+                  placeholder="Todos"
                 />
               </div>
               <div>
                 <label className={lbl}>Quién autorizó</label>
-                <SearchSelect
-                  value={draft.quienAutorizo ?? ''}
+                <MultiSearchSelect
+                  values={draft.quienAutorizo ?? []}
                   onChange={(v) => set('quienAutorizo', v)}
-                  options={[{ value: '', label: 'Todos' }, ...opts(combos?.autorizadores ?? [])]}
+                  options={toOpts(combos?.autorizadores ?? [])}
+                  placeholder="Todos"
                 />
               </div>
               <div>
                 <label className={lbl}>Quién pagó</label>
-                <SearchSelect
-                  value={draft.quienPago ?? ''}
+                <MultiSearchSelect
+                  values={draft.quienPago ?? []}
                   onChange={(v) => set('quienPago', v)}
-                  options={[{ value: '', label: 'Todos' }, ...opts(combos?.pagadores ?? [])]}
+                  options={toOpts(combos?.pagadores ?? [])}
+                  placeholder="Todos"
                 />
               </div>
               <div className="sm:col-span-2">

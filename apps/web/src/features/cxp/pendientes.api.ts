@@ -33,11 +33,16 @@ export interface Responsable {
 }
 
 export interface FiltrosPendientes {
-  anio?: number;
-  mes?: number;
-  idEstado?: number;
+  /** Multi-selección de años. Array vacío = todos. */
+  anio?: number[];
+  /** Multi-selección de meses (1-12). Array vacío = todos. */
+  mes?: number[];
+  /** Multi-selección de estados. Array vacío = todos. */
+  idEstado?: number[];
+  /** Semana única (no se convierte a multi). */
   numSem?: number;
-  uidGerente?: string;
+  /** Multi-selección de gerentes (uid). Array vacío = todos. */
+  uidGerente?: string[];
 }
 
 /** Opciones del filtro de estado (incluye "Sin factura" = 0). */
@@ -57,11 +62,12 @@ export const pendientesApi = {
   responsables: () => api.get<Responsable[]>('/cxp/pendientes/responsables'),
   listar: (f: FiltrosPendientes) => {
     const p = new URLSearchParams();
-    if (f.anio) p.set('anio', String(f.anio));
-    if (f.mes) p.set('mes', String(f.mes));
-    if (f.idEstado != null) p.set('idEstado', String(f.idEstado));
+    // Arrays: query repetido (?x=a&x=b).
+    for (const v of f.anio ?? []) p.append('anio', String(v));
+    for (const v of f.mes ?? []) p.append('mes', String(v));
+    for (const v of f.idEstado ?? []) p.append('idEstado', String(v));
     if (f.numSem) p.set('numSem', String(f.numSem));
-    if (f.uidGerente) p.set('uidGerente', f.uidGerente);
+    for (const v of f.uidGerente ?? []) p.append('uidGerente', v);
     const qs = p.toString();
     return api.get<PendienteCxP[]>(`/cxp/pendientes${qs ? `?${qs}` : ''}`);
   },

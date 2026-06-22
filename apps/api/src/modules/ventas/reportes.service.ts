@@ -1,13 +1,17 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { SaldosVencidosService, type ParcialidadVencida } from './saldos-vencidos.service.js';
 
-/** Filtros comunes de los reportes (todos opcionales). */
+/**
+ * Filtros comunes de los reportes (todos opcionales y **multi-valor**, regla 7c).
+ * Un arreglo vacío o ausente = sin filtro; varios valores = OR dentro del campo.
+ */
 export interface FiltrosReporte {
-  anio?: number | null;
-  mes?: number | null;
-  razonsocial?: string | null;
-  parque?: string | null;
-  propiedad?: string | null;
+  anios?: number[];
+  meses?: number[];
+  razonsocial?: string[];
+  parque?: string[];
+  propiedad?: string[];
 }
 
 /** Fila del reporte Estado de Cuenta (RPC v_pdpdetalle_get_estado_cuenta_detalle). */
@@ -58,14 +62,21 @@ export interface EvolucionRow {
 }
 
 /**
- * Ventas > Reportes (clave 620). Réplica de los reportes HTML de v1 (Estado de
- * Cuenta y Vencidos), pero **seguros**: el backend invoca las RPCs existentes
- * `v_pdpdetalle_get_*` (SECURITY DEFINER, parametrizadas) con `service_role`;
- * el navegador ya NO usa la anon key embebida de v1.
+ * Ventas > Reportes (clave 620). Réplica de los reportes HTML de v1, pero
+ * **seguros** (el navegador ya NO usa la anon key embebida de v1):
+ * - **Estado de Cuenta** y **filtros** siguen usando las RPCs `v_pdpdetalle_get_*`
+ *   (SECURITY DEFINER, parametrizadas) con `service_role`.
+ * - **Vencidos** (saldos/resumen/evolución) se calculan con `SaldosVencidosService`
+ *   (cuenta corriente FIFO por plan). Ya NO usan las RPCs
+ *   `v_pdpdetalle_get_saldos_vencidos_*` (obsoletas; ver OBSOLESCENCIA-BD.md),
+ *   que evaluaban cada parcialidad aislada e ignoraban el saldo a favor.
  */
 @Injectable()
 export class ReportesService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly vencidos: SaldosVencidosService,
+  ) {}
 
   private norm(v?: string | null): string | undefined {
     return v && v.trim() !== '' ? v : undefined;
@@ -140,51 +151,126 @@ export class ReportesService {
     }[];
   }
 
+  /** Único valor si el arreglo trae exactamente uno (para filtrar en la RPC). */
+  private uno<T>(a?: T[]): T | undefined {
+    return a && a.length === 1 ? a[0] : undefined;
+  }
+
   async estadoCuenta(f: FiltrosReporte): Promise<EstadoCuentaRow[]> {
+    // La RPC filtra por igualdad (1 valor). Para multi-valor se pasa NULL a la
+    // RPC en ese campo y se filtra en memoria (la RPC no hace cálculos que
+    // dependan del filtro, así que es equivalente). Con 1 solo valor, la RPC ya
+    // filtra (caso común, sin traer de más).
     const { data, error } = await this.supabase.admin.rpc(
       'v_pdpdetalle_get_estado_cuenta_detalle',
       {
-        p_anio: f.anio ?? undefined,
-        p_mes: f.mes ?? undefined,
-        p_razonsocial: this.norm(f.razonsocial),
-        p_parque: this.norm(f.parque),
-        p_propiedad: this.norm(f.propiedad),
+        p_anio: this.uno(f.anios) ?? undefined,
+        p_mes: this.uno(f.meses) ?? undefined,
+        p_razonsocial: this.uno(f.razonsocial),
+        p_parque: this.uno(f.parque),
+        p_propiedad: this.uno(f.propiedad),
       },
     );
     if (error) throw new InternalServerErrorException(error.message);
-    return (data ?? []) as unknown as EstadoCuentaRow[];
+    const rows = (data ?? []) as unknown as EstadoCuentaRow[];
+    return rows.filter(
+      (r) =>
+        (!f.anios?.length || f.anios.includes(Number(r.anio))) &&
+        (!f.meses?.length || f.meses.includes(Number(r.mes))) &&
+        (!f.razonsocial?.length || (r.razonsocial != null && f.razonsocial.includes(r.razonsocial))) &&
+        (!f.parque?.length || (r.nomParque != null && f.parque.includes(r.nomParque))) &&
+        (!f.propiedad?.length || (r.nompropiedad != null && f.propiedad.includes(r.nompropiedad))),
+    );
   }
 
+  /** ¿La parcialidad vencida pasa los filtros (multi-valor) del reporte? */
+  private coincide(v: ParcialidadVencida, f: FiltrosReporte): boolean {
+    if (f.anios?.length && !f.anios.includes(v.anio)) return false;
+    if (f.meses?.length && !f.meses.includes(v.mes)) return false;
+    if (f.razonsocial?.length && !(v.razonsocial != null && f.razonsocial.includes(v.razonsocial))) return false;
+    if (f.parque?.length && !(v.nomParque != null && f.parque.includes(v.nomParque))) return false;
+    if (f.propiedad?.length && !(v.nomDescriptivo != null && f.propiedad.includes(v.nomDescriptivo))) return false;
+    return true;
+  }
+
+  /** Detalle de saldos vencidos por parcialidad (cuenta corriente FIFO por plan). */
   async saldosVencidos(f: FiltrosReporte): Promise<VencidoRow[]> {
-    const { data, error } = await this.supabase.admin.rpc(
-      'v_pdpdetalle_get_saldos_vencidos_por_parque',
-      {
-        p_anio: f.anio ?? undefined,
-        p_mes: f.mes ?? undefined,
-        p_razonsocial: this.norm(f.razonsocial),
-        p_parque: this.norm(f.parque),
-        p_propiedad: this.norm(f.propiedad),
-      },
-    );
-    if (error) throw new InternalServerErrorException(error.message);
-    return (data ?? []) as unknown as VencidoRow[];
+    const todas = await this.vencidos.calcular();
+    return todas
+      .filter((v) => this.coincide(v, f))
+      .map((v) => ({
+        anio: v.anio,
+        mes: v.mes,
+        fecha: v.fecha,
+        nomParque: v.nomParque,
+        numPago: v.numPago,
+        tipoPago: v.tipoPago,
+        razonsocial: v.razonsocial,
+        nompropiedad: v.nomDescriptivo,
+        saldo_vencido: v.saldoVencido,
+        dias_vencimiento: v.diasVencimiento,
+      }))
+      .sort(
+        (a, b) =>
+          (a.nomParque ?? '').localeCompare(b.nomParque ?? '') ||
+          (a.razonsocial ?? '').localeCompare(b.razonsocial ?? '') ||
+          (a.fecha ?? '').localeCompare(b.fecha ?? '') ||
+          (a.numPago ?? 0) - (b.numPago ?? 0),
+      );
   }
 
+  /** Resumen de saldos vencidos agrupado por parque (con % del total). */
   async resumenVencidos(f: FiltrosReporte): Promise<ResumenParqueRow[]> {
-    const { data, error } = await this.supabase.admin.rpc(
-      'v_pdpdetalle_get_resumen_saldos_vencidos_parque',
-      { p_anio: f.anio ?? undefined, p_mes: f.mes ?? undefined, p_razonsocial: this.norm(f.razonsocial) },
+    const todas = await this.vencidos.calcular();
+    const filtradas = todas.filter(
+      (v) =>
+        (!f.anios?.length || f.anios.includes(v.anio)) &&
+        (!f.meses?.length || f.meses.includes(v.mes)) &&
+        (!f.razonsocial?.length || (v.razonsocial != null && f.razonsocial.includes(v.razonsocial))),
     );
-    if (error) throw new InternalServerErrorException(error.message);
-    return (data ?? []) as unknown as ResumenParqueRow[];
+    const totalGeneral = filtradas.reduce((a, v) => a + v.saldoVencido, 0) || 1;
+    const porParque = new Map<string, { total: number; cant: number }>();
+    for (const v of filtradas) {
+      const parque = v.nomParque ?? 'Sin Parque';
+      const cur = porParque.get(parque) ?? { total: 0, cant: 0 };
+      cur.total += v.saldoVencido;
+      cur.cant += 1;
+      porParque.set(parque, cur);
+    }
+    return [...porParque.entries()]
+      .map(([parque, x]) => ({
+        parque,
+        total_saldo_vencido: Math.round(x.total * 100) / 100,
+        cantidad_registros: x.cant,
+        porcentaje_del_total: Math.round((x.total / totalGeneral) * 10000) / 100,
+      }))
+      .sort((a, b) => (b.total_saldo_vencido ?? 0) - (a.total_saldo_vencido ?? 0));
   }
 
-  async evolucionVencidos(razonsocial?: string, parque?: string): Promise<EvolucionRow[]> {
-    const { data, error } = await this.supabase.admin.rpc(
-      'v_pdpdetalle_get_evolucion_saldos_vencidos',
-      { p_razonsocial: this.norm(razonsocial), p_parque: this.norm(parque) },
+  /** Evolución histórica de saldos vencidos por año y parque. */
+  async evolucionVencidos(razonsocial?: string[], parque?: string[]): Promise<EvolucionRow[]> {
+    const todas = await this.vencidos.calcular();
+    const filtradas = todas.filter(
+      (v) =>
+        (!razonsocial?.length || (v.razonsocial != null && razonsocial.includes(v.razonsocial))) &&
+        (!parque?.length || (v.nomParque != null && parque.includes(v.nomParque))),
     );
-    if (error) throw new InternalServerErrorException(error.message);
-    return (data ?? []) as unknown as EvolucionRow[];
+    const porAnioParque = new Map<string, { anio: number; parque: string; total: number }>();
+    for (const v of filtradas) {
+      const parqueNom = v.nomParque ?? 'Sin Parque';
+      const key = `${v.anio}|${parqueNom}`;
+      const cur = porAnioParque.get(key) ?? { anio: v.anio, parque: parqueNom, total: 0 };
+      cur.total += v.saldoVencido;
+      porAnioParque.set(key, cur);
+    }
+    return [...porAnioParque.values()]
+      .map((x) => ({
+        anio: x.anio,
+        parque: x.parque,
+        total_saldo_vencido: Math.round(x.total * 100) / 100,
+      }))
+      .sort(
+        (a, b) => a.anio - b.anio || (a.parque ?? '').localeCompare(b.parque ?? ''),
+      );
   }
 }

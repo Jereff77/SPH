@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Tabs, type TabDef } from '@/components/Tabs';
+import { MultiSearchSelect } from '@/components/MultiSearchSelect';
 import { useSort } from '@/components/tabla/useSort';
 import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
 import {
@@ -421,12 +422,12 @@ function CancelacionesTab() {
     queryFn: () => arrendatariosApi.reporteCancelaciones({}),
   });
 
-  const [anio, setAnio] = useState<number | ''>('');
-  const [parque, setParque] = useState('');
+  const [aniosFiltro, setAniosFiltro] = useState<number[]>([]);
+  const [parquesFiltro, setParquesFiltro] = useState<string[]>([]);
   const [busqueda, setBusqueda] = useState('');
 
   // Opciones de filtro derivadas de los datos.
-  const anios = useMemo(
+  const opcionesAnio = useMemo(
     () =>
       [
         ...new Set(
@@ -434,23 +435,32 @@ function CancelacionesTab() {
             .map((r) => (r.fecCancelacion ? Number(r.fecCancelacion.slice(0, 4)) : null))
             .filter((n): n is number => n != null),
         ),
-      ].sort((a, b) => b - a),
+      ]
+        .sort((a, b) => b - a)
+        .map((a) => ({ value: String(a), label: String(a) })),
     [data],
   );
-  const parques = useMemo(
-    () => [...new Set(data.map((r) => r.parque).filter((p): p is string => !!p))].sort(),
+  const opcionesParque = useMemo(
+    () =>
+      [...new Set(data.map((r) => r.parque).filter((p): p is string => !!p))]
+        .sort()
+        .map((p) => ({ value: p, label: p })),
     [data],
   );
 
   const filtradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return data.filter((r) => {
-      if (anio && (!r.fecCancelacion || Number(r.fecCancelacion.slice(0, 4)) !== anio)) return false;
-      if (parque && r.parque !== parque) return false;
+      if (
+        aniosFiltro.length > 0 &&
+        (!r.fecCancelacion || !aniosFiltro.includes(Number(r.fecCancelacion.slice(0, 4))))
+      )
+        return false;
+      if (parquesFiltro.length > 0 && !parquesFiltro.includes(r.parque ?? '')) return false;
       if (q && !`${r.arrendatario} ${r.nave ?? ''}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [data, anio, parque, busqueda]);
+  }, [data, aniosFiltro, parquesFiltro, busqueda]);
 
   const { ordenados, sortKey, dir, toggle } = useSort<CancelacionReporteRow>(filtradas, {
     arrendatario: (r) => r.arrendatario,
@@ -491,36 +501,27 @@ function CancelacionesTab() {
     <div className="space-y-3">
       {/* Filtros + export */}
       <div className="flex flex-wrap items-end gap-3">
-        <label className="text-xs text-gray-600">
+        <div className="text-xs text-gray-600">
           Año cancelación
-          <select
-            value={anio}
-            onChange={(e) => setAnio(e.target.value ? Number(e.target.value) : '')}
-            className="mt-1 block w-40 rounded border px-2 py-1.5 text-sm"
-          >
-            <option value="">Todos</option>
-            {anios.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-xs text-gray-600">
+          <MultiSearchSelect
+            values={aniosFiltro.map(String)}
+            onChange={(vals) => setAniosFiltro(vals.map(Number))}
+            options={opcionesAnio}
+            placeholder="Todos"
+            ordenarAlfabetico={false}
+            className="mt-1 w-40"
+          />
+        </div>
+        <div className="text-xs text-gray-600">
           Parque
-          <select
-            value={parque}
-            onChange={(e) => setParque(e.target.value)}
-            className="mt-1 block w-56 rounded border px-2 py-1.5 text-sm"
-          >
-            <option value="">Todos</option>
-            {parques.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </label>
+          <MultiSearchSelect
+            values={parquesFiltro}
+            onChange={setParquesFiltro}
+            options={opcionesParque}
+            placeholder="Todos"
+            className="mt-1 w-56"
+          />
+        </div>
         <label className="text-xs text-gray-600">
           Buscar
           <input
@@ -671,24 +672,33 @@ function VencimientosTab() {
     queryFn: () => arrendatariosApi.reporteVencimientos(),
   });
 
-  const [estado, setEstado] = useState('');
-  const [parque, setParque] = useState('');
+  const [estados, setEstados] = useState<string[]>([]);
+  const [parques, setParques] = useState<string[]>([]);
   const [busqueda, setBusqueda] = useState('');
 
-  const parques = useMemo(
-    () => [...new Set(data.map((r) => r.parque).filter((p): p is string => !!p))].sort(),
+  const opcionesParque = useMemo(
+    () =>
+      [...new Set(data.map((r) => r.parque).filter((p): p is string => !!p))]
+        .sort()
+        .map((p) => ({ value: p, label: p })),
     [data],
   );
+  const opcionesEstado = [
+    { value: 'No', label: 'Vencido' },
+    { value: '1 Mes', label: '1 mes' },
+    { value: '2 Meses', label: '2 meses' },
+    { value: '3 Meses', label: '3 meses' },
+  ];
 
   const filtradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return data.filter((r) => {
-      if (estado && r.estado !== estado) return false;
-      if (parque && r.parque !== parque) return false;
+      if (estados.length > 0 && !estados.includes(r.estado)) return false;
+      if (parques.length > 0 && !parques.includes(r.parque ?? '')) return false;
       if (q && !`${r.arrendatario} ${r.nave ?? ''}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [data, estado, parque, busqueda]);
+  }, [data, estados, parques, busqueda]);
 
   const urgencia: Record<string, number> = { No: 0, '1 Mes': 1, '2 Meses': 2, '3 Meses': 3 };
   const { ordenados, sortKey, dir, toggle } = useSort<VencimientoReporteRow>(filtradas, {
@@ -730,9 +740,13 @@ function VencimientosTab() {
           <button
             key={e}
             type="button"
-            onClick={() => setEstado(estado === e ? '' : e)}
+            onClick={() =>
+              setEstados((prev) =>
+                prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e],
+              )
+            }
             className={`rounded-xl border p-3 text-left transition ${
-              estado === e ? 'border-[#1f2a4d] bg-[#1f2a4d]/5' : 'border-gray-200 hover:border-gray-300'
+              estados.includes(e) ? 'border-[#1f2a4d] bg-[#1f2a4d]/5' : 'border-gray-200 hover:border-gray-300'
             }`}
           >
             <div className="text-2xl font-bold text-gray-800">{conteo[e]}</div>
@@ -745,35 +759,27 @@ function VencimientosTab() {
 
       {/* Filtros + export */}
       <div className="flex flex-wrap items-end gap-3">
-        <label className="text-xs text-gray-600">
+        <div className="text-xs text-gray-600">
           Estado
-          <select
-            value={estado}
-            onChange={(e) => setEstado(e.target.value)}
-            className="mt-1 block w-40 rounded border px-2 py-1.5 text-sm"
-          >
-            <option value="">Todos</option>
-            <option value="No">Vencido</option>
-            <option value="1 Mes">1 mes</option>
-            <option value="2 Meses">2 meses</option>
-            <option value="3 Meses">3 meses</option>
-          </select>
-        </label>
-        <label className="text-xs text-gray-600">
+          <MultiSearchSelect
+            values={estados}
+            onChange={setEstados}
+            options={opcionesEstado}
+            placeholder="Todos"
+            ordenarAlfabetico={false}
+            className="mt-1 w-40"
+          />
+        </div>
+        <div className="text-xs text-gray-600">
           Parque
-          <select
-            value={parque}
-            onChange={(e) => setParque(e.target.value)}
-            className="mt-1 block w-56 rounded border px-2 py-1.5 text-sm"
-          >
-            <option value="">Todos</option>
-            {parques.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </label>
+          <MultiSearchSelect
+            values={parques}
+            onChange={setParques}
+            options={opcionesParque}
+            placeholder="Todos"
+            className="mt-1 w-56"
+          />
+        </div>
         <label className="text-xs text-gray-600">
           Buscar
           <input

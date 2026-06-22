@@ -185,27 +185,57 @@ export class CobranzaService {
    * Tickets. El `monto` se devuelve **con IVA incluido** (la transferencia bancaria
    * lo trae): `monto = cantidad + iva`. Se añaden `base` (sin IVA) e `iva` por si la
    * UI los necesita. El IVA se calcula con la misma regla que el trigger de BD.
+   *
+   * Soporte multi-selección (regla 7c): se reciben `anios[]` y `meses[]`.
+   * - Si no hay años seleccionados, se usa el año actual por defecto.
+   * - Se llama la RPC una vez por año (en paralelo con `Promise.all`), pasando
+   *   `p_mes = null` para traer todos los meses de ese año, y se concatenan resultados.
+   * - Luego se filtra en memoria por los meses seleccionados (si los hay).
    */
   async pagos(p: {
-    anio?: number;
-    mes?: number;
+    anios?: number[];
+    meses?: number[];
     parque?: string;
     arrendatario?: string;
     soloPendientes?: boolean;
   }) {
-    const [{ data, error }, ticket, tasa] = await Promise.all([
-      this.supabase.admin.rpc('pagos_arrendatarios', {
-        p_anio: p.anio,
-        p_mes: p.mes,
-        p_parque: p.parque,
-        p_arrendatario: p.arrendatario,
-        p_solo_pendientes: p.soloPendientes ?? false,
-      }),
+    const anioActual = new Date().getFullYear();
+    const anios = p.anios?.length ? p.anios : [anioActual];
+
+    const [resultados, ticket, tasa] = await Promise.all([
+      Promise.all(
+        anios.map((anio) =>
+          this.supabase.admin.rpc('pagos_arrendatarios', {
+            p_anio: anio,
+            p_mes: null,
+            p_parque: p.parque,
+            p_arrendatario: p.arrendatario,
+            p_solo_pendientes: p.soloPendientes ?? false,
+          }),
+        ),
+      ),
       this.nombresParquesTicket(),
       this.tasaIva(),
     ]);
-    if (error) throw new InternalServerErrorException(error.message);
-    return (data ?? [])
+
+    // Verificar errores y concatenar filas de todos los años.
+    const filasCrudas = resultados.flatMap(({ data, error }) => {
+      if (error) throw new InternalServerErrorException(error.message);
+      return data ?? [];
+    });
+
+    // Filtrar en memoria por meses si se especificaron.
+    const meses = p.meses?.length ? new Set(p.meses) : null;
+    const filtradas = meses
+      ? filasCrudas.filter((r) => {
+          const fechaStr: string | null = (r as { fecha?: string | null }).fecha ?? null;
+          if (!fechaStr) return false;
+          const numMes = Number(fechaStr.slice(5, 7));
+          return meses.has(numMes);
+        })
+      : filasCrudas;
+
+    return filtradas
       .filter((r) => !r.parque || !ticket.has(r.parque))
       .map((r) => {
         const base = Number(r.monto) || 0;

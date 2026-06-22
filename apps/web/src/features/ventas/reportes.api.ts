@@ -45,18 +45,25 @@ export interface EvolucionRow {
   total_saldo_vencido: number | null;
 }
 
+/** Filtros multi-valor de los reportes (regla 7c). Vacío/ausente = sin filtro. */
 export interface FiltrosReporte {
-  anio?: number | '';
-  mes?: number | '';
-  razonsocial?: string;
-  parque?: string;
-  propiedad?: string;
+  anios?: number[];
+  meses?: number[];
+  razonsocial?: string[];
+  parque?: string[];
+  propiedad?: string[];
 }
 
-function qs(params: Record<string, string | number | undefined>): string {
+/** Serializa params; los arreglos se mandan como query repetido (`?x=a&x=b`). */
+function qs(params: Record<string, string | number | (string | number)[] | undefined>): string {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== '') sp.set(k, String(v));
+    if (v === undefined || v === '') continue;
+    if (Array.isArray(v)) {
+      for (const it of v) if (it !== undefined && it !== '') sp.append(k, String(it));
+    } else {
+      sp.set(k, String(v));
+    }
   }
   const s = sp.toString();
   return s ? `?${s}` : '';
@@ -80,8 +87,8 @@ export const reportesApi = {
   edoCuenta: (f: FiltrosReporte) =>
     api.get<EstadoCuentaRow[]>(
       `/ventas/reportes/edo-cuenta${qs({
-        anio: f.anio || undefined,
-        mes: f.mes || undefined,
+        anio: f.anios,
+        mes: f.meses,
         razonsocial: f.razonsocial,
         parque: f.parque,
         propiedad: f.propiedad,
@@ -90,8 +97,8 @@ export const reportesApi = {
   vencidos: (f: FiltrosReporte) =>
     api.get<VencidoRow[]>(
       `/ventas/reportes/vencidos${qs({
-        anio: f.anio || undefined,
-        mes: f.mes || undefined,
+        anio: f.anios,
+        mes: f.meses,
         razonsocial: f.razonsocial,
         parque: f.parque,
         propiedad: f.propiedad,
@@ -100,12 +107,12 @@ export const reportesApi = {
   vencidosResumen: (f: FiltrosReporte) =>
     api.get<ResumenParqueRow[]>(
       `/ventas/reportes/vencidos-resumen${qs({
-        anio: f.anio || undefined,
-        mes: f.mes || undefined,
+        anio: f.anios,
+        mes: f.meses,
         razonsocial: f.razonsocial,
       })}`,
     ),
-  vencidosEvolucion: (razonsocial?: string, parque?: string) =>
+  vencidosEvolucion: (razonsocial?: string[], parque?: string[]) =>
     api.get<EvolucionRow[]>(
       `/ventas/reportes/vencidos-evolucion${qs({ razonsocial, parque })}`,
     ),

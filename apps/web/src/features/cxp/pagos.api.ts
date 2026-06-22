@@ -99,8 +99,10 @@ export interface Transferencia {
 }
 
 export interface ListarPagosParams {
-  anio?: number;
-  mes?: number;
+  /** Multi-selección de años. Array vacío = sin filtro (usa default del servidor). */
+  anio?: number[];
+  /** Multi-selección de meses (1-12). Array vacío = sin filtro. */
+  mes?: number[];
   numSem?: number;
   idEstado?: number;
   idProveedor?: string;
@@ -111,8 +113,9 @@ export interface ListarPagosParams {
 
 function qs(params: ListarPagosParams): string {
   const sp = new URLSearchParams();
-  if (params.anio != null) sp.set('anio', String(params.anio));
-  if (params.mes != null) sp.set('mes', String(params.mes));
+  // Arrays: query repetido (?anio=2024&anio=2025).
+  for (const v of params.anio ?? []) sp.append('anio', String(v));
+  for (const v of params.mes ?? []) sp.append('mes', String(v));
   if (params.numSem != null) sp.set('numSem', String(params.numSem));
   if (params.idEstado != null) sp.set('idEstado', String(params.idEstado));
   if (params.idProveedor) sp.set('idProveedor', params.idProveedor);

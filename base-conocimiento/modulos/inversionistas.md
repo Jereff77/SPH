@@ -73,12 +73,14 @@ en chunk aparte por code-splitting). En el sidebar aparece **primero** como "Das
   **Balance** (= pagos − objetivo; rojo si negativo).
 - **Gráfico de barras** por mes (Monto azul, Pagos verde, Balance rojo) con **toggle Mensual / Acumulado**
   (acumulado = suma corrida mes a mes). Barras redondeadas, tooltips en moneda.
-- **Naves con atrasos:** tabla de la **cartera vencida** (parcialidades con `fecha < hoy` y saldo > 0 =
-  monto − pagos), agrupada por **nave** (con razón social), columnas **Vencido** y **Días** (desde la
-  parcialidad vencida más antigua de esa nave), ordenable, con **Total**. ⚠️ Los atrasos son de TODO el
+- **Naves con atrasos:** tabla de la **cartera vencida**, agrupada por **nave** (con razón social), columnas
+  **Vencido** y **Días** (mayor atraso de la nave), ordenable, con **Total**. ⚠️ Los atrasos son de TODO el
   historial (cartera vencida real), no solo del año del selector (que sí filtra los KPIs y el gráfico).
-- **Backend:** `GET ventas/reporte?anio=` → `dashboard.service.reporteGrafico()` (reutiliza
-  `scopePropiedades`/`fetchParcialidades`/`pagosAggPorParcialidad`). **Sin objetos nuevos en BD.**
+  **Incluye Tickets** (decisión 2026-06, ver §2e); el resto del Dashboard (KPIs/gráfico/tabla/tarjetas) sigue
+  **sin** Tickets.
+- **Backend:** `GET ventas/reporte?anio=` → `dashboard.service.reporteGrafico()`. Los **atrasos** ya **no** se
+  calculan parcialidad por parcialidad: delegan en **`SaldosVencidosService`** (cuenta corriente FIFO por
+  plan, ver §2e). **Sin objetos nuevos en BD.**
 
 ## 2d. Reportes (`/ventas/reportes`, clave 620)
 Réplica **segura** de los 2 reportes HTML de v1 (que iban embebidos en un WebView y consultaban Supabase
@@ -90,12 +92,19 @@ Dos pestañas:
   export **CSV/JSON/PDF**. RPC `v_pdpdetalle_get_estado_cuenta_detalle`.
 - **Vencidos** (header rojo): 4 tarjetas (Total vencido/Registros/Parques/Promedio días), **gráfico de barras
   apiladas** (evolución por año/parque, Chart.js), **tabla resumen por parque** (con barra de %), tabla
-  principal de 8 columnas (rojo si `dias>30`), export. RPCs `v_pdpdetalle_get_saldos_vencidos_por_parque`,
-  `_resumen_saldos_vencidos_parque`, `_evolucion_saldos_vencidos`. Filtros sin A3 (`_unique_values_sin_a3`).
-- **Filtros en cascada bidireccional:** al elegir un filtro, los demás se reducen a lo compatible (p. ej.
-  al elegir un inversionista, Parque/Propiedad muestran solo los suyos, y viceversa). Se deriva en el front
-  de las **combinaciones únicas** (`GET ventas/reportes/combos` → `SELECT DISTINCT` sobre la vista
-  `v_pdpdetalle`, 602 combos; lectura). Las incompatibles se autolimpian.
+  principal de 8 columnas (rojo si `dias>30`), export. **Desde 2026-06-21 se calcula con
+  `SaldosVencidosService`** (cuenta corriente FIFO por plan, ver §2e) — los 3 endpoints
+  (`vencidos`/`vencidos-resumen`/`vencidos-evolucion`) ya **no** llaman las RPCs
+  `v_pdpdetalle_get_saldos_vencidos_*` (obsoletas; ver `OBSOLESCENCIA-BD.md`). Filtros sin A3
+  (`_unique_values_sin_a3`).
+- **Filtros multi-selección en cascada bidireccional (regla 7c, ambas pestañas):** los 5 filtros
+  (Año/Mes/Razón social/Parque/Propiedad) permiten **elegir uno o varios** valores (componente
+  `MultiSearchSelect`, con "Seleccionar todas / Limpiar"). Al elegir, los demás se reducen a lo compatible
+  (cascada bidireccional, derivada de las **combinaciones únicas** `GET ventas/reportes/combos` →
+  `SELECT DISTINCT` sobre `v_pdpdetalle`; las incompatibles se autolimpian). **Backend:** los endpoints
+  reciben los filtros como **query repetido** (`?razonsocial=A&razonsocial=B`); **Vencidos** filtra en
+  memoria sobre el resultado del helper; **Estado de Cuenta** pasa a la RPC el valor único cuando hay uno y,
+  si hay varios, trae sin ese filtro y **filtra en memoria** (la RPC solo filtra por igualdad → equivalente).
 - **Montse AI** (3er tab): **asistente conversacional** sobre los datos del ERP (chat con sesiones,
   respuestas en markdown con tablas y **gráficos** bar/pie/line que la IA adjunta). El frontend NO habla
   con Supabase: el backend (`montse.service.ts`/`montse.controller.ts`, rutas `ventas/montse/*`) hace de
@@ -105,11 +114,49 @@ Dos pestañas:
   `features/ventas/montse/` (`MontseChat`, `ChartBlockIA` con Chart.js, `useMontse`). Adaptado de la rama
   `gpt` (que usaba la anon key en el navegador — en v2 se elimina ese vector). Copiar respuesta como CSV y
   gráfico como imagen.
-- **Réplica fiel:** se replica el comportamiento de v1 tal cual (incluye Tickets, como v1). Frontend
-  `ReportesPage.tsx` (lazy/code-split; carga Chart.js + jsPDF + react-markdown). Backend `reportes.service.ts`.
-  ⚖️ **Decisión (regla 2):** se **reutilizan** las RPCs `v_pdpdetalle_get_*` del esquema (autorizado por el
-  usuario) porque ya encapsulan la lógica; **no** son las RPCs peligrosas (`cdg`/`consulta_segura`). El vector
-  inseguro de v1 (anon key en cliente) **se elimina**: ahora las llama el backend.
+- **Réplica fiel (parcial):** el frontend `ReportesPage.tsx` (lazy/code-split; Chart.js + jsPDF +
+  react-markdown) y el backend `reportes.service.ts` conservan el aspecto de v1. ⚖️ **Estado de Cuenta** y
+  los **filtros** siguen **reutilizando** las RPCs `v_pdpdetalle_get_*` del esquema (no son las peligrosas
+  `cdg`/`consulta_segura`; el vector inseguro de v1 —anon key en cliente— se elimina: las llama el backend).
+  En cambio **Vencidos** ya **NO** replica v1: se corrigió el cálculo (ver §2e).
+
+## 2e. Cálculo de **saldos vencidos** (cuenta corriente FIFO por plan)
+
+> Fuente única: **`SaldosVencidosService`** (`apps/api/src/modules/ventas/saldos-vencidos.service.ts`,
+> método `calcular({ incluirTickets })`). Lo consumen **ambos**: el Dashboard gráfico (Naves con atrasos,
+> §2c) y el reporte de **Vencidos** (§2d) → por construcción **cuadran** (mismo número).
+
+**Problema que resuelve (bug histórico).** El cálculo anterior evaluaba **cada parcialidad por separado**
+(`saldo = monto − pagos de ESA parcialidad`). Cuando un cliente concentra un pago grande en una sola
+parcialidad —p. ej. **adelanta 3-4 mensualidades**—, ese **saldo a favor no se propagaba** y las demás
+parcialidades figuraban como vencidas aunque ya estaban cubiertas. En producción inflaba la cartera vencida
+**de $23.2M reales a $67.4M** (≈$44M falsos, 52 de 202 planes). El reporte v1 (RPCs sobre `v_pdpdetalle`)
+tenía además otra variante del error: `pago_vencido` solo marcaba parcialidades **sin ningún pago**, ignorando
+los pagos parciales. Dashboard ($67.4M) y reporte ($21.7M) **ni siquiera cuadraban entre sí**.
+
+**Cómo se calcula ahora (FIFO por plan).** Por cada **plan** (`idPdp`):
+1. `bolsa` = Σ de **todos** los pagos del plan (`status=true`; los **descuentos** `tipoOperacion=2` cuentan
+   como pago; los **cancelados** `status=false` **no**).
+2. Se ordenan las parcialidades por antigüedad (`fecha`, luego `numPago`) y se acumula el monto (`acum`).
+3. Saldo remanente de cada parcialidad = **`max(0, min(monto, acum − bolsa))`** (la bolsa cubre primero lo
+   más antiguo; el excedente fluye al futuro).
+4. Solo cuenta como **vencido** si `fecha < hoy` (horario de México) y el saldo remanente > 0.
+
+**Reglas de negocio (acordadas con el usuario, 2026-06-21):**
+- El saldo a favor se aplica **solo dentro del mismo plan** (`idPdp`); **nunca** cruza a otro plan.
+- Aplicación **FIFO** (lo más viejo primero; el excedente hacia el futuro).
+- **Universo:** inversionista real (`inversionista=true`, `pruebas=false`) + plan activo (`pdpActivo=true`),
+  **incluyendo Tickets** (`esTicket=true`). Nota: hoy los Tickets no tienen saldo vencido, así que incluirlos
+  no cambia el total — pero el universo queda unificado entre Dashboard y reporte.
+- **Cancelados no cuentan; descuentos sí.**
+
+**Filtros del reporte** (año/mes/parque/propiedad/razón social) se aplican **después** del FIFO (el FIFO
+necesita el plan completo). El reporte de Vencidos lista por parcialidad; el resumen agrupa por parque (con %
+del total); la evolución agrupa por año y parque.
+
+⚠️ **Pendiente menor:** las otras agregaciones del Dashboard (KPIs/serie/tabla/tarjetas, vía
+`pagosAggPorParcialidad`) aún **no** filtran `status` — hoy sin impacto (no hay pagos cancelados), pero si
+llegara a haberlos, conviene unificar el filtro `status=true`.
 
 ## 3. Planes (`/ventas/planes`, clave 610)
 Selector **inversionista** (combobox **con búsqueda**, ordenado por razón social) + **propiedad/nave** +

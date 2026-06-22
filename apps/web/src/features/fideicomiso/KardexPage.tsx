@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fideicomisoApi, type KardexFila } from './fideicomiso.api';
 import { SearchSelect, type OpcionSelect } from '@/components/SearchSelect';
+import { MultiSearchSelect } from '@/components/MultiSearchSelect';
 import { useSort } from '@/components/tabla/useSort';
 import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
 import { configuracionApi } from '@/features/configuraciones/configuracion.api';
@@ -95,7 +96,7 @@ function formula(f: KardexFila): string {
  */
 export function KardexPage() {
   const [inv, setInv] = useState('');
-  const [prop, setProp] = useState('');
+  const [propsSel, setPropsSel] = useState<string[]>([]);
   const [modo, setModo] = useState<'pasados' | 'todos'>('pasados');
 
   const { data: invs = [] } = useQuery({
@@ -120,8 +121,8 @@ export function KardexPage() {
   );
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['fide-kardex', inv, prop],
-    queryFn: () => fideicomisoApi.kardex(inv, prop || undefined),
+    queryKey: ['fide-kardex', inv, propsSel],
+    queryFn: () => fideicomisoApi.kardex(inv, propsSel.length > 0 ? propsSel : undefined),
     enabled: !!inv,
   });
 
@@ -171,7 +172,12 @@ export function KardexPage() {
     { key: 'fecfin', dir: 'asc' },
   );
 
-  const propLabel = prop ? (opcionesProp.find((p) => p.value === prop)?.label ?? prop) : 'Todas';
+  const propLabel =
+    propsSel.length === 0
+      ? 'Todas'
+      : propsSel.length === 1
+        ? (opcionesProp.find((p) => p.value === propsSel[0])?.label ?? propsSel[0])
+        : `${propsSel.length} propiedades`;
   const modoLabel = modo === 'pasados' ? 'Solo los que ya pasaron' : 'Todos los meses (con cálculos)';
 
   async function exportar(tipo: 'pdf' | 'excel') {
@@ -222,7 +228,7 @@ export function KardexPage() {
           <label className="block text-xs font-medium text-gray-500">Inversionista</label>
           <SearchSelect
             value={inv}
-            onChange={(v) => { setInv(v); setProp(''); }}
+            onChange={(v) => { setInv(v); setPropsSel([]); }}
             options={opciones}
             placeholder="Selecciona un inversionista…"
             className="mt-1 w-[360px]"
@@ -230,24 +236,15 @@ export function KardexPage() {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-500">Propiedad</label>
-          <SearchSelect
-            value={prop}
-            onChange={setProp}
+          <MultiSearchSelect
+            values={propsSel}
+            onChange={setPropsSel}
             options={opcionesProp}
             placeholder={inv ? 'Todas las propiedades' : 'Elige un inversionista'}
             disabled={!inv}
             className="mt-1 w-[300px]"
           />
         </div>
-        {prop && (
-          <button
-            type="button"
-            onClick={() => setProp('')}
-            className="mb-0.5 rounded-lg border px-3 py-2 text-sm text-gray-600 hover:bg-gray-100"
-          >
-            Todas
-          </button>
-        )}
         <div>
           <label className="block text-xs font-medium text-gray-500">Mostrar</label>
           <select

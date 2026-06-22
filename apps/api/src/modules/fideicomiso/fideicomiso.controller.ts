@@ -64,6 +64,13 @@ import { RequierePermiso } from '../../common/auth/permisos.decorator.js';
 import { CurrentUser } from '../../common/auth/current-user.decorator.js';
 import type { AuthUser } from '../../common/auth/auth.types.js';
 
+/** Query repetible (`?x=a&x=b`) o único → arreglo de strings no vacíos (o undefined). */
+function toArr(v: string | string[] | undefined): string[] | undefined {
+  if (v == null) return undefined;
+  const arr = (Array.isArray(v) ? v : [v]).map((s) => s?.trim()).filter((s): s is string => !!s);
+  return arr.length ? [...new Set(arr)] : undefined;
+}
+
 /**
  * Módulo Fideicomiso. Claves de permiso del catálogo `segModulos` (idénticas a
  * v1): 500 Dashboard · 510 Aportaciones · 520 Adhesiones (y Contabilidad, que en
@@ -115,12 +122,12 @@ export class FideicomisoController {
   @RequierePermiso(540)
   kardexReporte(
     @Query('inversionista') inversionista?: string,
-    @Query('propiedad') propiedad?: string,
+    @Query('propiedad') propiedad?: string | string[],
   ) {
     const nombre = (inversionista ?? '').trim();
     if (!nombre) throw new BadRequestException('Falta el inversionista.');
-    const prop = (propiedad ?? '').trim() || undefined;
-    return this.kardex.kardex(nombre, prop);
+    const props = toArr(propiedad);
+    return this.kardex.kardex(nombre, props);
   }
 
   // ========================== Dispersiones (530) ==========================

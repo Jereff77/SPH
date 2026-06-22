@@ -431,10 +431,17 @@ export interface ImportarEstadoCuentaResultado {
   filas: MovimientoImportado[];
 }
 
-function dq(params: Record<string, string | number | boolean | undefined>): string {
+function dq(
+  params: Record<string, string | number | boolean | (string | number)[] | undefined>,
+): string {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== '') sp.set(k, String(v));
+    if (v === undefined || v === '') continue;
+    if (Array.isArray(v)) {
+      for (const it of v) if (it !== undefined && it !== '') sp.append(k, String(it));
+    } else {
+      sp.set(k, String(v));
+    }
   }
   const s = sp.toString();
   return s ? `?${s}` : '';
@@ -520,12 +527,21 @@ export const arrendatariosApi = {
   // Cobranza
   filtrosCobranza: () => api.get<FiltrosCobranza>('/arrendatarios/cobranza/filtros'),
   cobranza: (p: {
-    anio?: number;
-    mes?: number;
+    anios?: number[];
+    meses?: number[];
     parque?: string;
     arrendatario?: string;
     soloPendientes?: boolean;
-  }) => api.get<PagoArreRow[]>(`/arrendatarios/cobranza/pagos${dq(p)}`),
+  }) =>
+    api.get<PagoArreRow[]>(
+      `/arrendatarios/cobranza/pagos${dq({
+        anio: p.anios,
+        mes: p.meses,
+        parque: p.parque,
+        arrendatario: p.arrendatario,
+        soloPendientes: p.soloPendientes,
+      })}`,
+    ),
   contratosPorVencer: (desde?: string, hasta?: string) =>
     api.get<ContratoPorVencer[]>(`/arrendatarios/cobranza/contratos-por-vencer${dq({ desde, hasta })}`),
   contratosVencidos: () =>

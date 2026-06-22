@@ -54,7 +54,7 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `inversionista` | **Clientes** (padrón) · Inversionistas/Propietarios (Ventas) · Arrendatarios |
 | `propiedades`, `inversionista_docs`, `v_propiedades` | Inversionistas/Propietarios (Ventas) (y Parques para el dueño) |
 | `kvasAsignados` | Inversionistas/Propietarios (Ventas) (KVAs por nave) · Parques |
-| RPCs `v_pdpdetalle_get_*` (estado_cuenta_detalle, saldos_vencidos_por_parque, resumen/evolucion, unique_values) | Inversionistas/Propietarios (Ventas) → **Reportes** (las llama el backend) |
+| RPCs `v_pdpdetalle_get_*` (estado_cuenta_detalle, unique_values, filtros_dependientes) + vista `v_pdpdetalle` | Inversionistas/Propietarios (Ventas) → **Reportes** (Estado de Cuenta + filtros; las llama el backend). ⚠️ Las RPCs de **vencidos** (`saldos_vencidos_por_parque`/`resumen`/`evolucion`) ya **NO** se usan → reemplazadas por `SaldosVencidosService` (FIFO); ver `OBSOLESCENCIA-BD.md` |
 | `iaSesiones`, `iaConversaciones`, RPCs `ia_*`, edge `ia-chat` (OpenRouter) | Ventas → Reportes → **Montse AI** (asistente; backend proxy) |
 | `v2_soporte_sesiones`, `v2_soporte_mensajes`, `v2_soporte_tickets`, rol `v2_soporte_ro`, edge `soporte-chat` (OpenRouter) | **Asistente / Agente de IA de Soporte** (widget transversal) |
 | `pdp`, `pdpDetalle`, `pagos`, `rgPdp`, `rgPdpDetalle`, `raPdp`, `raPdpDetalle`, `v_rentasCombinadas` | Inversionistas/Propietarios (Ventas) |

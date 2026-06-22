@@ -48,6 +48,15 @@ function toNum(v: string | undefined): number | undefined {
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
 }
+/** Query repetible (`?x=a&x=b`) o único → arreglo de números finitos (o undefined). */
+function toNumArr(v: string | string[] | undefined): number[] | undefined {
+  if (v == null) return undefined;
+  const arr = (Array.isArray(v) ? v : [v])
+    .map((s) => Number(s?.trim()))
+    .filter((n) => Number.isFinite(n));
+  const uniq = [...new Set(arr)];
+  return uniq.length ? uniq : undefined;
+}
 
 /**
  * CxP > "Pagar solicitudes" (clave 400). Tesorería: listado + registro de pago.
@@ -72,8 +81,8 @@ export class PagosController {
 
   @Get()
   listar(
-    @Query('anio') anio?: string,
-    @Query('mes') mes?: string,
+    @Query('anio') anio?: string | string[],
+    @Query('mes') mes?: string | string[],
     @Query('numSem') numSem?: string,
     @Query('idEstado') idEstado?: string,
     @Query('idProveedor') idProveedor?: string,
@@ -82,8 +91,8 @@ export class PagosController {
     @Query('incluirPagados') incluirPagados?: string,
   ) {
     const filtros: FiltrosPagos = {
-      anio: toNum(anio),
-      mes: toNum(mes),
+      anio: toNumArr(anio),
+      mes: toNumArr(mes),
       numSem: toNum(numSem),
       idEstado: toNum(idEstado),
       idProveedor: idProveedor || undefined,
