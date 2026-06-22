@@ -1,8 +1,8 @@
 ---
 modulo: Inversionistas / Propietarios (Ventas)
 estado: parcial              # Gestión de Cobranza + Dashboard gráfico + Planes + Escrituras en v2
-version_doc: 2.0
-ultima_actualizacion: 2026-06-09
+version_doc: 2.1
+ultima_actualizacion: 2026-06-22
 submodulos: [Gestión de Cobranza, Dashboard gráfico, Reportes, Planes, Configuración, Escrituras]
 rutas: [/ventas, /ventas/dashboard, /ventas/reportes, /ventas/planes, /ventas/escrituras]
 claves_permiso: [600, 610, 620, 630]
@@ -201,12 +201,30 @@ y con al menos una propiedad `pdpActivo=true`. 3 pestañas:
      (`tienenPdp=false`); el backend revalida y rechaza si lo tiene (réplica de v1 `dat_naves`). Confirmación
      en el front antes de borrar.
    - **Pendiente:** íconos de **editar** nave (sin endpoint en v2).
-4. **Plan de Pagos** → **crear** un PDP: `montoTotal = terreno + obra·1.16`; N parcialidades **mensuales
-   iguales** (`round(montoTotal/N, 2)`, misma cuota en todas — como v1 `redondearMonto`/`siguienteMes`).
-   Inserta `pdp` + N `pdpDetalle` y marca la propiedad `tienenPdp=true`.
+4. **Plan de Pagos** (v2.39.0 — réplica del layout de 2 columnas de **Arrendatarios**, `PlanPagosTab` en
+   `ConfigPropietarioModal.tsx`): **izquierda** el formulario/acciones, **derecha** la **Previsualización**
+   de las parcialidades (lee la corrida real, sirve incluso para el plan recién creado e **inactivo**).
+   - **Crear** (sin plan): `montoTotal = terreno + obra·1.16`; N parcialidades **mensuales iguales**
+     (`round(montoTotal/N, 2)` — como v1 `redondearMonto`/`siguienteMes`). Inserta `pdp` + N `pdpDetalle`.
+   - **⚠️ Criterio "tiene plan" = `propiedades.idPdp` (o corrida real), NO `propiedades.tienenPdp`.** La
+     bandera `tienenPdp` está **desincronizada** en ~18 propiedades heredadas de v1 (idPdp poblado pero
+     `tienenPdp=false`); por eso TODO el módulo decide por `idPdp`: detección del plan, guarda de crear
+     (no duplica PDP), activar, **desvincular nave** (rechaza si hay `idPdp`) y el chip "PDP"/botón 🗑 de la
+     tarjeta de Propiedades. La tarjeta muestra el número de nave por **`numNaveNAME`** (no `numNave`).
+   - **Activar / Desactivar** (`PATCH planes/plan/:idPropiedad/activo`): togglea **`propiedades.pdpActivo`**
+     (la bandera vigente del módulo). **NO toca `pdp.pdpactivo`**, que es **remanente** (el control se migró a
+     `propiedades`; en prod los 204 planes lo tienen en `false`). Al **activar**, valida que **Σ parcialidades
+     = `pdp.monto` ± `TOLERANCIA_PDP` (0.05)**; si no cuadra, rechaza (como v1).
+   - **Edición SOLO con el plan inactivo** (activo = congelado, como v1; el backend revalida con
+     `asegurarPlanInactivo`): editar **Terreno/Obra** (recalcula el total, `PATCH .../montos`), y por parcialidad
+     (doble clic) el **Monto** (`PATCH .../partida/:id/monto`), la **Fecha** (`.../fecha`) y el **Tipo de pago**
+     (reutiliza `PATCH planes/tipo-pago/:id`). **Agregar** parcialidad (`POST .../partida`, nace en monto 0,
+     fecha = mes siguiente) y **Eliminar** (`DELETE .../partida/:id`, solo si **no tiene pagos**). Todo audita
+     en `actividad` vía `comoActor`.
 
-> En esta etapa **solo se crea el Plan de Pagos**. La creación de Renta Garantizada (RPCs
-> `rgpdp_insertar_registro`/`rgpdp_generar_plan_pagos`) y Administrada (`rapdp_actualizar`) se hará después.
+> En esta etapa el módulo cubre **crear + configurar el Plan de Pagos** (incluida la edición de parcialidades y
+> el activar/desactivar). La creación de Renta Garantizada (RPCs `rgpdp_insertar_registro`/
+> `rgpdp_generar_plan_pagos`) y Administrada (`rapdp_actualizar`) se hará después.
 
 ## 3b. Escrituras (`/ventas/escrituras`, clave 630)
 Réplica de la pantalla **"Fechas de escrituración"** de v1 (`i01_inversionistas/escrituracion`). Lista las
@@ -248,10 +266,17 @@ con nave (`naves.numNaveNAME` + `parques.nomParque` → "Parque - Nave"), invers
   Anticipo/Parcialidad/Escrituracion), `GET/POST/DELETE planes/docs`, **`GET planes/parques`** (parques sin Tickets),
   `GET planes/naves-disponibles?idParque=` (solo `situacion='Disponible'`), `POST planes/propiedades`
   (vincula nave → marca `naves.situacion='Vendida'`), **`DELETE planes/propiedades/:idPropiedad`**
-  (desvincula: borra la propiedad y regresa `naves.situacion='Disponible'`; rechaza si `tienenPdp=true`),
-  `POST planes/plan-pagos`.
+  (desvincula: borra la propiedad y regresa `naves.situacion='Disponible'`; **rechaza si la propiedad tiene
+  `idPdp`**), `POST planes/plan-pagos`.
   - `GET planes/propiedades` devuelve cada propiedad enriquecida con datos de la nave, `nomParque` y
     `kvas:{alta,media}` (desde `kvasAsignados`).
+  - **Config del PDP (v2.39.0, solo plan inactivo salvo el activo/cabecera):**
+    **`PATCH planes/plan/:idPropiedad/activo`** (`{activo}`; al activar valida Σ partidas = total ±0.05),
+    **`GET planes/pdp/:idPropiedad`** (cabecera: `montoterreno/montoobra/monto/cantpagos/pdpActivo`),
+    **`PATCH planes/plan/:idPropiedad/montos`** (`{terreno,obra}` → recalcula `pdp.monto`),
+    **`POST planes/plan/:idPropiedad/partida`** (agrega parcialidad monto 0),
+    **`PATCH planes/partida/:idPdpDet/monto`**, **`PATCH planes/partida/:idPdpDet/fecha`**,
+    **`DELETE planes/partida/:idPdpDet`** (rechaza si tiene pagos).
 - **Reportes (620):** `GET ventas/reportes/filtros?tipo=&sinA3=`, `ventas/reportes/edo-cuenta`,
   `ventas/reportes/vencidos`, `ventas/reportes/vencidos-resumen`, `ventas/reportes/vencidos-evolucion`
   (todos con filtros anio/mes/razonsocial/parque/propiedad). Backend `reportes.service.ts` → RPCs
@@ -277,10 +302,13 @@ con nave (`naves.numNaveNAME` + `parques.nomParque` → "Parque - Nave"), invers
 - **Arrendatarios:** el mismo registro `inversionista` funge como arrendador (`idArrendador = idInversionista`).
 
 ## 8. Pendiente / fuera del MVP
-- (**Dashboard gráfico 620** y **Escrituras 630** ya implementados — ver §2c y §3b.) Creación de
-  **Renta Garantizada** y **Renta Administrada**.
-  Edición/cancelación de planes existentes. Activar/desactivar PDP (`pdpactivo`). Pasar las pestañas de
-  rentas a cálculo propio (hoy usan `v_rentasCombinadas`).
+- (**Dashboard gráfico 620** y **Escrituras 630** ya implementados — ver §2c y §3b. **Configuración del PDP**
+  —crear, activar/desactivar, editar parcialidades/montos, agregar/eliminar— **ya implementada** en v2.39.0,
+  ver §3.) Creación de **Renta Garantizada** y **Renta Administrada**. **Cancelación** de planes existentes.
+  Pasar las pestañas de rentas a cálculo propio (hoy usan `v_rentasCombinadas`).
+- **Higiene de datos (pendiente, requiere autorización):** ~18 propiedades con `idPdp` pero `tienenPdp=false`
+  (herencia de v1). El código ya no depende de la bandera, pero conviene sanear:
+  `update propiedades set "tienenPdp"=true where status=true and "idPdp" is not null and "tienenPdp"=false;`
 - **Config→Propiedades:** íconos de **editar** nave (sin endpoint en v2). El **desvincular** ya está hecho.
 - **KVAs / `tipoTension`:** confirmar con negocio el mapeo **1=Alta / 2=Media** (supuesto provisional, sin
   catálogo en BD; posible 3=Baja). `TODO` marcado en `planes.service.ts`.

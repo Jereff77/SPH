@@ -242,6 +242,16 @@ export interface CrearPlanInput {
   idVendedor?: string;
 }
 
+/** Cabecera del PDP (montos del plan + estado), para editar Terreno/Obra/Total. */
+export interface CabeceraPdp {
+  idPdp: string;
+  montoterreno: number;
+  montoobra: number;
+  monto: number;
+  cantpagos: number;
+  pdpActivo: boolean;
+}
+
 /** Salida del Dashboard gráfico (clave 620). */
 export interface ReporteGrafico {
   kpis: { monto: number; pagos: number; balance: number };
@@ -348,6 +358,30 @@ export const ventasApi = {
     api.delete<{ ok: true }>(`/ventas/planes/propiedades/${idPropiedad}`),
   crearPlanPagos: (dto: CrearPlanInput) =>
     api.post<{ idPdp: string }>('/ventas/planes/plan-pagos', dto),
+  /** Activa/desactiva el PDP de una propiedad (`propiedades.pdpActivo`). */
+  setActivoPlan: (idPropiedad: string, activo: boolean) =>
+    api.patch<{ ok: true }>(`/ventas/planes/plan/${idPropiedad}/activo`, { activo }),
+  /** Cabecera del PDP (montos del plan + estado); null si no tiene plan. */
+  cabeceraPdp: (idPropiedad: string) =>
+    api.get<CabeceraPdp | null>(`/ventas/planes/pdp/${idPropiedad}`),
+  /** Edita Terreno/Obra del plan (recalcula el total). Solo plan inactivo. */
+  editarMontosPlan: (idPropiedad: string, terreno: number, obra: number) =>
+    api.patch<{ ok: true; monto: number }>(`/ventas/planes/plan/${idPropiedad}/montos`, {
+      terreno,
+      obra,
+    }),
+  /** Agrega una parcialidad al final del plan (monto 0). Solo plan inactivo. */
+  agregarPartida: (idPropiedad: string) =>
+    api.post<{ idPdpDet: string }>(`/ventas/planes/plan/${idPropiedad}/partida`, {}),
+  /** Edita el monto de una parcialidad. Solo plan inactivo. */
+  editarMontoPartida: (idPdpDet: string, monto: number) =>
+    api.patch<{ ok: true }>(`/ventas/planes/partida/${idPdpDet}/monto`, { monto }),
+  /** Edita la fecha de una parcialidad. Solo plan inactivo. */
+  editarFechaPartida: (idPdpDet: string, fecha: string) =>
+    api.patch<{ ok: true }>(`/ventas/planes/partida/${idPdpDet}/fecha`, { fecha }),
+  /** Elimina una parcialidad (sin pagos). Solo plan inactivo. */
+  eliminarPartida: (idPdpDet: string) =>
+    api.delete<{ ok: true }>(`/ventas/planes/partida/${idPdpDet}`),
 
   // Dashboard gráfico (620)
   reporteGrafico: (anio: number) =>

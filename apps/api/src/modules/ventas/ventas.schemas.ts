@@ -36,6 +36,38 @@ export const crearPlanPagosSchema = z.object({
 });
 export type CrearPlanPagosDto = z.infer<typeof crearPlanPagosSchema>;
 
+/**
+ * Activar/desactivar el Plan de Pagos de una propiedad (clave 610). Al activar
+ * (`propiedades.pdpActivo=true`) el plan entra al universo de cobranza/dashboard;
+ * al desactivar se libera. La bandera vigente es **`propiedades.pdpActivo`**: el
+ * control originalmente vivía en `pdp.pdpactivo`, pero se migró a propiedades y
+ * `pdp.pdpactivo` quedó como **remanente** (no se escribe).
+ */
+export const activoPlanSchema = z.object({
+  activo: z.boolean(),
+});
+export type ActivoPlanDto = z.infer<typeof activoPlanSchema>;
+
+/**
+ * Editar Terreno/Obra del PDP existente (recalcula el total = terreno + obra*1.16).
+ * Solo permitido con el plan **inactivo** (se valida en el servicio).
+ */
+export const montosPlanSchema = z.object({
+  terreno: z.coerce.number().min(0).default(0),
+  obra: z.coerce.number().min(0).default(0),
+});
+export type MontosPlanDto = z.infer<typeof montosPlanSchema>;
+
+/** Editar el monto de una parcialidad del PDP (solo plan inactivo). */
+export const partidaMontoSchema = z.object({
+  monto: z.coerce.number().min(0, 'El monto no puede ser negativo.'),
+});
+export type PartidaMontoDto = z.infer<typeof partidaMontoSchema>;
+
+/** Editar la fecha de una parcialidad del PDP (solo plan inactivo). */
+export const partidaFechaSchema = z.object({ fecha: FECHA });
+export type PartidaFechaDto = z.infer<typeof partidaFechaSchema>;
+
 /** Edición de los datos generales del inversionista (Config, sub-tab 1). */
 export const inversionistaSchema = z.object({
   nombre: z.string().trim().min(1, 'El nombre es obligatorio.').max(120),

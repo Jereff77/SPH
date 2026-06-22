@@ -19,20 +19,28 @@ import { PlanesService } from './planes.service.js';
 import { EscriturasService } from './escrituras.service.js';
 import { ReportesService } from './reportes.service.js';
 import {
+  activoPlanSchema,
   comentarioSchema,
   crearPlanPagosSchema,
   docSchema,
   escrituraFechaSchema,
   escrituraMontoSchema,
   inversionistaSchema,
+  montosPlanSchema,
+  partidaFechaSchema,
+  partidaMontoSchema,
   propiedadSchema,
   registrarPagoSchema,
   tipoPagoSchema,
+  type ActivoPlanDto,
   type CrearPlanPagosDto,
   type DocDto,
   type EscrituraFechaDto,
   type EscrituraMontoDto,
   type InversionistaDto,
+  type MontosPlanDto,
+  type PartidaFechaDto,
+  type PartidaMontoDto,
   type PropiedadDto,
   type RegistrarPagoDto,
   type TipoPagoDto,
@@ -348,6 +356,72 @@ export class VentasController {
     @Body(new ZodValidationPipe(crearPlanPagosSchema)) dto: CrearPlanPagosDto,
   ) {
     return this.planes.crearPlanPagos(dto, actor.uid);
+  }
+
+  // ----- Config: Activar/Desactivar Plan de Pagos (pdpActivo) -----
+  @Patch('planes/plan/:idPropiedad/activo')
+  @RequierePermiso(610)
+  async setActivoPlan(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPropiedad') idPropiedad: string,
+    @Body(new ZodValidationPipe(activoPlanSchema)) dto: ActivoPlanDto,
+  ) {
+    return this.planes.setActivoPlan(idPropiedad, dto.activo, actor.uid);
+  }
+
+  // ----- Config: Edición del PDP (solo plan inactivo) -----
+  @Get('planes/pdp/:idPropiedad')
+  @RequierePermiso(610)
+  cabeceraPdp(@Param('idPropiedad') idPropiedad: string) {
+    return this.planes.cabeceraPdp(idPropiedad);
+  }
+
+  @Patch('planes/plan/:idPropiedad/montos')
+  @RequierePermiso(610)
+  async editarMontosPlan(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPropiedad') idPropiedad: string,
+    @Body(new ZodValidationPipe(montosPlanSchema)) dto: MontosPlanDto,
+  ) {
+    return this.planes.editarMontosPlan(idPropiedad, dto.terreno, dto.obra, actor.uid);
+  }
+
+  @Post('planes/plan/:idPropiedad/partida')
+  @RequierePermiso(610)
+  async agregarPartida(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPropiedad') idPropiedad: string,
+  ) {
+    return this.planes.agregarPartida(idPropiedad, actor.uid);
+  }
+
+  @Patch('planes/partida/:idPdpDet/monto')
+  @RequierePermiso(610)
+  async editarMontoPartida(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPdpDet') idPdpDet: string,
+    @Body(new ZodValidationPipe(partidaMontoSchema)) dto: PartidaMontoDto,
+  ) {
+    return this.planes.editarMontoPartida(idPdpDet, dto.monto, actor.uid);
+  }
+
+  @Patch('planes/partida/:idPdpDet/fecha')
+  @RequierePermiso(610)
+  async editarFechaPartida(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPdpDet') idPdpDet: string,
+    @Body(new ZodValidationPipe(partidaFechaSchema)) dto: PartidaFechaDto,
+  ) {
+    return this.planes.editarFechaPartida(idPdpDet, dto.fecha, actor.uid);
+  }
+
+  @Delete('planes/partida/:idPdpDet')
+  @RequierePermiso(610)
+  async eliminarPartida(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPdpDet') idPdpDet: string,
+  ) {
+    return this.planes.eliminarPartida(idPdpDet, actor.uid);
   }
 
   // ============================ Dashboard gráfico (620) ============================

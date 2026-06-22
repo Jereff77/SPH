@@ -4,11 +4,16 @@ import {
   ventasApi,
   hoyMexico,
   nombreInversionista,
+  TIPOS_PAGO,
+  type CabeceraPdp,
   type InversionistaInput,
   type InversionistaOpt,
+  type PagoVentaRow,
   type PropiedadRow,
+  type TipoPago,
 } from './ventas.api';
 import { Tabs, type TabDef } from '@/components/Tabs';
+import { InputFecha } from '@/components/InputFecha';
 
 const SUBTABS: TabDef[] = [
   { id: 'datos', label: 'Datos Generales' },
@@ -37,7 +42,7 @@ export function ConfigPropietarioModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[92vh] w-full max-w-3xl overflow-auto rounded-2xl bg-white shadow-xl">
+      <div className="max-h-[92vh] w-full max-w-6xl overflow-auto rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b bg-[#1f2a4d] px-5 py-3 text-white">
           <h2 className="text-base font-semibold">
             Configuración · {nombreInversionista(inversionista)}
@@ -478,11 +483,12 @@ function PropiedadesTab({
                     <span className="font-semibold text-[#3f5b87]">{nombre}</span>
                   </p>
                   <div className="flex items-center gap-1.5">
-                    {p.tienenPdp && <Chip texto="PDP" />}
+                    {(p.tienenPdp || p.idPdp) && <Chip texto="PDP" />}
                     {p.tieneRgPdp && <Chip texto="Rta. G." />}
                     {p.tieneRaPdp && <Chip texto="Rta. A." />}
-                    {/* Desvincular: solo si la nave NO tiene plan de pagos. */}
-                    {!p.tienenPdp && (
+                    {/* Desvincular: solo si la nave NO tiene plan de pagos (ni la
+                        bandera ni idPdp; la bandera no es fiable en datos de v1). */}
+                    {!p.tienenPdp && !p.idPdp && (
                       <button
                         type="button"
                         onClick={() => desvincular(p)}
@@ -498,15 +504,12 @@ function PropiedadesTab({
                 </div>
 
                 <div className="flex gap-4 p-4">
-                  {/* Columna: número grande + nombre + situación de la nave */}
+                  {/* Columna: número de nave (numNaveNAME) + situación. */}
                   <div className="flex w-24 shrink-0 flex-col items-center justify-center text-center">
-                    <span className="text-4xl font-bold leading-none text-[#1f2a4d]">
-                      {p.nave?.numNave ?? '—'}
-                    </span>
-                    <span className="mt-1 text-xs text-gray-500">Nave</span>
-                    <span className="text-sm font-semibold text-[#3f5b87]">
+                    <span className="text-3xl font-bold leading-none text-[#1f2a4d]">
                       {p.nave?.numNaveNAME ?? '—'}
                     </span>
+                    <span className="mt-1 text-xs text-gray-500">Nave</span>
                     {sit && (
                       <span className={`mt-0.5 text-[11px] font-medium ${colorSit}`}>{sit}</span>
                     )}
@@ -552,16 +555,139 @@ function Chip({ texto }: { texto: string }) {
   );
 }
 
-// ----------------------------- Plan de Pagos (crear) -----------------------------
+// ----------------------------- Plan de Pagos (crear + previsualizar) -----------------------------
 
+const monedaMXN = (n: number | null | undefined) =>
+  (n ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+
+const fechaCortaV = (iso: string | null): string => {
+  if (!iso) return '—';
+  const p = (iso.split('T')[0] ?? iso).split('-');
+  return p.length === 3 ? `${Number(p[2])}/${Number(p[1])}/${p[0]}` : iso;
+};
+
+/**
+ * Tab "Plan de Pagos" (Configuración del PDP) — réplica del layout de 2 columnas de
+ * Arrendatarios: a la izquierda el formulario (Generales si la propiedad no tiene plan;
+ * cabecera + Activar/Desactivar si ya lo tiene) y a la derecha la **Previsualización** de
+ * la corrida (parcialidades), que funciona incluso con el plan recién creado e inactivo.
+ */
 function PlanPagosTab({ id, onCambio }: { id: string; onCambio: () => void }) {
-  const queryClient = useQueryClient();
   const { data: props = [] } = useQuery({
     queryKey: ['ventas-propiedades', id],
     queryFn: () => ventasApi.propiedades(id),
   });
 
   const [idPropiedad, setIdPropiedad] = useState('');
+  // El plan recién creado nace inactivo; `creado` muestra la previsualización
+  // mientras la corrida se refresca (anti-carrera).
+  const [creado, setCreado] = useState(false);
+  const propSel = props.find((p) => p.idPropiedad === idPropiedad) ?? null;
+
+  // Corrida real de la propiedad (parcialidades de `pdpDetalle`). Es la MISMA
+  // fuente que la pestaña principal de Planes, por eso detecta planes que la
+  // bandera `propiedades.tienenPdp` no refleja (desincronizada en datos de v1).
+  const { data: corrida = [], isLoading: cargandoCorrida } = useQuery({
+    queryKey: ['ventas-plan', idPropiedad],
+    queryFn: () => ventasApi.plan(idPropiedad),
+    enabled: !!idPropiedad,
+  });
+
+  // "Con plan" = hay corrida, o la propiedad ya tiene un PDP vinculado (idPdp),
+  // o se acaba de crear. NO se confía solo en `tienenPdp` (no es fiable en v1).
+  const conPlan = corrida.length > 0 || !!propSel?.idPdp || creado;
+  // El plan solo se edita cuando está INACTIVO (activo = congelado, como v1).
+  const activo = propSel?.pdpActivo === true;
+  const editable = conPlan && !activo;
+  // Total del plan (pdp.monto, viene en cada fila como `montototal`) y suma de partidas.
+  const totalPlan = corrida.find((r) => r.montototal != null)?.montototal ?? 0;
+  const sumaPartidas = corrida.reduce((s, r) => s + (r.monto ?? 0), 0);
+
+  return (
+    <div className="space-y-3">
+      <label className="block text-xs text-gray-600">
+        Propiedad / Nave
+        <select
+          value={idPropiedad}
+          onChange={(e) => {
+            setIdPropiedad(e.target.value);
+            setCreado(false);
+          }}
+          className="mt-1 block w-full rounded border px-2 py-1.5 text-sm sm:w-96"
+        >
+          <option value="">Selecciona una propiedad…</option>
+          {props.map((p) => (
+            <option key={p.idPropiedad} value={p.idPropiedad}>
+              {p.nomDescriptivo ?? p.nave?.numNaveNAME ?? p.idPropiedad}
+              {p.tienenPdp || p.idPdp ? ' (con plan)' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {!propSel ? (
+        <p className="py-4 text-center text-sm text-gray-400">
+          Selecciona una propiedad para crear o administrar su plan de pagos.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {/* Columna izquierda: formulario (crear) o acciones (plan existente). */}
+          <div className="space-y-4">
+            {conPlan ? (
+              <PlanCabeceraAccionesVenta
+                key={propSel.idPropiedad}
+                prop={propSel}
+                idInversionista={id}
+                activo={activo}
+                editable={editable}
+                totalPlan={totalPlan}
+                sumaPartidas={sumaPartidas}
+                onCambio={onCambio}
+              />
+            ) : (
+              <GeneralesVentaForm
+                key={propSel.idPropiedad}
+                prop={propSel}
+                idInversionista={id}
+                onCreado={() => {
+                  setCreado(true);
+                  onCambio();
+                }}
+              />
+            )}
+          </div>
+
+          {/* Columna derecha: previsualización (editable si el plan está inactivo). */}
+          <PreviewCorridaVenta
+            key={propSel.idPropiedad}
+            idPropiedad={idPropiedad}
+            idInversionista={id}
+            data={corrida}
+            isLoading={cargandoCorrida}
+            mostrar={conPlan}
+            editable={editable}
+            totalPlan={totalPlan}
+            sumaPartidas={sumaPartidas}
+            onCambio={onCambio}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ----------------------------- Generales (crear) -----------------------------
+
+function GeneralesVentaForm({
+  prop,
+  idInversionista,
+  onCreado,
+}: {
+  prop: PropiedadRow;
+  idInversionista: string;
+  onCreado: () => void;
+}) {
+  const queryClient = useQueryClient();
   const [terreno, setTerreno] = useState('');
   const [obra, setObra] = useState('');
   const [cantPagos, setCantPagos] = useState(1);
@@ -570,37 +696,37 @@ function PlanPagosTab({ id, onCambio }: { id: string; onCambio: () => void }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
 
-  const propSel = props.find((p) => p.idPropiedad === idPropiedad);
-  const sinPlan = props.filter((p) => !p.tienenPdp);
+  // montoTotal = terreno + obra*1.16 (IVA 16% solo a la obra), como v1.
   const montoTotal = (Number(terreno) || 0) + (Number(obra) || 0) * 1.16;
   const ivaObra = (Number(obra) || 0) * 0.16;
+  const porParcialidad =
+    cantPagos > 0 ? Math.round((montoTotal / cantPagos) * 100) / 100 : 0;
 
   async function crear(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setMsg(null);
-    if (!idPropiedad || !propSel?.idNave) {
-      setError('Selecciona una propiedad con nave.');
+    if (!prop.idNave) {
+      setError('La propiedad no tiene una nave asociada.');
       return;
     }
     setGuardando(true);
     try {
       await ventasApi.crearPlanPagos({
-        idPropiedad,
-        idNave: propSel.idNave,
-        idInversionista: id,
+        idPropiedad: prop.idPropiedad,
+        idNave: prop.idNave,
+        idInversionista,
         terreno: Number(terreno) || 0,
         obra: Number(obra) || 0,
         cantPagos,
         fechaPrimerPago,
       });
       setMsg('Plan de pagos creado correctamente.');
-      setTerreno('');
-      setObra('');
-      setCantPagos(1);
-      setIdPropiedad('');
-      await queryClient.invalidateQueries({ queryKey: ['ventas-propiedades', id] });
-      onCambio();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['ventas-propiedades', idInversionista] }),
+        queryClient.invalidateQueries({ queryKey: ['ventas-plan', prop.idPropiedad] }),
+      ]);
+      onCreado();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo crear el plan.');
     } finally {
@@ -608,28 +734,13 @@ function PlanPagosTab({ id, onCambio }: { id: string; onCambio: () => void }) {
     }
   }
 
-  const moneda = (n: number) =>
-    n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
-
   return (
-    <form onSubmit={crear} className="space-y-4">
-      <label className="block text-xs text-gray-600">
-        Propiedad (sin plan)
-        <select
-          value={idPropiedad}
-          onChange={(e) => setIdPropiedad(e.target.value)}
-          className="mt-1 block w-full rounded border px-2 py-1.5 text-sm"
-        >
-          <option value="">Selecciona una propiedad…</option>
-          {sinPlan.map((p) => (
-            <option key={p.idPropiedad} value={p.idPropiedad}>
-              {p.nomDescriptivo ?? p.idPropiedad}
-            </option>
-          ))}
-        </select>
-      </label>
+    <form onSubmit={crear} className="space-y-3 rounded-lg border bg-gray-50 p-4">
+      <p className="border-l-4 border-[#1f2a4d] bg-[#1f2a4d]/10 px-2 py-1.5 text-sm font-semibold text-[#1f2a4d]">
+        Generales · {prop.nomDescriptivo ?? prop.nave?.numNaveNAME ?? 'Nave'}
+      </p>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3">
         <label className="text-xs text-gray-600">
           Terreno
           <input
@@ -642,7 +753,7 @@ function PlanPagosTab({ id, onCambio }: { id: string; onCambio: () => void }) {
           />
         </label>
         <label className="text-xs text-gray-600">
-          Obra (+ IVA {moneda(ivaObra)})
+          Obra (+ IVA {monedaMXN(ivaObra)})
           <input
             type="number"
             step="0.01"
@@ -652,12 +763,6 @@ function PlanPagosTab({ id, onCambio }: { id: string; onCambio: () => void }) {
             placeholder="0.00"
           />
         </label>
-        <div className="text-xs text-gray-600">
-          TOTAL
-          <div className="mt-1 rounded border bg-gray-50 px-2 py-1.5 text-right text-sm font-semibold">
-            {moneda(montoTotal)}
-          </div>
-        </div>
         <label className="text-xs text-gray-600">
           Cantidad de pagos
           <select
@@ -674,17 +779,25 @@ function PlanPagosTab({ id, onCambio }: { id: string; onCambio: () => void }) {
         </label>
         <label className="text-xs text-gray-600">
           Fecha del 1er pago
-          <input
-            type="date"
+          <InputFecha
             value={fechaPrimerPago}
-            onChange={(e) => setFechaPrimerPago(e.target.value)}
+            onChange={(iso) => setFechaPrimerPago(iso)}
             className="mt-1 block w-full rounded border px-2 py-1.5 text-sm"
           />
         </label>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="text-xs text-gray-600">
+          TOTAL
+          <div className="mt-1 rounded border bg-white px-2 py-1.5 text-right text-sm font-semibold">
+            {monedaMXN(montoTotal)}
+          </div>
+        </div>
         <div className="text-xs text-gray-600">
           Por parcialidad
-          <div className="mt-1 rounded border bg-gray-50 px-2 py-1.5 text-right text-sm">
-            {moneda(cantPagos > 0 ? Math.round((montoTotal / cantPagos) * 100) / 100 : 0)}
+          <div className="mt-1 rounded border bg-white px-2 py-1.5 text-right text-sm">
+            {monedaMXN(porParcialidad)}
           </div>
         </div>
       </div>
@@ -701,5 +814,598 @@ function PlanPagosTab({ id, onCambio }: { id: string; onCambio: () => void }) {
         </button>
       </div>
     </form>
+  );
+}
+
+// ----------------------------- Acciones del plan existente -----------------------------
+
+function PlanCabeceraAccionesVenta({
+  prop,
+  idInversionista,
+  activo,
+  editable,
+  totalPlan,
+  sumaPartidas,
+  onCambio,
+}: {
+  prop: PropiedadRow;
+  idInversionista: string;
+  activo: boolean;
+  editable: boolean;
+  totalPlan: number;
+  sumaPartidas: number;
+  onCambio: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [accion, setAccion] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Cabecera del PDP (Terreno/Obra) para editar los montos del plan.
+  const { data: cab } = useQuery({
+    queryKey: ['ventas-pdp-cab', prop.idPropiedad],
+    queryFn: () => ventasApi.cabeceraPdp(prop.idPropiedad),
+    enabled: !!prop.idPropiedad,
+  });
+
+  const refrescar = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['ventas-propiedades', idInversionista] }),
+      queryClient.invalidateQueries({ queryKey: ['ventas-plan', prop.idPropiedad] }),
+      queryClient.invalidateQueries({ queryKey: ['ventas-pdp-cab', prop.idPropiedad] }),
+    ]);
+
+  const diferencia = sumaPartidas - totalPlan;
+  const descuadre = Math.abs(diferencia) > 0.05;
+
+  async function toggle() {
+    setAccion(true);
+    setError(null);
+    try {
+      await ventasApi.setActivoPlan(prop.idPropiedad, !activo);
+      await refrescar();
+      onCambio();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cambiar el estado del plan.');
+    } finally {
+      setAccion(false);
+    }
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border bg-white text-sm">
+      <p className="border-l-4 border-sky-500 bg-sky-50 px-3 py-2 font-semibold text-sky-800">
+        Plan de Pagos · {prop.nomDescriptivo ?? prop.nave?.numNaveNAME ?? 'Nave'}
+      </p>
+      <div className="space-y-3 p-4">
+        <p className="text-xs text-gray-500">
+          Estado: <span className="font-semibold">{activo ? 'Activo' : 'Inactivo'}</span>
+        </p>
+
+        {/* Montos del plan (Terreno/Obra/Total): editables solo si el plan está inactivo. */}
+        {editable && cab ? (
+          <MontosPlanForm
+            idPropiedad={prop.idPropiedad}
+            cab={cab}
+            onGuardado={() => {
+              void refrescar();
+              onCambio();
+            }}
+          />
+        ) : (
+          <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+            <div>
+              Total del plan
+              <div className="mt-0.5 rounded border bg-gray-50 px-2 py-1 text-right font-semibold">
+                {monedaMXN(totalPlan)}
+              </div>
+            </div>
+            <div>
+              Suma partidas
+              <div className="mt-0.5 rounded border bg-gray-50 px-2 py-1 text-right font-semibold">
+                {monedaMXN(sumaPartidas)}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Cuadre suma de partidas vs total del plan (regla para activar). */}
+        {descuadre ? (
+          <p className="rounded bg-red-50 px-2 py-1 text-[11px] text-red-700">
+            La suma de las partidas ({monedaMXN(sumaPartidas)}) no coincide con el total del plan
+            ({monedaMXN(totalPlan)}). Diferencia {monedaMXN(diferencia)}. Ajústalas para poder activar.
+          </p>
+        ) : (
+          <p className="rounded bg-green-50 px-2 py-1 text-[11px] text-green-700">
+            La suma de las partidas cuadra con el total del plan (±$0.05).
+          </p>
+        )}
+
+        {/* Activar / Desactivar */}
+        <div className="flex flex-wrap items-center gap-2">
+          {activo ? (
+            <button
+              type="button"
+              disabled={accion}
+              onClick={toggle}
+              className="rounded-lg border border-amber-500 px-3 py-1.5 text-xs font-medium text-amber-600 hover:bg-amber-50 disabled:opacity-50"
+            >
+              {accion ? 'Guardando…' : 'Desactivar (permite editar)'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={accion || descuadre}
+              onClick={toggle}
+              title={descuadre ? 'La suma de las partidas debe cuadrar con el total del plan' : undefined}
+              className="rounded-lg border border-green-600 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:opacity-50"
+            >
+              {accion ? 'Guardando…' : 'Activar'}
+            </button>
+          )}
+        </div>
+
+        <p className="text-[11px] text-gray-500">
+          {activo
+            ? 'Plan activo: entra a la cobranza del Dashboard y queda congelado (no editable).'
+            : 'Plan inactivo: puedes editar montos, fechas y partidas. Actívalo cuando cuadre.'}
+        </p>
+        {error && <p className="text-xs text-red-600">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------- Editar Terreno/Obra del plan -----------------------------
+
+function MontosPlanForm({
+  idPropiedad,
+  cab,
+  onGuardado,
+}: {
+  idPropiedad: string;
+  cab: CabeceraPdp;
+  onGuardado: () => void;
+}) {
+  const [terreno, setTerreno] = useState(String(cab.montoterreno ?? ''));
+  const [obra, setObra] = useState(String(cab.montoobra ?? ''));
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const total = (Number(terreno) || 0) + (Number(obra) || 0) * 1.16;
+  const ivaObra = (Number(obra) || 0) * 0.16;
+  const cambiado = (Number(terreno) || 0) !== cab.montoterreno || (Number(obra) || 0) !== cab.montoobra;
+
+  async function guardar() {
+    setGuardando(true);
+    setError(null);
+    try {
+      await ventasApi.editarMontosPlan(idPropiedad, Number(terreno) || 0, Number(obra) || 0);
+      onGuardado();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudieron guardar los montos.');
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border bg-gray-50 p-3">
+      <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+        <label>
+          Terreno
+          <input
+            type="number"
+            step="0.01"
+            value={terreno}
+            onChange={(e) => setTerreno(e.target.value)}
+            className="mt-0.5 block w-full rounded border px-2 py-1 text-right text-sm"
+            placeholder="0.00"
+          />
+        </label>
+        <label>
+          Obra (+ IVA {monedaMXN(ivaObra)})
+          <input
+            type="number"
+            step="0.01"
+            value={obra}
+            onChange={(e) => setObra(e.target.value)}
+            className="mt-0.5 block w-full rounded border px-2 py-1 text-right text-sm"
+            placeholder="0.00"
+          />
+        </label>
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-gray-600">
+          Total: <span className="font-semibold">{monedaMXN(total)}</span>
+        </span>
+        <button
+          type="button"
+          disabled={guardando || !cambiado}
+          onClick={guardar}
+          className="rounded border border-[#1f2a4d] px-2 py-1 text-xs font-medium text-[#1f2a4d] hover:bg-[#1f2a4d] hover:text-white disabled:opacity-40"
+        >
+          {guardando ? 'Guardando…' : 'Guardar montos'}
+        </button>
+      </div>
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+// ----------------------------- Previsualización de la corrida (editable si inactivo) -----------------------------
+
+/** Botones ✓/✕ para confirmar o cancelar la edición de una celda. */
+function ControlesCelda({
+  ocupado,
+  onConfirmar,
+  onCancelar,
+}: {
+  ocupado: boolean;
+  onConfirmar: () => void;
+  onCancelar: () => void;
+}) {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onConfirmar}
+        disabled={ocupado}
+        title="Confirmar"
+        aria-label="Confirmar"
+        className="rounded bg-[#90BF32]/20 px-1 text-sm font-bold text-[#3f5b1a] hover:bg-[#90BF32]/40 disabled:opacity-50"
+      >
+        ✓
+      </button>
+      <button
+        type="button"
+        onClick={onCancelar}
+        title="Cancelar"
+        aria-label="Cancelar"
+        className="rounded bg-gray-100 px-1 text-sm font-bold text-gray-500 hover:bg-gray-200"
+      >
+        ✕
+      </button>
+    </>
+  );
+}
+
+function PreviewCorridaVenta({
+  idPropiedad,
+  idInversionista,
+  data,
+  isLoading,
+  mostrar,
+  editable,
+  totalPlan,
+  sumaPartidas,
+  onCambio,
+}: {
+  idPropiedad: string;
+  idInversionista: string;
+  data: PagoVentaRow[];
+  isLoading: boolean;
+  mostrar: boolean;
+  editable: boolean;
+  totalPlan: number;
+  sumaPartidas: number;
+  onCambio: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [edit, setEdit] = useState<
+    { id: string; campo: 'monto' | 'fecha' | 'tipo'; valor: string } | null
+  >(null);
+
+  const total = data.reduce((s, r) => s + (r.monto ?? 0), 0);
+  const descuadre = Math.abs(sumaPartidas - totalPlan) > 0.05;
+  const colSpanFull = editable ? 5 : 4;
+
+  const refrescar = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['ventas-plan', idPropiedad] }),
+      queryClient.invalidateQueries({ queryKey: ['ventas-pdp-cab', idPropiedad] }),
+      queryClient.invalidateQueries({ queryKey: ['ventas-propiedades', idInversionista] }),
+    ]);
+
+  async function ejecutar(fn: () => Promise<unknown>): Promise<boolean> {
+    setOcupado(true);
+    setError(null);
+    try {
+      await fn();
+      await refrescar();
+      onCambio();
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo guardar.');
+      return false;
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function guardarCelda(r: PagoVentaRow) {
+    if (!edit) return;
+    let fn: () => Promise<unknown>;
+    if (edit.campo === 'monto') {
+      const monto = Number(edit.valor);
+      if (!Number.isFinite(monto) || monto < 0) {
+        setError('Monto inválido.');
+        return;
+      }
+      if (monto === (r.monto ?? 0)) {
+        setEdit(null);
+        return;
+      }
+      fn = () => ventasApi.editarMontoPartida(r.idPdpDet, monto);
+    } else if (edit.campo === 'fecha') {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(edit.valor)) {
+        setError('Captura una fecha válida.');
+        return;
+      }
+      if (edit.valor === (r.fecha ?? '').slice(0, 10)) {
+        setEdit(null);
+        return;
+      }
+      fn = () => ventasApi.editarFechaPartida(r.idPdpDet, edit.valor);
+    } else {
+      if (edit.valor === r.tipoPago) {
+        setEdit(null);
+        return;
+      }
+      fn = () => ventasApi.actualizarTipoPago(r.idPdpDet, edit.valor as TipoPago);
+    }
+    if (await ejecutar(fn)) setEdit(null);
+  }
+
+  async function eliminar(idPdpDet: string) {
+    if (!window.confirm('¿Eliminar esta parcialidad? Esta acción no se puede deshacer.')) return;
+    await ejecutar(() => ventasApi.eliminarPartida(idPdpDet));
+  }
+
+  return (
+    <div className="rounded-lg border bg-white">
+      <div className="flex items-center justify-between border-b border-l-4 border-l-[#1f2a4d] bg-[#1f2a4d]/5 px-3 py-2">
+        <p className="text-sm font-semibold text-[#1f2a4d]">Previsualización</p>
+        <div className="flex items-center gap-2">
+          {editable && (
+            <button
+              type="button"
+              disabled={ocupado}
+              onClick={() => void ejecutar(() => ventasApi.agregarPartida(idPropiedad))}
+              className="rounded border border-[#1f2a4d] px-2 py-0.5 text-xs font-medium text-[#1f2a4d] hover:bg-[#1f2a4d] hover:text-white disabled:opacity-40"
+            >
+              + Agregar partida
+            </button>
+          )}
+          {mostrar && idPropiedad && (
+            <button
+              type="button"
+              onClick={() => void refrescar()}
+              title="Refrescar"
+              className="text-xs text-[#3f5b87] hover:text-[#1f2a4d]"
+            >
+              ↻
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && <p className="px-3 py-1.5 text-[11px] text-red-600">{error}</p>}
+
+      {!mostrar ? (
+        <p className="px-3 py-10 text-center text-sm text-gray-400">
+          Crea el plan para ver la previsualización de la corrida.
+        </p>
+      ) : (
+        <>
+          {editable && (
+            <p className="px-3 pt-2 text-[11px] text-gray-400">
+              Doble clic en Tipo de pago, Fecha o Monto para editar.
+            </p>
+          )}
+          <div className="overflow-auto" style={{ maxHeight: '60vh' }}>
+            <table className="min-w-full border-collapse text-xs">
+              <thead className="[&>tr>th]:sticky [&>tr>th]:top-0 [&>tr>th]:z-10 [&>tr>th]:bg-[#1f2a4d]">
+                <tr className="text-left font-semibold uppercase tracking-wide text-white">
+                  <th className="px-2 py-2 text-center">#</th>
+                  <th className="px-2 py-2 text-left">Tipo pago</th>
+                  <th className="px-2 py-2 text-left">Fecha</th>
+                  <th className="px-2 py-2 text-right">Monto</th>
+                  {editable && <th className="px-2 py-2 text-center">Opc.</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={colSpanFull} className="px-3 py-8 text-center text-gray-400">
+                      Cargando…
+                    </td>
+                  </tr>
+                ) : data.length === 0 ? (
+                  <tr>
+                    <td colSpan={colSpanFull} className="px-3 py-8 text-center text-gray-400">
+                      El plan no tiene parcialidades.
+                    </td>
+                  </tr>
+                ) : (
+                  data.map((d, i) => {
+                    const enEdic = edit?.id === d.idPdpDet;
+                    return (
+                      <tr
+                        key={d.idPdpDet}
+                        className={`${i % 2 === 1 ? 'bg-[#eef3f9]' : 'bg-white'} hover:bg-blue-50`}
+                      >
+                        <td className="px-2 py-1 text-center">{d.numPago ?? '—'}</td>
+
+                        {/* Tipo de pago */}
+                        <td className="px-2 py-1">
+                          {enEdic && edit.campo === 'tipo' ? (
+                            <div className="flex items-center gap-1">
+                              <select
+                                autoFocus
+                                value={edit.valor}
+                                disabled={ocupado}
+                                onChange={(e) =>
+                                  setEdit({ id: d.idPdpDet, campo: 'tipo', valor: e.target.value })
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') void guardarCelda(d);
+                                  if (e.key === 'Escape') setEdit(null);
+                                }}
+                                className="rounded border border-[#3f5b87] px-1 py-0.5 text-xs focus:outline-none"
+                              >
+                                {TIPOS_PAGO.map((t) => (
+                                  <option key={t} value={t}>
+                                    {t}
+                                  </option>
+                                ))}
+                              </select>
+                              <ControlesCelda
+                                ocupado={ocupado}
+                                onConfirmar={() => void guardarCelda(d)}
+                                onCancelar={() => setEdit(null)}
+                              />
+                            </div>
+                          ) : (
+                            <span
+                              onDoubleClick={
+                                editable
+                                  ? () =>
+                                      setEdit({
+                                        id: d.idPdpDet,
+                                        campo: 'tipo',
+                                        valor: (TIPOS_PAGO.includes(d.tipoPago as TipoPago)
+                                          ? d.tipoPago
+                                          : 'Parcialidad') as string,
+                                      })
+                                  : undefined
+                              }
+                              className={editable ? 'cursor-pointer rounded px-1 hover:bg-gray-100' : ''}
+                              title={editable ? 'Doble clic para editar' : undefined}
+                            >
+                              {d.tipoPago ?? '—'}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Fecha */}
+                        <td className="px-2 py-1 whitespace-nowrap">
+                          {enEdic && edit.campo === 'fecha' ? (
+                            <div className="flex items-center gap-1">
+                              <InputFecha
+                                value={edit.valor}
+                                onChange={(iso) =>
+                                  setEdit({ id: d.idPdpDet, campo: 'fecha', valor: iso })
+                                }
+                                className="w-28 rounded border border-[#3f5b87] px-1 py-0.5 text-xs"
+                              />
+                              <ControlesCelda
+                                ocupado={ocupado}
+                                onConfirmar={() => void guardarCelda(d)}
+                                onCancelar={() => setEdit(null)}
+                              />
+                            </div>
+                          ) : (
+                            <span
+                              onDoubleClick={
+                                editable
+                                  ? () =>
+                                      setEdit({
+                                        id: d.idPdpDet,
+                                        campo: 'fecha',
+                                        valor: (d.fecha ?? '').slice(0, 10),
+                                      })
+                                  : undefined
+                              }
+                              className={editable ? 'cursor-pointer rounded px-1 hover:bg-gray-100' : ''}
+                              title={editable ? 'Doble clic para editar' : undefined}
+                            >
+                              {fechaCortaV(d.fecha)}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Monto */}
+                        <td className="px-2 py-1 text-right font-medium tabular-nums">
+                          {enEdic && edit.campo === 'monto' ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <input
+                                type="number"
+                                step="0.01"
+                                autoFocus
+                                value={edit.valor}
+                                disabled={ocupado}
+                                onChange={(e) =>
+                                  setEdit({ id: d.idPdpDet, campo: 'monto', valor: e.target.value })
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') void guardarCelda(d);
+                                  if (e.key === 'Escape') setEdit(null);
+                                }}
+                                className="w-28 rounded border border-[#3f5b87] px-1 py-0.5 text-right text-xs focus:outline-none"
+                              />
+                              <ControlesCelda
+                                ocupado={ocupado}
+                                onConfirmar={() => void guardarCelda(d)}
+                                onCancelar={() => setEdit(null)}
+                              />
+                            </div>
+                          ) : (
+                            <span
+                              onDoubleClick={
+                                editable
+                                  ? () =>
+                                      setEdit({
+                                        id: d.idPdpDet,
+                                        campo: 'monto',
+                                        valor: String(d.monto ?? 0),
+                                      })
+                                  : undefined
+                              }
+                              className={editable ? 'cursor-pointer rounded px-1 hover:bg-gray-100' : ''}
+                              title={editable ? 'Doble clic para editar' : undefined}
+                            >
+                              {monedaMXN(d.monto)}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Opciones: eliminar parcialidad */}
+                        {editable && (
+                          <td className="px-2 py-1 text-center">
+                            <button
+                              type="button"
+                              disabled={ocupado}
+                              onClick={() => void eliminar(d.idPdpDet)}
+                              title="Eliminar parcialidad"
+                              aria-label="Eliminar parcialidad"
+                              className="rounded p-0.5 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                            >
+                              🗑
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+              {!isLoading && data.length > 0 && (
+                <tfoot className="[&>tr>td]:sticky [&>tr>td]:bottom-0 [&>tr>td]:bg-[#5b6b8c]">
+                  <tr className={`font-semibold ${descuadre ? 'text-amber-200' : 'text-white'}`}>
+                    <td className="px-2 py-1.5" colSpan={3}>
+                      Total{descuadre ? ' (no cuadra con el plan)' : ''}
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{monedaMXN(total)}</td>
+                    {editable && <td />}
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </>
+      )}
+    </div>
   );
 }

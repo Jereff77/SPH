@@ -20,6 +20,13 @@ const ID_ALFABETO =
 const BUCKET_DOCS = 'Documentos';
 
 /**
+ * Tolerancia (en pesos) al activar un PDP: la suma de las parcialidades puede
+ * diferir del total del plan hasta este margen (absorbe redondeos de centavos),
+ * como en v1. Más allá, no se permite activar.
+ */
+const TOLERANCIA_PDP = 0.05;
+
+/**
  * Ventas > Planes (clave 610). Selector inversionista/propiedad, lectura de los
  * 3 planes (Plan de Pagos, Renta Garantizada/Administrada) y Configuración (⚙)
  * de Datos Generales, Documentos, Propiedades y creación del Plan de Pagos.
@@ -553,17 +560,20 @@ export class PlanesService {
   /**
    * Desvincula una nave de un inversionista (elimina la propiedad) y regresa la
    * nave a 'Disponible'. Réplica de v1 (dat_naves): NO se permite si la
-   * propiedad tiene un plan de pagos (`tienenPdp=true`).
+   * propiedad tiene un plan de pagos (se valida por `idPdp`, el vínculo real).
    */
   async desvincularNave(idPropiedad: string, actorUid: string): Promise<{ ok: true }> {
     const { data: prop, error: propErr } = await this.supabase.admin
       .from('propiedades')
-      .select('idPropiedad, idNave, tienenPdp')
+      .select('idPropiedad, idNave, tienenPdp, idPdp')
       .eq('idPropiedad', idPropiedad)
       .maybeSingle();
     if (propErr) throw new InternalServerErrorException(propErr.message);
     if (!prop) throw new NotFoundException('Propiedad no encontrada.');
-    if (prop.tienenPdp)
+    // El vínculo real es `idPdp` (la bandera `tienenPdp` está desincronizada en datos
+    // de v1). Bloquear por `idPdp` evita desvincular una nave que sí tiene plan, lo que
+    // dejaría huérfanos el `pdp` y sus parcialidades (con sus pagos).
+    if (prop.tienenPdp || prop.idPdp)
       throw new BadRequestException(
         'No se puede desvincular: la nave tiene un plan de pagos activo.',
       );
@@ -646,7 +656,10 @@ export class PlanesService {
       .maybeSingle();
     if (propErr) throw new InternalServerErrorException(propErr.message);
     if (!prop) throw new NotFoundException('Propiedad no encontrada.');
-    if (prop.tienenPdp && prop.idPdp)
+    // El vínculo real es `idPdp` (la bandera `tienenPdp` está desincronizada en
+    // datos heredados de v1: hay propiedades con plan e idPdp pero tienenPdp=false).
+    // Guardar por `idPdp` evita crear un segundo PDP duplicado en esos casos.
+    if (prop.idPdp)
       throw new BadRequestException('La propiedad ya tiene un plan de pagos.');
 
     const montoTotal = dto.terreno + dto.obra * 1.16;
@@ -700,5 +713,303 @@ export class PlanesService {
     if (updErr) throw new InternalServerErrorException(updErr.message);
 
     return { idPdp };
+  }
+
+  // ----------------------------- Config: Activar/Desactivar Plan de Pagos -----------------------------
+
+  /**
+   * Activa o desactiva el Plan de Pagos de una propiedad. La bandera vigente del
+   * módulo es `propiedades.pdpActivo` (la que define el universo del Dashboard y de
+   * Planes); al activar, el plan entra a cobranza, al desactivar se libera. **NO se
+   * toca `pdp.pdpactivo`**: en producción está en `false` para TODOS los planes (no se
+   * mantiene en v2; la verdad operativa vive en `propiedades.pdpActivo`). Es el mismo
+   * patrón que Arrendatarios (toca solo su bandera de `arrenPropiedades`). No existía
+   * como acción en v2 (el plan nacía inactivo sin forma de activarlo). Auditado.
+   */
+  async setActivoPlan(
+    idPropiedad: string,
+    activo: boolean,
+    actorUid: string,
+  ): Promise<{ ok: true }> {
+    const { data: prop, error: propErr } = await this.supabase.admin
+      .from('propiedades')
+      .select('idPropiedad, idPdp')
+      .eq('idPropiedad', idPropiedad)
+      .maybeSingle();
+    if (propErr) throw new InternalServerErrorException(propErr.message);
+    if (!prop) throw new NotFoundException('Propiedad no encontrada.');
+    // El vínculo real es `idPdp` (la bandera `tienenPdp` no es confiable en datos de
+    // v1: puede estar en false con un plan ya vinculado). Validar por `idPdp`.
+    if (!prop.idPdp)
+      throw new BadRequestException('La propiedad no tiene un plan de pagos.');
+
+    // Al ACTIVAR, la suma de las parcialidades debe cuadrar con el total del plan
+    // (tolerancia ±TOLERANCIA_PDP), como v1. Al desactivar no se valida.
+    if (activo) {
+      const [{ data: pdpRow, error: pErr }, { data: dets, error: dErr }] = await Promise.all([
+        this.supabase.admin.from('pdp').select('monto').eq('idPdp', prop.idPdp).maybeSingle(),
+        this.supabase.admin
+          .from('pdpDetalle')
+          .select('monto')
+          .eq('idPdp', prop.idPdp)
+          .eq('status', true),
+      ]);
+      if (pErr) throw new InternalServerErrorException(pErr.message);
+      if (dErr) throw new InternalServerErrorException(dErr.message);
+      const total = pdpRow?.monto ?? 0;
+      const suma = (dets ?? []).reduce((s, d) => s + (d.monto ?? 0), 0);
+      if (Math.abs(suma - total) > TOLERANCIA_PDP)
+        throw new BadRequestException(
+          `No se puede activar: la suma de las parcialidades (${suma.toFixed(2)}) no coincide ` +
+            `con el total del plan (${total.toFixed(2)}). Ajusta los montos antes de activar.`,
+        );
+    }
+
+    const db = this.supabase.comoActor(actorUid);
+    const { error: upPropErr } = await db
+      .from('propiedades')
+      .update({ pdpActivo: activo })
+      .eq('idPropiedad', idPropiedad);
+    if (upPropErr) throw new InternalServerErrorException(upPropErr.message);
+
+    // Bitácora de actividad (secundaria; no interrumpe el cambio si falla).
+    await db.from('actividad').insert({
+      uid: actorUid,
+      entorno: 3,
+      logeado: true,
+      pantalla: 'Planes',
+      widget: 'Button',
+      nomwidget: activo ? 'Activar PDP' : 'Desactivar PDP',
+      comentario: `Se ${activo ? 'activó' : 'desactivó'} el plan de pagos de la propiedad ${idPropiedad} (idPdp ${prop.idPdp}).`,
+      version: 'erp-v2',
+    });
+
+    return { ok: true };
+  }
+
+  // ----------------------------- Config: Edición del PDP (solo plan inactivo) -----------------------------
+
+  /**
+   * Cabecera del PDP de una propiedad (montos editables + estado). Devuelve null si
+   * la propiedad no tiene plan. Se usa para mostrar/editar Terreno/Obra/Total.
+   */
+  async cabeceraPdp(idPropiedad: string) {
+    const { data: prop, error } = await this.supabase.admin
+      .from('propiedades')
+      .select('idPdp, pdpActivo')
+      .eq('idPropiedad', idPropiedad)
+      .maybeSingle();
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!prop?.idPdp) return null;
+    const { data: pdp, error: pdpErr } = await this.supabase.admin
+      .from('pdp')
+      .select('idPdp, montoterreno, montoobra, monto, cantpagos')
+      .eq('idPdp', prop.idPdp)
+      .maybeSingle();
+    if (pdpErr) throw new InternalServerErrorException(pdpErr.message);
+    if (!pdp) return null;
+    return {
+      idPdp: pdp.idPdp,
+      montoterreno: pdp.montoterreno ?? 0,
+      montoobra: pdp.montoobra ?? 0,
+      monto: pdp.monto ?? 0,
+      cantpagos: pdp.cantpagos ?? 0,
+      pdpActivo: prop.pdpActivo === true,
+    };
+  }
+
+  /**
+   * Verifica que la propiedad tenga plan e **inactivo** (editable). Devuelve la
+   * propiedad (con `idPdp`). Un plan activo está "congelado": no se edita (como v1).
+   */
+  private async asegurarPlanInactivo(idPropiedad: string | null) {
+    if (!idPropiedad) throw new BadRequestException('Falta la propiedad.');
+    const { data: prop, error } = await this.supabase.admin
+      .from('propiedades')
+      .select('idPropiedad, idPdp, pdpActivo')
+      .eq('idPropiedad', idPropiedad)
+      .maybeSingle();
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!prop) throw new NotFoundException('Propiedad no encontrada.');
+    if (!prop.idPdp) throw new BadRequestException('La propiedad no tiene un plan de pagos.');
+    if (prop.pdpActivo === true)
+      throw new BadRequestException('El plan está activo. Desactívalo para poder editarlo.');
+    return prop as { idPropiedad: string; idPdp: string; pdpActivo: boolean | null };
+  }
+
+  /** Lee una parcialidad y valida que su plan esté inactivo. Devuelve la parcialidad. */
+  private async partidaEditable(idPdpDet: string) {
+    const { data: det, error } = await this.supabase.admin
+      .from('pdpDetalle')
+      .select('idPdpDet, idPdp, idPropiedad, status')
+      .eq('idPdpDet', idPdpDet)
+      .maybeSingle();
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!det || det.status === false) throw new NotFoundException('Parcialidad no encontrada.');
+    await this.asegurarPlanInactivo(det.idPropiedad);
+    return det;
+  }
+
+  /** Bitácora de actividad de la edición del plan (secundaria; no interrumpe si falla). */
+  private async registrarActividadPlan(actorUid: string, comentario: string): Promise<void> {
+    await this.supabase.comoActor(actorUid).from('actividad').insert({
+      uid: actorUid,
+      entorno: 3,
+      logeado: true,
+      pantalla: 'Planes',
+      widget: 'config',
+      nomwidget: 'Plan de Pagos',
+      comentario,
+      version: 'erp-v2',
+    });
+  }
+
+  /** Edita Terreno/Obra del plan y recalcula el total (= terreno + obra*1.16). */
+  async editarMontosPlan(
+    idPropiedad: string,
+    terreno: number,
+    obra: number,
+    actorUid: string,
+  ): Promise<{ ok: true; monto: number }> {
+    const prop = await this.asegurarPlanInactivo(idPropiedad);
+    const monto = terreno + obra * 1.16;
+    const { error } = await this.supabase
+      .comoActor(actorUid)
+      .from('pdp')
+      .update({ montoterreno: terreno, montoobra: obra, monto })
+      .eq('idPdp', prop.idPdp);
+    if (error) throw new InternalServerErrorException(error.message);
+    await this.registrarActividadPlan(
+      actorUid,
+      `Se actualizan montos del plan (terreno ${terreno}, obra ${obra}) | idPdp${prop.idPdp}`,
+    );
+    return { ok: true, monto };
+  }
+
+  /** Edita el monto de una parcialidad (solo plan inactivo). */
+  async editarMontoPartida(
+    idPdpDet: string,
+    monto: number,
+    actorUid: string,
+  ): Promise<{ ok: true }> {
+    await this.partidaEditable(idPdpDet);
+    const { error } = await this.supabase
+      .comoActor(actorUid)
+      .from('pdpDetalle')
+      .update({ monto })
+      .eq('idPdpDet', idPdpDet);
+    if (error) throw new InternalServerErrorException(error.message);
+    await this.registrarActividadPlan(actorUid, `Se actualiza monto de parcialidad a ${monto} | idPdpDet${idPdpDet}`);
+    return { ok: true };
+  }
+
+  /** Edita la fecha de una parcialidad (solo plan inactivo). */
+  async editarFechaPartida(
+    idPdpDet: string,
+    fecha: string,
+    actorUid: string,
+  ): Promise<{ ok: true }> {
+    await this.partidaEditable(idPdpDet);
+    const { error } = await this.supabase
+      .comoActor(actorUid)
+      .from('pdpDetalle')
+      .update({ fecha })
+      .eq('idPdpDet', idPdpDet);
+    if (error) throw new InternalServerErrorException(error.message);
+    await this.registrarActividadPlan(actorUid, `Se actualiza fecha de parcialidad a ${fecha} | idPdpDet${idPdpDet}`);
+    return { ok: true };
+  }
+
+  /**
+   * Agrega una parcialidad al final del plan (solo inactivo): `numPago` = última+1,
+   * `fecha` = mes siguiente a la última, `monto` = 0 (el usuario lo ajusta),
+   * `tipoPago` = 'Parcialidad'. Incrementa `pdp.cantpagos`.
+   */
+  async agregarPartida(idPropiedad: string, actorUid: string): Promise<{ idPdpDet: string }> {
+    const prop = await this.asegurarPlanInactivo(idPropiedad);
+    const { data: dets, error } = await this.supabase.admin
+      .from('pdpDetalle')
+      .select('numPago, fecha, idNave, idInversionista, idVendedor')
+      .eq('idPdp', prop.idPdp)
+      .eq('status', true)
+      .order('numPago', { ascending: false })
+      .limit(1);
+    if (error) throw new InternalServerErrorException(error.message);
+    const ultima = dets?.[0];
+    const numPago = (ultima?.numPago ?? 0) + 1;
+    let fecha: string;
+    if (ultima?.fecha) {
+      const [y, m, d] = ultima.fecha.slice(0, 10).split('-').map(Number);
+      fecha = this.aISO(this.siguienteMes(new Date(Date.UTC(y!, m! - 1, d!))));
+    } else {
+      fecha = new Date().toISOString().slice(0, 10);
+    }
+
+    const db = this.supabase.comoActor(actorUid);
+    const idPdpDet = this.generarId(15);
+    const { error: insErr } = await db.from('pdpDetalle').insert({
+      idPdpDet,
+      uid: actorUid,
+      status: true,
+      idPdp: prop.idPdp,
+      numPago,
+      fecha,
+      monto: 0,
+      tipoPago: 'Parcialidad',
+      idPropiedad,
+      idNave: ultima?.idNave ?? null,
+      idInversionista: ultima?.idInversionista ?? null,
+      idVendedor: ultima?.idVendedor ?? null,
+    });
+    if (insErr) throw new InternalServerErrorException(insErr.message);
+
+    // Incrementar cantpagos del PDP.
+    const { data: pdpRow } = await this.supabase.admin
+      .from('pdp')
+      .select('cantpagos')
+      .eq('idPdp', prop.idPdp)
+      .maybeSingle();
+    await db
+      .from('pdp')
+      .update({ cantpagos: (pdpRow?.cantpagos ?? numPago - 1) + 1 })
+      .eq('idPdp', prop.idPdp);
+
+    await this.registrarActividadPlan(actorUid, `Se agrega parcialidad ${numPago} | idPdp${prop.idPdp}`);
+    return { idPdpDet };
+  }
+
+  /**
+   * Elimina una parcialidad (solo plan inactivo y sin pagos registrados, como v1).
+   * Decrementa `pdp.cantpagos`.
+   */
+  async eliminarPartida(idPdpDet: string, actorUid: string): Promise<{ ok: true }> {
+    const det = await this.partidaEditable(idPdpDet);
+
+    const { count, error: pagErr } = await this.supabase.admin
+      .from('pagos')
+      .select('idPago', { count: 'exact', head: true })
+      .eq('idPdpDet', idPdpDet);
+    if (pagErr) throw new InternalServerErrorException(pagErr.message);
+    if ((count ?? 0) > 0)
+      throw new BadRequestException('No se puede eliminar: la parcialidad tiene pagos registrados.');
+
+    const db = this.supabase.comoActor(actorUid);
+    const { error } = await db.from('pdpDetalle').delete().eq('idPdpDet', idPdpDet);
+    if (error) throw new InternalServerErrorException(error.message);
+
+    if (det.idPdp) {
+      const { data: pdpRow } = await this.supabase.admin
+        .from('pdp')
+        .select('cantpagos')
+        .eq('idPdp', det.idPdp)
+        .maybeSingle();
+      await db
+        .from('pdp')
+        .update({ cantpagos: Math.max(1, (pdpRow?.cantpagos ?? 1) - 1) })
+        .eq('idPdp', det.idPdp);
+    }
+
+    await this.registrarActividadPlan(actorUid, `Se elimina parcialidad | idPdpDet${idPdpDet}`);
+    return { ok: true };
   }
 }
