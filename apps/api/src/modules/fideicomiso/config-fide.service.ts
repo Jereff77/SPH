@@ -118,6 +118,14 @@ export class ConfigFideService {
   async guardarCondiciones(dto: CondicionesDto, actorUid: string): Promise<{ ok: true }> {
     const db = this.supabase.comoActor(actorUid);
     const noAdhesion = dto.noAdhesion.toUpperCase();
+    const idFide = await this.idFideActivo();
+
+    // ⛔ Una adhesión pertenece a UN solo inversionista: no permitir reutilizar un
+    // número ya asignado a la propiedad de OTRO inversionista. Las RPCs de
+    // Dispersión agrupan por `noAdhesion` (1 adhesión = 1 inversionista); compartir
+    // número mezcla las aportaciones de dos personas en el mismo desglose.
+    await this.validarAdhesionUnica(noAdhesion, dto.idPropiedad, idFide, dto.idfideCond);
+
     if (dto.idfideCond) {
       const { error } = await db
         .from('fideCondiciones')
@@ -144,12 +152,77 @@ export class ConfigFideService {
         PM: dto.pm,
         comentarios: dto.comentarios ?? '',
         uid: actorUid,
-        idFide: await this.idFideActivo(),
+        idFide,
         'Prom9%': dto.prom9,
       });
       if (error) throw new InternalServerErrorException(error.message);
     }
     return { ok: true };
+  }
+
+  /**
+   * Verifica que el número de adhesión NO esté asignado a una propiedad de otro
+   * inversionista dentro del mismo fideicomiso. Es legítimo que un mismo
+   * inversionista tenga varias propiedades/tickets bajo el mismo número (p. ej.
+   * adhesión "B" con 9 tickets de un solo inversionista); lo que se bloquea es
+   * que DOS inversionistas distintos compartan número (rompe el desglose de
+   * Dispersiones, que agrupa por `noAdhesion`).
+   */
+  private async validarAdhesionUnica(
+    noAdhesion: string,
+    idPropiedad: string,
+    idFide: string,
+    idfideCondActual?: string,
+  ): Promise<void> {
+    // Inversionista de la propiedad que se está configurando.
+    const { data: propActual, error: pErr } = await this.supabase.admin
+      .from('propiedades')
+      .select('idInversionista')
+      .eq('idPropiedad', idPropiedad)
+      .maybeSingle();
+    if (pErr) throw new InternalServerErrorException(pErr.message);
+    const idInvActual = propActual?.idInversionista ?? null;
+    if (!idInvActual) return; // sin inversionista no hay con quién comparar
+
+    // Otras condiciones con el mismo número de adhesión en el fideicomiso.
+    const { data: existentes, error: cErr } = await this.supabase.admin
+      .from('fideCondiciones')
+      .select('idfideCond, idPropiedad')
+      .eq('idFide', idFide)
+      .eq('noAdhesion', noAdhesion);
+    if (cErr) throw new InternalServerErrorException(cErr.message);
+
+    const otras = (existentes ?? []).filter(
+      (e) => e.idfideCond !== idfideCondActual && e.idPropiedad !== idPropiedad,
+    );
+    if (otras.length === 0) return;
+
+    // Inversionistas dueños de esas otras propiedades.
+    const idsProp = [...new Set(otras.map((e) => e.idPropiedad).filter((x): x is string => !!x))];
+    const { data: props } = await this.supabase.admin
+      .from('propiedades')
+      .select('idPropiedad, idInversionista')
+      .in('idPropiedad', idsProp);
+    const conflicto = (props ?? []).find(
+      (p) => p.idInversionista && p.idInversionista !== idInvActual,
+    );
+    if (!conflicto) return; // las otras propiedades son del MISMO inversionista → permitido
+
+    // Nombre del inversionista en conflicto, para un mensaje claro.
+    const { data: inv } = await this.supabase.admin
+      .from('inversionista')
+      .select('razonsocial, nombre, apellido1')
+      .eq('idInversionista', conflicto.idInversionista!)
+      .maybeSingle();
+    const nombre =
+      (inv?.razonsocial?.trim()
+        ? inv.razonsocial
+        : [inv?.nombre, inv?.apellido1].filter(Boolean).join(' ')) || 'otro inversionista';
+
+    throw new BadRequestException(
+      `El número de adhesión "${noAdhesion}" ya está asignado a ${nombre}. ` +
+        'Cada adhesión pertenece a un solo inversionista.',
+    );
   }
 
   // --------------------------- Naves / Propiedades ---------------------------

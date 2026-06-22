@@ -1,8 +1,8 @@
 ---
 modulo: Fideicomiso
 estado: parcial
-version_doc: 1.2
-ultima_actualizacion: 2026-06-15
+version_doc: 1.3
+ultima_actualizacion: 2026-06-22
 rutas_v2: [/fideicomiso/dashboard, /fideicomiso/aportaciones, /fideicomiso/adhesiones, /fideicomiso/contabilidad, /fideicomiso/dispersiones, /fideicomiso/reportes]
 rutas_v1: [i06_fideicomiso]
 claves_permiso: [500, 510, 511, 520, 530, 540]
@@ -52,6 +52,22 @@ Hay **un solo fideicomiso** activo: *Fideicomiso Innovación SPH* (`idFide = jsR
   25 en vez de 9; montos multiplicados). Las `_corregido` de los **resúmenes** daban resultado idéntico
   al original. `plan_dispersiones_dinamico_corregido` queda como candidata a `DROP` (ver
   `OBSOLESCENCIA-BD.md` y `migraciones/2026-06-15-fideicomiso-dispersion-drop-rpc.sql`).
+- **⛔ Invariante — 1 número de adhesión = 1 inversionista (síntoma: "se duplicó/aparece repetido en
+  Dispersiones", FIX v2.40.1 2026-06-22):** las RPCs de Dispersión (`plan_dispersiones_dinamico`,
+  `resumen_*`) **agrupan por `fideCondiciones.noAdhesion`** (cursor: `pagos ⨝ propiedades ⨝ fideCondiciones
+  WHERE noAdhesion = …`), **sin** filtrar por inversionista. Por eso un mismo inversionista **sí** puede tener
+  varias propiedades/tickets bajo la misma adhesión (legítimo: adhesión "B"=Paul Henri Gauvin×9, "A"=Grupo
+  SPH×4…), pero si **dos inversionistas DISTINTOS** comparten número, el desglose mezcla las aportaciones de
+  ambos y la lista repite la fila — **parece** una duplicación de registros aunque en BD no se duplicó nada.
+  **Causa raíz del incidente:** la pestaña *Adhesiones* usaba un input libre y `guardarCondiciones` hacía
+  INSERT/UPDATE sin validar; al capturar en un inversionista un número ya usado por otro, se rompía el
+  agrupamiento. **Fix:** `config-fide.service.ts` → `validarAdhesionUnica()` (llamado en `guardarCondiciones`)
+  rechaza con `BadRequestException` si el `noAdhesion` ya pertenece a la propiedad de **otro** inversionista
+  del fideicomiso (permite varios tickets del mismo); el front (`ConfigFideModal.tsx`, pestaña Adhesiones)
+  muestra el aviso. **Detección de colisiones existentes:**
+  `SELECT fc."noAdhesion" FROM "fideCondiciones" fc JOIN propiedades p USING("idPropiedad") GROUP BY 1 HAVING count(DISTINCT p."idInversionista")>1`.
+  El saneo del dato (reasignar el número o eliminar la condición sobrante) es **manual/autorizado**, no lo
+  hace la validación.
 - **Contabilidad (pivote):** lo generan las funciones Postgres `pivot_contabilidad(p_anio smallint)` y
   `pivot_contabilidad_totales(p_anio smallint)`. El año es **obligatorio** (sin el default 2026 de v1). El
   pivote devuelve además `notas` (JSONB `{mes: texto}`) por fila. El **gran total** es la fila de totales cuyo

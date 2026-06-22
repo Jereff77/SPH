@@ -434,6 +434,11 @@ function CondicionesTab({ idPropiedad }: { idPropiedad: string }) {
         <textarea value={f.comentarios ?? ''} onChange={(e) => set('comentarios', e.target.value)} rows={3}
           className="mt-1 block w-full rounded border px-2 py-1.5 text-sm" />
       </label>
+      <p className="sm:col-span-2 text-[11px] leading-snug text-gray-400">
+        ⓘ Cada <strong>número de adhesión</strong> pertenece a un solo inversionista (un inversionista
+        sí puede tener varios tickets bajo el mismo número). Si capturas uno que ya usa otra persona,
+        el sistema lo rechazará para no mezclar sus aportaciones en la dispersión.
+      </p>
       <div className="sm:col-span-2 flex items-center justify-end gap-3">
         {error && <span className="text-xs text-red-600">{error}</span>}
         {msg && <span className="text-xs text-green-700">{msg}</span>}
