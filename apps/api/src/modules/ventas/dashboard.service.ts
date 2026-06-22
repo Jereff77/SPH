@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { SaldosVencidosService } from './saldos-vencidos.service.js';
+import { firmarDocumentos } from '../cxp/documentos.util.js';
 
 export interface FiltrosDashboard {
   anio: number;
@@ -528,6 +529,19 @@ export class DashboardService {
       .eq('idPdpDet', idPdpDet)
       .order('fecha', { ascending: true });
     if (error) throw new InternalServerErrorException(error.message);
-    return data ?? [];
+    const filas = data ?? [];
+
+    // El comprobante se guarda como PATH en el bucket privado `cxp` (documento
+    // fiscal): se entrega como **URL firmada temporal**. El helper resuelve también
+    // las URLs públicas históricas (bucket `comprobantes`), sin migrar datos.
+    const firmados = await firmarDocumentos(
+      this.supabase.admin,
+      filas.map((p) => p.comprobante),
+      'cxp',
+    );
+    return filas.map((p) => ({
+      ...p,
+      comprobante: p.comprobante ? (firmados.get(p.comprobante) ?? null) : null,
+    }));
   }
 }

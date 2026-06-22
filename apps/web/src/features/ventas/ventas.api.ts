@@ -302,6 +302,15 @@ export const ventasApi = {
     api.get<PagoRealizado[]>(`/ventas/dashboard/pagos/${idPdpDet}`),
   eliminarPago: (idPago: string) =>
     api.delete<{ ok: true }>(`/ventas/dashboard/pagos/${idPago}`),
+  /** Adjunta/reemplaza el comprobante PDF de un pago ya registrado (sin recrearlo). */
+  subirComprobantePago: (idPago: string, comprobante: File) => {
+    const fd = new FormData();
+    fd.append('comprobante', comprobante);
+    return api.postForm<{ comprobante: string }>(
+      `/ventas/dashboard/pagos/${idPago}/comprobante`,
+      fd,
+    );
+  },
   registrarPago: (idPdpDet: string, input: RegistrarPagoVentaInput) => {
     const fd = new FormData();
     fd.append('tipomovimiento', String(input.tipomovimiento));

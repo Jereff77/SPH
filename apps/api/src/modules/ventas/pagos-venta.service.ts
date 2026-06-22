@@ -7,12 +7,19 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { firmarDocumento } from '../cxp/documentos.util.js';
 import type { RegistrarPagoDto } from './ventas.schemas.js';
 
 const ID_ALFABETO =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
-/** Bucket de comprobantes de pago de ventas (reutiliza el de CxP). */
+/**
+ * Bucket de comprobantes de pago de ventas: **`cxp` (PRIVADO)**. Son documentos
+ * fiscales: NO se exponen con URL pública. Se guarda el **path** y la lectura
+ * (`detallePagos`) genera una **URL firmada temporal** (helper `firmarDocumentos`,
+ * patrón de CxP). El histórico de v1 (bucket público `comprobantes`) se firma igual
+ * por compatibilidad, sin migrar datos.
+ */
 const BUCKET_COMPROBANTES = 'cxp';
 
 const TIPO_MOVIMIENTO: Record<number, string> = {
@@ -66,10 +73,11 @@ export class PagosVentaService {
     const db = this.supabase.comoActor(actorUid);
     const idPago = this.generarId(15);
 
-    // Subir el comprobante (si llega) al bucket privado.
-    let comprobanteUrl: string | null = null;
+    // Subir el comprobante (si llega) al bucket privado y guardar el PATH
+    // (no una URL pública: la lectura genera una URL firmada temporal).
+    let comprobantePath: string | null = null;
     if (comprobante) {
-      const path = `private/ventas/${det.idPropiedad ?? 'sp'}/${idPago}.${comprobante.ext}`;
+      const path = `ventas/${det.idPropiedad ?? 'sp'}/${idPago}.${comprobante.ext}`;
       const { error: upErr } = await this.supabase.admin.storage
         .from(BUCKET_COMPROBANTES)
         .upload(path, comprobante.buffer, {
@@ -80,9 +88,7 @@ export class PagosVentaService {
         this.logger.error(`Error subiendo comprobante de venta: ${upErr.message}`);
         throw new InternalServerErrorException('No se pudo subir el comprobante.');
       }
-      comprobanteUrl = this.supabase.admin.storage
-        .from(BUCKET_COMPROBANTES)
-        .getPublicUrl(path).data.publicUrl;
+      comprobantePath = path;
     }
 
     const montosiniva = dto.iva > 0 ? dto.monto - dto.iva : dto.monto;
@@ -101,7 +107,7 @@ export class PagosVentaService {
       monto: dto.monto,
       iva: dto.iva > 0 ? dto.iva : null,
       montosiniva,
-      comprobante: comprobanteUrl,
+      comprobante: comprobantePath,
     });
     if (insErr) {
       this.logger.error(`Error insertando pago de venta: ${insErr.message}`);
@@ -120,6 +126,64 @@ export class PagosVentaService {
     await this.registrarComentario(db, { idPago, idPdpDet, comentario, actorUid });
 
     return { idPago };
+  }
+
+  /**
+   * Adjunta (o reemplaza) el comprobante PDF de un pago **ya registrado**, sin
+   * borrarlo ni volverlo a crear. Útil cuando la factura no estaba lista al
+   * registrar el pago. Sube al mismo bucket/ruta que `registrarPago`
+   * (`private/ventas/{idPropiedad}/{idPago}.{ext}`, upsert) y actualiza
+   * `pagos.comprobante`. Auditado vía `comoActor` + `actividad`/`comentarios`.
+   */
+  async subirComprobante(
+    idPago: string,
+    comprobante: { buffer: Buffer; ext: string; contentType: string },
+    actorUid: string,
+  ): Promise<{ comprobante: string }> {
+    const { data: pago, error } = await this.supabase.admin
+      .from('pagos')
+      .select('idPago, idPdpDet, idPropiedad, status')
+      .eq('idPago', idPago)
+      .maybeSingle();
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!pago || pago.status === false) throw new NotFoundException('Pago no encontrado.');
+
+    const path = `ventas/${pago.idPropiedad ?? 'sp'}/${idPago}.${comprobante.ext}`;
+    const { error: upErr } = await this.supabase.admin.storage
+      .from(BUCKET_COMPROBANTES)
+      .upload(path, comprobante.buffer, {
+        contentType: comprobante.contentType,
+        upsert: true,
+      });
+    if (upErr) {
+      this.logger.error(`Error subiendo comprobante de venta: ${upErr.message}`);
+      throw new InternalServerErrorException('No se pudo subir el comprobante.');
+    }
+
+    const db = this.supabase.comoActor(actorUid);
+    // Se guarda el PATH (no una URL pública): la lectura genera la URL firmada.
+    const { error: updErr } = await db
+      .from('pagos')
+      .update({ comprobante: path })
+      .eq('idPago', idPago);
+    if (updErr) {
+      this.logger.error(`Error actualizando comprobante del pago ${idPago}: ${updErr.message}`);
+      throw new InternalServerErrorException('No se pudo guardar el comprobante en el pago.');
+    }
+
+    const comentario = `Se adjuntó comprobante al pago id:${idPago}`;
+    await this.registrarActividad(db, {
+      pantalla: 'detallePagos',
+      widget: 'Button',
+      nomwidget: 'SubirComprobante',
+      comentario,
+      actorUid,
+    });
+    await this.registrarComentario(db, { idPago, idPdpDet: pago.idPdpDet, comentario, actorUid });
+
+    // URL firmada temporal (conveniencia; el front igual refresca la lista al subir).
+    const firmada = await firmarDocumento(this.supabase.admin, path, BUCKET_COMPROBANTES);
+    return { comprobante: firmada ?? path };
   }
 
   /**

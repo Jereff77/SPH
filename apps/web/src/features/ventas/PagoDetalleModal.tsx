@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   ventasApi,
   hoyMexico,
   TIPO_MOVIMIENTO,
+  type PagoRealizado,
   type PagoVentaRow,
   type RegistrarPagoVentaInput,
 } from './ventas.api';
@@ -154,18 +155,14 @@ export function PagoDetalleModal({
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{moneda(p.monto)}</td>
                         <td className="px-3 py-2 text-center">
-                          {esUrl(p.comprobante) ? (
-                            <a
-                              href={p.comprobante}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[#3f5b87] underline"
-                            >
-                              ver
-                            </a>
-                          ) : (
-                            '—'
-                          )}
+                          <CeldaComprobante
+                            pago={p}
+                            onSubido={async () => {
+                              await refetch();
+                              onGuardado();
+                            }}
+                            onError={setError}
+                          />
                         </td>
                         <td className="px-3 py-2 text-center">
                           <button
@@ -277,6 +274,72 @@ export function PagoDetalleModal({
           </form>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Celda de la columna "Comp.": muestra el enlace "ver" si el pago ya tiene
+ * comprobante y un botón para **subir/reemplazar** el PDF de un pago ya
+ * registrado (sin borrarlo). Útil cuando la factura no estaba lista al pagar.
+ */
+function CeldaComprobante({
+  pago,
+  onSubido,
+  onError,
+}: {
+  pago: PagoRealizado;
+  onSubido: () => Promise<void> | void;
+  onError: (msg: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const tiene = esUrl(pago.comprobante);
+
+  async function onSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    e.target.value = ''; // permite volver a elegir el mismo archivo
+    if (!file) return;
+    setSubiendo(true);
+    onError('');
+    try {
+      await ventasApi.subirComprobantePago(pago.idPago, file);
+      await onSubido();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'No se pudo subir el comprobante.');
+    } finally {
+      setSubiendo(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-2">
+      {tiene && (
+        <a
+          href={pago.comprobante as string}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[#3f5b87] underline"
+        >
+          ver
+        </a>
+      )}
+      <button
+        type="button"
+        disabled={subiendo}
+        onClick={() => inputRef.current?.click()}
+        title={tiene ? 'Reemplazar comprobante' : 'Subir comprobante'}
+        className="rounded border border-[#3f5b87] px-1.5 py-0.5 text-[11px] font-medium text-[#3f5b87] hover:bg-[#3f5b87] hover:text-white disabled:opacity-40"
+      >
+        {subiendo ? '…' : tiene ? 'cambiar' : 'subir'}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/pdf,image/*"
+        onChange={onSelect}
+        className="hidden"
+      />
     </div>
   );
 }

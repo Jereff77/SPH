@@ -201,6 +201,27 @@ export class VentasController {
     return { ok: true };
   }
 
+  /** Adjunta/reemplaza el comprobante PDF de un pago ya registrado (sin recrearlo). */
+  @Post('dashboard/pagos/:idPago/comprobante')
+  @RequierePermiso(600)
+  @UseInterceptors(FileInterceptor('comprobante', { limits: { fileSize: LIMITE_ARCHIVO } }))
+  async subirComprobantePago(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPago') idPago: string,
+    @UploadedFile() comprobante?: Express.Multer.File,
+  ) {
+    if (!comprobante) throw new BadRequestException('Falta el archivo del comprobante.');
+    return this.pagos.subirComprobante(
+      idPago,
+      {
+        buffer: comprobante.buffer,
+        contentType: comprobante.mimetype,
+        ext: EXT_POR_MIME[comprobante.mimetype] ?? 'bin',
+      },
+      actor.uid,
+    );
+  }
+
   // ============================ Planes (610) ============================
 
   @Get('planes/inversionistas')

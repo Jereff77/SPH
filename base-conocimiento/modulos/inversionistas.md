@@ -59,6 +59,17 @@ total de la tabla y las tarjetas siempre cuadran**.
   **agregar un pago** (tipo de movimiento 1=Terreno/2=Construcción/3=Ticket, operación 1=Pago/2=Descuento,
   monto, IVA en Ticket, fecha y **comprobante PDF**) y **eliminar un pago** (🗑). El recálculo de
   `pdp.montoPagado` lo hacen los triggers de `pagos` (en INSERT y DELETE).
+  - **Adjuntar comprobante a un pago existente (v2.40.0):** en la columna **Comp.** de cada pago, botón
+    **"subir"** (si no tiene) o **"ver" + "cambiar"** (si ya tiene), para anexar/reemplazar el PDF **sin
+    borrar y recrear el pago** (caso: la factura no estaba lista al registrar). Endpoint
+    **`POST dashboard/pagos/:idPago/comprobante`** (multipart, clave 600) → `PagosVentaService.subirComprobante`.
+  - **🔒 Comprobantes en bucket PRIVADO + URL firmada (v2.40.0):** los comprobantes de pago se guardan en
+    el bucket **`cxp` (privado)** y en `pagos.comprobante` se persiste el **path** (no una URL pública).
+    `detallePagos` genera una **URL firmada temporal** (helper `firmarDocumentos` de CxP, expira 2 h) en cada
+    lectura. Maneja también el histórico de v1 (URLs públicas del bucket `comprobantes`) firmándolo por su
+    path, **sin migrar datos**. **Fix:** antes se subía a `cxp` con `getPublicUrl` → "Bucket not found" (cxp es
+    privado). ⚠️ **Deuda (con autorización):** los ~607 comprobantes históricos siguen físicamente en el bucket
+    público `comprobantes`; migrarlos al privado es un saneo aparte (la app ya no expone su URL pública).
 - **Bitácora:** alta y eliminación de pagos registran en **`actividad`** y **`comentarios`** (como v1).
 - **Fechas en horario de México (GMT-6):** la fecha por defecto al capturar usa `America/Mexico_City`
   (helper `hoyMexico()`), evitando el desfase de UTC.
