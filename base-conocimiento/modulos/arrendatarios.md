@@ -174,41 +174,63 @@ actor para auditoría). Crear un plan orquesta **3 RPCs en secuencia**:
     `idArrendador` del plan y marca `sugerido` por fila. El front pasa el `id_arrepdp` de las partidas
     pendientes del arrendatario.
 
-## Modelo de pagos: `arre_pagos`, aplicación exacta, desaplicar y registro de movimientos (v2)
+## Modelo de pagos: `arre_pagos`, **saldo a favor por depósito**, conceptos, desaplicar y registro (v2)
 
-> 📌 Tabla **`arre_pagos`** = fuente de verdad de las **aplicaciones** de pago (una fila por **partida pagada**,
-> patrón análogo a la tabla `pagos` de Ventas) + **historial** (aplicado/desaplicado). Botón **📋 Registro de
-> movimientos** en Gestión de Pagos. Sin prefijo `v2_`.
+> 📌 Tabla **`arre_pagos`** = fuente de verdad de las **aplicaciones** (una fila por **partida pagada**) +
+> historial (aplicado/desaplicado). Botón **📋 Registro de movimientos**. Desde **v2.38.0** la aplicación dejó
+> de ser "exacta": ahora maneja **saldo a favor por depósito**, **multi-mes**, **tolerancia de centavos**, deja
+> **agregar conceptos** (penalización/interés) y el registro filtra por mes/año y exporta a Excel.
 
-- **Aplicación SOLO exacta (regla de negocio):** el depósito debe cubrir **exactamente** lo seleccionado —
-  **no** se permite saldo a favor (sobrante) **ni** faltante (insuficiente). El backend (`aplicarPago`) rechaza
-  ambos; el modal deshabilita "Aplicar pago" si el estado no es *Exacto*. (Decisión: no manejar saldos a favor
-  por ahora; se reconsiderará cuando haya el caso.)
-- **Tabla `arre_pagos`** (creada vía migración; `trg_auditoria`): `id` (uuid), `idArrePdpDet`, `idArrePdp`,
-  `idArrendador`, `idmov` (depósito), `uidPago` (agrupa las partidas de una misma aplicación), `monto`,
-  `fecPago`, `comprobante`, `uid` (quién aplicó), `estado` ('aplicado'/'desaplicado'), `aplicadoEn`,
-  `desaplicadoPor`/`desaplicadoEn`/`motivoDesaplicacion`, `fc`. **Índice único parcial**
-  `WHERE estado='aplicado'` por `idArrePdpDet` → una partida no puede tener dos pagos activos. **Sin FKs
-  estrictas** a tablas v1 (arrePdpDetalle/arrePdp/movbancarios) para no acoplar/bloquear v1; la integridad la
-  valida el backend.
-- **Dual-write (Fase 1, ACTUAL):** al aplicar, la RPC `aplicar_pago_arrendatario` sigue actualizando
-  `arrePdpDetalle` (fecPago/uidPago/cantidadAplicada) **y** además se insertan las filas en `arre_pagos`. Los
-  **lectores** (dashboard `pagos_arrendatarios`, Estado de Cuenta) **siguen leyendo `arrePdpDetalle`** por
-  ahora. ⚠️ **Las 4 columnas de pago de `arrePdpDetalle` NO se eliminan todavía** (eso es la Fase 3).
-- **Desaplicar (revertir):** RPC **`desaplicar_pago_arrendatario(p_idmov, p_ids_detalle)`** (revierte las
-  partidas a pendiente + `movbancarios.aplicado=false`) + el backend marca las filas de `arre_pagos`
-  `estado='desaplicado'` con quién/cuándo/motivo (conserva el historial; no borra). Endpoint
-  `POST cobranza/desaplicar-pago` `{uidPago, motivo?}`.
-- **Registro de movimientos:** `GET cobranza/historial-pagos` agrupa `arre_pagos` por `uidPago` (una entrada
-  por aplicación) enriquecido con ordenante (movbancarios) y razón social (inversionista).
-  `RegistroMovimientosModal.tsx`: tabla con Fecha/Ordenante/Arrendatario/Monto/Partidas/Estado/Aplicado +
-  botón **Desaplicar** (pide motivo). Tras desaplicar invalida `['arre-historial-pagos']` + `['arre-depositos']`.
-- **Plan de migración (expand→migrate→contract):** Fase 1 (esta) ✅ tabla + dual-write + desaplicar + registro.
-  **Fase 2 (pendiente):** migrar los lectores (`pagos_arrendatarios`, Estado de Cuenta, cancelación) a leer de
-  `arre_pagos` + migrar datos históricos (partidas con fecPago → `arre_pagos`). **Fase 3 (pendiente):** dejar de
-  escribir en `arrePdpDetalle` y **eliminar** las 4 columnas de pago (con autorización, v1 apagado).
-- 📌 **Mejora pendiente:** el registro guarda el `uid` de quién aplicó/desaplicó, pero el modal aún no muestra
-  el **nombre** (falta enriquecer con `catUsers.nomCompleto`).
+### Aplicación con SALDO A FAVOR por depósito (v2.38.0 — casos 1 y 2)
+- Antes era **solo exacta** (sin sobrante ni faltante). Ahora un depósito se aplica a las **facturas (partidas
+  completas) que elijas, de cualquier mes** del arrendatario; lo que sobra queda como **saldo a favor del mismo
+  depósito**, disponible para aplicarlo después a otras facturas.
+- **Saldo disponible** del depósito = `importe − Σ arre_pagos(idmov, estado='aplicado')`. Mientras > 0 sigue
+  apareciendo con su remanente; `movbancarios.aplicado` solo pasa a `true` al agotarse.
+- **SIN tocar BD:** reutiliza la RPC **`aplicar_pago_arrendatario`** (marca `arrePdpDetalle` + `aplicado=true`)
+  y, si queda remanente, el backend **vuelve a poner `aplicado=false`** para dejar el depósito disponible.
+- **Tolerancia configurable** (`SPHConfiguraciones.ARRE_TOLERANCIA_PAGO`, default **0.05**): el total puede
+  exceder el saldo hasta ese margen (absorbe redondeos de centavos). Backend `toleranciaPago()` (caché 5 min) +
+  `GET cobranza/tolerancia-pago`. Si la diferencia cae dentro del margen, el depósito se da por **agotado**.
+- **Modal** (`AplicarPagoModal`): trae **TODAS las partidas pendientes del arrendatario**, cualquier mes
+  (`GET cobranza/partidas-pendientes?arrendatario=`), agrupadas por **mes → nave** (conceptos **comprimidos**,
+  se despliegan con ▸), con etiqueta Atrasado/Mes actual/Adelantado y **selector de año** (default año en curso).
+  El depósito seleccionado se **deriva de la lista** (no se copia el objeto) para que su saldo se refresque tras
+  aplicar/desaplicar. Selección por mes, nave o concepto.
+
+### Agregar concepto libre (v2.38.0 — caso 3: penalización/interés)
+- En el desglose de una nave-mes, botón **"+ Agregar concepto"** (concepto libre + monto). Crea una partida
+  nueva en `arrePdpDetalle` (misma nave/mes de referencia), pendiente y seleccionable. `POST cobranza/agregar-concepto`.
+- ⚠️ **`cantidad` es columna GENERADA** (`= pm2 × constM2`) y el trigger `v2_arrepdpdetalle_calc_iva` calcula
+  `iva = pm2 × constM2 × tasa`. Por eso **NO se inserta `cantidad` directo** (Postgres lo rechaza): el backend
+  **reparte el monto** → `pm2 = monto/(1+tasa)`, `constM2 = 1`, de modo que **`cantidad + iva` = el monto
+  capturado exacto** (IVA incluido, igual que el resto). `uidc` (FK a `catUsers`) = quién lo crea. Auditado.
+
+### Tabla `arre_pagos` + desaplicar + sugerencias
+- **`arre_pagos`** (`trg_auditoria`, sin prefijo `v2_`): `id`, `idArrePdpDet`, `idArrePdp`, `idArrendador`,
+  `idmov`, `uidPago` (agrupa la aplicación), `monto` (con IVA), `fecPago`, `uid`, `estado`, `aplicadoEn`,
+  `desaplicadoPor/En`, `motivoDesaplicacion`. Índice único parcial `WHERE estado='aplicado'` por `idArrePdpDet`.
+  Sin FKs estrictas a v1.
+- **Dual-write (Fase 1):** la RPC actualiza `arrePdpDetalle` + se insertan filas en `arre_pagos`. Lectores
+  (dashboard `pagos_arrendatarios`/Estado de Cuenta) siguen en `arrePdpDetalle`.
+- **Desaplicar:** RPC `desaplicar_pago_arrendatario` (revierte partidas + `aplicado=false`) + marca `arre_pagos`
+  `desaplicado` (quién/cuándo/motivo). Al desaplicar, **el depósito recupera su saldo**. `POST cobranza/desaplicar-pago`.
+- **Quitar sugerencia (⭐):** click en la estrella de un depósito sugerido → `POST cobranza/quitar-sugerencia`
+  borra la fila `arre_ordenante` (ordenante↔arrendatario). Útil si se aplicó a un arrendatario equivocado; se
+  vuelve a aprender al aplicar de nuevo.
+
+### Registro de movimientos (📋) — v2.38.0
+- `GET cobranza/historial-pagos?anio=&mes=&limite=` agrupa por `uidPago` y **filtra por periodo aplicado**
+  (mes/año de las partidas) para no crecer sin límite; default los del tablero. Cada entrada trae los
+  **`periodos`** (yyyy-MM) de sus partidas.
+- `RegistroMovimientosModal`: encabezado **azul** (regla 7), **selectores Año/Mes**, **filtros por columna**
+  (regla 7c: Ordenante/Arrendatario/Mes/Año/Estado), **export a Excel (CSV)**, columnas **"Fecha de depósito"**
+  + **Mes/Año aplicado**, fila **expandible** (▸ → `GET cobranza/aplicacion-detalle?uidPago=`: a qué
+  naves/conceptos/meses se aplicó) y **Desaplicar**.
+- **Plan de migración:** Fase 2 (migrar lectores a `arre_pagos` + históricos) y Fase 3 (eliminar las 4 columnas
+  de pago de `arrePdpDetalle`) siguen **pendientes**.
+- 📌 **Pendiente:** mostrar el **nombre** (catUsers) de quién aplicó/desaplicó; botón para **eliminar** un
+  concepto agregado por error.
 
 ## ⚠️ Gotcha crítico — desfase del `anio` por concepto (diagnóstico de "actualizar el INPC manual no funciona")
 

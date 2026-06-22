@@ -21,11 +21,14 @@ import {
   cancelarAnticipadoSchema,
   conceptoFinanciadoSchema,
   crearPlanRentaSchema,
+  agregarConceptoPartidaSchema,
   desaplicarPagoSchema,
   docArreSchema,
   editarCampoSchema,
+  quitarSugerenciaSchema,
   renovarPlanSchema,
   vincularNaveArreSchema,
+  type AgregarConceptoPartidaDto,
   type AplicarPagoDto,
   type CancelarAnticipadoDto,
   type ConceptoFinanciadoDto,
@@ -33,6 +36,7 @@ import {
   type DesaplicarPagoDto,
   type DocArreDto,
   type EditarCampoDto,
+  type QuitarSugerenciaDto,
   type RenovarPlanDto,
   type VincularNaveArreDto,
 } from './arrendatarios.schemas.js';
@@ -393,6 +397,20 @@ export class ArrendatariosController {
     );
   }
 
+  /** Todas las partidas pendientes del arrendatario (cualquier mes), para el modal de pago. */
+  @Get('cobranza/partidas-pendientes')
+  @RequierePermiso(10)
+  partidasPendientes(@Query('arrendatario') arrendatario?: string) {
+    return this.cobranza.partidasPendientesArrendatario(arrendatario ?? '');
+  }
+
+  /** Margen de tolerancia (centavos) configurable para aplicar pagos. */
+  @Get('cobranza/tolerancia-pago')
+  @RequierePermiso(10)
+  toleranciaPago() {
+    return this.cobranza.toleranciaConfig();
+  }
+
   @Post('cobranza/aplicar-pago')
   @RequierePermiso(10)
   aplicarPago(
@@ -412,19 +430,50 @@ export class ArrendatariosController {
     return this.cobranza.desaplicarPago(dto.uidPago, actor.uid, dto.motivo);
   }
 
+  /** Quita una sugerencia (mapeo ordenante↔arrendatario) — ⭐ del modal de pago. */
+  @Post('cobranza/quitar-sugerencia')
+  @RequierePermiso(10)
+  quitarSugerencia(
+    @CurrentUser() actor: AuthUser,
+    @Body(new ZodValidationPipe(quitarSugerenciaSchema)) dto: QuitarSugerenciaDto,
+  ) {
+    return this.cobranza.quitarSugerencia(dto.idArrePdp, dto.ordenante, actor.uid);
+  }
+
+  /** Agrega un concepto libre (penalización/interés) a una partida (mes/nave). */
+  @Post('cobranza/agregar-concepto')
+  @RequierePermiso(10)
+  agregarConceptoCobranza(
+    @CurrentUser() actor: AuthUser,
+    @Body(new ZodValidationPipe(agregarConceptoPartidaSchema)) dto: AgregarConceptoPartidaDto,
+  ) {
+    return this.cobranza.agregarConcepto(dto.idArrePdpDet, dto.concepto, dto.monto, actor.uid);
+  }
+
   /** Registro de movimientos: historial de pagos aplicados/desaplicados. */
   @Get('cobranza/historial-pagos')
   @RequierePermiso(10)
   historialPagos(
     @Query('idArrendador') idArrendador?: string,
     @Query('idArrePdp') idArrePdp?: string,
+    @Query('anio') anio?: string,
+    @Query('mes') mes?: string,
     @Query('limite') limite?: string,
   ) {
     return this.cobranza.historialPagos({
       idArrendador: idArrendador || undefined,
       idArrePdp: idArrePdp || undefined,
+      anio: toNum(anio),
+      mes: toNum(mes),
       limite: toNum(limite),
     });
+  }
+
+  /** Detalle de una aplicación (`uidPago`): a qué naves/conceptos/meses se aplicó y cuánto. */
+  @Get('cobranza/aplicacion-detalle')
+  @RequierePermiso(10)
+  aplicacionDetalle(@Query('uidPago') uidPago?: string) {
+    return this.cobranza.detalleAplicacion(uidPago ?? '');
   }
 
   /**

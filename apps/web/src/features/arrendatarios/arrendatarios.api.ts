@@ -378,6 +378,10 @@ export interface DepositoSinAplicar {
   fec_operacion: string | null;
   ordenante: string | null;
   importe: number | null;
+  /** Lo ya aplicado del depósito (suma en `arre_pagos`). */
+  aplicado?: number | null;
+  /** Saldo a favor disponible (importe − aplicado): lo que se puede aplicar ahora. */
+  saldoDisponible?: number | null;
   rastreo: string | null;
   moneda: string | null;
   /** Concepto del depósito (ayuda a identificar a quién corresponde). */
@@ -390,6 +394,17 @@ export interface AplicarPagoInput {
   idmov: string;
   idsDetalle: string[];
   fecPago: string;
+}
+
+/** Detalle de una aplicación de pago: a qué nave/concepto/mes se aplicó y cuánto. */
+export interface DetalleAplicacionRow {
+  idArrePdpDet: string;
+  concepto: string | null;
+  fecha: string | null;
+  numPartida: number | null;
+  nave: string | null;
+  parque: string | null;
+  monto: number;
 }
 
 /** Entrada del registro de movimientos (una aplicación de pago agrupada por uidPago). */
@@ -409,6 +424,8 @@ export interface MovimientoPago {
   partidas: number;
   ordenante?: string | null;
   razonSocial?: string | null;
+  /** Periodos (yyyy-MM) de las partidas a las que se aplicó el depósito. */
+  periodos?: string[];
 }
 
 /** Fila nueva registrada al importar un estado de cuenta. */
@@ -550,8 +567,27 @@ export const arrendatariosApi = {
     api.get<DepositoSinAplicar[]>(
       `/arrendatarios/cobranza/depositos-sin-aplicar${dq({ busqueda, anio, mes, idArrePdp })}`,
     ),
+  /** TODAS las partidas pendientes del arrendatario (cualquier mes), para aplicar pago. */
+  partidasPendientes: (arrendatario: string) =>
+    api.get<PagoArreRow[]>(`/arrendatarios/cobranza/partidas-pendientes${dq({ arrendatario })}`),
+  /** Detalle de una aplicación (a qué naves/conceptos/meses se aplicó un depósito). */
+  aplicacionDetalle: (uidPago: string) =>
+    api.get<DetalleAplicacionRow[]>(`/arrendatarios/cobranza/aplicacion-detalle${dq({ uidPago })}`),
+  /** Margen de tolerancia (pesos) para aplicar pagos (configurable en SPHConfiguraciones). */
+  toleranciaPago: () =>
+    api.get<{ tolerancia: number }>('/arrendatarios/cobranza/tolerancia-pago'),
+  /** Quita la sugerencia (⭐) del ordenante de un depósito para un arrendatario. */
+  quitarSugerencia: (idArrePdp: string, ordenante: string) =>
+    api.post<{ ok: true }>('/arrendatarios/cobranza/quitar-sugerencia', { idArrePdp, ordenante }),
+  /** Agrega un concepto libre (penalización/interés) a la partida (mes/nave) de referencia. */
+  agregarConceptoPartida: (idArrePdpDet: string, concepto: string, monto: number) =>
+    api.post<{ ok: true; idArrePdpDet: string }>('/arrendatarios/cobranza/agregar-concepto', {
+      idArrePdpDet,
+      concepto,
+      monto,
+    }),
   aplicarPago: (dto: AplicarPagoInput) =>
-    api.post<{ estado: 'Exacto'; importe: number; total: number }>(
+    api.post<{ importe: number; aplicado: number; saldoAFavor: number; agotado: boolean }>(
       '/arrendatarios/cobranza/aplicar-pago',
       dto,
     ),
@@ -560,8 +596,9 @@ export const arrendatariosApi = {
       '/arrendatarios/cobranza/desaplicar-pago',
       { uidPago, motivo },
     ),
-  historialPagos: (p: { idArrendador?: string; idArrePdp?: string; limite?: number } = {}) =>
-    api.get<MovimientoPago[]>(`/arrendatarios/cobranza/historial-pagos${dq(p)}`),
+  historialPagos: (
+    p: { idArrendador?: string; idArrePdp?: string; anio?: number; mes?: number; limite?: number } = {},
+  ) => api.get<MovimientoPago[]>(`/arrendatarios/cobranza/historial-pagos${dq(p)}`),
   importarEstadoCuenta: (archivo: File) => {
     const fd = new FormData();
     fd.append('archivo', archivo);

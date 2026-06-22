@@ -275,12 +275,6 @@ export function DashboardCobranzaPage() {
   const opcionesAnio = aniosDisponibles.map((a) => ({ value: String(a), label: String(a) }));
   const opcionesMes = MESES.map((m, i) => ({ value: String(i + 1), label: m }));
 
-  // Filas pendientes de la razón social activa (para el modal).
-  const pendientesModal = useMemo(
-    () => (modalRS ? filas.filter((r) => r.razon_social === modalRS && !r.fec_pago) : []),
-    [filas, modalRS],
-  );
-
   /**
    * Exporta el tablero a CSV (respeta los filtros activos): una fila por nave y
    * divisa, con Pago (pendiente) / Cobrado y el desglose por concepto
@@ -682,7 +676,6 @@ export function DashboardCobranzaPage() {
       {modalRS && (
         <AplicarPagoModal
           razonSocial={modalRS}
-          filasPendientes={pendientesModal}
           anio={aniosSeleccionados[0] ?? ahora.getFullYear()}
           mes={mesesSeleccionados[0] ?? ahora.getMonth() + 1}
           onClose={() => setModalRS(null)}
@@ -698,7 +691,12 @@ export function DashboardCobranzaPage() {
       )}
 
       {mostrarRegistro && (
-        <RegistroMovimientosModal onClose={() => setMostrarRegistro(false)} onCambio={onCambio} />
+        <RegistroMovimientosModal
+          onClose={() => setMostrarRegistro(false)}
+          onCambio={onCambio}
+          anio={aniosSeleccionados[0] ?? ahora.getFullYear()}
+          mes={mesesSeleccionados[0] ?? ahora.getMonth() + 1}
+        />
       )}
     </div>
   );

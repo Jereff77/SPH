@@ -132,3 +132,19 @@ export const desaplicarPagoSchema = z.object({
   motivo: z.string().trim().max(500).optional(),
 });
 export type DesaplicarPagoDto = z.infer<typeof desaplicarPagoSchema>;
+
+/** Quitar la sugerencia (mapeo ordenante↔arrendatario) de `arre_ordenante`. */
+export const quitarSugerenciaSchema = z.object({
+  idArrePdp: z.string().trim().min(1, 'Falta el plan del arrendatario.'),
+  ordenante: z.string().trim().min(1, 'Falta el ordenante.'),
+});
+export type QuitarSugerenciaDto = z.infer<typeof quitarSugerenciaSchema>;
+
+/** Agregar un concepto libre (penalización/interés) a la partida (mes/nave) de referencia. */
+export const agregarConceptoPartidaSchema = z.object({
+  /** idArrePdpDet de una partida existente de esa nave-mes (para copiar el contexto). */
+  idArrePdpDet: z.string().trim().min(1, 'Falta la partida de referencia.'),
+  concepto: z.string().trim().min(1, 'El concepto es obligatorio.').max(120),
+  monto: z.coerce.number().positive('El monto debe ser mayor a 0.'),
+});
+export type AgregarConceptoPartidaDto = z.infer<typeof agregarConceptoPartidaSchema>;
