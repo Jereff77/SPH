@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import type { ComentarioCxP } from './solicitudes.api';
 
 export interface PendienteCxP {
   idCxp: string;
@@ -25,6 +26,7 @@ export interface PendienteCxP {
   seccion: string | null;
   nomGerente: string | null;
   nomSolicitante: string | null;
+  tieneRespuestaGerente: boolean; // hay comentario del aprobador (rechazo/regreso)
 }
 
 export interface Responsable {
@@ -71,6 +73,8 @@ export const pendientesApi = {
     const qs = p.toString();
     return api.get<PendienteCxP[]>(`/cxp/pendientes${qs ? `?${qs}` : ''}`);
   },
+  comentarios: (idCxp: string) =>
+    api.get<ComentarioCxP[]>(`/cxp/pendientes/${idCxp}/comentarios`),
   cambiarResponsable: (idCxp: string, uidGerente: string) =>
     api.patch<{ ok: true }>(`/cxp/pendientes/${idCxp}/responsable`, { uidGerente }),
   devolver: (idCxp: string) =>

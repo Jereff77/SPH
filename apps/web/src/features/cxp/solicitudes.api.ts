@@ -24,7 +24,17 @@ export interface SolicitudCxP {
   categoria: string | null; // cuenta de PresCategorias
   clasificacion: string | null; // sección de PresCategorias
   justificacion: string | null; // primer comentario
+  tieneRespuestaGerente: boolean; // hay comentario del aprobador (rechazo/regreso)
   asignadoA: string | null; // responsable/aprobador
+}
+
+/** Un comentario del hilo de la solicitud (justificación + respuestas del aprobador). */
+export interface ComentarioCxP {
+  idCxpComentarios: string;
+  comentario: string | null;
+  fc: string; // ISO timestamp
+  autor: string | null;
+  esSolicitante: boolean; // true = lo escribió el solicitante; false = el aprobador
 }
 
 /** Etiqueta + color de cada estatus (idEstado), del catálogo real de la BD. */
@@ -200,6 +210,8 @@ export const solicitudesApi = {
     api.get<SolicitudCxP[]>(
       `/cxp/solicitudes${rangoSemana ? `?rangoSemana=${encodeURIComponent(rangoSemana)}` : ''}`,
     ),
+  comentarios: (idCxp: string) =>
+    api.get<ComentarioCxP[]>(`/cxp/solicitudes/${idCxp}/comentarios`),
   enviar: (idCxp: string) =>
     api.post<{ ok: true }>(`/cxp/solicitudes/${idCxp}/enviar`),
   editar: (idCxp: string, dto: EditarSolicitudDto) =>

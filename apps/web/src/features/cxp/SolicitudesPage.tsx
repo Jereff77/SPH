@@ -6,6 +6,7 @@ import {
   type SolicitudCxP,
 } from './solicitudes.api';
 import { EditarSolicitudModal } from './EditarSolicitudModal';
+import { ComentariosSolicitudModal } from './ComentariosSolicitudModal';
 import { NuevaSolicitudPago } from './NuevaSolicitudPago';
 import {
   NuevaUrgente,
@@ -37,6 +38,7 @@ interface Acciones {
   onEditar: (s: SolicitudCxP) => void;
   onEnviar: (s: SolicitudCxP) => void;
   onEliminar: (s: SolicitudCxP) => void;
+  onComentarios: (s: SolicitudCxP) => void;
   ocupado: boolean;
 }
 
@@ -44,6 +46,7 @@ export function SolicitudesPage() {
   const queryClient = useQueryClient();
   const [rango, setRango] = useState('');
   const [editarDe, setEditarDe] = useState<SolicitudCxP | null>(null);
+  const [comentariosDe, setComentariosDe] = useState<SolicitudCxP | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [menuTipos, setMenuTipos] = useState(false);
   const [tipoAlta, setTipoAlta] = useState<string | null>(null);
@@ -89,6 +92,7 @@ export function SolicitudesPage() {
 
   const acciones: Acciones = {
     onEditar: (s) => setEditarDe(s),
+    onComentarios: (s) => setComentariosDe(s),
     onEnviar: (s) => {
       if (window.confirm('¿Enviar la solicitud a aprobación?')) mEnviar.mutate(s.idCxp);
     },
@@ -157,6 +161,18 @@ export function SolicitudesPage() {
             setEditarDe(null);
             invalidar();
           }}
+        />
+      )}
+
+      {comentariosDe && (
+        <ComentariosSolicitudModal
+          idCxp={comentariosDe.idCxp}
+          titulo={`${comentariosDe.nombreProveedor ?? comentariosDe.nomCFDI ?? 'Solicitud'}${
+            comentariosDe.folio ? ` · ${comentariosDe.folio}` : ''
+          }`}
+          queryKey={['cxp-sol-comentarios', comentariosDe.idCxp]}
+          fetcher={solicitudesApi.comentarios}
+          onClose={() => setComentariosDe(null)}
         />
       )}
 
@@ -302,7 +318,8 @@ function Fila({ s, acciones }: { s: SolicitudCxP; acciones: Acciones }) {
   // Acciones disponibles solo en estado Guardado (idEstado=1).
   const guardada = s.idEstado === 1;
   const editable = guardada && s.tipoOperacion < 4;
-  const { onEditar, onEnviar, onEliminar, ocupado } = acciones;
+  const { onEditar, onEnviar, onEliminar, onComentarios, ocupado } = acciones;
+  const conRespuesta = s.tieneRespuestaGerente;
 
   return (
     <tr className="hover:bg-gray-50">
@@ -334,6 +351,25 @@ function Fila({ s, acciones }: { s: SolicitudCxP; acciones: Acciones }) {
             className={guardada ? 'text-green-600 hover:text-green-700' : 'cursor-not-allowed text-gray-300'}
           >
             ✔
+          </button>
+          <button
+            type="button"
+            onClick={() => onComentarios(s)}
+            title={
+              conRespuesta
+                ? 'Ver comentarios del aprobador (rechazo/regreso)'
+                : 'Ver comentarios'
+            }
+            className={`relative ${
+              conRespuesta
+                ? 'text-amber-600 hover:text-amber-700'
+                : 'text-gray-400 hover:text-[#1f2a4d]'
+            }`}
+          >
+            💬
+            {conRespuesta && (
+              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-1 ring-white" />
+            )}
           </button>
         </div>
       </td>

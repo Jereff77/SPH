@@ -1,0 +1,56 @@
+-- ============================================================================
+-- 2026-06-23 · CxP · Desactivación TEMPORAL del trigger trigger_cxp_validar_fecha_cfdi
+-- ----------------------------------------------------------------------------
+-- Versión: v2.40.2   ·   Autorizado explícitamente por el usuario.
+-- Tipo: hotfix operativo (DDL DISABLE TRIGGER, reversible — el trigger NO se elimina).
+--
+-- MOTIVO (bug):
+--   El trigger `trigger_cxp_validar_fecha_cfdi` (BEFORE INSERT OR UPDATE ON public.cxp)
+--   ejecuta la función `cxp_validar_fecha_cfdi_estado()`, cuyo cuerpo real es:
+--
+--       IF NEW."diferido" = true THEN RETURN NEW; END IF;     -- PPD/diferidos se saltan la regla
+--       IF NEW."fecCFDI" IS NULL  THEN RETURN NEW; END IF;
+--       IF DATE_TRUNC('month', NEW."fecCFDI") < DATE_TRUNC('month', NEW.fc) THEN
+--           NEW."idEstado" := 3;                              -- ⬅️ fuerza "Rechazado"
+--       END IF;
+--       RETURN NEW;
+--
+--   Intención original: auto-rechazar una solicitud cuyo CFDI sea de un MES ANTERIOR
+--   al de su creación (`fc`). El BUG: al ser BEFORE ... OR UPDATE y NO mirar el estado
+--   previo (OLD.idEstado), aplica la regla en CUALQUIER UPDATE y degrada a idEstado=3
+--   incluso facturas YA PAGADAS/APROBADAS. Síntoma: una solicitud Pagada vuelve sola a
+--   "Rechazado" al intentar moverla; queda la huella delatora idEstado=3 + estado='Pagado'
+--   (porque el trigger `set_estado`/`update_estado` corre antes y este solo toca idEstado).
+--
+--   Ejemplo reportado: cxp folio b7f2e0eb-ef0a-4511-b85b-b12586f1c0dc
+--   (idCxp tgYLBRAzfj5jN6e): fecCFDI 2026-05-12, fc 2026-06-08, pagado, idEstado quedaba en 3.
+--
+-- NOTA: este mismo trigger ya se había desactivado el 2026-06-09 por idéntico motivo,
+--       pero fue REACTIVADO en algún momento posterior y volvió a corromper datos.
+--
+-- ============================================================================
+
+-- 1) Desactivación aplicada en producción (2026-06-23):
+ALTER TABLE public.cxp DISABLE TRIGGER trigger_cxp_validar_fecha_cfdi;
+
+-- Verificación: tgenabled debe quedar en 'D' (disabled)
+--   SELECT tgname, tgenabled FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+--   WHERE c.relname = 'cxp' AND tgname = 'trigger_cxp_validar_fecha_cfdi';
+
+-- 2) Saneo de datos (lo aplicó el usuario): las solicitudes pagadas que el bug había
+--    degradado a Rechazado se devolvieron a Pagado.
+--   UPDATE public.cxp
+--   SET "idEstado" = 6, estado = 'Pagado'
+--   WHERE status = true AND "idEstado" = 3 AND estado = 'Pagado'
+--     AND "montoAplicado" > 0 AND "idMovBancarios" IS NOT NULL;
+
+-- ----------------------------------------------------------------------------
+-- PARA REVERTIR (reactivar el trigger) — ⚠️ NO hacerlo hasta corregir la función:
+--   ALTER TABLE public.cxp ENABLE TRIGGER trigger_cxp_validar_fecha_cfdi;
+--
+-- 📌 PENDIENTE de arreglo de fondo (función `cxp_validar_fecha_cfdi_estado`):
+--   aplicar la regla SOLO en INSERT, o en UPDATE únicamente cuando
+--   OLD."idEstado" IN (1,2) (Guardado/Enviado) — nunca degradar estados >= 3.
+--   PPD ya queda cubierto por `diferido`. Ver:
+--   base-conocimiento/PLAN-correccion-trigger-cxp-fecha-cfdi.md
+-- ============================================================================

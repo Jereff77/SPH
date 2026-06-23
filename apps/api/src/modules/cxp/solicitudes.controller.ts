@@ -175,6 +175,16 @@ export class SolicitudesController {
     return this.svc.listar(actor.uid, rangoSemana || undefined, verComo || undefined);
   }
 
+  /** Hilo de comentarios de la solicitud (justificación + respuestas del aprobador). */
+  @Get(':idCxp/comentarios')
+  comentarios(
+    @CurrentUser() actor: AuthUser,
+    @Param('idCxp') idCxp: string,
+    @Headers('x-ver-como') verComo?: string,
+  ) {
+    return this.svc.comentarios(idCxp, actor.uid, verComo || undefined);
+  }
+
   @Post(':idCxp/enviar')
   async enviar(
     @CurrentUser() actor: AuthUser,

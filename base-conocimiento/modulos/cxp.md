@@ -89,7 +89,7 @@ aprobar fuera de presupuesto · **440/441** dashboard · **450** pendientes · *
   3. **Enviados o Aprobados** = `idEstado ∈ {2,4}`.
   4. **Reprogramados o Pagados** = `idEstado ∈ {5,6}`.
   (Los estados 7 y 99 no se listan en esta pantalla, igual que en v1.)
-- **Columnas:** Editar (3 acciones), Documentos (PDF=`urlCFDI`, XML=`urlXLM`), Estatus, Folio, Proveedor
+- **Columnas:** Editar (4 acciones), Documentos (PDF=`urlCFDI`, XML=`urlXLM`), Estatus, Folio, Proveedor
   (`nombreProveedor`), **Nombre en CFDI** (`nomCFDI`), Fecha CFDI (`fecCFDI`), Concepto.
 - **Acciones (solo en estado Guardado, `idEstado=1`):**
   - **Eliminar** (`DELETE /cxp/solicitudes/:id`): borra archivos CFDI/XML del bucket, los comentarios y el
@@ -99,6 +99,13 @@ aprobar fuera de presupuesto · **440/441** dashboard · **450** pendientes · *
   - **Editar** (`PATCH /cxp/solicitudes/:id`): edita proveedor/cuenta/concepto/folio/montos/fecCFDI (NO
     re-sube CFDI). Habilitado si `idEstado=1` y `tipoOperacion<4`. Catálogos: `GET /cxp/solicitudes/catalogos`.
   - Validación server-side: la solicitud debe ser del usuario (`uidr`) y estar en estado Guardado.
+- **💬 Comentarios (v2.40.2):** botón en cada fila (no depende del estado) que abre un modal con el **hilo
+  completo de `cxpComentarios`** (autor + fecha/hora + texto). Sirve para que el solicitante **lea el motivo
+  que el aprobador escribió al Rechazar o Regresar** su solicitud. Endpoint `GET /cxp/solicitudes/:id/comentarios`
+  (valida pertenencia `uidr`, respeta "Ver como"). El icono se **resalta en ámbar con punto rojo** cuando hay
+  al menos un comentario de alguien distinto al solicitante (= respuesta del aprobador); el flag
+  `tieneRespuestaGerente` lo calcula el propio `listar`. En el modal, los comentarios del aprobador salen en
+  ámbar con la etiqueta "Aprobador"; los del solicitante en gris (`esSolicitante`).
 - ⚠️ **Gotcha de fechas:** `numSem` se calcula de `fecSolicitud`, pero `numAnio`/`numMes` de `fc`
   (creación). El `rangoSemana` (texto) es la forma fiable de filtrar por semana.
 
@@ -109,9 +116,14 @@ aprobar fuera de presupuesto · **440/441** dashboard · **450** pendientes · *
 - **Filtros:** Año, Mes, Estado, Semana, Responsable (uidGerente) + **buscador de texto** (Nombre CFDI,
   Solicitado por, Cuenta, Clasificación; sin acentos/mayúsculas; el total y el conteo se ajustan a lo
   encontrado). La tabla es **ordenable por columna** (clic en el encabezado, `useSort`/`SortableTh`).
-- **Columnas:** Acciones (Devolver ↩, PDF, XML) · Estado · Fecha sol. · Semana · Folio · Nombre CFDI ·
-  Fecha CFDI · Concepto · **Monto** · Cuenta · Sección · Solicitado por (`uidr`→nombre) · **Responsable**
-  (dropdown editable). Total al pie (suma `total`, o `montoAplicado` si el filtro es Pagada).
+- **Columnas:** Acciones (Devolver ↩, PDF, XML, **💬 Comentarios**) · Estado · Fecha sol. · Semana · Folio ·
+  Nombre CFDI · Fecha CFDI · Concepto · **Monto** · Cuenta · Sección · Solicitado por (`uidr`→nombre) ·
+  **Responsable** (dropdown editable). Total al pie (suma `total`, o `montoAplicado` si el filtro es Pagada).
+- **💬 Comentarios (v2.40.2):** mismo icono/modal que en *Solicitudes de pago*, pero por endpoint propio
+  `GET /cxp/pendientes/:id/comentarios` (clave **450**). **NO valida pertenencia** (es vista de gestión: el
+  responsable ve solicitudes de todos), aunque igual marca `esSolicitante` comparando el autor del comentario
+  contra el `uidr` de **esa** solicitud. El listado marca `tieneRespuestaGerente` por fila para resaltar el
+  icono. El modal (`ComentariosSolicitudModal`) es reutilizable: cada pantalla le pasa su `fetcher`/`queryKey`.
 - **Acciones por registro:**
   - **Cambiar responsable/aprobador** (solo ese registro): dropdown inline con los usuarios activos; hace
     `PATCH /cxp/pendientes/:id/responsable` → `UPDATE cxp SET uidGerente, nomGerente` (v2 actualiza el nombre
@@ -164,14 +176,37 @@ parametrizadas desde el backend.
    `cxp_validar_fecha_cfdi_estado`, **hoy DESACTIVADO** por el bug del punto 9.
 8. **Movimientos para pagar:** solo `tipo='Transferencia SPEI'` sin aplicar, filtrados por proveedor
    (nombre **o** importe = total). Los **depósitos** no aparecen (son entradas).
-9. **🔴 Trigger `trigger_cxp_validar_fecha_cfdi` DESACTIVADO (incidente 2026-06-09).** La función
-   `cxp_validar_fecha_cfdi_estado` (BEFORE INSERT OR UPDATE) ponía `idEstado=3` (Rechazado) cuando el
-   CFDI era de un mes anterior a `fc`, **en cualquier UPDATE** — corrompiendo incluso facturas
-   **pagadas/aprobadas** y re-rechazando al intentar "Devolver a Guardado". Se **desactivó** (reversible,
-   no eliminado) y se corrigieron los registros afectados. **Corrección pendiente** (validar solo en
-   INSERT y en UPDATE con `OLD.idEstado IN (1,2)`; PPD⇒`diferido` automático) en
-   `base-conocimiento/PLAN-correccion-trigger-cxp-fecha-cfdi.md`, **bloqueada hasta definir el manejo de
-   PPD**. Mientras esté off, las PUE de meses anteriores **no** se auto-rechazan.
+9. **🔴 Trigger `trigger_cxp_validar_fecha_cfdi` DESACTIVADO de nuevo (incidente 2026-06-23).** ⚠️ Ya se
+   había desactivado el 2026-06-09 por la misma causa, pero **fue reactivado** en algún momento posterior y
+   **volvió a corromper datos** → se **re-desactivó el 2026-06-23** (`tgenabled='D'`).
+   - **Qué es:** trigger `trigger_cxp_validar_fecha_cfdi` `BEFORE INSERT OR UPDATE ON cxp` → función
+     **`cxp_validar_fecha_cfdi_estado()`**.
+   - **Qué hacía (definición real de la función):**
+     ```sql
+     IF NEW."diferido" = true THEN RETURN NEW; END IF;       -- PPD/diferidos se saltan la regla
+     IF NEW."fecCFDI" IS NULL  THEN RETURN NEW; END IF;
+     IF DATE_TRUNC('month', NEW."fecCFDI") < DATE_TRUNC('month', NEW.fc) THEN
+         NEW."idEstado" := 3;                                -- ⬅️ fuerza "Rechazado"
+     END IF;
+     RETURN NEW;
+     ```
+     Intención original: auto-rechazar una solicitud cuyo CFDI sea de un **mes anterior** al de su creación
+     (`fc`). **El bug:** al ser `BEFORE … OR UPDATE` sin mirar el estado previo, aplica la regla en **CUALQUIER
+     UPDATE** y degrada a `idEstado=3` incluso facturas **ya pagadas/aprobadas**; al intentar moverlas (p. ej.
+     a Pagado o "Devolver a Guardado") el trigger las **regresa a 3**. Además, como el trigger `set_estado`
+     (`update_estado`) corre **antes** (orden alfabético) y este solo toca `idEstado` (no `estado`), quedan
+     registros con la **huella delatora `idEstado=3` + `estado='Pagado'`**.
+   - **Daño 2026-06-23:** 8 solicitudes pagadas (con `montoAplicado>0` e `idMovBancarios`) habían caído a
+     `idEstado=3`; el usuario las corrigió a `idEstado=6` tras la desactivación.
+   - **Reactivar/Revertir:** `ALTER TABLE public.cxp ENABLE TRIGGER trigger_cxp_validar_fecha_cfdi;` (NO hacerlo
+     hasta corregir la lógica).
+   - **📌 PENDIENTE de arreglar la función** (no solo desactivarla): aplicar la regla **solo en INSERT**, o en
+     UPDATE únicamente cuando `OLD."idEstado" IN (1,2)` (Guardado/Enviado) — nunca degradar estados ≥3; PPD ya
+     se cubre con `diferido`. Detalle del fix en `base-conocimiento/PLAN-correccion-trigger-cxp-fecha-cfdi.md`,
+     **bloqueado hasta definir el manejo de PPD**. Registro de la desactivación:
+     `base-conocimiento/migraciones/2026-06-23-cxp-desactivar-trigger-fecha-cfdi.sql`.
+   - **Efecto colateral mientras esté off:** las PUE de meses anteriores **no** se auto-rechazan (la regla del
+     backend "el CFDI debe ser del mes en curso" al **enviar** sigue vigente en código; ver gotcha 7).
 
 ## 8. 🩺 Diagnóstico / problemas comunes
 
@@ -186,6 +221,7 @@ parametrizadas desde el backend.
 | "Al pagar no aparece el movimiento del proveedor." | No hay SPEI sin aplicar que coincida (nombre truncado **y** importe ≠ total), o es otro tipo. | Verificar el comprobante; usar la opción de capturar comprobante (PDF). |
 | "No me deja registrar el pago." | El importe del comprobante no coincide con el total de la solicitud. | Verificar el comprobante / monto. |
 | "Un pago quedó mal conciliado." | Asignación incorrecta de `movbancarios`. | Desaplicar (permiso 401) y reasignar. |
+| "Una solicitud **pagada vuelve sola a Rechazado** (`idEstado=3`) al cambiarla; el `estado` dice 'Pagado'." | Trigger `trigger_cxp_validar_fecha_cfdi` (CFDI de mes anterior a `fc`) — ver gotcha 9. | Trigger **DESACTIVADO** desde 2026-06-23; corregir `idEstado` a 6 en los registros afectados. No reactivar hasta el fix. |
 | "Error interno del servidor al aplicar pago por captura/comprobante." | **Resuelto en v2.22.1.** El INSERT a `movbancarios` enviaba columnas GENERADAS (`numAnio`/`numMes`). | Actualizar a v2.22.1+ (el backend ya no las envía). Si reaparece, revisar que ningún INSERT a `movbancarios` incluya columnas generadas. |
 
 **Cuándo escalar a ticket:** desaplicar/corregir pagos, inconsistencias de conciliación, solicitudes
@@ -199,6 +235,12 @@ atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
 - ✅ **Solicitudes de pago**: listado en 4 etapas + **alta de Solicitud de Pago (CFDI)** con parser
   propio y validaciones fiscales + editar/enviar/eliminar (solo Guardado).
 - ✅ **Solicitudes pendientes** (gestión: responsable + devolver).
+- ✅ **💬 Comentarios del aprobador (v2.40.2):** icono en cada fila de *Solicitudes de pago* y *Solicitudes
+  pendientes* que abre el hilo de `cxpComentarios` (motivos de Rechazo/Regreso del aprobador); resaltado
+  cuando hay respuesta del aprobador.
+- 📌 **PENDIENTE (BD):** corregir la función `cxp_validar_fecha_cfdi_estado` (trigger
+  `trigger_cxp_validar_fecha_cfdi`, **hoy DESACTIVADO** — ver gotcha 9) para que no degrade solicitudes ya
+  pagadas/aprobadas; reactivarlo solo tras el fix.
 - ✅ **Aprobar Solicitudes** (430, bandeja del aprobador): regresar/rechazar/aprobar con validación de
   presupuesto + reasignar fuera de presupuesto + marca `autorizadoFP` + tiempo real (SSE).
 - ✅ **Pagar solicitudes** (tesorería): listado con filtros estilo Excel + **tiempo real (SSE)** +

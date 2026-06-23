@@ -71,6 +71,12 @@ export class PendientesController {
     });
   }
 
+  /** Hilo de comentarios de la solicitud (justificación + respuestas del aprobador). */
+  @Get(':idCxp/comentarios')
+  comentarios(@Param('idCxp') idCxp: string) {
+    return this.svc.comentarios(idCxp);
+  }
+
   @Patch(':idCxp/responsable')
   async cambiarResponsable(
     @CurrentUser() actor: AuthUser,

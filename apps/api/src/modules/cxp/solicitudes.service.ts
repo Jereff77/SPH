@@ -101,10 +101,12 @@ export class SolicitudesService {
     const filas = data ?? [];
 
     // Enriquecer: Categoría/Clasificación (PresCategorias), Justificación (primer
-    // comentario) y "Asignado a" (responsable).
-    const [cuentas, justif, nombres, firmadas] = await Promise.all([
+    // comentario), respuesta del aprobador (rechazo/regreso) y "Asignado a".
+    // Todas las filas son del mismo usuario (`uid`), así que el solicitante de
+    // cada comentario se compara contra `uid` para detectar respuestas del gerente.
+    const [cuentas, coments, nombres, firmadas] = await Promise.all([
       this.resolverCuentas(filas.map((r) => r.idCategoria)),
-      this.resolverJustificaciones(filas.map((r) => r.idCxp)),
+      this.resolverComentariosListado(filas.map((r) => r.idCxp), uid),
       this.resolverUsuarios(filas.map((r) => r.uidGerente)),
       firmarDocumentos(
         this.supabase.admin,
@@ -120,10 +122,47 @@ export class SolicitudesService {
       ...r,
       categoria: cuentas.get(r.idCategoria)?.cuenta ?? null,
       clasificacion: cuentas.get(r.idCategoria)?.seccion ?? null,
-      justificacion: justif.get(r.idCxp) ?? null,
+      justificacion: coments.justif.get(r.idCxp) ?? null,
+      tieneRespuestaGerente: coments.conResp.has(r.idCxp),
       asignadoA:
         (r.nomGerente && r.nomGerente !== '' ? r.nomGerente : null) ??
         (r.uidGerente ? (nombres.get(r.uidGerente) ?? null) : null),
+    }));
+  }
+
+  /**
+   * Hilo de comentarios de una solicitud (para el icono 💬 del listado). Valida
+   * que la solicitud pertenezca al usuario activo (respeta "Ver como"). Devuelve
+   * cada comentario con su autor y la marca `esSolicitante` para distinguir en el
+   * front los mensajes del aprobador (rechazo/regreso) de los del propio usuario.
+   */
+  async comentarios(idCxp: string, actorUid: string, verComo?: string) {
+    const uid = await this.supabase.uidEfectivo(actorUid, verComo);
+    const { data: sol, error: errSol } = await this.supabase.admin
+      .from('cxp')
+      .select('idCxp, uidr')
+      .eq('idCxp', idCxp)
+      .maybeSingle();
+    if (errSol) throw new InternalServerErrorException(errSol.message);
+    if (!sol) throw new NotFoundException('Solicitud no encontrada.');
+    if (sol.uidr !== uid)
+      throw new ForbiddenException('La solicitud no pertenece al usuario.');
+
+    const { data, error } = await this.supabase.admin
+      .from('cxpComentarios')
+      .select('idCxpComentarios, comentario, fc, uidr')
+      .eq('idCxP', idCxp)
+      .eq('status', true)
+      .order('fc', { ascending: true });
+    if (error) throw new InternalServerErrorException(error.message);
+    const filas = data ?? [];
+    const nombres = await this.resolverUsuarios(filas.map((c) => c.uidr));
+    return filas.map((c) => ({
+      idCxpComentarios: c.idCxpComentarios,
+      comentario: c.comentario,
+      fc: c.fc,
+      autor: c.uidr ? (nombres.get(c.uidr) ?? null) : null,
+      esSolicitante: c.uidr === sol.uidr,
     }));
   }
 
@@ -139,19 +178,31 @@ export class SolicitudesService {
     return mapa;
   }
 
-  private async resolverJustificaciones(ids: (string | null)[]) {
+  /**
+   * Para el listado: primer comentario (justificación) por solicitud + el set de
+   * solicitudes que tienen al menos un comentario de alguien distinto al
+   * solicitante (= respuesta del aprobador: rechazo, regreso o nota al aprobar).
+   */
+  private async resolverComentariosListado(
+    ids: (string | null)[],
+    solicitanteUid: string,
+  ): Promise<{ justif: Map<string, string>; conResp: Set<string> }> {
     const unicos = [...new Set(ids.filter((x): x is string => !!x))];
-    const mapa = new Map<string, string>();
-    if (unicos.length === 0) return mapa;
+    const justif = new Map<string, string>();
+    const conResp = new Set<string>();
+    if (unicos.length === 0) return { justif, conResp };
     const { data } = await this.supabase.admin
       .from('cxpComentarios')
-      .select('idCxP, comentario, fc')
+      .select('idCxP, comentario, fc, uidr')
+      .eq('status', true)
       .in('idCxP', unicos)
       .order('fc', { ascending: true });
     for (const c of data ?? []) {
-      if (c.idCxP && c.comentario && !mapa.has(c.idCxP)) mapa.set(c.idCxP, c.comentario);
+      if (!c.idCxP) continue;
+      if (c.comentario && !justif.has(c.idCxP)) justif.set(c.idCxP, c.comentario);
+      if (c.uidr && c.uidr !== solicitanteUid) conResp.add(c.idCxP);
     }
-    return mapa;
+    return { justif, conResp };
   }
 
   private async resolverUsuarios(ids: (string | null)[]) {

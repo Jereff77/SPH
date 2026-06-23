@@ -91,6 +91,9 @@ export class PendientesService {
       ...filas.map((r) => r.uidGerente),
       ...filas.map((r) => r.uidr),
     ]);
+    const conResp = await this.resolverRespuestaGerente(
+      filas.map((r) => ({ idCxp: r.idCxp, uidr: r.uidr })),
+    );
 
     const resultado = filas.map((r) => ({
       ...r,
@@ -98,6 +101,7 @@ export class PendientesService {
       seccion: cuentas.get(r.idCategoria)?.seccion ?? null,
       nomGerente: r.uidGerente ? (nombres.get(r.uidGerente) ?? null) : null,
       nomSolicitante: r.uidr ? (nombres.get(r.uidr) ?? null) : null,
+      tieneRespuestaGerente: conResp.has(r.idCxp),
     }));
 
     const firmadas = await firmarDocumentos(
@@ -123,6 +127,62 @@ export class PendientesService {
       .in('idCategoria', unicos);
     for (const c of data ?? []) mapa.set(c.idCategoria, { cuenta: c.cuenta, seccion: c.seccion });
     return mapa;
+  }
+
+  /**
+   * Conjunto de solicitudes que tienen al menos un comentario de alguien distinto
+   * al solicitante de esa misma solicitud (= respuesta del aprobador: rechazo,
+   * regreso o nota al aprobar). Sirve para resaltar el icono 💬 del listado.
+   */
+  private async resolverRespuestaGerente(
+    filas: { idCxp: string; uidr: string | null }[],
+  ): Promise<Set<string>> {
+    const ids = [...new Set(filas.map((f) => f.idCxp))];
+    const solicitante = new Map(filas.map((f) => [f.idCxp, f.uidr]));
+    const conResp = new Set<string>();
+    if (ids.length === 0) return conResp;
+    const { data } = await this.supabase.admin
+      .from('cxpComentarios')
+      .select('idCxP, uidr')
+      .eq('status', true)
+      .in('idCxP', ids);
+    for (const c of data ?? []) {
+      if (c.idCxP && c.uidr && c.uidr !== solicitante.get(c.idCxP))
+        conResp.add(c.idCxP);
+    }
+    return conResp;
+  }
+
+  /**
+   * Hilo de comentarios de una solicitud (icono 💬). Vista de gestión (clave 450):
+   * NO valida pertenencia porque el gestor ve las solicitudes de todos. Marca
+   * `esSolicitante` para que el front distinga los mensajes del aprobador.
+   */
+  async comentarios(idCxp: string) {
+    const { data: sol, error: errSol } = await this.supabase.admin
+      .from('cxp')
+      .select('idCxp, uidr')
+      .eq('idCxp', idCxp)
+      .maybeSingle();
+    if (errSol) throw new InternalServerErrorException(errSol.message);
+    if (!sol) throw new NotFoundException('Solicitud no encontrada.');
+
+    const { data, error } = await this.supabase.admin
+      .from('cxpComentarios')
+      .select('idCxpComentarios, comentario, fc, uidr')
+      .eq('idCxP', idCxp)
+      .eq('status', true)
+      .order('fc', { ascending: true });
+    if (error) throw new InternalServerErrorException(error.message);
+    const filas = data ?? [];
+    const nombres = await this.resolverUsuarios(filas.map((c) => c.uidr));
+    return filas.map((c) => ({
+      idCxpComentarios: c.idCxpComentarios,
+      comentario: c.comentario,
+      fc: c.fc,
+      autor: c.uidr ? (nombres.get(c.uidr) ?? null) : null,
+      esSolicitante: c.uidr === sol.uidr,
+    }));
   }
 
   private async resolverUsuarios(uids: (string | null)[]) {

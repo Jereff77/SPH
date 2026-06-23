@@ -6,6 +6,7 @@ import {
   type PendienteCxP,
 } from './pendientes.api';
 import { MultiSearchSelect } from '@/components/MultiSearchSelect';
+import { ComentariosSolicitudModal } from './ComentariosSolicitudModal';
 import { ESTADOS_CXP } from './solicitudes.api';
 import { ApiRequestError } from '@/lib/api';
 import { useSort, type Accessors } from '@/components/tabla/useSort';
@@ -51,6 +52,7 @@ export function PendientesPage() {
   const [uidsGerente, setUidsGerente] = useState<string[]>([]);
   const [busca, setBusca] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [comentariosDe, setComentariosDe] = useState<PendienteCxP | null>(null);
 
   const { data: aniosOpts = [] } = useQuery({
     queryKey: ['cxp-pend-anios'],
@@ -294,6 +296,25 @@ export function PendientesPage() {
                       {esUrl(r.urlXLM) ? (
                         <a href={r.urlXLM} target="_blank" rel="noreferrer" title="XML" className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 hover:bg-amber-100">XML</a>
                       ) : null}
+                      <button
+                        type="button"
+                        onClick={() => setComentariosDe(r)}
+                        title={
+                          r.tieneRespuestaGerente
+                            ? 'Ver comentarios del aprobador (rechazo/regreso)'
+                            : 'Ver comentarios'
+                        }
+                        className={`relative text-base leading-none ${
+                          r.tieneRespuestaGerente
+                            ? 'text-amber-600 hover:text-amber-700'
+                            : 'text-gray-400 hover:text-[#1f2a4d]'
+                        }`}
+                      >
+                        💬
+                        {r.tieneRespuestaGerente && (
+                          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-1 ring-white" />
+                        )}
+                      </button>
                     </div>
                   </td>
                   <td className="px-3 py-2">
@@ -336,6 +357,18 @@ export function PendientesPage() {
           </tbody>
         </table>
       </div>
+
+      {comentariosDe && (
+        <ComentariosSolicitudModal
+          idCxp={comentariosDe.idCxp}
+          titulo={`${comentariosDe.nombreProveedor ?? comentariosDe.nomCFDI ?? 'Solicitud'}${
+            comentariosDe.folio ? ` · ${comentariosDe.folio}` : ''
+          }`}
+          queryKey={['cxp-pend-comentarios', comentariosDe.idCxp]}
+          fetcher={pendientesApi.comentarios}
+          onClose={() => setComentariosDe(null)}
+        />
+      )}
     </div>
   );
 }
