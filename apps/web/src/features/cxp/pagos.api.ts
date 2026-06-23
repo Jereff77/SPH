@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import type { ComentarioCxP } from './solicitudes.api';
 
 export interface PagoRow {
   idCxp: string;
@@ -32,6 +33,7 @@ export interface PagoRow {
   justificacion: string | null;
   solicitoNombre: string | null;
   autorizoNombre: string | null;
+  tieneRespuestaGerente: boolean; // hay comentario del aprobador (rechazo/regreso)
 }
 
 export interface TotalesPagos {
@@ -134,6 +136,8 @@ export const pagosApi = {
     api.postForm<{ idmov: string }>(`/cxp/pagos/${idCxp}`, form),
   movimientos: (idCxp: string) =>
     api.get<MovBancario[]>(`/cxp/pagos/${idCxp}/movimientos`),
+  comentarios: (idCxp: string) =>
+    api.get<ComentarioCxP[]>(`/cxp/pagos/${idCxp}/comentarios`),
   asignar: (idCxp: string, idmov: string) =>
     api.post<{ ok: true }>(`/cxp/pagos/${idCxp}/asignar`, { idmov }),
   analizarComprobante: (idCxp: string, pdf: File) => {

@@ -235,9 +235,12 @@ atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
 - ✅ **Solicitudes de pago**: listado en 4 etapas + **alta de Solicitud de Pago (CFDI)** con parser
   propio y validaciones fiscales + editar/enviar/eliminar (solo Guardado).
 - ✅ **Solicitudes pendientes** (gestión: responsable + devolver).
-- ✅ **💬 Comentarios del aprobador (v2.40.2):** icono en cada fila de *Solicitudes de pago* y *Solicitudes
-  pendientes* que abre el hilo de `cxpComentarios` (motivos de Rechazo/Regreso del aprobador); resaltado
-  cuando hay respuesta del aprobador.
+- ✅ **💬 Comentarios del aprobador (v2.40.2 / v2.40.3):** icono en cada fila de *Solicitudes de pago*,
+  *Solicitudes pendientes*, *Pagar solicitudes* y en el **detalle de PPD** (por parcialidad) que abre el hilo
+  de `cxpComentarios` (motivos de Rechazo/Regreso del aprobador); resaltado cuando hay respuesta del aprobador.
+- ✅ **🔒 Visibilidad de PPD por usuario (v2.40.3):** el estado de cuenta PPD muestra a cada usuario **solo sus**
+  facturas; los de *Pagar solicitudes* (clave 400) y soporte ven todas. Incluye ver **PDF/XML** del CFDI en el
+  detalle.
 - 📌 **PENDIENTE (BD):** corregir la función `cxp_validar_fecha_cfdi_estado` (trigger
   `trigger_cxp_validar_fecha_cfdi`, **hoy DESACTIVADO** — ver gotcha 9) para que no degrade solicitudes ya
   pagadas/aprobadas; reactivarlo solo tras el fix.
@@ -414,6 +417,10 @@ Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un mod
   (`POST /cxp/pagos/:idCxp/desaplicar`, permiso **401**) revierte a Aprobado (`idEstado=4`,
   limpia `montoAplicado`/`pagador`/`fecPago`/`idMovBancarios`) + comentario.
 - **Aprobados sin pago** (✨, permiso **402**): batch `cxp_aprobados_sin_pago_aplicado(mes, anio)`.
+- **💬 Comentarios (v2.40.2):** botón en la columna *Documentos* de cada fila → abre el hilo de
+  `cxpComentarios` (mismo modal reutilizable que en Solicitudes de pago/pendientes). Endpoint
+  `GET /cxp/pagos/:idCxp/comentarios` (clave **400**, vista de tesorería: NO valida pertenencia). El listado
+  marca `tieneRespuestaGerente` por fila para resaltar el icono cuando hay respuesta del aprobador.
 
 ### Archivos
 - Backend: `pagos.{service,controller,schemas}.ts`, `pagos-stream.controller.ts`,
@@ -650,6 +657,20 @@ parametrizado** (`PpdService.saldoDe`), sin el SQL crudo inseguro de v1.
    monto (validado ≤ disponible) + categoría + justificación → nueva parcial Enviada.
 3. **Estado de cuenta** (`PpdPage`): tabla con Total / Solicitado / Pagado / **Disponible** / % avance por
    factura + detalle con las parcialidades y su estatus.
+
+### Visibilidad, documentos y comentarios (v2.40.3)
+- **🔒 Visibilidad por usuario (server-side):** cada usuario ve **solo sus** facturas PPD
+  (`cxp_ppd.uidr = uid`). **Excepción:** quien tiene acceso a **Pagar solicitudes (clave 400)** o es
+  **soporte** ve **TODAS**. La regla se aplica en `PpdService.puedeVerTodas(uid)` (misma lógica RBAC que
+  `PermisoGuard`: `catUsers.isSupport` o `segModulosUsuarios` clave 400 con acceso) y cubre **`listar`**
+  (filtra), **`detalle`** (403 si es ajena) y **`nuevaParcial`** (403: no se puede abonar a una factura
+  ajena por API). Antes el estado de cuenta mostraba las facturas de **todos** los usuarios.
+- **📄 Ver PDF/XML del CFDI en el detalle:** el modal "Estado de cuenta de la factura" muestra botones
+  **PDF**/**XML** (URLs firmadas del maestro, `urlCFDI`/`urlXLM`, bucket privado `CFDIproveedores`).
+- **💬 Comentarios por parcialidad:** icono en cada fila del detalle → abre el hilo de `cxpComentarios`
+  (mismo modal reutilizable). Endpoint `GET /cxp/ppd/parcial/:idCxp/comentarios` con la **misma regla de
+  visibilidad** (dueño o clave 400/soporte). El `detalle` marca `tieneRespuestaGerente` por parcialidad
+  para resaltar el icono cuando el aprobador dejó un motivo de rechazo/regreso.
 
 ### Sincronización de saldo al pagar
 `pagos.service.ts` (`registrarPago`, `asignarMovimiento`, `desaplicarPago`): tras actualizar `cxp`, si la fila

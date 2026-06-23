@@ -1,5 +1,5 @@
 import { api } from '@/lib/api';
-import type { ConceptoCfdi } from './solicitudes.api';
+import type { ConceptoCfdi, ComentarioCxP } from './solicitudes.api';
 
 /** Saldo de una factura PPD (todo en su moneda). */
 export interface SaldoPpd {
@@ -60,6 +60,7 @@ export interface ParcialidadPpd {
   complementoExentoMotivo: string | null;
   fecComplementoExento: string | null;
   dispensadoPorNombre: string | null;
+  tieneRespuestaGerente: boolean; // hay comentario del aprobador (rechazo/regreso)
 }
 
 export interface DetallePpd {
@@ -113,6 +114,9 @@ export const ppdApi = {
   listar: () => api.get<FacturaPpd[]>('/cxp/ppd'),
   /** Detalle de una factura PPD + sus parcialidades. */
   detalle: (idCxpPPD: string) => api.get<DetallePpd>(`/cxp/ppd/${idCxpPPD}`),
+  /** Hilo de comentarios de una parcialidad PPD (motivos de rechazo/regreso). */
+  comentarios: (idCxp: string) =>
+    api.get<ComentarioCxP[]>(`/cxp/ppd/parcial/${idCxp}/comentarios`),
   /** Analiza el CFDI PPD (XML + PDF). */
   analizar: (xml: File, pdf: File) => {
     const fd = new FormData();

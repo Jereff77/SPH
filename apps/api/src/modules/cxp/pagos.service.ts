@@ -138,6 +138,9 @@ export class PagosService {
       ...filas.map((r) => r.autorizo),
     ].filter((x): x is string => !!x);
     const nombres = await this.resolverUsuarios(uids);
+    const conResp = await this.resolverRespuestaGerente(
+      filas.map((r) => ({ idCxp: r.idCxp, uidr: r.uidr })),
+    );
 
     const enriquecidas = filas.map((r) => ({
       ...r,
@@ -146,6 +149,7 @@ export class PagosService {
       justificacion: r.ultimoComentario ?? null,
       solicitoNombre: r.uidr ? (nombres.get(r.uidr) ?? null) : null,
       autorizoNombre: r.autorizo ? (nombres.get(r.autorizo) ?? null) : null,
+      tieneRespuestaGerente: conResp.has(r.idCxp),
     }));
 
     // Firmar los documentos (buckets privados de CxP): URL firmada al vuelo.
@@ -205,6 +209,64 @@ export class PagosService {
           : (u.nomCompleto ?? u.nombre ?? u.uid),
       );
     return mapa;
+  }
+
+  /**
+   * Conjunto de solicitudes con al menos un comentario de alguien distinto al
+   * solicitante de esa solicitud (= respuesta del aprobador: rechazo/regreso/nota
+   * al aprobar). Para resaltar el icono 💬 del listado.
+   */
+  private async resolverRespuestaGerente(
+    filas: { idCxp: string; uidr: string | null }[],
+  ): Promise<Set<string>> {
+    const ids = [...new Set(filas.map((f) => f.idCxp))];
+    const solicitante = new Map(filas.map((f) => [f.idCxp, f.uidr]));
+    const conResp = new Set<string>();
+    if (ids.length === 0) return conResp;
+    const { data } = await this.supabase.admin
+      .from('cxpComentarios')
+      .select('idCxP, uidr')
+      .eq('status', true)
+      .in('idCxP', ids);
+    for (const c of data ?? []) {
+      if (c.idCxP && c.uidr && c.uidr !== solicitante.get(c.idCxP))
+        conResp.add(c.idCxP);
+    }
+    return conResp;
+  }
+
+  /**
+   * Hilo de comentarios de una solicitud (icono 💬). Vista de tesorería (clave 400):
+   * NO valida pertenencia (ve solicitudes de todos). Marca `esSolicitante` para que
+   * el front distinga los mensajes del aprobador (rechazo/regreso).
+   */
+  async comentarios(idCxp: string) {
+    const { data: sol, error: errSol } = await this.supabase.admin
+      .from('cxp')
+      .select('idCxp, uidr')
+      .eq('idCxp', idCxp)
+      .maybeSingle();
+    if (errSol) throw new InternalServerErrorException(errSol.message);
+    if (!sol) throw new NotFoundException('Solicitud no encontrada.');
+
+    const { data, error } = await this.supabase.admin
+      .from('cxpComentarios')
+      .select('idCxpComentarios, comentario, fc, uidr')
+      .eq('idCxP', idCxp)
+      .eq('status', true)
+      .order('fc', { ascending: true });
+    if (error) throw new InternalServerErrorException(error.message);
+    const filas = data ?? [];
+    const nombres = await this.resolverUsuarios(
+      filas.map((c) => c.uidr).filter((x): x is string => !!x),
+    );
+    return filas.map((c) => ({
+      idCxpComentarios: c.idCxpComentarios,
+      comentario: c.comentario,
+      fc: c.fc,
+      autor: c.uidr ? (nombres.get(c.uidr) ?? null) : null,
+      esSolicitante: c.uidr === sol.uidr,
+    }));
   }
 
   /** Opciones para los filtros: años, proveedores y categorías. */

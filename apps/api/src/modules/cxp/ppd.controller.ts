@@ -46,14 +46,26 @@ export class PpdController {
 
   /** Estado de cuenta: facturas PPD con total/solicitado/pagado/disponible. */
   @Get()
-  listar() {
-    return this.svc.listar();
+  listar(@CurrentUser() actor: AuthUser) {
+    return this.svc.listar(actor.uid);
+  }
+
+  /** Hilo de comentarios de una parcialidad PPD (justificación + respuestas del aprobador). */
+  @Get('parcial/:idCxp/comentarios')
+  comentariosParcial(
+    @CurrentUser() actor: AuthUser,
+    @Param('idCxp') idCxp: string,
+  ) {
+    return this.svc.comentariosParcial(idCxp, actor.uid);
   }
 
   /** Detalle de una factura PPD + sus parcialidades. */
   @Get(':idCxpPPD')
-  detalle(@Param('idCxpPPD') idCxpPPD: string) {
-    return this.svc.detalle(idCxpPPD);
+  detalle(
+    @CurrentUser() actor: AuthUser,
+    @Param('idCxpPPD') idCxpPPD: string,
+  ) {
+    return this.svc.detalle(idCxpPPD, actor.uid);
   }
 
   /** Analiza el CFDI PPD (XML + PDF): valida y devuelve datos + saldo si existe. */

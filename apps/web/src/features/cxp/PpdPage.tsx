@@ -13,7 +13,10 @@ import { NuevaFacturaPpd } from './NuevaFacturaPpd';
 import { NuevaParcialPpd } from './NuevaParcialPpd';
 import { SubirComplementoModal } from './SubirComplementoModal';
 import { DispensarComplementoModal } from './DispensarComplementoModal';
+import { ComentariosSolicitudModal } from './ComentariosSolicitudModal';
 import { useAuth } from '@/features/auth/useAuth';
+
+const esUrl = (u: string | null): u is string => !!u && /^https?:\/\//.test(u);
 
 const fmt = (n: number, mon = 'MXN') =>
   n.toLocaleString('es-MX', { style: 'currency', currency: mon });
@@ -300,6 +303,7 @@ function DetalleModal({
   });
   const [subirDe, setSubirDe] = useState<ParcialidadPpd | null>(null);
   const [dispensarDe, setDispensarDe] = useState<ParcialidadPpd | null>(null);
+  const [comentariosDe, setComentariosDe] = useState<ParcialidadPpd | null>(null);
   const mon = moneda || 'MXN';
 
   const refrescar = () => {
@@ -329,12 +333,44 @@ function DetalleModal({
           ) : (
             <>
               <div className="rounded-lg border bg-gray-50 p-3 text-sm">
-                <p className="font-medium text-gray-800">
-                  {data.maestro.nombreProveedor ?? data.maestro.nomCFDI}
-                </p>
-                <p className="truncate text-xs text-gray-400" title={data.maestro.concepto ?? ''}>
-                  {data.maestro.concepto ?? '—'}
-                </p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-800">
+                      {data.maestro.nombreProveedor ?? data.maestro.nomCFDI}
+                    </p>
+                    <p className="truncate text-xs text-gray-400" title={data.maestro.concepto ?? ''}>
+                      {data.maestro.concepto ?? '—'}
+                    </p>
+                  </div>
+                  {/* Documentos de la factura PPD (CFDI): PDF y XML firmados. */}
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {esUrl(data.maestro.urlCFDI) ? (
+                      <a
+                        href={data.maestro.urlCFDI}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Ver PDF del CFDI"
+                        className="rounded bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-600 hover:bg-red-100"
+                      >
+                        PDF
+                      </a>
+                    ) : null}
+                    {esUrl(data.maestro.urlXLM) ? (
+                      <a
+                        href={data.maestro.urlXLM}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Ver XML del CFDI"
+                        className="rounded bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 hover:bg-amber-100"
+                      >
+                        XML
+                      </a>
+                    ) : null}
+                    {!esUrl(data.maestro.urlCFDI) && !esUrl(data.maestro.urlXLM) && (
+                      <span className="text-xs text-gray-300">Sin archivos</span>
+                    )}
+                  </div>
+                </div>
                 <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
                   <Resumen label="Total" valor={fmt(data.saldo.total, mon)} />
                   <Resumen label="Solicitado" valor={fmt(data.saldo.solicitado, mon)} />
@@ -369,7 +405,28 @@ function DetalleModal({
                         return (
                           <tr key={p.idCxp} className="border-t">
                             <td className="px-4 py-2 text-gray-600">
-                              {fechaCorta(p.fecSolicitud)}
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setComentariosDe(p)}
+                                  title={
+                                    p.tieneRespuestaGerente
+                                      ? 'Ver comentarios del aprobador (rechazo/regreso)'
+                                      : 'Ver comentarios'
+                                  }
+                                  className={`relative text-sm leading-none ${
+                                    p.tieneRespuestaGerente
+                                      ? 'text-amber-600 hover:text-amber-700'
+                                      : 'text-gray-400 hover:text-[#1f2a4d]'
+                                  }`}
+                                >
+                                  💬
+                                  {p.tieneRespuestaGerente && (
+                                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-1 ring-white" />
+                                  )}
+                                </button>
+                                <span>{fechaCorta(p.fecSolicitud)}</span>
+                              </div>
                             </td>
                             <td className="px-4 py-2 text-right text-gray-700">
                               {fmt(p.total, p.moneda || mon)}
@@ -432,6 +489,15 @@ function DetalleModal({
             setDispensarDe(null);
             refrescar();
           }}
+        />
+      )}
+      {comentariosDe && (
+        <ComentariosSolicitudModal
+          idCxp={comentariosDe.idCxp}
+          titulo={`${data?.maestro.nombreProveedor ?? data?.maestro.nomCFDI ?? 'Parcialidad'} · ${fechaCorta(comentariosDe.fecSolicitud)}`}
+          queryKey={['cxp-ppd-comentarios', comentariosDe.idCxp]}
+          fetcher={ppdApi.comentarios}
+          onClose={() => setComentariosDe(null)}
         />
       )}
     </div>

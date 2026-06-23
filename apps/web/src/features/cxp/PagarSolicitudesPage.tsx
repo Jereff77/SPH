@@ -9,6 +9,7 @@ import {
 import { ESTADOS_CXP } from './solicitudes.api';
 import { AplicarPagoModal } from './AplicarPagoModal';
 import { TransferenciaModal } from './TransferenciaModal';
+import { ComentariosSolicitudModal } from './ComentariosSolicitudModal';
 import { usePagosRealtime } from './usePagosRealtime';
 import {
   SortableTh,
@@ -77,6 +78,7 @@ export function PagarSolicitudesPage() {
   const [clasifSel, setClasifSel] = useState<Set<string>>(new Set());
   const [pagarDe, setPagarDe] = useState<PagoRow | null>(null);
   const [verPagoDe, setVerPagoDe] = useState<PagoRow | null>(null);
+  const [comentariosDe, setComentariosDe] = useState<PagoRow | null>(null);
 
   const { data: opts } = useQuery({
     queryKey: ['cxp-pagos-filtros'],
@@ -298,6 +300,7 @@ export function PagarSolicitudesPage() {
                 r={r}
                 onPagar={() => setPagarDe(r)}
                 onVerPago={() => setVerPagoDe(r)}
+                onComentarios={() => setComentariosDe(r)}
               />
             ))}
           </tbody>
@@ -335,6 +338,17 @@ export function PagarSolicitudesPage() {
           }}
         />
       )}
+      {comentariosDe && (
+        <ComentariosSolicitudModal
+          idCxp={comentariosDe.idCxp}
+          titulo={`${comentariosDe.nombreProveedor ?? comentariosDe.nomCFDI ?? 'Solicitud'}${
+            comentariosDe.folio ? ` · ${comentariosDe.folio}` : ''
+          }`}
+          queryKey={['cxp-pagos-comentarios', comentariosDe.idCxp]}
+          fetcher={pagosApi.comentarios}
+          onClose={() => setComentariosDe(null)}
+        />
+      )}
     </div>
   );
 }
@@ -343,10 +357,12 @@ function Fila({
   r,
   onPagar,
   onVerPago,
+  onComentarios,
 }: {
   r: PagoRow;
   onPagar: () => void;
   onVerPago: () => void;
+  onComentarios: () => void;
 }) {
   const est = r.idEstado != null ? ESTADOS_CXP[r.idEstado] : undefined;
   const pagada = !!r.idMovBancarios || r.idEstado === 6 || r.idEstado === 7;
@@ -362,7 +378,25 @@ function Fila({
           {esUrl(r.urlXLM) && (
             <a href={r.urlXLM} target="_blank" rel="noreferrer" title="XML" className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 hover:bg-amber-100">XML</a>
           )}
-          {!esUrl(r.urlCFDI) && !esUrl(r.urlXLM) && <span className="text-gray-300">—</span>}
+          <button
+            type="button"
+            onClick={onComentarios}
+            title={
+              r.tieneRespuestaGerente
+                ? 'Ver comentarios del aprobador (rechazo/regreso)'
+                : 'Ver comentarios'
+            }
+            className={`relative text-sm leading-none ${
+              r.tieneRespuestaGerente
+                ? 'text-amber-600 hover:text-amber-700'
+                : 'text-gray-400 hover:text-[#1f2a4d]'
+            }`}
+          >
+            💬
+            {r.tieneRespuestaGerente && (
+              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-1 ring-white" />
+            )}
+          </button>
         </div>
       </td>
       <td className="px-3 py-2 text-gray-600">{fecha(r.fecSolicitud)}</td>

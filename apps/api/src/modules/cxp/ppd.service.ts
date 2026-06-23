@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -59,6 +60,29 @@ export class PpdService {
     return id;
   }
 
+  /**
+   * ¿El usuario puede ver TODAS las facturas PPD (no solo las suyas)? Lo pueden
+   * los que tienen acceso a **Pagar solicitudes** (clave 400) y los de soporte
+   * (super-admin). El resto solo ve las facturas PPD que ellos solicitaron
+   * (`cxp_ppd.uidr = uid`). Misma lógica de RBAC que `PermisoGuard`.
+   */
+  private async puedeVerTodas(uid: string): Promise<boolean> {
+    const { data: perfil } = await this.supabase.admin
+      .from('catUsers')
+      .select('isSupport')
+      .eq('uid', uid)
+      .maybeSingle();
+    if (perfil?.isSupport === true) return true;
+    const { data } = await this.supabase.admin
+      .from('segModulosUsuarios')
+      .select('acceso')
+      .eq('uid', uid)
+      .eq('clave', 400)
+      .eq('acceso', true)
+      .limit(1);
+    return !!data && data.length > 0;
+  }
+
   // ===================== Saldo / estado de cuenta =====================
 
   /** Calcula el saldo de una factura PPD a partir de sus parcialidades. */
@@ -91,15 +115,23 @@ export class PpdService {
     };
   }
 
-  /** Estado de cuenta: todas las facturas PPD con sus saldos. */
-  async listar() {
-    const { data: maestros, error } = await this.supabase.admin
+  /**
+   * Estado de cuenta de las facturas PPD con sus saldos. Cada usuario ve **solo
+   * sus** facturas (`uidr = actorUid`); los usuarios con acceso a *Pagar
+   * solicitudes* (clave 400) o soporte ven **todas**.
+   */
+  async listar(actorUid: string) {
+    const verTodas = await this.puedeVerTodas(actorUid);
+    let query = this.supabase.admin
       .from('cxp_ppd')
       .select(
         'idCxpPPD, folio, idProveedor, nombreProveedor, nomCFDI, concepto, total, subtotal, fecCFDI, fecInicio, fecSolicitud, idCategoria',
       )
-      .eq('status', true)
-      .order('fecInicio', { ascending: false });
+      .eq('status', true);
+    if (!verTodas) query = query.eq('uidr', actorUid);
+    const { data: maestros, error } = await query.order('fecInicio', {
+      ascending: false,
+    });
     if (error) throw new InternalServerErrorException(error.message);
     const lista = maestros ?? [];
     if (lista.length === 0) return [];
@@ -178,23 +210,29 @@ export class PpdService {
     });
   }
 
-  /** Detalle de una factura PPD: maestro + saldo + parcialidades (con estado). */
-  async detalle(idCxpPPD: string) {
+  /**
+   * Detalle de una factura PPD: maestro + saldo + parcialidades (con estado).
+   * Respeta la visibilidad: si el usuario no puede ver todas (clave 400/soporte)
+   * y la factura no es suya (`uidr`), se rechaza con 403.
+   */
+  async detalle(idCxpPPD: string, actorUid: string) {
     const { data: m, error } = await this.supabase.admin
       .from('cxp_ppd')
       .select(
-        'idCxpPPD, folio, idProveedor, nombreProveedor, nomCFDI, concepto, total, subtotal, fecCFDI, fecInicio, fecSolicitud, idCategoria, urlCFDI, urlXLM, status',
+        'idCxpPPD, folio, idProveedor, nombreProveedor, nomCFDI, concepto, total, subtotal, fecCFDI, fecInicio, fecSolicitud, idCategoria, urlCFDI, urlXLM, status, uidr',
       )
       .eq('idCxpPPD', idCxpPPD)
       .maybeSingle();
     if (error) throw new InternalServerErrorException(error.message);
     if (!m || m.status === false)
       throw new NotFoundException('Factura PPD no encontrada.');
+    if (!(await this.puedeVerTodas(actorUid)) && m.uidr !== actorUid)
+      throw new ForbiddenException('La factura PPD no pertenece al usuario.');
 
     const { data: parciales, error: pErr } = await this.supabase.admin
       .from('cxp')
       .select(
-        'idCxp, total, montoAplicado, idEstado, estado, moneda, fecSolicitud, fecPago, idCategoria, ultimoComentario, nomGerente, uuidComplemento, fecComplemento, urlComplementoXml, urlComplementoPdf, complementoExento, complementoExentoMotivo, complementoExentoPor, fecComplementoExento',
+        'idCxp, uidr, total, montoAplicado, idEstado, estado, moneda, fecSolicitud, fecPago, idCategoria, ultimoComentario, nomGerente, uuidComplemento, fecComplemento, urlComplementoXml, urlComplementoPdf, complementoExento, complementoExentoMotivo, complementoExentoPor, fecComplementoExento',
       )
       .eq('idCxpPPD', idCxpPPD)
       .eq('status', true)
@@ -207,6 +245,9 @@ export class PpdService {
     ]);
     const dispensadores = await this.resolverUsuarios(
       (parciales ?? []).map((p) => p.complementoExentoPor),
+    );
+    const conResp = await this.respuestaGerenteParciales(
+      (parciales ?? []).map((p) => ({ idCxp: p.idCxp, uidr: p.uidr })),
     );
     const saldo = await this.saldoDe(idCxpPPD);
 
@@ -226,6 +267,7 @@ export class PpdService {
           dispensadoPorNombre: p.complementoExentoPor
             ? (dispensadores.get(p.complementoExentoPor) ?? null)
             : null,
+          tieneRespuestaGerente: conResp.has(p.idCxp),
         };
       }),
     );
@@ -264,6 +306,64 @@ export class PpdService {
       .from(BUCKET_REP)
       .createSignedUrl(path, 3600);
     return data?.signedUrl ?? null;
+  }
+
+  /**
+   * Conjunto de parcialidades con al menos un comentario de alguien distinto a su
+   * solicitante (= respuesta del aprobador: rechazo/regreso/nota). Para resaltar
+   * el icono 💬 en el detalle.
+   */
+  private async respuestaGerenteParciales(
+    parciales: { idCxp: string; uidr: string | null }[],
+  ): Promise<Set<string>> {
+    const ids = [...new Set(parciales.map((p) => p.idCxp))];
+    const solicitante = new Map(parciales.map((p) => [p.idCxp, p.uidr]));
+    const conResp = new Set<string>();
+    if (ids.length === 0) return conResp;
+    const { data } = await this.supabase.admin
+      .from('cxpComentarios')
+      .select('idCxP, uidr')
+      .eq('status', true)
+      .in('idCxP', ids);
+    for (const c of data ?? []) {
+      if (c.idCxP && c.uidr && c.uidr !== solicitante.get(c.idCxP))
+        conResp.add(c.idCxP);
+    }
+    return conResp;
+  }
+
+  /**
+   * Hilo de comentarios de una parcialidad PPD (icono 💬 del detalle). Respeta la
+   * visibilidad: el solicitante de la parcialidad, o quien pueda ver todas (clave
+   * 400/soporte). Marca `esSolicitante` para distinguir las respuestas del aprobador.
+   */
+  async comentariosParcial(idCxp: string, actorUid: string) {
+    const { data: sol, error: errSol } = await this.supabase.admin
+      .from('cxp')
+      .select('idCxp, uidr')
+      .eq('idCxp', idCxp)
+      .maybeSingle();
+    if (errSol) throw new InternalServerErrorException(errSol.message);
+    if (!sol) throw new NotFoundException('Solicitud no encontrada.');
+    if (!(await this.puedeVerTodas(actorUid)) && sol.uidr !== actorUid)
+      throw new ForbiddenException('La solicitud no pertenece al usuario.');
+
+    const { data, error } = await this.supabase.admin
+      .from('cxpComentarios')
+      .select('idCxpComentarios, comentario, fc, uidr')
+      .eq('idCxP', idCxp)
+      .eq('status', true)
+      .order('fc', { ascending: true });
+    if (error) throw new InternalServerErrorException(error.message);
+    const filas = data ?? [];
+    const nombres = await this.resolverUsuarios(filas.map((c) => c.uidr));
+    return filas.map((c) => ({
+      idCxpComentarios: c.idCxpComentarios,
+      comentario: c.comentario,
+      fc: c.fc,
+      autor: c.uidr ? (nombres.get(c.uidr) ?? null) : null,
+      esSolicitante: c.uidr === sol.uidr,
+    }));
   }
 
   private async resolverCuentas(ids: (string | null)[]) {
@@ -557,13 +657,17 @@ export class PpdService {
     const { data: m, error } = await this.supabase.admin
       .from('cxp_ppd')
       .select(
-        'idCxpPPD, folio, idProveedor, nombreProveedor, nomCFDI, concepto, fecCFDI, urlXLM, urlCFDI, status',
+        'idCxpPPD, folio, idProveedor, nombreProveedor, nomCFDI, concepto, fecCFDI, urlXLM, urlCFDI, status, uidr',
       )
       .eq('idCxpPPD', idCxpPPD)
       .maybeSingle();
     if (error) throw new InternalServerErrorException(error.message);
     if (!m || m.status === false)
       throw new NotFoundException('Factura PPD no encontrada.');
+    // Solo el dueño de la factura PPD (o quien puede ver todas: clave 400/soporte)
+    // puede agregar parcialidades sobre ella.
+    if (!(await this.puedeVerTodas(actorUid)) && m.uidr !== actorUid)
+      throw new ForbiddenException('La factura PPD no pertenece al usuario.');
     if (!m.idProveedor)
       throw new BadRequestException('La factura PPD no tiene proveedor asociado.');
     await this.bloqueo.verificar(actorUid, m.idProveedor);

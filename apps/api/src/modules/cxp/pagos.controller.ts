@@ -79,6 +79,12 @@ export class PagosController {
     return this.svc.movimientos(idCxp);
   }
 
+  /** Hilo de comentarios de la solicitud (justificación + respuestas del aprobador). */
+  @Get(':idCxp/comentarios')
+  comentarios(@Param('idCxp') idCxp: string) {
+    return this.svc.comentarios(idCxp);
+  }
+
   @Get()
   listar(
     @Query('anio') anio?: string | string[],
