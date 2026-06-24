@@ -569,6 +569,28 @@ export class PpdService {
         'Esta factura PPD ya está registrada. Use "Solicitar otro pago" para abonar.',
       );
 
+    // El folio es ÚNICO en `cxp` (índice cxp_folio_key): la factura pudo haberse
+    // registrado antes como solicitud normal (PUE) o como parcialidad de otra PPD.
+    // Detectarlo aquí evita el "Error interno del servidor" (violación de unicidad)
+    // y da un mensaje claro al usuario.
+    const { data: enCxp } = await this.supabase.admin
+      .from('cxp')
+      .select('idCxp, estado, fecSolicitud, idCxpPPD')
+      .eq('folio', uuid)
+      .limit(1)
+      .maybeSingle();
+    if (enCxp) {
+      const estado = enCxp.estado ? ` con estado "${enCxp.estado}"` : '';
+      const desde = enCxp.fecSolicitud ? ` desde el ${enCxp.fecSolicitud}` : '';
+      const comoPpd = enCxp.idCxpPPD
+        ? ' Ya forma parte de una factura PPD.'
+        : ' Se registró como una solicitud de pago normal.';
+      throw new BadRequestException(
+        `Esta factura (folio ${uuid}) ya está registrada en CxP${estado}${desde}.` +
+          `${comoPpd} No puede registrarse de nuevo.`,
+      );
+    }
+
     if (dto.monto > cfdi.total + 0.01)
       throw new BadRequestException(
         `El monto solicitado (${dto.monto.toFixed(2)}) no puede exceder el total de la factura (${cfdi.total.toFixed(2)}).`,

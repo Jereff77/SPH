@@ -207,6 +207,26 @@ parametrizadas desde el backend.
      `base-conocimiento/migraciones/2026-06-23-cxp-desactivar-trigger-fecha-cfdi.sql`.
    - **Efecto colateral mientras esté off:** las PUE de meses anteriores **no** se auto-rechazan (la regla del
      backend "el CFDI debe ser del mes en curso" al **enviar** sigue vigente en código; ver gotcha 7).
+10. **🔑 `cxp.folio` es ÚNICO (índice `cxp_folio_key UNIQUE(folio)`) → no caben dos filas con el mismo folio.**
+    - **Implicación en el alta PPD (v2.41.1):** al registrar una factura PPD, `crearConFactura` inserta su
+      primera parcialidad en `cxp` con `folio = uuid`. Si ese UUID **ya existe** en `cxp` (porque la factura se
+      capturó antes como solicitud **normal/PUE** o como parcialidad de otra PPD), el INSERT viola
+      `cxp_folio_key` y Postgres lanza `duplicate key value` → el front mostraba **"Error interno del servidor"**.
+      **Fix:** `crearConFactura` ahora verifica el folio contra `cxp` (no solo `cxp_ppd`) y responde con un
+      `BadRequestException` claro ("Esta factura … ya está registrada en CxP con estado … No puede registrarse
+      de nuevo."). Incidente real: CFDI `1E9EBF45-…-48CD` de PROCESOS ECOLOGICOS GAMA ($6,032), ya **pagado** el
+      17/04/2026 como solicitud normal, que se intentó re-subir como PPD (XML byte-idéntico, mismo MD5).
+    - **⚠️ Bug latente (PENDIENTE):** las parcialidades reales de producción guardan en `folio` el valor
+      **`uuid-sufijo`** (único por parcialidad) y el UUID puro en `idFolioDif` (así nacieron las migradas con
+      prefijo `mig…`). Pero `insertarParcial` (v2) escribe `folio = uuid` **puro** en cada parcialidad, así que
+      una **2ª parcialidad** creada desde v2 sobre la misma PPD **chocaría con `cxp_folio_key`**. Corregir
+      `insertarParcial` para que use un `folio` único (p. ej. `uuid + '-' + sufijo de fecha`) y deje el UUID en
+      `idFolioDif`. Aún no se ha observado en prod porque las PPD multi-parcialidad existentes son migradas.
+    - **Saneo puntual (2026-06-23, autorizado):** la factura del incidente se incorporó a PPD creando su maestro
+      `cxp_ppd` (`idCxpPPD=7f14be8ef64a4fb`, dueña Jessamyn) y ligando la fila `cxp` ya pagada
+      (`idCxp=ldKdWKfUDHfkMyB`: `idCxpPPD`, `diferido=true`, `idFolioDif=uuid`), **sin tocar `idEstado`/`folio`**
+      (por eso el trigger de fecha no la degrada). Queda como PPD pagada al 100% (disponible $0) con **REP
+      vencido** pendiente de subir o dispensar (clave 403).
 
 ## 8. 🩺 Diagnóstico / problemas comunes
 
@@ -223,6 +243,7 @@ parametrizadas desde el backend.
 | "Un pago quedó mal conciliado." | Asignación incorrecta de `movbancarios`. | Desaplicar (permiso 401) y reasignar. |
 | "Una solicitud **pagada vuelve sola a Rechazado** (`idEstado=3`) al cambiarla; el `estado` dice 'Pagado'." | Trigger `trigger_cxp_validar_fecha_cfdi` (CFDI de mes anterior a `fc`) — ver gotcha 9. | Trigger **DESACTIVADO** desde 2026-06-23; corregir `idEstado` a 6 en los registros afectados. No reactivar hasta el fix. |
 | "Error interno del servidor al aplicar pago por captura/comprobante." | **Resuelto en v2.22.1.** El INSERT a `movbancarios` enviaba columnas GENERADAS (`numAnio`/`numMes`). | Actualizar a v2.22.1+ (el backend ya no las envía). Si reaparece, revisar que ningún INSERT a `movbancarios` incluya columnas generadas. |
+| "**Error interno del servidor al registrar una factura PPD**." | El folio (UUID) del CFDI **ya existe en `cxp`** (factura capturada antes como solicitud normal/PUE o como otra parcialidad) → viola `cxp_folio_key UNIQUE(folio)`. Ver gotcha 10. | **Resuelto en v2.41.1:** el backend ahora avisa que la factura ya está registrada. La factura es un **duplicado**: verificar si ya se pagó. Si debe vivir en PPD, sanear como el caso 2026-06-23 (ligar la fila existente a un maestro `cxp_ppd`). |
 
 **Cuándo escalar a ticket:** desaplicar/corregir pagos, inconsistencias de conciliación, solicitudes
 atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
