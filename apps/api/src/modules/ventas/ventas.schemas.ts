@@ -16,9 +16,12 @@ export const registrarPagoSchema = z.object({
   tipomovimiento: z.coerce.number().int().min(1).max(3),
   tipoOperacion: z.coerce.number().int().min(1).max(3).default(1),
   fecha: FECHA,
-  monto: z.coerce.number().positive('El monto debe ser mayor a 0.'),
-  /** IVA incluido en el monto (para Ticket); 0 si no aplica. */
-  iva: z.coerce.number().min(0).optional().default(0),
+  // El signo lo decide la OPERACIÓN (el servicio toma la magnitud con Math.abs);
+  // aquí solo se valida que NO sea cero. Una Devolución capturada en negativo o
+  // en positivo termina igual: persistida en negativo.
+  monto: z.coerce.number().refine((n) => n !== 0, 'El monto debe ser distinto de 0.'),
+  /** IVA incluido en el monto (para Ticket); 0 si no aplica. Se usa su magnitud. */
+  iva: z.coerce.number().optional().default(0),
 });
 export type RegistrarPagoDto = z.infer<typeof registrarPagoSchema>;
 

@@ -75,8 +75,10 @@ export function PagoDetalleModal({
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const m = Number(monto);
-    if (!Number.isFinite(m) || m <= 0) {
+    // El signo lo decide la operación (Devolución → negativo en el backend), no el
+    // usuario: se envía siempre la magnitud, así da igual si captura -100 o 100.
+    const m = Math.abs(Number(monto));
+    if (!Number.isFinite(m) || m === 0) {
       setError('Captura un monto válido.');
       return;
     }
@@ -85,7 +87,7 @@ export function PagoDetalleModal({
       tipoOperacion,
       fecha,
       monto: m,
-      iva: esTicket && iva ? Number(iva) : 0,
+      iva: esTicket && iva ? Math.abs(Number(iva)) : 0,
       comprobante: archivo,
     };
     setGuardando(true);

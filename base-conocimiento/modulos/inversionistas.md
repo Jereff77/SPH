@@ -69,6 +69,15 @@ total de la tabla y las tarjetas siempre cuadran**.
     el saldo. Distinción: `Descuento` (2) = rebaja que cubre deuda (suma positivo); `Devolución` (3) = dinero
     que sale (resta). ⚠️ Sin cambios de BD (`pagos.tipoOperacion` aceptaba el valor 3, antes solo 1/2; no hay
     CHECK sobre `monto`).
+    - **🐛 Endurecimiento del signo (v2.43.2):** el **signo lo decide la operación, NUNCA el usuario**. El
+      front (`PagoDetalleModal`) y el backend (`PagosVentaService.registrarPago`) toman la **magnitud**
+      (`Math.abs`) del monto/IVA y aplican `−1` solo si es Devolución. **Por qué:** antes el cálculo era
+      `signo × dto.monto`; si por error se capturaba el importe en **negativo**, una Devolución lo
+      invertía (`−1 × −X = +X`) y **sumaba** en vez de restar. Ahora da igual el signo capturado: una
+      Devolución siempre queda en negativo y resta. El schema cambió de `.positive()` a `!== 0` (la
+      magnitud manda). 📌 **No fue un bug de datos**: la única devolución real (plan `EHvtNqaHxyYV`,
+      −$61,185) restó bien (saldó un sobrepago: pagado $2,316,579 → $2,255,394, saldo $0). Este cambio es
+      **blindaje preventivo** ante la captura en negativo.
   - **Adjuntar comprobante a un pago existente (v2.40.0):** en la columna **Comp.** de cada pago, botón
     **"subir"** (si no tiene) o **"ver" + "cambiar"** (si ya tiene), para anexar/reemplazar el PDF **sin
     borrar y recrear el pago** (caso: la factura no estaba lista al registrar). Endpoint

@@ -104,11 +104,17 @@ export class PagosVentaService {
     // monto/iva/montosiniva en NEGATIVO. Como todos los consumidores del saldo
     // (trigger pdp.montoPagado, FIFO de vencidos y agregados del dashboard) hacen
     // SUM(monto), el signo negativo lo descuenta del pagado sin tocar la BD.
+    // El SIGNO lo decide SIEMPRE la operación, NUNCA el signo que capture el
+    // usuario: se toma la MAGNITUD (Math.abs) y se aplica -1 si es Devolución.
+    // Así, aun si llegara un monto negativo, una Devolución no puede "voltear" a
+    // positivo (−1 × −X = +X) y sumar por error.
     const esDevolucion = dto.tipoOperacion === OPERACION_DEVOLUCION;
     const signo = esDevolucion ? -1 : 1;
-    const montoFirmado = signo * dto.monto;
-    const ivaFirmado = dto.iva > 0 ? signo * dto.iva : null;
-    const montosiniva = signo * (dto.iva > 0 ? dto.monto - dto.iva : dto.monto);
+    const montoMag = Math.abs(dto.monto);
+    const ivaMag = Math.abs(dto.iva);
+    const montoFirmado = signo * montoMag;
+    const ivaFirmado = ivaMag > 0 ? signo * ivaMag : null;
+    const montosiniva = signo * (ivaMag > 0 ? montoMag - ivaMag : montoMag);
 
     const { error: insErr } = await db.from('pagos').insert({
       idPago,
