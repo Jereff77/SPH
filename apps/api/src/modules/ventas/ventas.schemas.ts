@@ -7,12 +7,14 @@ const FECHA = z
 /**
  * Registrar un pago contra una parcialidad (`pdpDetalle`). Replica
  * `PagosRealizarWidget`/`RealizarPagoTicketWidget` de v1: tipo de movimiento
- * (1=Terreno, 2=Construcción, 3=Ticket) y operación (1=Pago, 2=Descuento). El
- * backend resuelve idPdp/idPropiedad/numPago a partir del `idPdpDet`.
+ * (1=Terreno, 2=Construcción, 3=Ticket) y operación (1=Pago, 2=Descuento,
+ * 3=Devolución). El backend resuelve idPdp/idPropiedad/numPago a partir del
+ * `idPdpDet`. La **Devolución** se persiste con `monto`/`iva`/`montosiniva` en
+ * **negativo** (resta del pagado), ver `PagosVentaService.registrarPago`.
  */
 export const registrarPagoSchema = z.object({
   tipomovimiento: z.coerce.number().int().min(1).max(3),
-  tipoOperacion: z.coerce.number().int().min(1).max(2).default(1),
+  tipoOperacion: z.coerce.number().int().min(1).max(3).default(1),
   fecha: FECHA,
   monto: z.coerce.number().positive('El monto debe ser mayor a 0.'),
   /** IVA incluido en el monto (para Ticket); 0 si no aplica. */

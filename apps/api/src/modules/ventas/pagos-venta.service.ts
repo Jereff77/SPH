@@ -28,6 +28,15 @@ const TIPO_MOVIMIENTO: Record<number, string> = {
   3: 'Ticket',
 };
 
+const TIPO_OPERACION: Record<number, string> = {
+  1: 'Pago',
+  2: 'Descuento',
+  3: 'Devolución',
+};
+
+/** Operación de Devolución: el monto se guarda en negativo (resta del pagado). */
+const OPERACION_DEVOLUCION = 3;
+
 const fmt = (n: number | null | undefined) => (n ?? 0).toFixed(2);
 
 type Db = ReturnType<SupabaseService['comoActor']>;
@@ -91,7 +100,15 @@ export class PagosVentaService {
       comprobantePath = path;
     }
 
-    const montosiniva = dto.iva > 0 ? dto.monto - dto.iva : dto.monto;
+    // Una Devolución (operación 3) regresa dinero al cliente: se persiste con
+    // monto/iva/montosiniva en NEGATIVO. Como todos los consumidores del saldo
+    // (trigger pdp.montoPagado, FIFO de vencidos y agregados del dashboard) hacen
+    // SUM(monto), el signo negativo lo descuenta del pagado sin tocar la BD.
+    const esDevolucion = dto.tipoOperacion === OPERACION_DEVOLUCION;
+    const signo = esDevolucion ? -1 : 1;
+    const montoFirmado = signo * dto.monto;
+    const ivaFirmado = dto.iva > 0 ? signo * dto.iva : null;
+    const montosiniva = signo * (dto.iva > 0 ? dto.monto - dto.iva : dto.monto);
 
     const { error: insErr } = await db.from('pagos').insert({
       idPago,
@@ -104,8 +121,8 @@ export class PagosVentaService {
       tipomovimiento: dto.tipomovimiento,
       tipoOperacion: dto.tipoOperacion,
       fecha: dto.fecha,
-      monto: dto.monto,
-      iva: dto.iva > 0 ? dto.iva : null,
+      monto: montoFirmado,
+      iva: ivaFirmado,
       montosiniva,
       comprobante: comprobantePath,
     });
@@ -115,7 +132,8 @@ export class PagosVentaService {
     }
 
     // Registrar el movimiento (actividad + comentario), como v1.
-    const comentario = `Se registró pago Tipo de pago: ${TIPO_MOVIMIENTO[dto.tipomovimiento] ?? dto.tipomovimiento}, Monto: ${fmt(dto.monto)}, IVA: ${fmt(dto.iva)}`;
+    const operacionTxt = TIPO_OPERACION[dto.tipoOperacion] ?? 'Pago';
+    const comentario = `Se registró ${operacionTxt} Tipo de pago: ${TIPO_MOVIMIENTO[dto.tipomovimiento] ?? dto.tipomovimiento}, Monto: ${fmt(montoFirmado)}, IVA: ${fmt(ivaFirmado ?? 0)}`;
     await this.registrarActividad(db, {
       pantalla: 'RealizarPago',
       widget: 'Button',

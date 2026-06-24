@@ -56,9 +56,19 @@ total de la tabla y las tarjetas siempre cuadran**.
   cada una filtra `v_rentasCombinadas` por su `tipo_renta`. (Estas dos **sí** usan todavía la vista
   `v_rentasCombinadas`.)
 - **Botón $ por fila →** modal **Detalle de pagos**: lista los pagos (`pagos` por `idPdpDet`) y permite
-  **agregar un pago** (tipo de movimiento 1=Terreno/2=Construcción/3=Ticket, operación 1=Pago/2=Descuento,
-  monto, IVA en Ticket, fecha y **comprobante PDF**) y **eliminar un pago** (🗑). El recálculo de
-  `pdp.montoPagado` lo hacen los triggers de `pagos` (en INSERT y DELETE).
+  **agregar un pago** (tipo de movimiento 1=Terreno/2=Construcción/3=Ticket, operación
+  **1=Pago/2=Descuento/3=Devolución**, monto, IVA en Ticket, fecha y **comprobante PDF**) y **eliminar un
+  pago** (🗑). El recálculo de `pdp.montoPagado` lo hacen los triggers de `pagos` (en INSERT y DELETE).
+  - **Devolución (operación 3, v2.41.0):** registra el dinero que se **regresa** al cliente (renegociación
+    de precio / cancelación de una operación que obliga a devolver parte de lo ya pagado). Se persiste con
+    **`monto`/`iva`/`montosiniva` en NEGATIVO** (`PagosVentaService.registrarPago`, `OPERACION_DEVOLUCION=3`):
+    como **todos** los consumidores del saldo hacen `SUM(monto)` (trigger `pdp.montoPagado`, la `bolsa` del
+    FIFO en `saldos-vencidos.service.ts`, y los agregados de `dashboard.service.ts`), el signo negativo
+    **se descuenta solo** del pagado sin tocar BD. El usuario captura el importe en **positivo**; en el
+    listado la devolución se ve en **rojo** con monto negativo. Reversible: eliminar la devolución restituye
+    el saldo. Distinción: `Descuento` (2) = rebaja que cubre deuda (suma positivo); `Devolución` (3) = dinero
+    que sale (resta). ⚠️ Sin cambios de BD (`pagos.tipoOperacion` aceptaba el valor 3, antes solo 1/2; no hay
+    CHECK sobre `monto`).
   - **Adjuntar comprobante a un pago existente (v2.40.0):** en la columna **Comp.** de cada pago, botón
     **"subir"** (si no tiene) o **"ver" + "cambiar"** (si ya tiene), para anexar/reemplazar el PDF **sin
     borrar y recrear el pago** (caso: la factura no estaba lista al registrar). Endpoint
@@ -147,7 +157,8 @@ los pagos parciales. Dashboard ($67.4M) y reporte ($21.7M) **ni siquiera cuadrab
 
 **Cómo se calcula ahora (FIFO por plan).** Por cada **plan** (`idPdp`):
 1. `bolsa` = Σ de **todos** los pagos del plan (`status=true`; los **descuentos** `tipoOperacion=2` cuentan
-   como pago; los **cancelados** `status=false` **no**).
+   como pago; las **devoluciones** `tipoOperacion=3` van en **negativo** y por tanto **restan** de la bolsa;
+   los **cancelados** `status=false` **no**).
 2. Se ordenan las parcialidades por antigüedad (`fecha`, luego `numPago`) y se acumula el monto (`acum`).
 3. Saldo remanente de cada parcialidad = **`max(0, min(monto, acum − bolsa))`** (la bolsa cubre primero lo
    más antiguo; el excedente fluye al futuro).

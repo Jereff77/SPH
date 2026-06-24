@@ -81,7 +81,7 @@ export interface PagoRealizado {
 
 export interface RegistrarPagoVentaInput {
   tipomovimiento: number; // 1=Terreno, 2=Construcción, 3=Ticket
-  tipoOperacion: number; // 1=Pago, 2=Descuento
+  tipoOperacion: number; // 1=Pago, 2=Descuento, 3=Devolución (se guarda en negativo)
   fecha: string;
   monto: number;
   iva?: number;

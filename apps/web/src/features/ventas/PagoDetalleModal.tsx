@@ -20,11 +20,15 @@ const fechaCorta = (iso: string | null): string => {
 
 const esUrl = (u: string | null): u is string => !!u && /^https?:\/\//.test(u);
 
+/** Etiqueta de la operación del pago (1=Pago, 2=Descuento, 3=Devolución). */
+const OPERACION: Record<number, string> = { 1: 'Pago', 2: 'Descuento', 3: 'Devolución' };
+
 /**
  * Detalle de pagos de una parcialidad (`pagos` por idPdpDet) + formulario para
  * agregar un pago (replica `PagosDetalle`/`PagosRealizar` de v1). Permite tipo de
- * movimiento (Terreno/Construcción/Ticket), operación (Pago/Descuento) y subir el
- * comprobante PDF.
+ * movimiento (Terreno/Construcción/Ticket), operación (Pago/Descuento/Devolución)
+ * y subir el comprobante PDF. La **Devolución** se registra en negativo (resta del
+ * monto pagado del plan).
  */
 export function PagoDetalleModal({
   fila,
@@ -51,6 +55,7 @@ export function PagoDetalleModal({
   const [eliminando, setEliminando] = useState<string | null>(null);
 
   const esTicket = tipomovimiento === 3;
+  const esDevolucion = tipoOperacion === 3;
 
   async function eliminar(idPago: string) {
     if (!window.confirm('¿Deseas eliminar este pago?')) return;
@@ -150,10 +155,14 @@ export function PagoDetalleModal({
                         <td className="px-3 py-2">
                           {TIPO_MOVIMIENTO[p.tipomovimiento ?? 0] ?? '—'}
                         </td>
-                        <td className="px-3 py-2">
-                          {p.tipoOperacion === 2 ? 'Descuento' : 'Pago'}
+                        <td className="px-3 py-2">{OPERACION[p.tipoOperacion ?? 1] ?? 'Pago'}</td>
+                        <td
+                          className={`px-3 py-2 text-right tabular-nums ${
+                            (p.monto ?? 0) < 0 ? 'font-medium text-red-600' : ''
+                          }`}
+                        >
+                          {moneda(p.monto)}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums">{moneda(p.monto)}</td>
                         <td className="px-3 py-2 text-center">
                           <CeldaComprobante
                             pago={p}
@@ -209,6 +218,7 @@ export function PagoDetalleModal({
                 >
                   <option value={1}>Pago</option>
                   <option value={2}>Descuento</option>
+                  <option value={3}>Devolución</option>
                 </select>
               </label>
               <label className="text-xs text-gray-600">
@@ -254,6 +264,12 @@ export function PagoDetalleModal({
                 />
               </label>
             </div>
+            {esDevolucion && (
+              <p className="text-xs text-amber-700">
+                Captura el importe a devolver en <strong>positivo</strong>; se registrará en
+                negativo y se descontará del monto ya pagado del plan.
+              </p>
+            )}
             {error && <p className="text-xs text-red-600">{error}</p>}
             <div className="flex justify-end gap-2">
               <button
@@ -268,7 +284,7 @@ export function PagoDetalleModal({
                 disabled={guardando}
                 className="rounded-lg bg-[#1f2a4d] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#2a376a] disabled:opacity-50"
               >
-                {guardando ? 'Guardando…' : 'Registrar pago'}
+                {guardando ? 'Guardando…' : esDevolucion ? 'Registrar devolución' : 'Registrar pago'}
               </button>
             </div>
           </form>

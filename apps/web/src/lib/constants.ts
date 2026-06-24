@@ -8,7 +8,7 @@
  * «documenta todo» (ver HANDOFF, regla 9 / §5e); el plugin de Vite emite
  * `version.json` con este mismo número.
  */
-export const APP_VERSION_RAW = '2.40.3';
+export const APP_VERSION_RAW = '2.41.0';
 export const APP_VERSION = `v. ${APP_VERSION_RAW}`;
 
 /** Paleta de marca SPH (provisional, ajustable al manual de marca). */
