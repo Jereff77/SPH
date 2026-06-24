@@ -25,6 +25,7 @@ import { ChangelogModule } from './modules/changelog/changelog.module.js';
 import { CronModule } from './modules/cron/cron.module.js';
 import { FideicomisoModule } from './modules/fideicomiso/fideicomiso.module.js';
 import { SoporteModule } from './modules/soporte/soporte.module.js';
+import { SoporteInquilinosModule } from './modules/soporte-inquilinos/soporte-inquilinos.module.js';
 
 /**
  * Módulo raíz. Aquí se registran los módulos de dominio del ERP a medida que se
@@ -68,6 +69,7 @@ import { SoporteModule } from './modules/soporte/soporte.module.js';
     CronModule,
     FideicomisoModule,
     SoporteModule,
+    SoporteInquilinosModule,
     // InversionistasModule,
     // ...
   ],

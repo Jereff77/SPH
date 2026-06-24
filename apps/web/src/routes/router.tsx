@@ -42,6 +42,12 @@ const ReportesArrePage = lazy(() =>
     default: m.ReportesArrePage,
   })),
 );
+// Soporte a Inquilinos (Arrendatarios): bandeja de incidentes por correo. Chunk propio.
+const SoporteInquilinosPage = lazy(() =>
+  import('@/features/soporte-inquilinos/SoporteInquilinosPage').then((m) => ({
+    default: m.SoporteInquilinosPage,
+  })),
+);
 // Cron (Configuraciones → Cron, solo soporte): chunk propio.
 const CronPage = lazy(() =>
   import('@/features/cron/CronPage').then((m) => ({ default: m.CronPage })),
@@ -111,6 +117,14 @@ export const router = createBrowserRouter([
             element: (
               <Suspense fallback={cargando}>
                 <ReportesArrePage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/arrendatarios/soporte',
+            element: (
+              <Suspense fallback={cargando}>
+                <SoporteInquilinosPage />
               </Suspense>
             ),
           },

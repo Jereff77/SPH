@@ -23,6 +23,6 @@ import { SyncScheduler } from './sync.scheduler.js';
     CriptoService,
     SyncScheduler,
   ],
-  exports: [SmtpService, CuentasService, SyncScheduler],
+  exports: [SmtpService, CuentasService, CorreoService, ImapService, SyncScheduler],
 })
 export class CorreoModule {}

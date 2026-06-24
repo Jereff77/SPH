@@ -61,11 +61,18 @@ export class SmtpService {
     }
   }
 
+  /**
+   * Responde un correo del hilo y lo registra como `sent`. Si se pasa `firmaHtml`,
+   * el correo se envía en **HTML** (cuerpo del usuario + firma corporativa) además
+   * del texto plano; sin `firmaHtml` el comportamiento es el original (solo texto),
+   * para no alterar a los consumidores existentes (CxP/PPD).
+   */
   async responder(
     cred: Credenciales,
     original: CorreoOriginal,
     body: string,
     adjuntos: AdjuntoSalida[] = [],
+    firmaHtml?: string,
   ): Promise<void> {
     const para = original.fromEmail;
     if (!para) throw new InternalServerErrorException('El correo original no tiene remitente.');
@@ -73,6 +80,12 @@ export class SmtpService {
     const asuntoBase = original.subject ?? '';
     const subject = /^re:/i.test(asuntoBase) ? asuntoBase : `Re: ${asuntoBase}`;
     const conversationId = original.conversationId ?? original.messageId;
+
+    // Si hay firma, se arma el HTML (cuerpo del usuario escapado + nl2br + firma).
+    const bodyHtml = firmaHtml
+      ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#374151">` +
+        `${this.textoAHtml(body)}</div>${firmaHtml}`
+      : null;
 
     const transporter = nodemailer.createTransport({
       host: cred.smtpHost,
@@ -88,6 +101,7 @@ export class SmtpService {
         to: para,
         subject,
         text: body,
+        html: bodyHtml ?? undefined,
         inReplyTo: original.messageId ?? undefined,
         references: [original.conversationId, original.messageId]
           .filter(Boolean)
@@ -112,11 +126,21 @@ export class SmtpService {
       toEmail: para,
       subject,
       bodyText: body,
+      bodyHtml,
       fecha: new Date().toISOString(),
       tipo: 'sent',
       folder: 'INBOX.Sent',
       leido: true,
       tieneAdjuntos: adjuntos.length > 0,
     });
+  }
+
+  /** Escapa el texto plano y convierte saltos de línea en <br> para el HTML del correo. */
+  private textoAHtml(texto: string): string {
+    const escapado = (texto ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    return escapado.replace(/\r?\n/g, '<br>');
   }
 }

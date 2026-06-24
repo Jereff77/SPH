@@ -57,6 +57,7 @@ export const MENU: MenuGrupo[] = [
       { label: 'Gestión de Pagos', to: '/arrendatarios', clave: 10 },
       { label: 'Planes de Renta', to: '/arrendatarios/planes', clave: 20 },
       { label: 'Reportes', to: '/arrendatarios/reportes', clave: 20 },
+      { label: 'Soporte a Inquilinos', to: '/arrendatarios/soporte', clave: 31 },
     ],
   },
   {

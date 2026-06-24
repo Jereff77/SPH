@@ -3898,6 +3898,157 @@ export type Database = {
         }
         Relationships: []
       }
+      incidentes: {
+        Row: {
+          asignadoA: string | null
+          asunto: string | null
+          categoria: string | null
+          conversationId: string
+          creadoEn: string
+          detenidoOrigen: string | null
+          estado: string
+          fc: string
+          folio: string
+          fum: string | null
+          fumUser: string | null
+          id: string
+          idArrendador: string | null
+          idCuenta: string
+          idNavArrend: string | null
+          idNave: string | null
+          idParque: string | null
+          prioridad: string | null
+          status: boolean
+          ultimaActividad: string
+        }
+        Insert: {
+          asignadoA?: string | null
+          asunto?: string | null
+          categoria?: string | null
+          conversationId: string
+          creadoEn?: string
+          detenidoOrigen?: string | null
+          estado?: string
+          fc?: string
+          folio?: string
+          fum?: string | null
+          fumUser?: string | null
+          id?: string
+          idArrendador?: string | null
+          idCuenta: string
+          idNavArrend?: string | null
+          idNave?: string | null
+          idParque?: string | null
+          prioridad?: string | null
+          status?: boolean
+          ultimaActividad?: string
+        }
+        Update: {
+          asignadoA?: string | null
+          asunto?: string | null
+          categoria?: string | null
+          conversationId?: string
+          creadoEn?: string
+          detenidoOrigen?: string | null
+          estado?: string
+          fc?: string
+          folio?: string
+          fum?: string | null
+          fumUser?: string | null
+          id?: string
+          idArrendador?: string | null
+          idCuenta?: string
+          idNavArrend?: string | null
+          idNave?: string | null
+          idParque?: string | null
+          prioridad?: string | null
+          status?: boolean
+          ultimaActividad?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incidentes_idCuenta_fkey"
+            columns: ["idCuenta"]
+            isOneToOne: false
+            referencedRelation: "correo_cuentas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incidentes_remitentes: {
+        Row: {
+          email: string
+          id: string
+          idArrendador: string | null
+          idNavArrend: string | null
+          idNave: string | null
+          idParque: string | null
+          primeraVez: string
+          ultimaVez: string
+          veces: number
+        }
+        Insert: {
+          email: string
+          id?: string
+          idArrendador?: string | null
+          idNavArrend?: string | null
+          idNave?: string | null
+          idParque?: string | null
+          primeraVez?: string
+          ultimaVez?: string
+          veces?: number
+        }
+        Update: {
+          email?: string
+          id?: string
+          idArrendador?: string | null
+          idNavArrend?: string | null
+          idNave?: string | null
+          idParque?: string | null
+          primeraVez?: string
+          ultimaVez?: string
+          veces?: number
+        }
+        Relationships: []
+      }
+      incidentes_seguimientos: {
+        Row: {
+          detalle: Json | null
+          fc: string
+          id: string
+          idIncidente: string
+          texto: string
+          tipo: string
+          uid: string | null
+        }
+        Insert: {
+          detalle?: Json | null
+          fc?: string
+          id?: string
+          idIncidente: string
+          texto: string
+          tipo?: string
+          uid?: string | null
+        }
+        Update: {
+          detalle?: Json | null
+          fc?: string
+          id?: string
+          idIncidente?: string
+          texto?: string
+          tipo?: string
+          uid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incidentes_seguimientos_idIncidente_fkey"
+            columns: ["idIncidente"]
+            isOneToOne: false
+            referencedRelation: "incidentes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inpc: {
         Row: {
           anio: number
