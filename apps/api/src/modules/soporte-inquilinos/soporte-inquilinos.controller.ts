@@ -103,7 +103,7 @@ export class SoporteInquilinosController {
   // ----- Responder (clave 32) -----
   @Post('incidentes/:id/responder')
   @RequierePermiso(32)
-  @UseInterceptors(FilesInterceptor('adjuntos', 10, { limits: { fileSize: LIMITE } }))
+  @UseInterceptors(FilesInterceptor('adjuntos', 20, { limits: { fileSize: LIMITE } }))
   async responder(
     @CurrentUser() actor: AuthUser,
     @Param('id') id: string,
@@ -115,7 +115,7 @@ export class SoporteInquilinosController {
       content: a.buffer,
       contentType: a.mimetype,
     }));
-    await this.soporte.responder(id, dto.body, archivos, actor.uid);
+    await this.soporte.responder(id, dto.body, archivos, actor.uid, dto.destinatarios, dto.cc);
     return { ok: true };
   }
 

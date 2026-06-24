@@ -73,9 +73,14 @@ export class SmtpService {
     body: string,
     adjuntos: AdjuntoSalida[] = [],
     firmaHtml?: string,
+    opciones?: { para?: string[]; cc?: string[] },
   ): Promise<void> {
-    const para = original.fromEmail;
-    if (!para) throw new InternalServerErrorException('El correo original no tiene remitente.');
+    // Destinatarios: si se pasan explícitos, mandan; si no, el remitente original.
+    const paraLista = (opciones?.para ?? []).filter(Boolean);
+    const para = paraLista.length > 0 ? paraLista.join(', ') : original.fromEmail;
+    if (!para) throw new InternalServerErrorException('No hay destinatario para la respuesta.');
+    const ccLista = (opciones?.cc ?? []).filter(Boolean);
+    const cc = ccLista.length > 0 ? ccLista.join(', ') : undefined;
 
     const asuntoBase = original.subject ?? '';
     const subject = /^re:/i.test(asuntoBase) ? asuntoBase : `Re: ${asuntoBase}`;
@@ -99,6 +104,7 @@ export class SmtpService {
       info = await transporter.sendMail({
         from: cred.email,
         to: para,
+        cc,
         subject,
         text: body,
         html: bodyHtml ?? undefined,
@@ -124,6 +130,7 @@ export class SmtpService {
       conversationId,
       fromEmail: cred.email,
       toEmail: para,
+      cc: cc ?? null,
       subject,
       bodyText: body,
       bodyHtml,

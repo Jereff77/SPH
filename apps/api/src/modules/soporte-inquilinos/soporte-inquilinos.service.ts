@@ -601,6 +601,8 @@ export class SoporteInquilinosService {
     body: string,
     adjuntos: AdjuntoSalida[],
     actorUid: string,
+    destinatarios: string[] = [],
+    cc: string[] = [],
   ): Promise<void> {
     const incidente = await this.cargarIncidente(id);
 
@@ -624,7 +626,10 @@ export class SoporteInquilinosService {
 
     const cred = await this.cuentas.credencialesDe(incidente.idCuenta);
     const firma = await this.construirFirma(actorUid, cred.email);
-    await this.smtp.responder(cred, original, body, adjuntos, firma);
+    await this.smtp.responder(cred, original, body, adjuntos, firma, {
+      para: destinatarios,
+      cc,
+    });
 
     // Avanzar el incidente: responder es actividad. Nuevo/Detenido -> En Proceso.
     const cambios: TablesUpdate<'incidentes'> = {

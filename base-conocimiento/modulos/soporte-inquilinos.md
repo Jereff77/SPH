@@ -47,6 +47,13 @@ cliente de correo del inquilino no "hile" bien la conversación:
    adjuntos descargables. Panel lateral de **vínculo** (inquilino/nave) y selector de **estado**.
 4. **Responder** (clave **32**): texto + adjuntos; el backend **anexa la firma corporativa**
    (logo + nombre/cargo/teléfono del usuario + correo de contacto). El enviado queda en el hilo.
+   - **Varios adjuntos** (v2.43.0): se acumulan en varias tandas, se listan y se quitan uno a uno
+     (hasta **20** archivos, 15 MB c/u; `FilesInterceptor('adjuntos', 20)`).
+   - **Destinatarios editables** (v2.43.0): el campo **Para** se precarga con el remitente del último
+     correo recibido; se pueden **agregar/eliminar** correos y añadir **CC**. Viajan en el `FormData`
+     como JSON (`destinatarios`/`cc`, validados con Zod). `SmtpService.responder` recibe `{ para[], cc[] }`
+     (retrocompatible; si `para` va vacío usa el remitente original). El `to`/`cc` reales se guardan en
+     `correo_mensajes`.
 5. **Clasificar** (clave **33**): **vincular** el incidente a un inquilino y su nave, y **cambiar
    el estado**.
 

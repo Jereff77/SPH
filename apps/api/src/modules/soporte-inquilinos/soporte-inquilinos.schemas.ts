@@ -9,9 +9,37 @@ export const ESTADOS_INCIDENTE = [
   'Cerrado',
 ] as const;
 
+/**
+ * Lista de correos que viaja como campo de un form-data (string). Acepta un JSON
+ * (`["a@x.com","b@y.com"]`) o una lista separada por comas; normaliza a string[].
+ */
+const listaCorreos = z.preprocess(
+  (v) => {
+    if (v == null || v === '') return [];
+    if (Array.isArray(v)) return v;
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (s.startsWith('[')) {
+        try {
+          return JSON.parse(s);
+        } catch {
+          return [];
+        }
+      }
+      return s.split(',').map((x) => x.trim()).filter(Boolean);
+    }
+    return [];
+  },
+  z.array(z.string().trim().email('Correo inválido.')),
+);
+
 /** Cuerpo de la respuesta por correo (la firma la añade el backend). */
 export const responderSchema = z.object({
   body: z.string().trim().min(1, 'El mensaje no puede estar vacío.'),
+  // Destinatarios To/CC editables. Si `destinatarios` va vacío, el backend usa el
+  // remitente original del incidente.
+  destinatarios: listaCorreos.optional().default([]),
+  cc: listaCorreos.optional().default([]),
 });
 export type ResponderDto = z.infer<typeof responderSchema>;
 

@@ -88,6 +88,8 @@ export const soporteApi = {
     api.post<{ nuevos: number; incidentesNuevos: number }>(`${base}/sincronizar`),
   responder: (id: string, form: FormData) =>
     api.postForm<{ ok: true }>(`${base}/incidentes/${id}/responder`, form),
+  // (los destinatarios To/CC viajan dentro del FormData como `destinatarios` y `cc`,
+  //  en JSON; los archivos como múltiples campos `adjuntos`).
   vincular: (id: string, dto: VincularInput) =>
     api.post<{ ok: true }>(`${base}/incidentes/${id}/vincular`, dto),
   cambiarEstado: (id: string, estado: EstadoIncidente) =>

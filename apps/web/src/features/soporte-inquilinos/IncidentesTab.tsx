@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   soporteApi,
@@ -33,6 +33,14 @@ const fechaHora = (iso: string | null): string => {
 };
 const esUrl = (u: string | null): u is string => !!u && /^https?:\/\//.test(u);
 const esImagen = (ct: string | null): boolean => !!ct && /^image\//i.test(ct);
+/** Extrae la dirección de "Nombre <correo>" (o el texto si ya es un correo). */
+const extraerEmail = (s: string | null): string | null => {
+  if (!s) return null;
+  const m = s.match(/<([^>]+)>/);
+  const dir = (m?.[1] ?? s).trim().toLowerCase();
+  return /\S+@\S+\.\S+/.test(dir) ? dir : null;
+};
+const emailValido = (s: string): boolean => /^\S+@\S+\.\S+$/.test(s.trim());
 
 export function IncidentesTab() {
   const queryClient = useQueryClient();
@@ -197,6 +205,13 @@ export function DetalleIncidente({ id }: { id: string }) {
   const [archivos, setArchivos] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [nota, setNota] = useState('');
+  // Destinatarios editables de la respuesta (To/CC).
+  const [para, setPara] = useState<string[]>([]);
+  const [cc, setCc] = useState<string[]>([]);
+  const [mostrarCc, setMostrarCc] = useState(false);
+  const [nuevoPara, setNuevoPara] = useState('');
+  const [nuevoCc, setNuevoCc] = useState('');
+  const [paraInicializado, setParaInicializado] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['inc-detalle', id],
@@ -235,6 +250,8 @@ export function DetalleIncidente({ id }: { id: string }) {
     mutationFn: () => {
       const fd = new FormData();
       fd.append('body', respuesta);
+      fd.append('destinatarios', JSON.stringify(para));
+      fd.append('cc', JSON.stringify(cc));
       archivos.forEach((a) => fd.append('adjuntos', a));
       return soporteApi.responder(id, fd);
     },
@@ -252,6 +269,32 @@ export function DetalleIncidente({ id }: { id: string }) {
     mutationFn: (estado: EstadoIncidente) => soporteApi.cambiarEstado(id, estado),
     onSuccess: invalidar,
   });
+
+  // Prefill de "Para" con el remitente del último correo recibido (una sola vez).
+  useEffect(() => {
+    if (paraInicializado || !data) return;
+    const recibidos = data.hilo.filter((m) => m.tipo === 'received');
+    const ultimo = recibidos[recibidos.length - 1];
+    const email = extraerEmail(ultimo?.fromEmail ?? null);
+    setPara(email ? [email] : []);
+    setParaInicializado(true);
+  }, [data, paraInicializado]);
+
+  const agregarCorreo = (
+    valor: string,
+    lista: string[],
+    set: (v: string[]) => void,
+    limpiar: () => void,
+  ) => {
+    const e = valor.trim().toLowerCase();
+    if (!emailValido(e)) {
+      setError('Correo inválido.');
+      return;
+    }
+    setError(null);
+    if (!lista.includes(e)) set([...lista, e]);
+    limpiar();
+  };
 
   if (isLoading || !data)
     return <div className="flex flex-1 items-center justify-center text-sm text-gray-400">Cargando…</div>;
@@ -300,10 +343,92 @@ export function DetalleIncidente({ id }: { id: string }) {
           </div>
           {/* Responder con firma */}
           {puedeResponder ? (
-            <div className="border-t p-3">
+            <div className="space-y-2 border-t p-3">
               {error && (
-                <div className="mb-2 rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-700">{error}</div>
+                <div className="rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-700">{error}</div>
               )}
+
+              {/* Destinatarios (Para / CC) */}
+              <div className="space-y-1 rounded-md border bg-gray-50/50 px-2 py-1.5">
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className="text-[11px] font-medium text-gray-500">Para:</span>
+                  {para.map((d) => (
+                    <span
+                      key={d}
+                      className="inline-flex items-center gap-1 rounded-full bg-[#3f5b87]/10 px-2 py-0.5 text-[11px] text-[#1f2a4d]"
+                    >
+                      {d}
+                      <button
+                        onClick={() => setPara(para.filter((x) => x !== d))}
+                        className="text-gray-400 hover:text-red-600"
+                        title="Quitar"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    value={nuevoPara}
+                    onChange={(e) => setNuevoPara(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault();
+                        agregarCorreo(nuevoPara, para, setPara, () => setNuevoPara(''));
+                      }
+                    }}
+                    onBlur={() =>
+                      nuevoPara.trim() &&
+                      agregarCorreo(nuevoPara, para, setPara, () => setNuevoPara(''))
+                    }
+                    placeholder="agregar correo…"
+                    className="min-w-[150px] flex-1 rounded border px-2 py-0.5 text-xs outline-none focus:ring-2 focus:ring-[#3f5b87]/30"
+                  />
+                  {!mostrarCc && (
+                    <button
+                      onClick={() => setMostrarCc(true)}
+                      className="text-[11px] text-[#3f5b87] hover:underline"
+                    >
+                      + CC
+                    </button>
+                  )}
+                </div>
+                {mostrarCc && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="text-[11px] font-medium text-gray-500">CC:</span>
+                    {cc.map((d) => (
+                      <span
+                        key={d}
+                        className="inline-flex items-center gap-1 rounded-full bg-gray-200 px-2 py-0.5 text-[11px] text-gray-600"
+                      >
+                        {d}
+                        <button
+                          onClick={() => setCc(cc.filter((x) => x !== d))}
+                          className="text-gray-400 hover:text-red-600"
+                          title="Quitar"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      value={nuevoCc}
+                      onChange={(e) => setNuevoCc(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                          e.preventDefault();
+                          agregarCorreo(nuevoCc, cc, setCc, () => setNuevoCc(''));
+                        }
+                      }}
+                      onBlur={() =>
+                        nuevoCc.trim() && agregarCorreo(nuevoCc, cc, setCc, () => setNuevoCc(''))
+                      }
+                      placeholder="agregar correo…"
+                      className="min-w-[150px] flex-1 rounded border px-2 py-0.5 text-xs outline-none focus:ring-2 focus:ring-[#3f5b87]/30"
+                    />
+                  </div>
+                )}
+              </div>
+
               <textarea
                 value={respuesta}
                 onChange={(e) => setRespuesta(e.target.value)}
@@ -311,16 +436,45 @@ export function DetalleIncidente({ id }: { id: string }) {
                 placeholder="Escribe tu respuesta… (se anexa la firma corporativa automáticamente)"
                 className="block w-full resize-none rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30"
               />
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <input
-                  type="file"
-                  multiple
-                  onChange={(e) => setArchivos(Array.from(e.target.files ?? []))}
-                  className="text-xs"
-                />
+
+              {/* Adjuntos seleccionados */}
+              {archivos.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {archivos.map((a, idx) => (
+                    <span
+                      key={`${a.name}-${idx}`}
+                      className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700"
+                    >
+                      📎 {a.name}
+                      <button
+                        onClick={() => setArchivos(archivos.filter((_, i) => i !== idx))}
+                        className="text-amber-500 hover:text-red-600"
+                        title="Quitar"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-2">
+                <label className="cursor-pointer rounded-md border px-2 py-1 text-xs hover:bg-gray-50">
+                  + Adjuntar archivos
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const nuevos = Array.from(e.target.files ?? []);
+                      setArchivos((prev) => [...prev, ...nuevos]);
+                      e.currentTarget.value = ''; // permite re-seleccionar el mismo archivo
+                    }}
+                  />
+                </label>
                 <button
                   onClick={() => enviar.mutate()}
-                  disabled={enviar.isPending || !respuesta.trim()}
+                  disabled={enviar.isPending || !respuesta.trim() || para.length === 0}
                   className="rounded-lg bg-[#1f2a4d] px-4 py-2 text-sm font-medium text-white hover:bg-[#172039] disabled:opacity-50"
                 >
                   {enviar.isPending ? 'Enviando…' : 'Responder'}
