@@ -1,8 +1,8 @@
 ---
 modulo: Configuraciones
 estado: desarrollado
-version_doc: 1.2
-ultima_actualizacion: 2026-06-12
+version_doc: 1.3
+ultima_actualizacion: 2026-06-24
 submodulos: [Usuarios, Parámetros, Permisos, Sistema, Cambiar contraseña]
 rutas: [/configuraciones/usuarios, /configuraciones/parametros, /configuraciones/permisos, /configuraciones/sistema, /configuraciones/cambiar-contrasena, /registro]
 claves_permiso: [200, 203, 210, 212, 213, 214, 215, 216, 220, 221]
@@ -120,6 +120,10 @@ un administrador cree la contraseña por ellos:
 - **Tabla `cxp_fechas_habilitadas`:** PK `fecha`; flags `cfdi` y `autorizar`; `dia_semana`/`mes_anio`
   los pone un trigger.
 - **Acciones:** filtrar por periodo (mes-año), toggles CFDI/Autorizar, alta y baja de fechas.
+- **Orden del selector de periodo (gotcha):** el backend (`listarPeriodos`) devuelve los periodos
+  `MM-YYYY` **sin orden de fecha**. El front (`FechasCxpTab.tsx`) los **reordena como fechas reales**
+  (peso `año*100 + mes`), de más reciente a más antiguo, antes de pintar el `<select>`; por eso el
+  primer periodo (más reciente) es el que queda seleccionado por defecto.
 
 ### 4.4 Claves SAT  (catálogo de retenciones para CxP)
 - **Tabla `catClavesProdServ`** (PK `idClave` uuid): `claveProdServ` (clave Producto/Servicio del SAT,

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { parametrosApi } from './parametros.api';
 import { Toggle } from '@/components/Toggle';
@@ -21,10 +21,20 @@ export function FechasCxpTab() {
     queryFn: () => parametrosApi.listarPeriodos(),
   });
 
+  // Ordenar los periodos como fechas (no alfabéticamente): de más reciente a
+  // más antiguo. El formato es "MM-YYYY", así que comparamos año y luego mes.
+  const periodosOrdenados = useMemo(() => {
+    const peso = (p: string) => {
+      const [mm, yyyy] = p.split('-');
+      return Number(yyyy) * 100 + Number(mm);
+    };
+    return [...periodos].sort((a, b) => peso(b) - peso(a));
+  }, [periodos]);
+
   // Seleccionar el periodo más reciente por defecto.
   useEffect(() => {
-    if (!periodo && periodos.length) setPeriodo(periodos[0]!);
-  }, [periodos, periodo]);
+    if (!periodo && periodosOrdenados.length) setPeriodo(periodosOrdenados[0]!);
+  }, [periodosOrdenados, periodo]);
 
   const fechasKey = ['fechas-cxp', periodo];
   const { data: fechas = [], isLoading } = useQuery({
@@ -116,7 +126,7 @@ export function FechasCxpTab() {
             onChange={(e) => setPeriodo(e.target.value)}
             className="mt-1 block w-40 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30"
           >
-            {periodos.map((p) => (
+            {periodosOrdenados.map((p) => (
               <option key={p} value={p}>
                 {p}
               </option>
