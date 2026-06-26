@@ -19,11 +19,19 @@ export interface EscrituraRow {
   tipoPago: string | null;
   /** Nave a mostrar: "{nomParque} - {numNaveNAME}" (como el nomDescriptivo de v1). */
   nave: string | null;
+  /** Parque (nomParque) — para filtrar por parque de forma independiente. */
+  parque: string | null;
+  /** Número de nave (numNaveNAME) — para filtrar por nave de forma independiente. */
+  numNave: string | null;
   numPago: number | null;
   /** Razón social del inversionista (con respaldo a nombre+apellido). */
   inversionista: string | null;
   fecha: string | null;
   monto: number | null;
+  /** Estatus manual: `true` = Escriturada, `false` = Pendiente. */
+  escriturada: boolean;
+  /** Fecha real de escrituración (independiente de la fecha programada). */
+  fechaEscrituracion: string | null;
 }
 
 /**
@@ -39,17 +47,22 @@ export class EscriturasService {
 
   constructor(private readonly supabase: SupabaseService) {}
 
-  async listar(): Promise<{ filas: EscrituraRow[]; total: number }> {
+  async listar(): Promise<{
+    filas: EscrituraRow[];
+    total: number;
+    escrituradas: number;
+    pendientes: number;
+  }> {
     const { data, error } = await this.supabase.admin
       .from('pdpDetalle')
       .select(
-        'idPdpDet, idPdp, idPropiedad, idNave, idInversionista, numPago, fecha, monto, tipoPago',
+        'idPdpDet, idPdp, idPropiedad, idNave, idInversionista, numPago, fecha, monto, tipoPago, escriturada, fechaEscrituracion',
       )
       .eq('tipoPago', 'Escrituracion')
       .eq('status', true);
     if (error) throw new InternalServerErrorException(error.message);
     const det = data ?? [];
-    if (det.length === 0) return { filas: [], total: 0 };
+    if (det.length === 0) return { filas: [], total: 0, escrituradas: 0, pendientes: 0 };
 
     // Nave → numNaveNAME + parque.
     const idsNave = [...new Set(det.map((d) => d.idNave).filter((x): x is string => !!x))];
@@ -119,7 +132,8 @@ export class EscriturasService {
       if (prop?.esTicket === true) continue; // El parque de Tickets no es venta.
       const nv = d.idNave ? navesMap.get(d.idNave) : undefined;
       const nomParque = nv?.idParque ? (parquesMap.get(nv.idParque) ?? null) : null;
-      const nave = [nomParque, nv?.numNaveNAME].filter(Boolean).join(' - ') || null;
+      const numNave = nv?.numNaveNAME ?? null;
+      const nave = [nomParque, numNave].filter(Boolean).join(' - ') || null;
       const idInv = d.idInversionista ?? prop?.idInversionista ?? null;
       filas.push({
         idPdpDet: d.idPdpDet,
@@ -128,10 +142,14 @@ export class EscriturasService {
         idInversionista: idInv,
         tipoPago: d.tipoPago,
         nave,
+        parque: nomParque,
+        numNave,
         numPago: d.numPago,
         inversionista: idInv ? (invMap.get(idInv) ?? null) : null,
         fecha: d.fecha,
         monto: d.monto,
+        escriturada: d.escriturada ?? false,
+        fechaEscrituracion: d.fechaEscrituracion,
       });
     }
 
@@ -145,7 +163,9 @@ export class EscriturasService {
     });
 
     const total = filas.reduce((s, f) => s + (f.monto ?? 0), 0);
-    return { filas, total };
+    const escrituradas = filas.filter((f) => f.escriturada).length;
+    const pendientes = filas.length - escrituradas;
+    return { filas, total, escrituradas, pendientes };
   }
 
   /** Actualiza la fecha de la parcialidad de escrituración. */
@@ -186,10 +206,63 @@ export class EscriturasService {
     return { ok: true };
   }
 
+  /** Cambia el estatus manual de escrituración (Escriturada / Pendiente). */
+  async actualizarEstatus(
+    idPdpDet: string,
+    escriturada: boolean,
+    actorUid: string,
+  ): Promise<{ ok: true }> {
+    const det = await this.cargar(idPdpDet);
+    const db = this.supabase.comoActor(actorUid);
+    const { error } = await db.from('pdpDetalle').update({ escriturada }).eq('idPdpDet', idPdpDet);
+    if (error) {
+      this.logger.error(`Error actualizando estatus ${idPdpDet}: ${error.message}`);
+      throw new InternalServerErrorException('No se pudo actualizar el estatus.');
+    }
+    await this.registrarActividad(db, {
+      pantalla: 'Escrituras',
+      widget: 'switch',
+      nomwidget: 'Estatus de escrituración',
+      comentario: `Estatus de escrituración: ${det.escriturada ? 'Escriturada' : 'Pendiente'} → ${
+        escriturada ? 'Escriturada' : 'Pendiente'
+      } | idPdpDet${idPdpDet}`,
+      actorUid,
+    });
+    return { ok: true };
+  }
+
+  /** Actualiza la fecha real de escrituración (`null` la limpia). */
+  async actualizarFechaEscrituracion(
+    idPdpDet: string,
+    fecha: string | null,
+    actorUid: string,
+  ): Promise<{ ok: true }> {
+    const det = await this.cargar(idPdpDet);
+    const db = this.supabase.comoActor(actorUid);
+    const { error } = await db
+      .from('pdpDetalle')
+      .update({ fechaEscrituracion: fecha })
+      .eq('idPdpDet', idPdpDet);
+    if (error) {
+      this.logger.error(`Error actualizando fecha de escrituración ${idPdpDet}: ${error.message}`);
+      throw new InternalServerErrorException('No se pudo actualizar la fecha de escrituración.');
+    }
+    await this.registrarActividad(db, {
+      pantalla: 'Escrituras',
+      widget: 'input',
+      nomwidget: 'Fecha de escrituración',
+      comentario: `Fecha de escrituración de ${det.fechaEscrituracion ?? '-'} a ${
+        fecha ?? '-'
+      } | idPdpDet${idPdpDet}`,
+      actorUid,
+    });
+    return { ok: true };
+  }
+
   private async cargar(idPdpDet: string) {
     const { data, error } = await this.supabase.admin
       .from('pdpDetalle')
-      .select('idPdpDet, fecha, monto, tipoPago, status')
+      .select('idPdpDet, fecha, monto, tipoPago, status, escriturada, fechaEscrituracion')
       .eq('idPdpDet', idPdpDet)
       .maybeSingle();
     if (error) throw new InternalServerErrorException(error.message);

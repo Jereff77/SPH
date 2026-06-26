@@ -11,11 +11,15 @@ import {
   type TooltipItem,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { ventasApi, type ReporteGrafico } from './ventas.api';
+import { ventasApi, MESES, type ReporteGrafico } from './ventas.api';
 import { useSort } from '@/components/tabla/useSort';
 import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
+import { MultiSearchSelect } from '@/components/MultiSearchSelect';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
+
+/** Opciones de mes para el filtro (orden cronológico). */
+const OPCIONES_MESES = MESES.map((m, i) => ({ value: String(i + 1), label: m }));
 
 const COLORS = {
   monto: '#1f2a4d', // azul marino (marca)
@@ -40,6 +44,8 @@ type AtrasoRow = ReporteGrafico['atrasos'][number];
 
 export function DashboardGraficoPage() {
   const [anio, setAnio] = useState<number>(new Date().getFullYear());
+  // Uno o varios meses (1-12). Vacío = todo el año (complementa el filtro anual).
+  const [mesesSel, setMesesSel] = useState<number[]>([]);
   const [vista, setVista] = useState<Vista>('mensual');
 
   const { data: filtros } = useQuery({
@@ -47,13 +53,14 @@ export function DashboardGraficoPage() {
     queryFn: () => ventasApi.filtros(),
   });
   const anios = filtros?.anios ?? [anio];
+  const mesesKey = mesesSel.join(',');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['ventas-reporte', anio],
-    queryFn: () => ventasApi.reporteGrafico(anio),
+    queryKey: ['ventas-reporte', anio, mesesKey],
+    queryFn: () => ventasApi.reporteGrafico(anio, mesesSel),
   });
 
-  const kpis = data?.kpis ?? { monto: 0, pagos: 0, balance: 0 };
+  const kpis = data?.kpis ?? { programado: 0, cobrado: 0, vencido: 0 };
   const meses = data?.meses ?? [];
   const atrasos = data?.atrasos ?? [];
 
@@ -144,24 +151,39 @@ export function DashboardGraficoPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight text-gray-800">Ventas · Dashboard</h1>
-        <select
-          value={anio}
-          onChange={(e) => setAnio(Number(e.target.value))}
-          className="rounded-lg border px-3 py-1.5 text-sm shadow-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30"
-        >
-          {anios.map((a) => (
-            <option key={a} value={a}>
-              {a}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-end gap-2">
+          <select
+            value={anio}
+            onChange={(e) => setAnio(Number(e.target.value))}
+            className="rounded-lg border px-3 py-1.5 text-sm shadow-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30"
+          >
+            {anios.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+          <MultiSearchSelect
+            values={mesesSel.map(String)}
+            onChange={(vals) => setMesesSel(vals.map(Number).sort((a, b) => a - b))}
+            options={OPCIONES_MESES}
+            placeholder="Todo el año"
+            ordenarAlfabetico={false}
+            className="w-44 text-sm"
+          />
+        </div>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs: programado/cobrado del periodo + vencido a hoy (adeudo exigible). */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Kpi icono="🎯" titulo="Monto" valor={kpis.monto} color="text-[#1f2a4d]" />
-        <Kpi icono="🪙" titulo="Pagos" valor={kpis.pagos} color="text-[#5a7d1f]" />
-        <Kpi icono="⚖️" titulo="Balance" valor={kpis.balance} color={kpis.balance < 0 ? 'text-red-500' : 'text-[#1f2a4d]'} />
+        <Kpi icono="🎯" titulo="Programado" valor={kpis.programado} color="text-[#1f2a4d]" />
+        <Kpi icono="🪙" titulo="Cobrado" valor={kpis.cobrado} color="text-[#5a7d1f]" />
+        <Kpi
+          icono="⏰"
+          titulo="Vencido a hoy"
+          valor={kpis.vencido}
+          color={kpis.vencido > 0 ? 'text-red-500' : 'text-[#1f2a4d]'}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

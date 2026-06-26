@@ -49,7 +49,10 @@ function fechaCorta(iso: string | null): string {
   return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : iso;
 }
 
-const COLUMNAS = ['Tipo Pago', 'Nave', 'No. de pago', 'Inversionista', 'Fecha', 'Monto'];
+const COLUMNAS = [
+  'Tipo Pago', 'Parque', 'Nave', 'No. de pago', 'Inversionista', 'Estatus', 'Fecha de escrituración', 'Monto',
+];
+const NCOL = COLUMNAS.length;
 
 export async function exportarEscriturasExcel(o: EscriturasExportOpts): Promise<void> {
   const ExcelJS = (await import('exceljs')).default;
@@ -57,7 +60,7 @@ export async function exportarEscriturasExcel(o: EscriturasExportOpts): Promise<
   const ws = wb.addWorksheet('Escrituras', { views: [{ state: 'frozen', ySplit: HEAD }] });
 
   ws.columns = [
-    { width: 16 }, { width: 18 }, { width: 12 }, { width: 32 }, { width: 14 }, { width: 16 },
+    { width: 16 }, { width: 16 }, { width: 14 }, { width: 12 }, { width: 32 }, { width: 14 }, { width: 20 }, { width: 16 },
   ];
 
   // Encabezado: logo (izq) + título / generado (der).
@@ -68,15 +71,19 @@ export async function exportarEscriturasExcel(o: EscriturasExportOpts): Promise<
       ws.addImage(id, { tl: { col: 0, row: 0 }, ext: { width: 150, height: 54 } });
     } catch { /* logo no soportado: se omite */ }
   }
-  ws.mergeCells('C1:F1');
+  ws.mergeCells('C1:H1');
   const t = ws.getCell('C1');
   t.value = o.titulo;
   t.font = { bold: true, size: 15, color: { argb: AZUL } };
   t.alignment = { vertical: 'middle' };
-  ws.mergeCells('C2:F2');
+  ws.mergeCells('C2:H2');
   const g = ws.getCell('C2');
   g.value = `Generado: ${o.generado}`;
   g.font = { size: 9, color: { argb: 'FF6E6E6E' } };
+
+  // Centradas: No. de pago (3), Estatus (5), Fecha (6); derecha: Monto (7).
+  const alineacion = (i: number): 'left' | 'center' | 'right' =>
+    i === 3 || i === 5 || i === 6 ? 'center' : i === 7 ? 'right' : 'left';
 
   // Encabezado de tabla (fila HEAD).
   COLUMNAS.forEach((col, i) => {
@@ -84,7 +91,7 @@ export async function exportarEscriturasExcel(o: EscriturasExportOpts): Promise<
     cell.value = col;
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: AZUL } };
-    cell.alignment = { horizontal: i === 2 ? 'center' : i === 5 ? 'right' : 'left', vertical: 'middle' };
+    cell.alignment = { horizontal: alineacion(i), vertical: 'middle' };
     cell.border = { bottom: { style: 'thin', color: { argb: 'FFBBBBBB' } } };
   });
 
@@ -93,29 +100,32 @@ export async function exportarEscriturasExcel(o: EscriturasExportOpts): Promise<
   o.filas.forEach((f, idx) => {
     const r = ws.getRow(HEAD + 1 + idx);
     r.getCell(1).value = f.tipoPago ?? '';
-    r.getCell(2).value = f.nave ?? '';
-    r.getCell(3).value = f.numPago ?? null;
-    r.getCell(3).alignment = { horizontal: 'center' };
-    r.getCell(4).value = f.inversionista ?? '';
-    r.getCell(5).value = fechaCorta(f.fecha);
-    r.getCell(5).alignment = { horizontal: 'center' };
-    const monto = r.getCell(6);
+    r.getCell(2).value = f.parque ?? '';
+    r.getCell(3).value = f.numNave ?? '';
+    r.getCell(4).value = f.numPago ?? null;
+    r.getCell(4).alignment = { horizontal: 'center' };
+    r.getCell(5).value = f.inversionista ?? '';
+    r.getCell(6).value = f.escriturada ? 'Escriturada' : 'Pendiente';
+    r.getCell(6).alignment = { horizontal: 'center' };
+    r.getCell(7).value = fechaCorta(f.fechaEscrituracion);
+    r.getCell(7).alignment = { horizontal: 'center' };
+    const monto = r.getCell(8);
     monto.value = f.monto ?? 0;
     monto.numFmt = MONEDA_FMT;
     total += f.monto ?? 0;
     if (idx % 2 === 1) {
-      for (let c = 1; c <= 6; c++)
+      for (let c = 1; c <= NCOL; c++)
         r.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
     }
   });
 
   // Total.
   const totRow = ws.getRow(HEAD + 1 + o.filas.length);
-  ws.mergeCells(totRow.number, 1, totRow.number, 5);
+  ws.mergeCells(totRow.number, 1, totRow.number, NCOL - 1);
   totRow.getCell(1).value = `Total (${o.filas.length})`;
-  totRow.getCell(6).value = total;
-  totRow.getCell(6).numFmt = MONEDA_FMT;
-  for (let c = 1; c <= 6; c++) {
+  totRow.getCell(NCOL).value = total;
+  totRow.getCell(NCOL).numFmt = MONEDA_FMT;
+  for (let c = 1; c <= NCOL; c++) {
     const cell = totRow.getCell(c);
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: AZUL } };

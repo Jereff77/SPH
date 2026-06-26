@@ -20,6 +20,9 @@ function opcionesCol(
 const moneda = (n: number | null | undefined): string =>
   (n ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
+/** Etiqueta del estatus de escrituración. */
+const estatusLabel = (escriturada: boolean): string => (escriturada ? 'Escriturada' : 'Pendiente');
+
 function BotonConfirmar({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
   return (
     <button
@@ -49,6 +52,64 @@ function BotonCancelar({ onClick }: { onClick: () => void }) {
   );
 }
 
+/** Interruptor de estatus Escriturada / Pendiente (gestión manual). */
+function SwitchEstatus({
+  escriturada,
+  onToggle,
+  disabled,
+}: {
+  escriturada: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={disabled}
+      role="switch"
+      aria-checked={escriturada}
+      title={`Marcar como ${escriturada ? 'Pendiente' : 'Escriturada'}`}
+      className="inline-flex items-center gap-2 disabled:opacity-50"
+    >
+      <span
+        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition ${
+          escriturada ? 'bg-[#1a7f4b]' : 'bg-gray-300'
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
+            escriturada ? 'left-[18px]' : 'left-0.5'
+          }`}
+        />
+      </span>
+      <span
+        className={`text-xs font-medium ${escriturada ? 'text-[#1a7f4b]' : 'text-gray-500'}`}
+      >
+        {estatusLabel(escriturada)}
+      </span>
+    </button>
+  );
+}
+
+/** Tarjeta de conteo (resumen). */
+function TarjetaConteo({
+  titulo,
+  valor,
+  color,
+}: {
+  titulo: string;
+  valor: number;
+  color: string;
+}) {
+  return (
+    <div className="rounded-2xl border bg-white p-4 shadow-sm">
+      <div className="text-sm font-medium text-gray-500">{titulo}</div>
+      <div className={`mt-1 text-3xl font-bold tracking-tight ${color}`}>{valor}</div>
+    </div>
+  );
+}
+
 function fechaCorta(iso: string | null): string {
   if (!iso) return '—';
   const p = (iso.split('T')[0] ?? iso).split('-');
@@ -57,15 +118,19 @@ function fechaCorta(iso: string | null): string {
 }
 
 /**
- * Ventas → Escrituras (clave 630). Réplica de "Fechas de escrituración" de v1:
- * lista las parcialidades con `tipoPago='Escrituracion'` y permite editar la
- * **fecha** y el **monto** (inline). Excluye el parque de Tickets.
+ * Ventas → Escrituras (clave 630). Gestión operativa de la escrituración:
+ * lista las parcialidades con `tipoPago='Escrituracion'`, con filtros por
+ * **parque**, **nave**, inversionista y **estatus**; permite marcar el estatus
+ * (switch Escriturada/Pendiente), capturar la **fecha de escrituración** y
+ * editar el **monto** (inline). Excluye el parque de Tickets.
  */
 export function EscriturasPage() {
   const queryClient = useQueryClient();
   const [busca, setBusca] = useState('');
+  const [parqueSel, setParqueSel] = useState<Set<string>>(new Set());
   const [naveSel, setNaveSel] = useState<Set<string>>(new Set());
   const [invSel, setInvSel] = useState<Set<string>>(new Set());
+  const [estatusSel, setEstatusSel] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [exportando, setExportando] = useState(false);
 
@@ -81,34 +146,39 @@ export function EscriturasPage() {
     staleTime: 30 * 60 * 1000,
   });
 
-  const invalidar = () =>
-    queryClient.invalidateQueries({ queryKey: ['ventas-escrituras'] });
+  const invalidar = () => queryClient.invalidateQueries({ queryKey: ['ventas-escrituras'] });
   const onErr = (e: unknown) =>
     setError(e instanceof ApiRequestError ? e.message : 'No se pudo guardar el cambio.');
+  const onOk = () => {
+    setError(null);
+    invalidar();
+  };
 
   const mFecha = useMutation({
-    mutationFn: ({ id, fecha }: { id: string; fecha: string }) =>
-      ventasApi.actualizarFechaEscritura(id, fecha),
-    onSuccess: () => {
-      setError(null);
-      invalidar();
-    },
+    mutationFn: ({ id, fecha }: { id: string; fecha: string | null }) =>
+      ventasApi.actualizarFechaEscrituracion(id, fecha),
+    onSuccess: onOk,
     onError: onErr,
   });
   const mMonto = useMutation({
     mutationFn: ({ id, monto }: { id: string; monto: number }) =>
       ventasApi.actualizarMontoEscritura(id, monto),
-    onSuccess: () => {
-      setError(null);
-      invalidar();
-    },
+    onSuccess: onOk,
     onError: onErr,
   });
-  const guardando = mFecha.isPending || mMonto.isPending;
+  const mEstatus = useMutation({
+    mutationFn: ({ id, escriturada }: { id: string; escriturada: boolean }) =>
+      ventasApi.actualizarEstatusEscritura(id, escriturada),
+    onSuccess: onOk,
+    onError: onErr,
+  });
+  const guardando = mFecha.isPending || mMonto.isPending || mEstatus.isPending;
 
   // Opciones distintas para los filtros de columna (multi-selección — regla 7c).
-  const optNave = useMemo(() => opcionesCol(filas, (f) => f.nave), [filas]);
+  const optParque = useMemo(() => opcionesCol(filas, (f) => f.parque), [filas]);
+  const optNave = useMemo(() => opcionesCol(filas, (f) => f.numNave), [filas]);
   const optInv = useMemo(() => opcionesCol(filas, (f) => f.inversionista), [filas]);
+  const optEstatus = ['Escriturada', 'Pendiente'];
 
   // Buscador global (nave / inversionista / no. de pago) + filtros de columna.
   const filtradas = useMemo(() => {
@@ -123,28 +193,35 @@ export function EscriturasPage() {
         )
       )
         return false;
-      if (naveSel.size > 0 && !naveSel.has(f.nave ?? '')) return false;
+      if (parqueSel.size > 0 && !parqueSel.has(f.parque ?? '')) return false;
+      if (naveSel.size > 0 && !naveSel.has(f.numNave ?? '')) return false;
       if (invSel.size > 0 && !invSel.has(f.inversionista ?? '')) return false;
+      if (estatusSel.size > 0 && !estatusSel.has(estatusLabel(f.escriturada))) return false;
       return true;
     });
-  }, [filas, busca, naveSel, invSel]);
+  }, [filas, busca, parqueSel, naveSel, invSel, estatusSel]);
 
   const { ordenados, sortKey, dir, toggle } = useSort<EscrituraRow>(
     filtradas,
     {
-      nave: (f) => f.nave,
+      parque: (f) => f.parque,
+      numNave: (f) => f.numNave,
       numPago: (f) => f.numPago,
       inversionista: (f) => f.inversionista,
-      fecha: (f) => f.fecha,
+      estatus: (f) => (f.escriturada ? 1 : 0),
+      fechaEscrituracion: (f) => f.fechaEscrituracion,
       monto: (f) => f.monto,
     },
-    { key: 'nave', dir: 'asc' },
+    { key: 'parque', dir: 'asc' },
   );
 
   const totalMostrado = useMemo(
     () => filtradas.reduce((s, f) => s + (f.monto ?? 0), 0),
     [filtradas],
   );
+  // Las tarjetas de resumen se adaptan a los filtros: cuentan lo que se ve.
+  const escrituradas = useMemo(() => filtradas.filter((f) => f.escriturada).length, [filtradas]);
+  const pendientes = filtradas.length - escrituradas;
 
   // Edición controlada: doble clic para habilitar una celda; ✓ (o Enter)
   // confirma el cambio, ✕ (o Esc) lo cancela. Evita cambios accidentales.
@@ -160,7 +237,7 @@ export function EscriturasPage() {
     setEdit({
       id: f.idPdpDet,
       campo,
-      valor: campo === 'fecha' ? (f.fecha ?? '') : String(f.monto ?? ''),
+      valor: campo === 'fecha' ? (f.fechaEscrituracion ?? '') : String(f.monto ?? ''),
     });
   }
   function cancelar() {
@@ -169,8 +246,9 @@ export function EscriturasPage() {
   function confirmar(f: EscrituraRow) {
     if (!edit) return;
     if (edit.campo === 'fecha') {
-      if (edit.valor && edit.valor !== f.fecha) {
-        mFecha.mutate({ id: f.idPdpDet, fecha: edit.valor });
+      const actual = f.fechaEscrituracion ?? '';
+      if (edit.valor !== actual) {
+        mFecha.mutate({ id: f.idPdpDet, fecha: edit.valor || null });
       }
     } else {
       const n = Number(edit.valor);
@@ -181,6 +259,12 @@ export function EscriturasPage() {
       if (n !== f.monto) mMonto.mutate({ id: f.idPdpDet, monto: n });
     }
     setEdit(null);
+  }
+
+  function alternarEstatus(f: EscrituraRow) {
+    if (guardando) return;
+    setError(null);
+    mEstatus.mutate({ id: f.idPdpDet, escriturada: !f.escriturada });
   }
 
   // Exporta a Excel lo que se ve (respeta búsqueda, filtros de columna y orden).
@@ -224,6 +308,13 @@ export function EscriturasPage() {
         </div>
       </div>
 
+      {/* Tarjetas de resumen (conteo por estatus, adaptado a los filtros). */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <TarjetaConteo titulo="Total" valor={filtradas.length} color="text-[#1f2a4d]" />
+        <TarjetaConteo titulo="Escrituradas" valor={escrituradas} color="text-[#1a7f4b]" />
+        <TarjetaConteo titulo="Pendientes" valor={pendientes} color="text-amber-600" />
+      </div>
+
       <input
         value={busca}
         onChange={(e) => setBusca(e.target.value)}
@@ -237,13 +328,19 @@ export function EscriturasPage() {
         </div>
       )}
 
-      <div className="max-h-[calc(100vh-16rem)] overflow-auto rounded-xl border bg-white shadow-sm">
-        <table className="w-full min-w-[900px] text-sm">
+      <div className="max-h-[calc(100vh-22rem)] overflow-auto rounded-xl border bg-white shadow-sm">
+        <table className="w-full min-w-[980px] text-sm">
           <thead className={THEAD_STICKY}>
             <tr className={THEAD_TR}>
               <SortableTh>Tipo Pago</SortableTh>
               <SortableTh
-                campo="nave" sortKey={sortKey} dir={dir} onSort={toggle}
+                campo="parque" sortKey={sortKey} dir={dir} onSort={toggle}
+                filtro={<FiltroColumnaOpciones etiqueta="Parque" opciones={optParque} seleccion={parqueSel} onChange={setParqueSel} />}
+              >
+                Parque
+              </SortableTh>
+              <SortableTh
+                campo="numNave" sortKey={sortKey} dir={dir} onSort={toggle}
                 filtro={<FiltroColumnaOpciones etiqueta="Nave" opciones={optNave} seleccion={naveSel} onChange={setNaveSel} />}
               >
                 Nave
@@ -257,8 +354,14 @@ export function EscriturasPage() {
               >
                 Inversionista
               </SortableTh>
-              <SortableTh campo="fecha" sortKey={sortKey} dir={dir} onSort={toggle} align="center">
-                Fecha
+              <SortableTh
+                campo="estatus" sortKey={sortKey} dir={dir} onSort={toggle}
+                filtro={<FiltroColumnaOpciones etiqueta="Estatus" opciones={optEstatus} seleccion={estatusSel} onChange={setEstatusSel} />}
+              >
+                Estatus
+              </SortableTh>
+              <SortableTh campo="fechaEscrituracion" sortKey={sortKey} dir={dir} onSort={toggle} align="center">
+                Fecha de escrituración
               </SortableTh>
               <SortableTh campo="monto" sortKey={sortKey} dir={dir} onSort={toggle} align="right">
                 Monto
@@ -268,12 +371,12 @@ export function EscriturasPage() {
           <tbody className="divide-y">
             {isLoading && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-gray-400">Cargando…</td>
+                <td colSpan={8} className="px-4 py-6 text-center text-gray-400">Cargando…</td>
               </tr>
             )}
             {!isLoading && ordenados.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
+                <td colSpan={8} className="px-4 py-6 text-center text-gray-400">
                   Sin registros de escrituración.
                 </td>
               </tr>
@@ -281,9 +384,17 @@ export function EscriturasPage() {
             {ordenados.map((f) => (
               <tr key={f.idPdpDet} className="hover:bg-gray-50">
                 <td className="px-4 py-2 text-gray-600">{f.tipoPago ?? '—'}</td>
-                <td className="px-4 py-2 font-medium text-gray-700">{f.nave ?? '—'}</td>
+                <td className="px-4 py-2 text-gray-700">{f.parque ?? '—'}</td>
+                <td className="px-4 py-2 font-medium text-gray-700">{f.numNave ?? '—'}</td>
                 <td className="px-4 py-2 text-center text-gray-600">{f.numPago ?? '—'}</td>
                 <td className="px-4 py-2 text-gray-700">{f.inversionista ?? '—'}</td>
+                <td className="px-4 py-2">
+                  <SwitchEstatus
+                    escriturada={f.escriturada}
+                    onToggle={() => alternarEstatus(f)}
+                    disabled={guardando}
+                  />
+                </td>
                 <td className="px-4 py-2 text-center">
                   {edit?.id === f.idPdpDet && edit.campo === 'fecha' ? (
                     <div className="flex items-center justify-center gap-1">
@@ -304,10 +415,10 @@ export function EscriturasPage() {
                   ) : (
                     <span
                       onDoubleClick={() => abrir(f, 'fecha')}
-                      title="Doble clic para editar la fecha"
+                      title="Doble clic para editar la fecha de escrituración"
                       className="cursor-pointer rounded px-1 py-0.5 hover:bg-gray-100"
                     >
-                      {fechaCorta(f.fecha)}
+                      {fechaCorta(f.fechaEscrituracion)}
                     </span>
                   )}
                 </td>
@@ -346,7 +457,7 @@ export function EscriturasPage() {
           {ordenados.length > 0 && (
             <tfoot>
               <tr className="sticky bottom-0 bg-gray-100 font-semibold text-gray-800">
-                <td className="px-4 py-2" colSpan={5}>
+                <td className="px-4 py-2" colSpan={7}>
                   Total ({filtradas.length})
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">{moneda(totalMostrado)}</td>
@@ -357,7 +468,8 @@ export function EscriturasPage() {
       </div>
 
       <p className="text-xs text-gray-400">
-        Para editar: <strong>doble clic</strong> en la fecha o el monto, ajusta el valor y confirma con
+        Marca el <strong>estatus</strong> con el interruptor. Para editar la fecha de escrituración o el
+        monto: <strong>doble clic</strong>, ajusta el valor y confirma con
         <span className="mx-1 rounded bg-[#90BF32]/20 px-1 font-bold text-[#3f5b1a]">✓</span>
         (o Enter). Cancela con ✕ o Esc.
       </p>

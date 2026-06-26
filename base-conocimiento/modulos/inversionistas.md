@@ -99,18 +99,26 @@ total de la tabla y las tarjetas siempre cuadran**.
 Vista **gráfica/reporte** (separada de "Gestión de Cobranza"). Usa **Chart.js** (`react-chartjs-2`, cargado
 en chunk aparte por code-splitting). En el sidebar aparece **primero** como "Dashboard". Universo: planes
 **activos** (`pdpActivo=true`), sin Tickets. Componentes:
-- **3 KPIs del año** (formato compacto, p. ej. 226M): **Monto** (objetivo), **Pagos** (cobrado),
-  **Balance** (= pagos − objetivo; rojo si negativo).
-- **Gráfico de barras** por mes (Monto azul, Pagos verde, Balance rojo) con **toggle Mensual / Acumulado**
-  (acumulado = suma corrida mes a mes). Barras redondeadas, tooltips en moneda.
+- **Filtros:** **Año** + **Mes** (selector multi-selección, vacío = todo el año; v2.44.0). El filtro de mes
+  acota la **gráfica** y los KPIs `Programado`/`Cobrado` (no el `Vencido a hoy`, ver abajo).
+- **3 KPIs** (formato compacto, p. ej. 226M) — **recalibrados a "a hoy" en v2.44.0** para evitar la confusión
+  de la antigua proyección anual:
+  - **Programado:** Σ de las parcialidades del periodo (año + meses) — lo planeado a cobrar.
+  - **Cobrado:** Σ de pagos de esas parcialidades.
+  - **Vencido a hoy:** el **adeudo realmente exigible al día de hoy** (cuenta corriente FIFO por plan, todo el
+    historial). Es una **foto a hoy**: **no** depende del filtro de año/mes y **coincide con el Total de la
+    tabla "Naves con atrasos"**. Sustituye al antiguo KPI "Balance" (= pagos − monto del año, que incluía
+    parcialidades futuras y daba un número negativo que parecía deuda sin serlo).
+- **Gráfico de barras** por mes (Monto azul, Pagos verde, Balance mensual rojo) con **toggle Mensual /
+  Acumulado** (acumulado = suma corrida mes a mes). Barras redondeadas, tooltips en moneda. Si se filtran
+  meses, solo esos aportan datos.
 - **Naves con atrasos:** tabla de la **cartera vencida**, agrupada por **nave** (con razón social), columnas
   **Vencido** y **Días** (mayor atraso de la nave), ordenable, con **Total**. ⚠️ Los atrasos son de TODO el
-  historial (cartera vencida real), no solo del año del selector (que sí filtra los KPIs y el gráfico).
-  **Incluye Tickets** (decisión 2026-06, ver §2e); el resto del Dashboard (KPIs/gráfico/tabla/tarjetas) sigue
-  **sin** Tickets.
-- **Backend:** `GET ventas/reporte?anio=` → `dashboard.service.reporteGrafico()`. Los **atrasos** ya **no** se
-  calculan parcialidad por parcialidad: delegan en **`SaldosVencidosService`** (cuenta corriente FIFO por
-  plan, ver §2e). **Sin objetos nuevos en BD.**
+  historial (cartera vencida real), no solo del periodo del selector. **Incluye Tickets** (decisión 2026-06,
+  ver §2e); el resto del Dashboard (gráfico/tabla/tarjetas) sigue **sin** Tickets.
+- **Backend:** `GET ventas/reporte?anio=&meses=1,3,6` → `dashboard.service.reporteGrafico(anio, meses)`. Los
+  **atrasos** y el KPI `Vencido a hoy` delegan en **`SaldosVencidosService`** (cuenta corriente FIFO por plan,
+  ver §2e). **Sin objetos nuevos en BD.**
 
 ## 2d. Reportes (`/ventas/reportes`, clave 620)
 Réplica **segura** de los 2 reportes HTML de v1 (que iban embebidos en un WebView y consultaban Supabase
@@ -258,20 +266,30 @@ y con al menos una propiedad `pdpActivo=true`. 3 pestañas:
 > `rgpdp_generar_plan_pagos`) y Administrada (`rapdp_actualizar`) se hará después.
 
 ## 3b. Escrituras (`/ventas/escrituras`, clave 630)
-Réplica de la pantalla **"Fechas de escrituración"** de v1 (`i01_inversionistas/escrituracion`). Lista las
-**parcialidades cuyo `pdpDetalle.tipoPago = 'Escrituracion'`** (status=true) y permite **editar la fecha y el
-monto** de cada una. **Cálculos sin vistas** (v1 usaba `v_pagos`): el backend lee `pdpDetalle` y enriquece
-con nave (`naves.numNaveNAME` + `parques.nomParque` → "Parque - Nave"), inversionista (`razonsocial`) y
+Pantalla **operativa de escrituración** (evolución de "Fechas de escrituración" de v1,
+`i01_inversionistas/escrituracion`). Lista las **parcialidades cuyo `pdpDetalle.tipoPago = 'Escrituracion'`**
+(status=true). **Cálculos sin vistas** (v1 usaba `v_pagos`): el backend lee `pdpDetalle` y enriquece con
+parque (`parques.nomParque`) y nave (`naves.numNaveNAME`) **por separado**, inversionista (`razonsocial`) y
 **excluye el parque de Tickets** (`propiedades.esTicket=false`, regla del módulo).
-- **Columnas:** Tipo Pago · Nave · No. de pago (`numPago`) · Inversionista · **Fecha** (editable) ·
-  **Monto** (editable). Encabezado sticky azul + ordenable (`useSort`) + búsqueda (nave/inversionista/nº) +
-  **fila de total** al pie. Orden por defecto: nave → inversionista → fecha (como v1).
+- **Tarjetas de resumen (v2.44.0):** **Total** · **Escrituradas** · **Pendientes**. El conteo **se adapta a
+  los filtros** (cuenta lo que se ve en la tabla, igual que el contador del header). El backend también devuelve
+  `{escrituradas, pendientes}` del universo en `listar()`, por si se requiere.
+- **Columnas:** Tipo Pago · **Parque** · **Nave** (`numNaveNAME`) · No. de pago (`numPago`) · Inversionista ·
+  **Estatus** (interruptor) · **Fecha de escrituración** (editable) · **Monto** (editable). Encabezado sticky
+  azul + ordenable (`useSort`) + búsqueda + **fila de total** al pie. Orden por defecto: parque asc.
+- **Filtros de columna (multi-selección, regla 7c, v2.44.0):** **Parque**, **Nave**, **Inversionista** y
+  **Estatus** (Escriturada/Pendiente).
+- **Estatus manual (v2.44.0):** interruptor **Escriturada / Pendiente** por fila → `pdpDetalle.escriturada`
+  (boolean). `PATCH .../estatus` (`{escriturada}`).
+- **Fecha de escrituración (v2.44.0):** fecha **real** en que se escrituró → `pdpDetalle.fechaEscrituracion`
+  (date, nullable). **Sustituye en pantalla** a la fecha *programada* de la parcialidad (`pdpDetalle.fecha`,
+  que se sigue editando desde Planes/Config). `PATCH .../fecha-escrituracion` (`{fecha}`; `null` la limpia).
 - **Edición (anti-error):** **doble clic** en la celda de fecha/monto habilita el input; el cambio se aplica
-  solo al **confirmar** con ✓ (o Enter), y se cancela con ✕ o Esc (como v1, evita cambios accidentales).
-  Backend: `PATCH .../fecha` y `PATCH .../monto` → `UPDATE pdpDetalle` por `idPdpDet`, con `comoActor(uid)`
-  y registro en **`actividad`** ("Se actualiza fecha/monto de X a Y | idPdpDet…", como v1).
-- **Validación:** fecha `yyyy-MM-dd`; monto > 0. El recálculo de `pdp.montoPagado` (si aplica) lo hacen los
-  triggers existentes. **Sin objetos nuevos en BD.**
+  solo al **confirmar** con ✓ (o Enter), y se cancela con ✕ o Esc. El estatus se cambia con un clic en el
+  interruptor. Backend: `UPDATE pdpDetalle` por `idPdpDet`, con `comoActor(uid)` y registro en **`actividad`**.
+- **Validación:** fecha `yyyy-MM-dd`; monto > 0.
+- **📌 BD (v2.44.0):** se agregaron a `pdpDetalle` las columnas **`escriturada`** (boolean NOT NULL DEFAULT
+  false) y **`fechaEscrituracion`** (date). Aditivas, no rompen v1. Ver `migraciones/2026-06-25-pdpdetalle-escrituras-estatus-fecha.sql`.
 
 ## 4. Modelo de datos (todo EXISTENTE; sin DDL nuevo)
 - **Catálogo/propietario:** `inversionista` (PK `idInversionista`), `inversionista_docs`, `propiedades`
@@ -279,8 +297,9 @@ con nave (`naves.numNaveNAME` + `parques.nomParque` → "Parque - Nave"), invers
   `mza`, `lote`, `terreno`, `construccion`, `precio`, `fecEntrega`), `parques` (`nomParque`, `esTicket`).
 - **KVAs:** `kvasAsignados` (`idNave`, `idParque`, `cantKvas`, `tipoTension` [1=Alta/2=Media], `tipoContrato`,
   `status`) — KVAs por nave para las tarjetas de Propiedades.
-- **Plan de pagos:** `pdp` (PK `idPdp`), `pdpDetalle` (PK `idPdpDet`, parcialidades), `pagos` (PK `idPago`,
-  cobros con `tipomovimiento`/`tipoOperacion`/`comprobante`).
+- **Plan de pagos:** `pdp` (PK `idPdp`), `pdpDetalle` (PK `idPdpDet`, parcialidades; incl. `escriturada`
+  boolean + `fechaEscrituracion` date, agregadas en v2.44.0 para Escrituras), `pagos` (PK `idPago`, cobros con
+  `tipomovimiento`/`tipoOperacion`/`comprobante`).
 - **Bitácora:** `comentarios` (origen 'Ventas' por defecto), `actividad`.
 - **Rentas (lectura):** `rgPdp`/`rgPdpDetalle`, `raPdp`/`raPdpDetalle`.
 - **Vista usada:** solo `v_rentasCombinadas` (pestañas de rentas del Dashboard). El resto de las vistas de
@@ -312,8 +331,10 @@ con nave (`naves.numNaveNAME` + `parques.nomParque` → "Parque - Nave"), invers
   `ventas/reportes/vencidos`, `ventas/reportes/vencidos-resumen`, `ventas/reportes/vencidos-evolucion`
   (todos con filtros anio/mes/razonsocial/parque/propiedad). Backend `reportes.service.ts` → RPCs
   `v_pdpdetalle_get_*`.
-- **Escrituras (630):** `GET ventas/escrituras` (lista `{filas,total}` de `pdpDetalle` con
-  `tipoPago='Escrituracion'`, sin Tickets), `PATCH ventas/escrituras/:idPdpDet/fecha`,
+- **Escrituras (630):** `GET ventas/escrituras` (lista `{filas,total,escrituradas,pendientes}` de `pdpDetalle`
+  con `tipoPago='Escrituracion'`, sin Tickets), `PATCH ventas/escrituras/:idPdpDet/fecha` (fecha programada),
+  **`PATCH ventas/escrituras/:idPdpDet/estatus`** (`{escriturada}`),
+  **`PATCH ventas/escrituras/:idPdpDet/fecha-escrituracion`** (`{fecha}`, nullable),
   `PATCH ventas/escrituras/:idPdpDet/monto`. Backend: `escrituras.service.ts`.
 
 ## 6. Seguridad

@@ -41,7 +41,12 @@ interface AggPagos {
 
 /** Salida del Dashboard gráfico (clave 620). */
 export interface ReporteGrafico {
-  kpis: { monto: number; pagos: number; balance: number };
+  /**
+   * `programado`/`cobrado`: del periodo (año + meses filtrados). `vencido`: el
+   * adeudo realmente exigible **al día de hoy** (FIFO por plan, todo el
+   * historial), no una proyección anual.
+   */
+  kpis: { programado: number; cobrado: number; vencido: number };
   meses: { mes: number; monto: number; pagos: number; balance: number }[];
   atrasos: {
     idNave: string | null;
@@ -360,12 +365,20 @@ export class DashboardService {
   }
 
   /**
-   * Dashboard gráfico (clave 620): KPIs anuales (Monto/Pagos/Balance), serie de
-   * 12 meses (por vencimiento) y **naves con atrasos** (parcialidades vencidas
-   * con saldo > 0). Universo: planes activos (`pdpActivo=true`), sin Tickets.
+   * Dashboard gráfico (clave 620). KPIs **a hoy**, serie de 12 meses (por
+   * vencimiento) y **naves con atrasos** (parcialidades vencidas con saldo > 0).
+   * Universo: planes activos (`pdpActivo=true`), sin Tickets.
+   *
+   * - `mesesSel`: uno o varios meses (1-12) para acotar el periodo. Vacío = todo
+   *   el año. Afecta la serie mensual y los KPIs `programado`/`cobrado`.
+   * - KPI `vencido`: el adeudo realmente exigible **al día de hoy** (FIFO por
+   *   plan, todo el historial) — sustituye al antiguo "balance" (proyección
+   *   anual `pagos − monto`, que incluía parcialidades futuras y confundía).
+   *
    * Reutiliza `scopePropiedades`/`fetchParcialidades`/`pagosAggPorParcialidad`.
    */
-  async reporteGrafico(anio: number): Promise<ReporteGrafico> {
+  async reporteGrafico(anio: number, mesesSel: number[] = []): Promise<ReporteGrafico> {
+    const set = this.mesesSet(mesesSel);
     const meses = Array.from({ length: 12 }, (_, i) => ({
       mes: i + 1,
       monto: 0,
@@ -373,7 +386,7 @@ export class DashboardService {
       balance: 0,
     }));
     const vacio: ReporteGrafico = {
-      kpis: { monto: 0, pagos: 0, balance: 0 },
+      kpis: { programado: 0, cobrado: 0, vencido: 0 },
       meses,
       atrasos: [],
       totalVencido: 0,
@@ -385,24 +398,26 @@ export class DashboardService {
 
     const [anioIni, anioFin] = this.rangoAnio(anio);
 
-    // 1) KPIs y serie mensual del año (objetivo por vencimiento + sus pagos).
+    // 1) Serie mensual + KPIs de periodo (programado vs cobrado) del año,
+    //    acotados a los meses seleccionados (vacío = todo el año).
     const parcAnio = await this.fetchParcialidades(scopeIds, anioIni, anioFin);
-    const aggAnio = await this.pagosAggPorParcialidad(parcAnio.map((p) => p.idPdpDet));
-    let kMonto = 0;
-    let kPagos = 0;
-    for (const pd of parcAnio) {
+    const parcSel =
+      set.size >= 12 ? parcAnio : parcAnio.filter((p) => set.has(this.mesDe(p.fecha)));
+    const aggSel = await this.pagosAggPorParcialidad(parcSel.map((p) => p.idPdpDet));
+    let programado = 0;
+    let cobrado = 0;
+    for (const pd of parcSel) {
       const monto = pd.monto ?? 0;
-      const pagos = aggAnio.get(pd.idPdpDet)?.pagos ?? 0;
-      kMonto += monto;
-      kPagos += pagos;
-      const m = pd.fecha ? Number(pd.fecha.slice(5, 7)) : 0;
+      const pagos = aggSel.get(pd.idPdpDet)?.pagos ?? 0;
+      programado += monto;
+      cobrado += pagos;
+      const m = this.mesDe(pd.fecha);
       if (m >= 1 && m <= 12) {
         meses[m - 1]!.monto += monto;
         meses[m - 1]!.pagos += pagos;
       }
     }
     for (const mm of meses) mm.balance = mm.pagos - mm.monto;
-    const kpis = { monto: kMonto, pagos: kPagos, balance: kPagos - kMonto };
 
     // 2) Naves con atrasos: saldos vencidos con lógica de **cuenta corriente
     //    (FIFO por plan)** sobre TODO el historial. Incluye Tickets (decisión de
@@ -445,6 +460,7 @@ export class DashboardService {
       .sort((a, b) => b.montoVencido - a.montoVencido);
     const totalVencido = Math.round(atrasos.reduce((s, a) => s + a.montoVencido, 0) * 100) / 100;
 
+    const kpis = { programado, cobrado, vencido: totalVencido };
     return { kpis, meses, atrasos, totalVencido };
   }
 

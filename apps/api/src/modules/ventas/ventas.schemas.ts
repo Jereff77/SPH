@@ -127,6 +127,22 @@ export const escrituraMontoSchema = z.object({
 });
 export type EscrituraMontoDto = z.infer<typeof escrituraMontoSchema>;
 
+/**
+ * Escrituras (clave 630): estatus manual de escrituración
+ * (`pdpDetalle.escriturada`). `true` = Escriturada, `false` = Pendiente.
+ */
+export const escrituraEstatusSchema = z.object({ escriturada: z.coerce.boolean() });
+export type EscrituraEstatusDto = z.infer<typeof escrituraEstatusSchema>;
+
+/**
+ * Escrituras (clave 630): fecha real de escrituración
+ * (`pdpDetalle.fechaEscrituracion`). `null` limpia la fecha.
+ */
+export const escrituraFechaRealSchema = z.object({
+  fecha: FECHA.nullable(),
+});
+export type EscrituraFechaRealDto = z.infer<typeof escrituraFechaRealSchema>;
+
 /** Vincular una nave a un inversionista creando una propiedad (Config, sub-tab 3). */
 export const propiedadSchema = z.object({
   idInversionista: z.string().trim().min(1, 'Falta el inversionista.'),

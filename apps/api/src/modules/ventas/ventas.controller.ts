@@ -23,6 +23,8 @@ import {
   comentarioSchema,
   crearPlanPagosSchema,
   docSchema,
+  escrituraEstatusSchema,
+  escrituraFechaRealSchema,
   escrituraFechaSchema,
   escrituraMontoSchema,
   inversionistaSchema,
@@ -35,7 +37,9 @@ import {
   type ActivoPlanDto,
   type CrearPlanPagosDto,
   type DocDto,
+  type EscrituraEstatusDto,
   type EscrituraFechaDto,
+  type EscrituraFechaRealDto,
   type EscrituraMontoDto,
   type InversionistaDto,
   type MontosPlanDto,
@@ -449,8 +453,13 @@ export class VentasController {
 
   @Get('reporte')
   @RequierePermiso(620)
-  reporteGrafico(@Query('anio') anio?: string) {
-    return this.dashboard.reporteGrafico(toNum(anio, new Date().getFullYear()));
+  reporteGrafico(@Query('anio') anio?: string, @Query('meses') meses?: string) {
+    // Meses (CSV "1,3,6"); vacío = todo el año (sin caer a un mes por defecto).
+    const sel = (meses ?? '')
+      .split(',')
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isInteger(n) && n >= 1 && n <= 12);
+    return this.dashboard.reporteGrafico(toNum(anio, new Date().getFullYear()), [...new Set(sel)]);
   }
 
   // ============================ Reportes (620) ============================
@@ -561,5 +570,27 @@ export class VentasController {
     @Body(new ZodValidationPipe(escrituraMontoSchema)) dto: EscrituraMontoDto,
   ) {
     return this.escrituras.actualizarMonto(idPdpDet, dto.monto, actor.uid);
+  }
+
+  /** Estatus manual de escrituración (Escriturada / Pendiente). */
+  @Patch('escrituras/:idPdpDet/estatus')
+  @RequierePermiso(630)
+  async actualizarEstatusEscritura(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPdpDet') idPdpDet: string,
+    @Body(new ZodValidationPipe(escrituraEstatusSchema)) dto: EscrituraEstatusDto,
+  ) {
+    return this.escrituras.actualizarEstatus(idPdpDet, dto.escriturada, actor.uid);
+  }
+
+  /** Fecha real de escrituración (`null` la limpia). */
+  @Patch('escrituras/:idPdpDet/fecha-escrituracion')
+  @RequierePermiso(630)
+  async actualizarFechaEscrituracion(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPdpDet') idPdpDet: string,
+    @Body(new ZodValidationPipe(escrituraFechaRealSchema)) dto: EscrituraFechaRealDto,
+  ) {
+    return this.escrituras.actualizarFechaEscrituracion(idPdpDet, dto.fecha, actor.uid);
   }
 }

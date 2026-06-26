@@ -5335,8 +5335,10 @@ export type Database = {
       }
       pdpDetalle: {
         Row: {
+          escriturada: boolean
           fc: string
           fecha: string | null
+          fechaEscrituracion: string | null
           idInversionista: string | null
           idNave: string | null
           idPdp: string
@@ -5355,8 +5357,10 @@ export type Database = {
           validado_monto: number | null
         }
         Insert: {
+          escriturada?: boolean
           fc?: string
           fecha?: string | null
+          fechaEscrituracion?: string | null
           idInversionista?: string | null
           idNave?: string | null
           idPdp: string
@@ -5375,8 +5379,10 @@ export type Database = {
           validado_monto?: number | null
         }
         Update: {
+          escriturada?: boolean
           fc?: string
           fecha?: string | null
+          fechaEscrituracion?: string | null
           idInversionista?: string | null
           idNave?: string | null
           idPdp?: string

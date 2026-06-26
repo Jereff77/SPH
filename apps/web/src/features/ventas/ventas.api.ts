@@ -254,7 +254,11 @@ export interface CabeceraPdp {
 
 /** Salida del Dashboard gráfico (clave 620). */
 export interface ReporteGrafico {
-  kpis: { monto: number; pagos: number; balance: number };
+  /**
+   * `programado`/`cobrado`: del periodo (año + meses). `vencido`: adeudo
+   * exigible **al día de hoy** (FIFO por plan, todo el historial).
+   */
+  kpis: { programado: number; cobrado: number; vencido: number };
   meses: { mes: number; monto: number; pagos: number; balance: number }[];
   atrasos: {
     idNave: string | null;
@@ -274,10 +278,26 @@ export interface EscrituraRow {
   idInversionista: string | null;
   tipoPago: string | null;
   nave: string | null;
+  /** Parque (nomParque) — filtro independiente. */
+  parque: string | null;
+  /** Número de nave (numNaveNAME) — filtro independiente. */
+  numNave: string | null;
   numPago: number | null;
   inversionista: string | null;
   fecha: string | null;
   monto: number | null;
+  /** Estatus manual: `true` = Escriturada, `false` = Pendiente. */
+  escriturada: boolean;
+  /** Fecha real de escrituración. */
+  fechaEscrituracion: string | null;
+}
+
+/** Respuesta del listado de Escrituras (filas + total + conteos de estatus). */
+export interface EscriturasResp {
+  filas: EscrituraRow[];
+  total: number;
+  escrituradas: number;
+  pendientes: number;
 }
 
 function dq(params: Record<string, string | number | undefined>): string {
@@ -393,16 +413,23 @@ export const ventasApi = {
     api.delete<{ ok: true }>(`/ventas/planes/partida/${idPdpDet}`),
 
   // Dashboard gráfico (620)
-  reporteGrafico: (anio: number) =>
-    api.get<ReporteGrafico>(`/ventas/reporte${dq({ anio })}`),
+  reporteGrafico: (anio: number, meses?: number[]) =>
+    api.get<ReporteGrafico>(
+      `/ventas/reporte${dq({ anio, meses: meses && meses.length ? meses.join(',') : undefined })}`,
+    ),
 
   // Escrituras (630)
-  escrituras: () =>
-    api.get<{ filas: EscrituraRow[]; total: number }>('/ventas/escrituras'),
+  escrituras: () => api.get<EscriturasResp>('/ventas/escrituras'),
   actualizarFechaEscritura: (idPdpDet: string, fecha: string) =>
     api.patch<{ ok: true }>(`/ventas/escrituras/${idPdpDet}/fecha`, { fecha }),
   actualizarMontoEscritura: (idPdpDet: string, monto: number) =>
     api.patch<{ ok: true }>(`/ventas/escrituras/${idPdpDet}/monto`, { monto }),
+  /** Estatus manual de escrituración (Escriturada / Pendiente). */
+  actualizarEstatusEscritura: (idPdpDet: string, escriturada: boolean) =>
+    api.patch<{ ok: true }>(`/ventas/escrituras/${idPdpDet}/estatus`, { escriturada }),
+  /** Fecha real de escrituración (`null` la limpia). */
+  actualizarFechaEscrituracion: (idPdpDet: string, fecha: string | null) =>
+    api.patch<{ ok: true }>(`/ventas/escrituras/${idPdpDet}/fecha-escrituracion`, { fecha }),
 };
 
 export const MESES = [
