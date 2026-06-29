@@ -335,6 +335,19 @@
 4. **Frontera de confianza.** El frontend (`apps/web`) **no importa el SDK de Supabase** ni arma SQL. Todo
    pasa por el backend (`apps/api`), que es el único con la `service_role` key y el único que toca la BD.
 
+4b. **🛑 MENSAJES DE ERROR SEGUROS (regla de oro de errores).** **Nunca** se expone al cliente el mensaje
+   **crudo** de la BD/driver (nombres de tablas/columnas, constraints, fragmentos de SQL, stack traces). El
+   detalle real se **registra server-side** (logger) y al frontend se le devuelve un mensaje **redactado**:
+   - **Errores de infraestructura/datos (5xx):** no usar `throw new InternalServerErrorException(error.message)`.
+     Usar el helper **`fallaBd(this.logger, 'modulo.operacion', error)`** (`common/utils/db-error.ts`), que
+     loguea el detalle y lanza un 500 con mensaje genérico. (El `AllExceptionsFilter` global ya neutraliza el
+     mensaje de los 5xx por si algo se escapa, pero el helper deja el log con contexto y es el patrón a seguir.)
+   - **Errores de negocio/validación (4xx):** `BadRequestException`/`ConflictException`/`NotFoundException` con
+     un mensaje **escrito a mano**, claro y accionable para el usuario — **jamás** `error.message` crudo (los
+     4xx SÍ llegan literales al cliente).
+   - **Regla viva (incremental):** cada vez que se identifique/depure un error nuevo, se **corrige el mensaje**
+     que ve el usuario (genérico+log si es interno; redactado y útil si es de negocio). Es parte de "terminado".
+
 5. **Idioma:** todo en **español** (código, comentarios, mensajes, docs), con acentos correctos.
 
 6. **🔒 TRAZABILIDAD OBLIGATORIA (regla de oro de auditoría).** **Toda** acción de un usuario que cree,

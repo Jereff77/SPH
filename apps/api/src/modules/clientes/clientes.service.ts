@@ -2,11 +2,12 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { fallaBd } from '../../common/utils/db-error.js';
 import type { ClienteDto, TipoCliente } from './clientes.schemas.js';
 import {
   baseRfc,
@@ -57,6 +58,8 @@ const COLS_VERIF =
  */
 @Injectable()
 export class ClientesService {
+  private readonly logger = new Logger(ClientesService.name);
+
   constructor(private readonly supabase: SupabaseService) {}
 
   private generarId(n = 15): string {
@@ -93,7 +96,7 @@ export class ClientesService {
       ascending: true,
       nullsFirst: false,
     });
-    if (error) throw new InternalServerErrorException(error.message);
+    if (error) fallaBd(this.logger, 'clientes.listar', error);
     return data ?? [];
   }
 
@@ -104,7 +107,7 @@ export class ClientesService {
       .select(COLS)
       .eq('idInversionista', id)
       .maybeSingle();
-    if (error) throw new InternalServerErrorException(error.message);
+    if (error) fallaBd(this.logger, 'clientes.obtener', error);
     if (!data) throw new NotFoundException('Cliente no encontrado.');
     return data;
   }
@@ -147,7 +150,7 @@ export class ClientesService {
       .from('inversionista')
       .select(COLS_VERIF)
       .ilike('RFC', `${letrasBaseRfc(rfc)}%`);
-    if (error) throw new InternalServerErrorException(error.message);
+    if (error) fallaBd(this.logger, 'clientes.verificarRfc', error);
 
     const rfcNorm = normalizarRfc(rfc);
     const coincidencias: RfcCoincidencia[] = [];
@@ -211,7 +214,7 @@ export class ClientesService {
         pruebas: false,
         ...this.camposDe(dto),
       });
-    if (error) throw new InternalServerErrorException(error.message);
+    if (error) fallaBd(this.logger, 'clientes.crear', error);
     return { idInversionista };
   }
 
@@ -222,7 +225,7 @@ export class ClientesService {
       .from('inversionista')
       .update(this.camposDe(dto))
       .eq('idInversionista', id);
-    if (error) throw new InternalServerErrorException(error.message);
+    if (error) fallaBd(this.logger, 'clientes.actualizar', error);
   }
 
   /** Mueve el cliente a la papelera (replica v1: limpia tipos y marca prueba). */
@@ -232,7 +235,7 @@ export class ClientesService {
       .select('idInversionista')
       .eq('idInversionista', id)
       .maybeSingle();
-    if (selErr) throw new InternalServerErrorException(selErr.message);
+    if (selErr) fallaBd(this.logger, 'clientes.moverPapelera (select)', selErr);
     if (!data) throw new NotFoundException('Cliente no encontrado.');
 
     const { error } = await this.supabase
@@ -247,6 +250,6 @@ export class ClientesService {
         usuarioFinal: false,
       })
       .eq('idInversionista', id);
-    if (error) throw new InternalServerErrorException(error.message);
+    if (error) fallaBd(this.logger, 'clientes.moverPapelera', error);
   }
 }
