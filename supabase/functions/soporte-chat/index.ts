@@ -6,15 +6,19 @@
 // edge `ia-chat` de Montse).
 //
 // Contrato:
-//   Entrada (POST, JSON):  { messages: {role, content}[], model: string }
+//   Entrada (POST, JSON):  { messages: any[], model: string, tools?: any[] }
 //     + headers: Authorization: Bearer <JWT del usuario>, apikey: <anon>
-//   Salida (JSON):         { respuesta: string, tokens: { entrada, salida } }
+//   Salida (JSON):         { respuesta: string, message: {...}, tokens: { entrada, salida } }
+//     - `message` es el mensaje crudo del modelo (incluye `tool_calls` cuando el
+//       modelo decide llamar una herramienta de diagnóstico). El TOOL-LOOP (ejecutar
+//       la herramienta y reenviar el resultado) vive en el BACKEND, que es quien
+//       tiene acceso a datos, RBAC y auditoría. Esta función solo reenvía a OpenRouter.
 //
 // Seguridad:
 //   - Verifica que el JWT del usuario sea válido (auth.getUser) antes de gastar.
 //   - El prompt (system con la KB y el perfil) lo ARMA el backend; aquí solo se
 //     reenvía a OpenRouter. Esta función NO accede a datos de negocio ni escribe.
-//   - El agente solo informa: no hay herramientas de escritura.
+//   - Las herramientas son de SOLO LECTURA y se EJECUTAN en el backend, no aquí.
 //
 // Despliegue:
 //   supabase functions deploy soporte-chat
@@ -23,10 +27,9 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-interface Mensaje {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
+// El backend puede enviar mensajes con roles assistant/tool y `tool_calls`; aquí se
+// reenvían tal cual a OpenRouter (no se inspeccionan).
+type Mensaje = Record<string, unknown>;
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MODELO_DEFAULT = 'openai/gpt-4o-mini';
@@ -67,7 +70,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // 2) Cuerpo.
-  let body: { messages?: Mensaje[]; model?: string };
+  let body: { messages?: Mensaje[]; model?: string; tools?: unknown[] };
   try {
     body = await req.json();
   } catch {
@@ -76,6 +79,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const messages = Array.isArray(body.messages) ? body.messages : [];
   if (messages.length === 0) return json({ error: 'Faltan mensajes' }, 400);
   const model = body.model || MODELO_DEFAULT;
+  const tools = Array.isArray(body.tools) ? body.tools : undefined;
 
   // 3) OpenRouter.
   const apiKey = Deno.env.get('OPENROUTER_API_KEY');
@@ -96,7 +100,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
         'HTTP-Referer': 'https://gruposph.mx',
         'X-Title': 'SPH ERP - Agente de Soporte',
       },
-      body: JSON.stringify({ model, messages, temperature: 0.2 }),
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.2,
+        ...(tools ? { tools, tool_choice: 'auto' } : {}),
+      }),
     });
   } catch (e) {
     console.error('fetch OpenRouter fallo:', String(e));
@@ -110,12 +119,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const data = await orRes.json();
-  const respuesta: string =
-    data?.choices?.[0]?.message?.content ?? 'No obtuve respuesta del modelo.';
+  const message = data?.choices?.[0]?.message ?? null;
+  const respuesta: string = message?.content ?? 'No obtuve respuesta del modelo.';
   const tokens = {
     entrada: data?.usage?.prompt_tokens ?? null,
     salida: data?.usage?.completion_tokens ?? null,
   };
 
-  return json({ respuesta, tokens });
+  // `message` se devuelve completo para que el backend lea `tool_calls` y orqueste
+  // el tool-loop; `respuesta` se conserva por compatibilidad.
+  return json({ respuesta, message, tokens });
 });

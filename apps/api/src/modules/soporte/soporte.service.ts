@@ -5,6 +5,7 @@ import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { CuentasService } from '../correo/cuentas.service.js';
 import { SmtpService } from '../correo/smtp.service.js';
 import { KbService } from './kb.service.js';
+import { DiagnosticoService, type ToolSpec } from './diagnostico.service.js';
 import type { Env } from '../../common/config/env.validation.js';
 import type { EscalarDto, MensajeDto, ProponerTicketDto } from './soporte.schemas.js';
 
@@ -16,6 +17,26 @@ export interface MensajeSoporte {
   escalable?: boolean;
 }
 
+/** Llamada a herramienta que pide el modelo (formato OpenRouter/OpenAI). */
+interface ToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+}
+
+/** Mensaje en el formato que espera el modelo (incluye roles assistant/tool). */
+type ChatMessage =
+  | { role: 'system' | 'user'; content: string }
+  | { role: 'assistant'; content: string | null; tool_calls?: ToolCall[] }
+  | { role: 'tool'; tool_call_id: string; content: string };
+
+/** Mensaje devuelto por el modelo (puede traer tool_calls). */
+interface MensajeModelo {
+  role: 'assistant';
+  content: string | null;
+  tool_calls?: ToolCall[];
+}
+
 interface PerfilUsuario {
   uid: string;
   nombre: string;
@@ -25,8 +46,12 @@ interface PerfilUsuario {
 
 interface RespuestaEdge {
   respuesta?: string;
+  message?: MensajeModelo;
   tokens?: { entrada?: number; salida?: number } | null;
 }
+
+// Tope de iteraciones del tool-loop (evita bucles de llamadas a herramientas).
+const MAX_ITER_TOOLS = 4;
 
 // Marcador que el modelo añade cuando recomienda escalar a un humano. El backend
 // lo detecta (escalable=true) y lo retira del texto mostrado al usuario.
@@ -60,6 +85,7 @@ export class SoporteService {
     private readonly supabase: SupabaseService,
     private readonly config: ConfigService<Env, true>,
     private readonly kb: KbService,
+    private readonly diagnostico: DiagnosticoService,
     private readonly cuentas: CuentasService,
     private readonly smtp: SmtpService,
   ) {}
@@ -171,9 +197,7 @@ export class SoporteService {
     // 5) Mensajes para el modelo.
     const promptBase = await this.param('SOPORTE_IA_PROMPT', DEFAULT_PROMPT);
     const system = this.construirSystemPrompt(promptBase, seleccion.contenido, perfil, dto.rutaActual);
-    const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
-      { role: 'system', content: system },
-    ];
+    const messages: ChatMessage[] = [{ role: 'system', content: system }];
     for (const m of historial.slice(-10)) {
       messages.push({ role: m.tipo === 'user' ? 'user' : 'assistant', content: m.texto });
     }
@@ -182,11 +206,51 @@ export class SoporteService {
     // 6) Modelo configurable (SPHConfiguraciones).
     const modelo = await this.param('SOPORTE_IA_MODELO', DEFAULT_MODELO);
 
-    // 7) Invoca la edge (OpenRouter).
-    const edge = await this.invocarEdge(userJwt, messages, modelo);
+    // 7) Tool-loop: invoca el modelo con las herramientas de diagnóstico. Si pide
+    //    una herramienta, el backend la ejecuta (SOLO LECTURA, RBAC, saneada) y le
+    //    devuelve el resultado; se repite hasta que el modelo responde en texto.
+    const tools = this.diagnostico.toolSpecs();
+    let edge: RespuestaEdge = {};
+    let tokensEntrada = 0;
+    let tokensSalida = 0;
+    for (let iter = 0; ; iter++) {
+      edge = await this.invocarEdge(userJwt, messages, modelo, tools);
+      tokensEntrada += edge.tokens?.entrada ?? 0;
+      tokensSalida += edge.tokens?.salida ?? 0;
+
+      const toolCalls = edge.message?.tool_calls ?? [];
+      if (toolCalls.length === 0) break;
+      if (iter >= MAX_ITER_TOOLS) {
+        this.logger.warn(
+          `Tool-loop alcanzó el tope (${MAX_ITER_TOOLS}) con herramientas pendientes; se corta.`,
+        );
+        break;
+      }
+
+      // El modelo pidió herramientas: re-inserta su turno y adjunta cada resultado.
+      messages.push({
+        role: 'assistant',
+        content: edge.message?.content ?? '',
+        tool_calls: toolCalls,
+      });
+      for (const tc of toolCalls) {
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(tc.function.arguments || '{}') as Record<string, unknown>;
+        } catch {
+          args = {};
+        }
+        const resultado = await this.diagnostico.ejecutar(tc.function.name, args, perfil);
+        messages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: JSON.stringify(resultado),
+        });
+      }
+    }
 
     // 8) Detecta el marcador de escalación y limpia el texto.
-    const bruto = edge.respuesta ?? 'No obtuve respuesta. Intenta de nuevo.';
+    const bruto = edge.respuesta ?? edge.message?.content ?? 'No obtuve respuesta. Intenta de nuevo.';
     const escalable = bruto.includes(MARCADOR_ESCALAR);
     const respuesta = bruto.split(MARCADOR_ESCALAR).join('').trim();
 
@@ -198,8 +262,8 @@ export class SoporteService {
       modulos: seleccion.modulos,
       ruta: dto.rutaActual,
       escalable,
-      tokensEntrada: edge.tokens?.entrada ?? null,
-      tokensSalida: edge.tokens?.salida ?? null,
+      tokensEntrada: tokensEntrada || null,
+      tokensSalida: tokensSalida || null,
     });
 
     // 10) Auto-título de la sesión con el primer mensaje.
@@ -446,7 +510,8 @@ export class SoporteService {
       `- Tú SOLO conoces los permisos del usuario que te escribe (los de abajo). NO puedes consultar los permisos de OTROS usuarios ni datos de negocio (cuántos inversionistas hay, montos, saldos, reportes): para eso remite al módulo correspondiente u ofrece escalar a un ticket. Esto NO aplica a los permisos del propio usuario, que SÍ debes responder.`,
       `- Siempre que menciones que algo lo gestiona o autoriza otra persona, canaliza al usuario con el responsable correcto según el DIRECTORIO DE CONTACTOS.`,
       `- Si el problema necesita intervención humana (un dato incorrecto, algo que el sistema hizo solo, una falla), ofrece escalar a un ticket y añade en una línea aparte exactamente el marcador ${MARCADOR_ESCALAR} (el sistema lo usa para mostrar el botón de ticket; no lo expliques al usuario).`,
-      '- No reveles detalles técnicos internos (SQL, nombres de funciones de base de datos, secretos).',
+      `- HERRAMIENTAS DE DIAGNÓSTICO: tienes funciones que consultan el estado real de un caso (p. ej. por qué un cliente NO aparece en un selector). Cuando el usuario reporte que "no aparece / no le sale / no le deja" algo sobre un CLIENTE concreto, ÚSALAS para diagnosticar con datos reales en vez de adivinar: primero "buscar_cliente" para identificarlo y luego la herramienta de diagnóstico que corresponda. Basa tu respuesta en lo que devuelvan (causa + acción). Si una herramienta devuelve "sin_permiso", explícale que no tiene permiso y canalízalo según el directorio. NUNCA inventes datos que la herramienta no devolvió.`,
+      '- No reveles detalles técnicos internos (SQL, nombres de funciones de base de datos, secretos, ids internos).',
       '',
       `CONTEXTO DEL USUARIO QUE PREGUNTA:`,
       `- Nombre: ${perfil.nombre}${perfil.esSoporte ? ' (usuario de SOPORTE: tiene acceso total a todo el sistema)' : ''}.`,
@@ -501,8 +566,9 @@ export class SoporteService {
   /** Invoca la edge function `soporte-chat` (proxy a OpenRouter). */
   private async invocarEdge(
     userJwt: string,
-    messages: { role: string; content: string }[],
+    messages: ChatMessage[],
     modelo: string,
+    tools?: ToolSpec[],
   ): Promise<RespuestaEdge> {
     const url = this.config.get('SUPABASE_URL', { infer: true });
     const anon = this.config.get('SUPABASE_ANON_KEY', { infer: true });
@@ -515,7 +581,11 @@ export class SoporteService {
           apikey: anon,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ messages, model: modelo }),
+        body: JSON.stringify({
+          messages,
+          model: modelo,
+          ...(tools && tools.length ? { tools } : {}),
+        }),
       });
     } catch (e) {
       this.logger.error(`Error llamando soporte-chat: ${e instanceof Error ? e.message : e}`);
