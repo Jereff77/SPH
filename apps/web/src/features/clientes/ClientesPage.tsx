@@ -87,6 +87,17 @@ export function ClientesPage() {
     dir: 'asc',
   });
 
+  /** Desde el aviso de duplicado: cierra el alta y abre la edición del existente
+   *  (se recarga completo por id, porque la verificación solo trae datos mínimos). */
+  const abrirExistente = async (
+    id: string,
+    tipoSugerido?: 'inversionista' | 'arrendatario' | 'ticket' | 'usuarioFinal',
+  ) => {
+    const c = await clientesApi.obtener(id);
+    setNuevo(false);
+    setEditar(tipoSugerido ? { ...c, [tipoSugerido]: true } : c);
+  };
+
   async function papelera(c: Cliente) {
     if (!window.confirm(`¿Mover a la papelera a "${c.razonsocial ?? c.nombre ?? ''}"?`)) return;
     setEliminando(c.idInversionista);
@@ -253,6 +264,7 @@ export function ClientesPage() {
           preset={PRESET[tipo]}
           onClose={() => setNuevo(false)}
           onGuardado={refrescar}
+          onAbrirExistente={abrirExistente}
         />
       )}
       {editar && (

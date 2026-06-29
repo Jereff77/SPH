@@ -1,13 +1,13 @@
 ---
 modulo: Clientes
 estado: desarrollado
-version_doc: 1.1
-ultima_actualizacion: 2026-06-18
-submodulos: [Listado, Alta/Edición, Papelera]
+version_doc: 1.2
+ultima_actualizacion: 2026-06-29
+submodulos: [Listado, Alta/Edición, Papelera, Control de duplicados por RFC]
 rutas: [/clientes]
 claves_permiso: [300]
 tablas: [inversionista]
-palabras_clave: [cliente, clientes, inversionista, arrendatario, ticket, usuario final, papelera, prueba, razón social, RFC, CURP, contpaq, personalidad, persona física, persona moral, alta cliente, editar cliente, CRM]
+palabras_clave: [cliente, clientes, inversionista, arrendatario, ticket, usuario final, papelera, prueba, razón social, RFC, CURP, contpaq, personalidad, persona física, persona moral, alta cliente, editar cliente, CRM, duplicado, duplicados, RFC duplicado, RFC genérico, homoclave, verificar RFC]
 relacionado_con: [inversionistas, arrendatarios]
 ---
 
@@ -35,9 +35,36 @@ relacionado_con: [inversionistas, arrendatarios]
 
 ## 3. Formulario de alta/edición (`ClienteModal`)
 Campos: **Personalidad** (Física/Moral), Nombre*, Razón social, Primer/Segundo apellido, Fecha de
-nacimiento, Teléfono, Correo, Contpaq ID, RFC, CURP, y **casillas de tipo** (Inversionista / Arrendatario /
-Ticket / Usuario final). *Nombre es obligatorio.* Escribe en `inversionista` (alta genera `idInversionista`
-y fija `idUser`, `status=true`, `pruebas=false`).
+nacimiento, Teléfono, Correo, Contpaq ID, **RFC***, CURP, y **casillas de tipo** (Inversionista /
+Arrendatario / Ticket / Usuario final). *Nombre y **RFC** son obligatorios.* Escribe en `inversionista`
+(alta genera `idInversionista` y fija `idUser`, `status=true`, `pruebas=false`).
+
+## 3b. Control de duplicados por RFC (v2.45.0)
+Para evitar registros duplicados (los usuarios no buscaban antes de dar de alta), el módulo valida el **RFC**:
+- **Obligatorio + formato** en alta y edición (front + Zod). La BD sigue permisiva (no rompe registros viejos
+  sin RFC), pero al **editar** uno viejo habrá que capturar un RFC válido para poder guardar.
+- **RFC genérico prohibido** (`XAXX010101000` nacional / `XEXX010101000` extranjero), en alta y edición. Hay
+  históricos con genérico; no se migran en masa, pero al editarlos se exige el RFC real.
+- **Unicidad por BASE del RFC.** El RFC = base (letras+fecha) + homoclave; como a veces omiten la homoclave,
+  la detección compara por **base** (`VIBA700712` empata con `VIBA7007129F6`). Busca en **TODO** el padrón
+  `inversionista` sin filtrar por tipo ni `pruebas`.
+- **Comportamiento guía (no solo bloquear):**
+  - **Coincidencia exacta** (mismo RFC) → bloqueo duro. Si el usuario quería **otro tipo** (ya es Inversionista
+    y lo da como Arrendatario), el aviso ofrece **"Abrir y marcar {tipo}"** → abre el registro existente con esa
+    casilla pre-marcada (no se crea duplicado). Si no, **"Abrir su registro"** para editarlo.
+  - **Coincidencia solo de base** (homoclave distinta/faltante, posible homónimo) → **advierte** y deja
+    **"Es otra persona, registrar de todos modos"** (envía `permitirSimilar=true`). El backend solo deja pasar
+    la de base con esa confirmación; la **exacta nunca** se puede saltar.
+- **Frontera de confianza:** la validación real (obligatorio/formato/genérico/unicidad/bloqueo exacto) vive en
+  el **backend** (`ClientesService.asegurarRfcUnico`, en `crear()` y `actualizar()` —este excluye su propio id
+  para no auto-bloquearse). El front es espejo cosmético. Util `rfc.util.ts` (`normalizarRfc`/`baseRfc`/
+  `rfcFormatoValido`/`esRfcGenerico`); su lógica se replica en `ClienteModal.tsx` para validar en vivo.
+- **PII mínima:** `verificar-rfc` devuelve solo lo necesario para el aviso (`COLS_VERIF`: id, nombre/razón
+  social, RFC y banderas de tipo); para abrir/editar el existente se recarga completo con `GET /clientes/:id`
+  (así no se exponen CURP/correo/teléfono/fecha de nacimiento de terceros ni se borran al editar).
+- **📌 Deuda transversal detectada (validador 2026-06-29):** varios métodos del service reenvían
+  `error.message` de Postgres al cliente (patrón preexistente en todo `clientes.service.ts`); pendiente
+  sustituir por mensaje genérico + log server-side (no se cambió aquí por estar fuera del alcance del cambio).
 
 ## 4. Mover a la papelera
 Replica v1: `pruebas=true`, `tipoCliente='0001'`, y apaga todas las banderas de tipo
@@ -45,8 +72,11 @@ Replica v1: `pruebas=true`, `tipoCliente='0001'`, y apaga todas las banderas de 
 
 ## 5. Endpoints (backend, `@Controller('clientes')`, clave 300)
 - `GET /clientes?tipo=` — listado por chip (`inversionistas|arrendatarios|ticket|usuarioFinal|papelera`).
-- `POST /clientes` — alta.
-- `PATCH /clientes/:id` — edición.
+- `GET /clientes/verificar-rfc?rfc=&excluirId=` — verifica duplicados por RFC (v2.45.0). ⚠️ Declarado
+  **antes** de `GET /clientes/:id` para no colisionar como parámetro.
+- `GET /clientes/:id` — cliente completo (para abrir/editar el existente desde un aviso de duplicado).
+- `POST /clientes` — alta (valida RFC obligatorio/único/no-genérico).
+- `PATCH /clientes/:id` — edición (misma validación, excluyendo su propio id).
 - `POST /clientes/:id/papelera` — mover a la papelera.
 
 ## 6. Seguridad

@@ -37,6 +37,21 @@ export class ClientesController {
     return this.clientes.listar(t);
   }
 
+  /** Verifica si un RFC ya existe (por base) en cualquier tipo de cliente. */
+  @Get('verificar-rfc')
+  verificarRfc(
+    @Query('rfc') rfc?: string,
+    @Query('excluirId') excluirId?: string,
+  ) {
+    return this.clientes.verificarRfc(rfc ?? '', excluirId || undefined);
+  }
+
+  /** Cliente completo por id (para abrir/editar el existente desde un aviso de duplicado). */
+  @Get(':id')
+  obtener(@Param('id') id: string) {
+    return this.clientes.obtener(id);
+  }
+
   @Post()
   crear(
     @CurrentUser() actor: AuthUser,

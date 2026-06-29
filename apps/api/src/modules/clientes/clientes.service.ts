@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -6,12 +8,47 @@ import {
 import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { ClienteDto, TipoCliente } from './clientes.schemas.js';
+import {
+  baseRfc,
+  esRfcGenerico,
+  letrasBaseRfc,
+  normalizarRfc,
+} from './rfc.util.js';
+
+/**
+ * Una coincidencia de RFC en la verificación de duplicados: lo mínimo para el aviso
+ * (sin PII innecesaria de terceros). Para editar el existente se recarga con `obtener`.
+ */
+export interface RfcCoincidencia {
+  idInversionista: string;
+  razonsocial: string | null;
+  nombre: string | null;
+  apellido1: string | null;
+  apellido2: string | null;
+  RFC: string | null;
+  inversionista: boolean;
+  arrendatario: boolean;
+  ticket: boolean;
+  usuarioFinal: boolean;
+  pruebas: boolean;
+  /** 'exacto' = RFC completo igual; 'base' = misma base, homoclave distinta/faltante. */
+  tipoCoincidencia: 'exacto' | 'base';
+}
 
 const ID_ALFABETO =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
 const COLS =
   'idInversionista, personalidad, idContpac, razonsocial, nombre, apellido1, apellido2, fecNacimiento, telefono, correo, RFC, CURP, inversionista, arrendatario, ticket, usuarioFinal, pruebas';
+
+/**
+ * Columnas mínimas para la verificación de RFC: lo justo para el aviso de duplicado
+ * (identificar a la persona y sus tipos). NO expone PII innecesaria de terceros
+ * (CURP/correo/teléfono/fecha de nacimiento); para editar el existente se recarga
+ * por `obtener(id)`.
+ */
+const COLS_VERIF =
+  'idInversionista, razonsocial, nombre, apellido1, apellido2, RFC, inversionista, arrendatario, ticket, usuarioFinal, pruebas';
 
 /**
  * Clientes (clave 300). Migra la pantalla "Clientes" del CRM de v1 a una sección
@@ -60,6 +97,18 @@ export class ClientesService {
     return data ?? [];
   }
 
+  /** Carga un cliente completo por id (para abrir/editar el existente desde un aviso). */
+  async obtener(id: string) {
+    const { data, error } = await this.supabase.admin
+      .from('inversionista')
+      .select(COLS)
+      .eq('idInversionista', id)
+      .maybeSingle();
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!data) throw new NotFoundException('Cliente no encontrado.');
+    return data;
+  }
+
   /** Campos editables del cliente (sin las llaves ni auditoría). */
   private camposDe(dto: ClienteDto) {
     return {
@@ -81,7 +130,76 @@ export class ClientesService {
     };
   }
 
+  /**
+   * Busca clientes con el MISMO RFC (por base) en TODA la tabla `inversionista`,
+   * sin filtrar por tipo ni por `pruebas`. Soporta homoclave faltante/distinta.
+   */
+  async verificarRfc(
+    rfc: string,
+    excluirId?: string,
+  ): Promise<{ generico: boolean; coincidencias: RfcCoincidencia[] }> {
+    const base = baseRfc(rfc);
+    const generico = esRfcGenerico(rfc);
+    if (!base) return { generico, coincidencias: [] };
+
+    // Acotamos por la parte alfabética de la base (3-4 letras) y afinamos por base.
+    const { data, error } = await this.supabase.admin
+      .from('inversionista')
+      .select(COLS_VERIF)
+      .ilike('RFC', `${letrasBaseRfc(rfc)}%`);
+    if (error) throw new InternalServerErrorException(error.message);
+
+    const rfcNorm = normalizarRfc(rfc);
+    const coincidencias: RfcCoincidencia[] = [];
+    for (const r of data ?? []) {
+      if (excluirId && r.idInversionista === excluirId) continue;
+      if (baseRfc(r.RFC) !== base) continue;
+      coincidencias.push({
+        ...(r as Omit<RfcCoincidencia, 'tipoCoincidencia'>),
+        tipoCoincidencia:
+          normalizarRfc(r.RFC) === rfcNorm ? 'exacto' : 'base',
+      });
+    }
+    return { generico, coincidencias };
+  }
+
+  /**
+   * Red de seguridad server-side: rechaza RFC genérico y duplicados. El match
+   * EXACTO siempre se bloquea (es el mismo cliente → editarlo, no recrearlo). El
+   * match de solo BASE (homoclave distinta) se permite si el usuario lo confirmó.
+   */
+  private async asegurarRfcUnico(
+    rfc: string,
+    permitirSimilar: boolean,
+    excluirId?: string,
+  ): Promise<void> {
+    if (esRfcGenerico(rfc)) {
+      throw new BadRequestException(
+        'El RFC genérico no está permitido. Captura el RFC real del cliente.',
+      );
+    }
+    const { coincidencias } = await this.verificarRfc(rfc, excluirId);
+    const nombreDe = (c: RfcCoincidencia) =>
+      c.razonsocial?.trim() ||
+      [c.nombre, c.apellido1, c.apellido2].filter(Boolean).join(' ') ||
+      'otro cliente';
+
+    const exacta = coincidencias.find((c) => c.tipoCoincidencia === 'exacto');
+    if (exacta) {
+      throw new ConflictException(
+        `Ya existe un cliente con este RFC: ${nombreDe(exacta)}. Abre su registro y edítalo en lugar de crear uno nuevo.`,
+      );
+    }
+    const similar = coincidencias.find((c) => c.tipoCoincidencia === 'base');
+    if (similar && !permitirSimilar) {
+      throw new ConflictException(
+        `Hay un cliente con un RFC muy parecido: ${nombreDe(similar)} (difiere la homoclave). Verifica si es la misma persona.`,
+      );
+    }
+  }
+
   async crear(dto: ClienteDto, actorUid: string): Promise<{ idInversionista: string }> {
+    await this.asegurarRfcUnico(dto.RFC, dto.permitirSimilar);
     const idInversionista = this.generarId(15);
     const { error } = await this.supabase
       .comoActor(actorUid)
@@ -98,6 +216,7 @@ export class ClientesService {
   }
 
   async actualizar(id: string, dto: ClienteDto, actorUid: string): Promise<void> {
+    await this.asegurarRfcUnico(dto.RFC, dto.permitirSimilar, id);
     const { error } = await this.supabase
       .comoActor(actorUid)
       .from('inversionista')
