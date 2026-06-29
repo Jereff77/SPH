@@ -70,40 +70,28 @@ export class PlanesService {
    * un inversionista que solo tenga propiedades de tickets no aparece en Ventas.
    */
   async inversionistas() {
+    // Lista TODOS los inversionistas reales (con o sin propiedad/plan activo) para
+    // permitir el ALTA del primer plan desde el selector de Planes. Antes exigía un
+    // JOIN !inner a propiedades con pdpActivo=true, lo que dejaba fuera a los
+    // inversionistas nuevos (sin nave vinculada o sin plan aún) y hacía imposible
+    // crearles el primer plan desde aquí. El filtro por pdpActivo/esTicket aplica a
+    // Dashboard/Reportes, NO a este selector operativo de gestión de planes.
     const { data, error } = await this.supabase.admin
       .from('inversionista')
-      .select(
-        'idInversionista, nombre, apellido1, apellido2, razonsocial, propiedades!inner(idPropiedad)',
-      )
+      .select('idInversionista, nombre, apellido1, apellido2, razonsocial')
       .eq('status', true)
       .eq('inversionista', true)
       .eq('pruebas', false)
-      .eq('propiedades.pdpActivo', true)
-      .eq('propiedades.esTicket', false)
       .order('razonsocial', { ascending: true, nullsFirst: false });
     if (error) throw new InternalServerErrorException(error.message);
 
-    // El embed !inner devuelve el inversionista una vez; quitamos el arreglo anidado.
-    const vistos = new Set<string>();
-    const lista: {
-      idInversionista: string;
-      nombre: string | null;
-      apellido1: string | null;
-      apellido2: string | null;
-      razonsocial: string | null;
-    }[] = [];
-    for (const r of data ?? []) {
-      if (vistos.has(r.idInversionista)) continue;
-      vistos.add(r.idInversionista);
-      lista.push({
-        idInversionista: r.idInversionista,
-        nombre: r.nombre,
-        apellido1: r.apellido1,
-        apellido2: r.apellido2,
-        razonsocial: r.razonsocial,
-      });
-    }
-    return lista;
+    return (data ?? []).map((r) => ({
+      idInversionista: r.idInversionista,
+      nombre: r.nombre,
+      apellido1: r.apellido1,
+      apellido2: r.apellido2,
+      razonsocial: r.razonsocial,
+    }));
   }
 
   async propiedadesDe(idInversionista: string) {

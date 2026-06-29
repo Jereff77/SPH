@@ -199,8 +199,13 @@ llegara a haberlos, conviene unificar el filtro `status=true`.
 
 ## 3. Planes (`/ventas/planes`, clave 610)
 Selector **inversionista** (combobox **con búsqueda**, ordenado por razón social) + **propiedad/nave** +
-botón **⚙ Configuración**. El selector solo lista inversionistas con `inversionista=true`, `pruebas=false`
-y con al menos una propiedad `pdpActivo=true`. 3 pestañas:
+botón **⚙ Configuración**. El selector (`planes.service.ts → inversionistas()`) lista **TODOS** los
+inversionistas reales (`inversionista=true`, `pruebas=false`, `status=true`), **tengan o no** propiedad/plan
+activo. ⚠️ **Gotcha (v2.44.1):** antes exigía un JOIN `!inner` a `propiedades` con `pdpActivo=true`, lo que
+dejaba fuera a los inversionistas nuevos (sin nave vinculada o sin plan aún) y hacía **imposible crearles el
+primer plan** desde aquí (callejón sin salida: el botón ⚙ Configuración —donde se vincula la nave y se crea el
+plan— solo aparece tras seleccionar al inversionista en ese mismo selector). El filtro por `pdpActivo`/`esTicket`
+aplica a Dashboard/Reportes/saldos-vencidos, **NO** a este selector operativo de gestión de planes. 3 pestañas:
 - **Plan de Pagos:** tabla detallada (calculada a mano, sin vista) con columnas **# · Tipo pago · Fecha ·
   Monto · Fecha Pago · Movimiento (C/T) · Pagos · Balance · % Avance · Opciones**. Indicadores: **⚠️**
   cuando la parcialidad tiene descuento y **＋** (verde) cuando hay saldo a favor (balance > 0). **Fila de
