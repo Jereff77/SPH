@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Chart as ChartJS,
@@ -15,6 +16,7 @@ import { ventasApi, MESES, type ReporteGrafico } from './ventas.api';
 import { useSort } from '@/components/tabla/useSort';
 import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
 import { MultiSearchSelect } from '@/components/MultiSearchSelect';
+import { useAuth } from '@/features/auth/useAuth';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
@@ -43,10 +45,24 @@ type Vista = 'mensual' | 'acumulado';
 type AtrasoRow = ReporteGrafico['atrasos'][number];
 
 export function DashboardGraficoPage() {
+  const navigate = useNavigate();
+  const { tienePermiso } = useAuth();
+  // El doble clic en una nave con atraso abre su plan; solo si el usuario puede
+  // acceder a Planes (clave 610) — si no, no tiene caso navegar allí.
+  const puedeAbrirPlan = tienePermiso(610);
   const [anio, setAnio] = useState<number>(new Date().getFullYear());
   // Uno o varios meses (1-12). Vacío = todo el año (complementa el filtro anual).
   const [mesesSel, setMesesSel] = useState<number[]>([]);
   const [vista, setVista] = useState<Vista>('mensual');
+
+  /** Abre la pantalla de Planes con el inversionista/propiedad de la nave preseleccionados. */
+  function abrirPlan(a: AtrasoRow) {
+    if (!puedeAbrirPlan || !a.idInversionista || !a.idPropiedad) return;
+    navigate(
+      `/ventas/planes?inversionista=${encodeURIComponent(a.idInversionista)}` +
+        `&propiedad=${encodeURIComponent(a.idPropiedad)}`,
+    );
+  }
 
   const { data: filtros } = useQuery({
     queryKey: ['ventas-filtros'],
@@ -249,8 +265,15 @@ export function DashboardGraficoPage() {
                     <td colSpan={3} className="px-4 py-6 text-center text-gray-400">Sin atrasos. 🎉</td>
                   </tr>
                 ) : (
-                  ordenados.map((a, i) => (
-                    <tr key={`${a.idNave ?? i}`} className="hover:bg-gray-50">
+                  ordenados.map((a, i) => {
+                    const navegable = puedeAbrirPlan && !!a.idInversionista && !!a.idPropiedad;
+                    return (
+                    <tr
+                      key={`${a.idNave ?? i}`}
+                      onDoubleClick={() => abrirPlan(a)}
+                      title={navegable ? 'Doble clic para abrir el plan de esta nave' : undefined}
+                      className={`hover:bg-gray-50 ${navegable ? 'cursor-pointer' : ''}`}
+                    >
                       <td className="px-4 py-2">
                         <div className="font-medium text-gray-800">{a.nave ?? '—'}</div>
                         <div className="text-xs text-gray-500">{a.razonsocial ?? '—'}</div>
@@ -260,7 +283,8 @@ export function DashboardGraficoPage() {
                       </td>
                       <td className="px-4 py-2 text-right tabular-nums text-gray-600">{a.diasAtraso}</td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
               {ordenados.length > 0 && (

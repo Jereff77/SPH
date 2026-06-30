@@ -262,6 +262,9 @@ export interface ReporteGrafico {
   meses: { mes: number; monto: number; pagos: number; balance: number }[];
   atrasos: {
     idNave: string | null;
+    /** Para abrir el plan de la nave desde el Dashboard (doble clic). */
+    idPropiedad: string | null;
+    idInversionista: string | null;
     nave: string | null;
     razonsocial: string | null;
     montoVencido: number;
@@ -411,6 +414,21 @@ export const ventasApi = {
   /** Elimina una parcialidad (sin pagos). Solo plan inactivo. */
   eliminarPartida: (idPdpDet: string) =>
     api.delete<{ ok: true }>(`/ventas/planes/partida/${idPdpDet}`),
+  /**
+   * Traslada saldo de una parcialidad a otra **futura** del mismo plan (candado:
+   * clave **611**). Conserva el total del plan, por lo que NO requiere
+   * desactivarlo. Registra el movimiento en ambas parcialidades (origen y destino).
+   */
+  trasladarSaldo: (input: {
+    idPdpDetOrigen: string;
+    idPdpDetDestino: string;
+    monto: number;
+  }) =>
+    api.patch<{
+      ok: true;
+      origen: { idPdpDet: string; monto: number };
+      destino: { idPdpDet: string; monto: number };
+    }>('/ventas/planes/trasladar-saldo', input),
 
   // Dashboard gráfico (620)
   reporteGrafico: (anio: number, meses?: number[]) =>

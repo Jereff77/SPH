@@ -50,6 +50,9 @@ export interface ReporteGrafico {
   meses: { mes: number; monto: number; pagos: number; balance: number }[];
   atrasos: {
     idNave: string | null;
+    /** Para navegar al plan de la nave desde el Dashboard (doble clic). */
+    idPropiedad: string | null;
+    idInversionista: string | null;
     nave: string | null;
     razonsocial: string | null;
     montoVencido: number;
@@ -106,21 +109,20 @@ export class DashboardService {
   }
 
   /**
-   * Propiedades en alcance: `pdpActivo = activo` e inversionista marcado como
-   * `inversionista = true` y `pruebas = false`. Se **excluye el parque de
-   * Tickets** (`propiedades.esTicket = false`): los tickets no son ventas y no
-   * deben aparecer en el módulo de Ventas. Devuelve un mapa idPropiedad →
-   * datos para enriquecer.
+   * Propiedades en alcance (universo de cobranza): `pdpActivo = activo`, titular
+   * **no de pruebas** (`inversionista.pruebas = false`) y que sea **venta real
+   * (`inversionista.inversionista = true`) O ticket (`propiedades.esTicket =
+   * true`)**. Antes se excluía el parque de Tickets; los tickets de A3 ahora se
+   * **integran** a Gestión de Pagos (600) y al Dashboard gráfico (620). Devuelve
+   * un mapa idPropiedad → datos para enriquecer.
    */
   private async scopePropiedades(activo: boolean): Promise<Map<string, PropScope>> {
     const { data, error } = await this.supabase.admin
       .from('propiedades')
       .select(
-        'idPropiedad, idNave, idParque, nomDescriptivo, idInversionista, inversionista!inner(razonsocial)',
+        'idPropiedad, idNave, idParque, nomDescriptivo, idInversionista, esTicket, inversionista!inner(razonsocial, inversionista)',
       )
       .eq('pdpActivo', activo)
-      .eq('esTicket', false)
-      .eq('inversionista.inversionista', true)
       .eq('inversionista.pruebas', false);
     if (error) throw new InternalServerErrorException(error.message);
 
@@ -130,9 +132,18 @@ export class DashboardService {
       idParque: string | null;
       nomDescriptivo: string | null;
       idInversionista: string | null;
-      inversionista: { razonsocial: string | null } | { razonsocial: string | null }[] | null;
+      esTicket: boolean | null;
+      inversionista:
+        | { razonsocial: string | null; inversionista: boolean | null }
+        | { razonsocial: string | null; inversionista: boolean | null }[]
+        | null;
     };
-    const rows = (data ?? []) as unknown as Row[];
+    // Venta real O ticket (el filtro `inversionista=true` no puede convivir con
+    // el OR en el query, así que se aplica en memoria).
+    const rows = ((data ?? []) as unknown as Row[]).filter((r) => {
+      const inv = Array.isArray(r.inversionista) ? r.inversionista[0] : r.inversionista;
+      return inv?.inversionista === true || r.esTicket === true;
+    });
 
     // Nombre de parque (no hay FK propiedades→parques: se resuelve aparte).
     const idParques = [
@@ -428,6 +439,8 @@ export class DashboardService {
       string,
       {
         idNave: string | null;
+        idPropiedad: string | null;
+        idInversionista: string | null;
         nave: string | null;
         razonsocial: string | null;
         montoVencido: number;
@@ -440,6 +453,8 @@ export class DashboardService {
         porNave.get(key) ??
         {
           idNave: v.idNave,
+          idPropiedad: v.idPropiedad,
+          idInversionista: v.idInversionista,
           nave: v.nomDescriptivo ?? v.nomParque ?? null,
           razonsocial: v.razonsocial,
           montoVencido: 0,
@@ -452,6 +467,8 @@ export class DashboardService {
     const atrasos = [...porNave.values()]
       .map((v) => ({
         idNave: v.idNave,
+        idPropiedad: v.idPropiedad,
+        idInversionista: v.idInversionista,
         nave: v.nave,
         razonsocial: v.razonsocial,
         montoVencido: Math.round(v.montoVencido * 100) / 100,

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
@@ -11,6 +12,7 @@ import type {
   DocDto,
   InversionistaDto,
   PropiedadDto,
+  TrasladarSaldoDto,
 } from './ventas.schemas.js';
 
 const ID_ALFABETO =
@@ -34,6 +36,8 @@ const TOLERANCIA_PDP = 0.05;
  */
 @Injectable()
 export class PlanesService {
+  private readonly logger = new Logger(PlanesService.name);
+
   constructor(private readonly supabase: SupabaseService) {}
 
   private generarId(n: number): string {
@@ -999,5 +1003,151 @@ export class PlanesService {
 
     await this.registrarActividadPlan(actorUid, `Se elimina parcialidad | idPdpDet${idPdpDet}`);
     return { ok: true };
+  }
+
+  // ----------------------------- Trasladar saldo (clave 611) -----------------------------
+
+  /** "Hoy" en horario de México (yyyy-MM-dd), igual que `SaldosVencidosService`. */
+  private hoyMx(): string {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(new Date());
+  }
+
+  /**
+   * Traslada `monto` de la parcialidad de **origen** a una parcialidad **futura**
+   * de **destino** del **mismo** plan (clave 611). Resta del origen y suma al
+   * destino, **conservando el total del plan** (`Σ parcialidades = pdp.monto`):
+   * por eso —a diferencia de la edición de partidas— **NO exige desactivar el
+   * plan** (un plan activo está congelado para edición libre, pero este traslado
+   * es una operación controlada que no altera la suma del contrato).
+   *
+   * Efecto en cobranza: el saldo vencido del origen baja y reaparece en una
+   * parcialidad futura (que aún no vence), por lo que el adeudo "a hoy" se limpia
+   * sin eliminar ningún registro (`SaldosVencidosService` lo recalcula solo).
+   *
+   * **Trazabilidad (regla §1.6):** registra el movimiento en AMBAS parcialidades
+   * (un comentario en el origen y otro en el destino) + una entrada en
+   * `actividad`, todo vía `comoActor` (auditoría server-side no falsificable).
+   *
+   * Validaciones: origen ≠ destino; ambas vivas y del mismo plan; destino con
+   * fecha **futura**; `monto > 0` y ≤ saldo pendiente del origen (no deja el monto
+   * por debajo de lo ya pagado en esa parcialidad).
+   *
+   * ⚠️ **Atomicidad:** se aplican dos UPDATE secuenciales (patrón del módulo, p.
+   * ej. `vincularNave`); si el segundo falla, se **revierte** el primero. En el
+   * caso extremo de un fallo irrecuperable entre ambos, la inconsistencia es
+   * detectable (la suma dejaría de cuadrar con `pdp.monto` y el plan no podría
+   * reactivarse) y queda registrada en el log.
+   */
+  async trasladarSaldo(dto: TrasladarSaldoDto, actorUid: string): Promise<{
+    ok: true;
+    origen: { idPdpDet: string; monto: number };
+    destino: { idPdpDet: string; monto: number };
+  }> {
+    const { idPdpDetOrigen, idPdpDetDestino, monto } = dto;
+    if (idPdpDetOrigen === idPdpDetDestino)
+      throw new BadRequestException('El origen y el destino deben ser parcialidades distintas.');
+    if (!(monto > 0))
+      throw new BadRequestException('El monto a trasladar debe ser mayor a 0.');
+
+    // Leer ambas parcialidades en una sola consulta.
+    const { data: rows, error } = await this.supabase.admin
+      .from('pdpDetalle')
+      .select('idPdpDet, idPdp, idPropiedad, numPago, fecha, monto, tipoPago, status')
+      .in('idPdpDet', [idPdpDetOrigen, idPdpDetDestino]);
+    if (error) throw new InternalServerErrorException(error.message);
+    const origen = (rows ?? []).find((r) => r.idPdpDet === idPdpDetOrigen);
+    const destino = (rows ?? []).find((r) => r.idPdpDet === idPdpDetDestino);
+    if (!origen || origen.status === false)
+      throw new NotFoundException('Parcialidad de origen no encontrada.');
+    if (!destino || destino.status === false)
+      throw new NotFoundException('Parcialidad de destino no encontrada.');
+
+    // Mismo plan (el saldo nunca cruza a otro plan).
+    if (!origen.idPdp || !destino.idPdp || origen.idPdp !== destino.idPdp)
+      throw new BadRequestException(
+        'Solo se puede trasladar saldo entre parcialidades del mismo plan.',
+      );
+
+    // El destino debe ser una parcialidad FUTURA (su fecha aún no venció). Esta
+    // validación —y todas las financieras (mismo plan, tope, no-negativo)— las
+    // revalida la RPC transaccional de forma autoritativa con la fila bloqueada;
+    // aquí se comprueba temprano solo para devolver un mensaje claro.
+    const hoy = this.hoyMx();
+    if (!destino.fecha || destino.fecha <= hoy)
+      throw new BadRequestException(
+        'La parcialidad de destino debe tener una fecha futura (posterior a hoy).',
+      );
+
+    const montoOrigen = origen.monto ?? 0;
+    const montoDestino = destino.monto ?? 0;
+    const db = this.supabase.comoActor(actorUid);
+
+    // El traslado se hace en una RPC **transaccional** (`trasladar_saldo_pdp`):
+    // bloquea ambas parcialidades (`SELECT … FOR UPDATE`), revalida saldo/tope/
+    // plan/fecha y aplica los dos UPDATE en una sola transacción. Esto garantiza
+    // atomicidad (no quedar descuadrado ante un fallo entre updates) y aislamiento
+    // (sin lost-update por traslados o pagos concurrentes) — imposible con dos
+    // updates sueltos vía supabase-js. Se invoca con `comoActor` para que la
+    // auditoría server-side de `pdpDetalle` capture al actor real.
+    const { data: res, error: rpcErr } = await db.rpc('trasladar_saldo_pdp', {
+      p_origen: idPdpDetOrigen,
+      p_destino: idPdpDetDestino,
+      p_monto: monto,
+    });
+    if (rpcErr) {
+      const MAP_ERR: Record<string, string> = {
+        ORIGEN_IGUAL_DESTINO: 'El origen y el destino deben ser parcialidades distintas.',
+        MONTO_INVALIDO: 'El monto a trasladar debe ser mayor a 0.',
+        ORIGEN_NO_ENCONTRADO: 'Parcialidad de origen no encontrada.',
+        DESTINO_NO_ENCONTRADO: 'Parcialidad de destino no encontrada.',
+        PLANES_DISTINTOS: 'Solo se puede trasladar saldo entre parcialidades del mismo plan.',
+        DESTINO_NO_FUTURO: 'La parcialidad de destino debe tener una fecha futura (posterior a hoy).',
+        DESTINO_CON_PAGOS: 'No se puede trasladar a una parcialidad de destino que ya tiene pagos registrados.',
+        SIN_SALDO: 'La parcialidad de origen no tiene saldo pendiente para trasladar.',
+        EXCEDE_TOPE: 'El monto a trasladar excede el máximo permitido para esta parcialidad.',
+        ORIGEN_NEGATIVO: 'El traslado dejaría la parcialidad de origen en monto negativo.',
+      };
+      const code = Object.keys(MAP_ERR).find((k) => rpcErr.message.includes(k));
+      if (code) throw new BadRequestException(MAP_ERR[code]);
+      this.logger.error(`trasladarSaldo: error en RPC trasladar_saldo_pdp: ${rpcErr.message}`);
+      throw new InternalServerErrorException('No se pudo trasladar el saldo.');
+    }
+    const fila = (Array.isArray(res) ? res[0] : res) as
+      | { nuevo_origen: number | null; nuevo_destino: number | null }
+      | undefined;
+    const nuevoOrigen = Math.round(Number(fila?.nuevo_origen ?? montoOrigen - monto) * 100) / 100;
+    const nuevoDestino = Math.round(Number(fila?.nuevo_destino ?? montoDestino + monto) * 100) / 100;
+
+    // Trazabilidad: comentario en ORIGEN y en DESTINO + actividad (idPago = NULL,
+    // no es un pago; la columna comentarios.idPago acepta NULL). NO son críticos
+    // para la integridad financiera (la RPC ya commiteó el traslado atómicamente);
+    // si fallan, solo se pierde el registro descriptivo (se loguea).
+    const f = (n: number | null | undefined) => (n ?? 0).toFixed(2);
+    const comOrigen =
+      `Se trasladó saldo de $${f(monto)} de esta parcialidad (#${origen.numPago ?? '-'}, ${origen.fecha ?? '-'}) ` +
+      `a la parcialidad #${destino.numPago ?? '-'} (${destino.fecha}). Monto: ${f(montoOrigen)} → ${f(nuevoOrigen)}.`;
+    const comDestino =
+      `Se recibió saldo de $${f(monto)} trasladado desde la parcialidad #${origen.numPago ?? '-'} (${origen.fecha ?? '-'}). ` +
+      `Monto: ${f(montoDestino)} → ${f(nuevoDestino)}.`;
+    const { error: cOErr } = await db
+      .from('comentarios')
+      .insert({ idPdpDet: idPdpDetOrigen, comentario: comOrigen, uid: actorUid });
+    if (cOErr) this.logger.warn(`trasladarSaldo: no se registró el comentario de origen: ${cOErr.message}`);
+    const { error: cDErr } = await db
+      .from('comentarios')
+      .insert({ idPdpDet: idPdpDetDestino, comentario: comDestino, uid: actorUid });
+    if (cDErr) this.logger.warn(`trasladarSaldo: no se registró el comentario de destino: ${cDErr.message}`);
+
+    await this.registrarActividadPlan(
+      actorUid,
+      `Traslado de saldo $${f(monto)} | origen idPdpDet${idPdpDetOrigen} (#${origen.numPago ?? '-'}) → ` +
+        `destino idPdpDet${idPdpDetDestino} (#${destino.numPago ?? '-'}) | idPdp${origen.idPdp}`,
+    );
+
+    return {
+      ok: true,
+      origen: { idPdpDet: idPdpDetOrigen, monto: nuevoOrigen },
+      destino: { idPdpDet: idPdpDetDestino, monto: nuevoDestino },
+    };
   }
 }

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ventasApi,
@@ -12,6 +13,8 @@ import { ApiRequestError } from '@/lib/api';
 import { ConfigPropietarioModal } from './ConfigPropietarioModal';
 import { PagoDetalleModal } from './PagoDetalleModal';
 import { ComentariosModal } from './ComentariosModal';
+import { TrasladarSaldoModal } from './TrasladarSaldoModal';
+import { useAuth } from '@/features/auth/useAuth';
 import { Tabs, type TabDef } from '@/components/Tabs';
 import { SearchSelect } from '@/components/SearchSelect';
 import { THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
@@ -40,8 +43,13 @@ const TABS: TabDef[] = [
 ];
 
 export function PlanesPage() {
-  const [idInversionista, setIdInversionista] = useState('');
-  const [idPropiedad, setIdPropiedad] = useState('');
+  const [searchParams] = useSearchParams();
+  // Preselección al llegar desde el Dashboard (doble clic en una nave con atraso):
+  // ?inversionista=…&propiedad=…. Solo se usan como valor inicial.
+  const [idInversionista, setIdInversionista] = useState(
+    () => searchParams.get('inversionista') ?? '',
+  );
+  const [idPropiedad, setIdPropiedad] = useState(() => searchParams.get('propiedad') ?? '');
   const [tab, setTab] = useState('plan');
   const [config, setConfig] = useState<InversionistaOpt | null>(null);
 
@@ -148,12 +156,15 @@ export function PlanesPage() {
 
 function PlanTab({ idPropiedad }: { idPropiedad: string }) {
   const queryClient = useQueryClient();
+  const { tienePermiso } = useAuth();
+  const puedeTrasladar = tienePermiso(611);
   const { data = [], isLoading } = useQuery({
     queryKey: ['ventas-plan', idPropiedad],
     queryFn: () => ventasApi.plan(idPropiedad),
   });
   const [pagarDe, setPagarDe] = useState<PagoVentaRow | null>(null);
   const [comentarDe, setComentarDe] = useState<PagoVentaRow | null>(null);
+  const [trasladarDe, setTrasladarDe] = useState<PagoVentaRow | null>(null);
 
   const refrescar = () =>
     queryClient.invalidateQueries({ queryKey: ['ventas-plan', idPropiedad] });
@@ -356,6 +367,17 @@ function PlanTab({ idPropiedad }: { idPropiedad: string }) {
                         >
                           💬
                         </button>
+                        {puedeTrasladar && (r.monto ?? 0) - (r.pagos ?? 0) > 0.005 && (
+                          <button
+                            type="button"
+                            onClick={() => setTrasladarDe(r)}
+                            title="Trasladar saldo a una mensualidad futura"
+                            aria-label="Trasladar saldo"
+                            className="rounded-full border border-[#1f2a4d] px-1.5 py-0.5 text-xs font-bold text-[#1f2a4d] hover:bg-[#1f2a4d] hover:text-white"
+                          >
+                            ⇄
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -414,6 +436,14 @@ function PlanTab({ idPropiedad }: { idPropiedad: string }) {
       )}
       {comentarDe && (
         <ComentariosModal fila={comentarDe} onClose={() => setComentarDe(null)} />
+      )}
+      {trasladarDe && (
+        <TrasladarSaldoModal
+          origen={trasladarDe}
+          parcialidades={data}
+          onClose={() => setTrasladarDe(null)}
+          onGuardado={refrescar}
+        />
       )}
     </div>
   );

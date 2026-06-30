@@ -5,7 +5,7 @@ version_doc: 2.1
 ultima_actualizacion: 2026-06-22
 submodulos: [Gestión de Cobranza, Dashboard gráfico, Reportes, Planes, Configuración, Escrituras]
 rutas: [/ventas, /ventas/dashboard, /ventas/reportes, /ventas/planes, /ventas/escrituras]
-claves_permiso: [600, 610, 620, 630]
+claves_permiso: [600, 610, 611, 620, 630]
 tablas: [inversionista, inversionista_docs, propiedades, naves, kvasAsignados, pdp, pdpDetalle, pagos, rgPdp, rgPdpDetalle, raPdp, raPdpDetalle, comentarios, actividad, parques, v_rentasCombinadas, iaSesiones, iaConversaciones]
 palabras_clave: [inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, avance, renta garantizada, renta administrada, configuración, documentos, escrituración, dashboard, gráfico, atrasos, vencido, días de atraso, KPI, gestión de cobranza, reportes, estado de cuenta, vencidos, saldo vencido, exportar, CSV, PDF, JSON, Montse AI, asistente, IA, chat, OpenRouter, comentarios, razón social]
 relacionado_con: [parques, arrendatarios, cxp, clientes, fideicomiso]
@@ -113,7 +113,10 @@ en chunk aparte por code-splitting). En el sidebar aparece **primero** como "Das
   Acumulado** (acumulado = suma corrida mes a mes). Barras redondeadas, tooltips en moneda. Si se filtran
   meses, solo esos aportan datos.
 - **Naves con atrasos:** tabla de la **cartera vencida**, agrupada por **nave** (con razón social), columnas
-  **Vencido** y **Días** (mayor atraso de la nave), ordenable, con **Total**. ⚠️ Los atrasos son de TODO el
+  **Vencido** y **Días** (mayor atraso de la nave), ordenable, con **Total**. **Doble clic en una fila →
+  abre la pantalla de Planes con ese inversionista/propiedad preseleccionados** (`/ventas/planes?inversionista=…&propiedad=…`;
+  `reporteGrafico` devuelve `idPropiedad`/`idInversionista` por fila). Solo navega si el usuario tiene la
+  clave **610** (Planes); `PlanesPage` lee los query params como valor inicial de su selección. ⚠️ Los atrasos son de TODO el
   historial (cartera vencida real), no solo del periodo del selector. **Incluye Tickets** (decisión 2026-06,
   ver §2e); el resto del Dashboard (gráfico/tabla/tarjetas) sigue **sin** Tickets.
 - **Backend:** `GET ventas/reporte?anio=&meses=1,3,6` → `dashboard.service.reporteGrafico(anio, meses)`. Los
@@ -270,6 +273,55 @@ aplica a Dashboard/Reportes/saldos-vencidos, **NO** a este selector operativo de
 > el activar/desactivar). La creación de Renta Garantizada (RPCs `rgpdp_insertar_registro`/
 > `rgpdp_generar_plan_pagos`) y Administrada (`rapdp_actualizar`) se hará después.
 
+## 3c. Trasladar saldo entre parcialidades (clave 611) — candado independiente
+
+> Acción para **limpiar adeudos menores** que figuran vencidos sin eliminar registros: mueve el saldo
+> pendiente (o parte) de una parcialidad a **otra parcialidad futura del MISMO plan** (típicamente la
+> última mensualidad). **Decisión de negocio (reunión 2026-06-29):** no se borran adeudos, se trasladan
+> a la última mensualidad para que no confundan en cobranza, respetando la estructura del contrato.
+
+- **Candado por permiso propio: clave 611** (`Inversionistas / Planes / Trasladar Saldo`), **independiente
+  de la 610**: un usuario puede ver/editar Planes (610) sin poder trasladar saldos. Solo quien tiene 611
+  (o soporte) ve el botón **⇄** y puede aplicar la operación. La seguridad real es server-side
+  (`@RequierePermiso(611)`); el botón del front es cosmético.
+- **No requiere desactivar el plan** (a diferencia de la edición de parcialidades): el traslado **conserva
+  el total** (`Σ parcialidades = pdp.monto`), por lo que es seguro sobre planes activos.
+- **Efecto:** el origen baja su saldo (deja de aparecer vencido) y el destino futuro sube pero **no cuenta
+  como vencido** (su fecha no ha llegado) → el adeudo "a hoy" se limpia. `SaldosVencidosService` lo
+  recalcula solo (sin tocar nada más).
+- **UI** (pestaña *Plan de Pagos*): el botón **⇄** aparece en la fila de cada parcialidad **con saldo
+  pendiente** (monto > pagos). Abre `TrasladarSaldoModal`: muestra el saldo pendiente, **selector de la
+  parcialidad de destino futura** (default = la de fecha más lejana / última mensualidad), el monto a mover
+  y una vista previa del resultado.
+- **Validaciones (server-side, autoritativas):** origen ≠ destino; ambas vivas y del **mismo plan**;
+  destino con **fecha futura**; **destino SIN pagos registrados** (no se traslada saldo a una parcialidad
+  que ya recibió un pago/adelanto — regla de negocio 2026-06-29); `monto > 0`; `monto ≤ min(saldo
+  pendiente, monto de la parcialidad)` (no deja el origen por debajo de lo pagado **ni** en negativo —
+  cubre el caso de una **devolución** que inflaría el saldo pendiente por encima del monto). En el front,
+  el selector de destino **solo lista** parcialidades futuras sin pagos.
+- **⚙ Atomicidad — RPC transaccional `trasladar_saldo_pdp(p_origen, p_destino, p_monto)`** (objeto NUEVO
+  en BD, `SECURITY INVOKER`, `search_path=public`, `EXECUTE` solo a `service_role`): bloquea ambas filas
+  (`SELECT … FOR UPDATE`), revalida saldo/tope/plan/fecha y aplica los **dos UPDATE en una sola
+  transacción**. Resuelve los riesgos de no-atomicidad y *lost-update* (imposibles de evitar con dos
+  updates sueltos vía supabase-js). Se invoca con `comoActor(uid)` → la auditoría de `pdpDetalle` captura
+  al actor. El servicio mapea los códigos de error de la RPC (`PLANES_DISTINTOS`, `DESTINO_NO_FUTURO`,
+  `EXCEDE_TOPE`, `ORIGEN_NEGATIVO`, …) a `BadRequestException` legibles.
+- **Trazabilidad (tu requisito):** además de la auditoría server-side del UPDATE, se registra el movimiento
+  en **AMBAS** parcialidades — un **comentario en el origen** ("Se trasladó saldo de $X a la parcialidad
+  #N…") y otro en el **destino** ("Se recibió saldo de $X desde la parcialidad #M…"), con `idPago = NULL`
+  (la columna `comentarios.idPago` acepta NULL) — más una entrada en `actividad`. Mismo patrón que el alta/
+  eliminación de pagos.
+- **Endpoint:** `PATCH ventas/planes/trasladar-saldo` (clave 611) → `PlanesService.trasladarSaldo`.
+- **📌 Gotcha (saldo aislado vs FIFO):** el tope se calcula sobre el **saldo pendiente directo** de la
+  parcialidad (`monto − Σ pagos de esa parcialidad`), no sobre el saldo FIFO del plan. Coincide con lo que
+  el usuario ve en pantalla (la columna *Balance*) y con el criterio de negocio ("trasladar lo que hoy
+  aparece"). Si un sobrepago de otra parcialidad ya cubría esta vía FIFO, el traslado igualmente reduce su
+  monto; el total del plan se conserva y el adeudo se recalcula. Es el comportamiento esperado para la
+  limpieza manual caso por caso.
+- **Estado:** función **lista y candada** (permiso 611). Validada por agente de seguridad Opus 4.8
+  (hallazgo ALTO de monto negativo corregido; atomicidad/concurrencia resueltas con la RPC transaccional).
+  La decisión de **cuándo** aplicarla sobre contratos es operativa del negocio (modifica el plan de pagos).
+
 ## 3b. Escrituras (`/ventas/escrituras`, clave 630)
 Pantalla **operativa de escrituración** (evolución de "Fechas de escrituración" de v1,
 `i01_inversionistas/escrituracion`). Lista las **parcialidades cuyo `pdpDetalle.tipoPago = 'Escrituracion'`**
@@ -332,6 +384,9 @@ parque (`parques.nomParque`) y nave (`naves.numNaveNAME`) **por separado**, inve
     **`POST planes/plan/:idPropiedad/partida`** (agrega parcialidad monto 0),
     **`PATCH planes/partida/:idPdpDet/monto`**, **`PATCH planes/partida/:idPdpDet/fecha`**,
     **`DELETE planes/partida/:idPdpDet`** (rechaza si tiene pagos).
+  - **Trasladar saldo (clave 611, candado propio):** **`PATCH planes/trasladar-saldo`**
+    (`{idPdpDetOrigen, idPdpDetDestino, monto}`) → `PlanesService.trasladarSaldo` → RPC transaccional
+    `trasladar_saldo_pdp`. NO requiere plan inactivo (conserva el total). Ver §3c.
 - **Reportes (620):** `GET ventas/reportes/filtros?tipo=&sinA3=`, `ventas/reportes/edo-cuenta`,
   `ventas/reportes/vencidos`, `ventas/reportes/vencidos-resumen`, `ventas/reportes/vencidos-evolucion`
   (todos con filtros anio/mes/razonsocial/parque/propiedad). Backend `reportes.service.ts` → RPCs

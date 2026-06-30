@@ -9142,6 +9142,10 @@ export type Database = {
       }
     }
     Functions: {
+      trasladar_saldo_pdp: {
+        Args: { p_origen: string; p_destino: string; p_monto: number }
+        Returns: { nuevo_origen: number; nuevo_destino: number }[]
+      }
       actualizar_anios_planes_nuevos: { Args: never; Returns: undefined }
       actualizar_ciclo_plan_pago: { Args: never; Returns: undefined }
       actualizar_inpc_por_ciclo: {

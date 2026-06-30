@@ -73,6 +73,21 @@ export type PartidaMontoDto = z.infer<typeof partidaMontoSchema>;
 export const partidaFechaSchema = z.object({ fecha: FECHA });
 export type PartidaFechaDto = z.infer<typeof partidaFechaSchema>;
 
+/**
+ * Trasladar saldo entre dos parcialidades del **mismo** plan (clave **611**):
+ * resta `monto` de la parcialidad de **origen** y lo suma a una parcialidad
+ * **futura** de **destino** que el usuario elige. Conserva el total del plan
+ * (`Σ parcialidades = pdp.monto`), por lo que NO exige desactivar el plan. Sirve
+ * para "limpiar" adeudos menores que aparecen vencidos, trasladándolos a la
+ * última mensualidad sin eliminar registros. Ver `PlanesService.trasladarSaldo`.
+ */
+export const trasladarSaldoSchema = z.object({
+  idPdpDetOrigen: z.string().trim().min(1, 'Falta la parcialidad de origen.'),
+  idPdpDetDestino: z.string().trim().min(1, 'Falta la parcialidad de destino.'),
+  monto: z.coerce.number().positive('El monto a trasladar debe ser mayor a 0.'),
+});
+export type TrasladarSaldoDto = z.infer<typeof trasladarSaldoSchema>;
+
 /** Edición de los datos generales del inversionista (Config, sub-tab 1). */
 export const inversionistaSchema = z.object({
   nombre: z.string().trim().min(1, 'El nombre es obligatorio.').max(120),

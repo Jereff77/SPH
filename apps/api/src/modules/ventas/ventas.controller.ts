@@ -34,6 +34,7 @@ import {
   propiedadSchema,
   registrarPagoSchema,
   tipoPagoSchema,
+  trasladarSaldoSchema,
   type ActivoPlanDto,
   type CrearPlanPagosDto,
   type DocDto,
@@ -48,6 +49,7 @@ import {
   type PropiedadDto,
   type RegistrarPagoDto,
   type TipoPagoDto,
+  type TrasladarSaldoDto,
 } from './ventas.schemas.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard.js';
@@ -447,6 +449,22 @@ export class VentasController {
     @Param('idPdpDet') idPdpDet: string,
   ) {
     return this.planes.eliminarPartida(idPdpDet, actor.uid);
+  }
+
+  // ----- Trasladar saldo entre parcialidades (candado: clave 611) -----
+  /**
+   * Traslada saldo de una parcialidad a otra **futura** del mismo plan. Acción
+   * candada con la clave **611** (independiente de la 610 de Planes): solo los
+   * usuarios con ese permiso pueden aplicarla. Conserva el total del plan, por lo
+   * que NO requiere desactivarlo.
+   */
+  @Patch('planes/trasladar-saldo')
+  @RequierePermiso(611)
+  async trasladarSaldo(
+    @CurrentUser() actor: AuthUser,
+    @Body(new ZodValidationPipe(trasladarSaldoSchema)) dto: TrasladarSaldoDto,
+  ) {
+    return this.planes.trasladarSaldo(dto, actor.uid);
   }
 
   // ============================ Dashboard gráfico (620) ============================
