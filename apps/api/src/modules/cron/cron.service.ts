@@ -7,9 +7,11 @@ import { SchedulerRegistry } from '@nestjs/schedule';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { SyncScheduler } from '../correo/sync.scheduler.js';
 import { ComplementosScheduler } from '../cxp/complementos.scheduler.js';
+import { RecordatorioAprobacionScheduler } from '../cxp/recordatorio-aprobacion.scheduler.js';
 import {
   TAREA_CORREO_SYNC,
   TAREA_CXP_COMPLEMENTOS,
+  TAREA_CXP_RECORDATORIO_APROBACION,
 } from '../../common/cron/cron.tareas.js';
 import type {
   CronEjecucionBackend,
@@ -30,6 +32,11 @@ const META_TAREAS: Record<string, { etiqueta: string; descripcion: string }> = {
     descripcion:
       'Notifica por correo las parcialidades PPD pagadas sin su REP, próximas al bloqueo. Diario ~07:00 (MX).',
   },
+  [TAREA_CXP_RECORDATORIO_APROBACION]: {
+    etiqueta: 'Recordatorio de aprobación CxP',
+    descripcion:
+      'Avisa por correo a los aprobadores con solicitudes pendientes, si la aprobación está habilitada hoy. Diario ~07:00 (MX).',
+  },
 };
 
 /**
@@ -49,6 +56,7 @@ export class CronService {
     private readonly scheduler: SchedulerRegistry,
     private readonly syncScheduler: SyncScheduler,
     private readonly complementosScheduler: ComplementosScheduler,
+    private readonly recordatorioScheduler: RecordatorioAprobacionScheduler,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -194,6 +202,10 @@ export class CronService {
       }
       case TAREA_CXP_COMPLEMENTOS: {
         const r = await this.complementosScheduler.ejecutar('manual', uid);
+        return { ok: true, resultado: r };
+      }
+      case TAREA_CXP_RECORDATORIO_APROBACION: {
+        const r = await this.recordatorioScheduler.ejecutar('manual', uid);
         return { ok: true, resultado: r };
       }
       default:

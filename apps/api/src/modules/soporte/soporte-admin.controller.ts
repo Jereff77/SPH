@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
   Patch,
   Query,
@@ -20,6 +21,8 @@ import {
 import {
   SoporteAdminService,
   type ConversacionAdmin,
+  type RecordatorioEnviado,
+  type RecordatorioEnviadoDetalle,
   type SesionAdmin,
   type TicketAdmin,
 } from './soporte-admin.service.js';
@@ -68,5 +71,26 @@ export class SoporteAdminController {
     @Body(new ZodValidationPipe(atenderTicketSchema)) dto: AtenderTicketDto,
   ): Promise<{ ok: true }> {
     return this.admin.atenderTicket(actor.uid, id, dto);
+  }
+
+  // --- Recordatorios de aprobación CxP (correos enviados) ---
+
+  @Get('recordatorios-aprobacion')
+  recordatorios(
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+  ): Promise<RecordatorioEnviado[]> {
+    const n = Number.parseInt(limit ?? '', 10);
+    return this.admin.recordatoriosAprobacion(
+      Number.isFinite(n) && n > 0 ? Math.min(n, 500) : 100,
+      q,
+    );
+  }
+
+  @Get('recordatorios-aprobacion/:id')
+  recordatorio(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<RecordatorioEnviadoDetalle> {
+    return this.admin.recordatorioAprobacion(id);
   }
 }

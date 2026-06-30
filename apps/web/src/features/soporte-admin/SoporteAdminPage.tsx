@@ -4,9 +4,20 @@ import { useAuth } from '@/features/auth/useAuth';
 import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
 import { useSort } from '@/components/tabla/useSort';
 import { fechaHora, soporteAdminApi } from './soporte-admin.api';
-import type { EstadoTicket, SesionAdmin, TicketAdmin } from './types';
+import type {
+  EstadoTicket,
+  RecordatorioEnviado,
+  SesionAdmin,
+  TicketAdmin,
+} from './types';
 
-type Tab = 'conversaciones' | 'tickets';
+type Tab = 'conversaciones' | 'tickets' | 'recordatorios';
+
+const moneda = (n: number, divisa = 'MXN') =>
+  (n ?? 0).toLocaleString('es-MX', {
+    style: 'currency',
+    currency: divisa || 'MXN',
+  });
 
 export function SoporteAdminPage() {
   const { esSoporte } = useAuth();
@@ -39,9 +50,18 @@ export function SoporteAdminPage() {
         <BotonTab activo={tab === 'tickets'} onClick={() => setTab('tickets')}>
           Tickets
         </BotonTab>
+        <BotonTab activo={tab === 'recordatorios'} onClick={() => setTab('recordatorios')}>
+          Recordatorios enviados
+        </BotonTab>
       </div>
 
-      {tab === 'conversaciones' ? <TabConversaciones /> : <TabTickets />}
+      {tab === 'conversaciones' ? (
+        <TabConversaciones />
+      ) : tab === 'tickets' ? (
+        <TabTickets />
+      ) : (
+        <TabRecordatorios />
+      )}
     </div>
   );
 }
@@ -593,6 +613,251 @@ function ModalTicket({
           onClose={() => setVerConversacion(false)}
         />
       )}
+    </div>
+  );
+}
+
+// ===========================================================================
+// Pestaña 3: Recordatorios de aprobación enviados (correos a aprobadores CxP)
+// ===========================================================================
+
+function EstadoRecordatorioBadge({ estado }: { estado: 'enviado' | 'fallido' }) {
+  const enviado = estado === 'enviado';
+  return (
+    <span
+      className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${
+        enviado ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+      }`}
+    >
+      {enviado ? 'Enviado' : 'Falló'}
+    </span>
+  );
+}
+
+function TabRecordatorios() {
+  const [q, setQ] = useState('');
+  const [activo, setActivo] = useState<number | null>(null);
+
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
+    queryKey: ['soporte-admin', 'recordatorios'],
+    queryFn: () => soporteAdminApi.recordatorios(),
+    staleTime: 20_000,
+  });
+
+  const filtradas = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return data ?? [];
+    return (data ?? []).filter(
+      (r) =>
+        r.email.toLowerCase().includes(t) ||
+        (r.nombre ?? '').toLowerCase().includes(t),
+    );
+  }, [data, q]);
+
+  const accessors = {
+    destinatario: (r: RecordatorioEnviado) => r.nombre ?? r.email,
+    pendientes: (r: RecordatorioEnviado) => r.numPendientes,
+    estado: (r: RecordatorioEnviado) => r.estado,
+    enviado: (r: RecordatorioEnviado) => r.enviadoEn,
+  };
+  const { ordenados, sortKey, dir, toggle } = useSort(filtradas, accessors, {
+    key: 'enviado',
+    dir: 'desc',
+  });
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Buscar por aprobador o correo…"
+          className="w-72 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+        />
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="ml-auto rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+        >
+          {isFetching ? 'Actualizando…' : 'Actualizar'}
+        </button>
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-gray-500">Cargando…</p>
+      ) : isError ? (
+        <p className="text-sm text-red-600">No se pudieron cargar los recordatorios.</p>
+      ) : (
+        <div className="overflow-auto rounded-lg border border-gray-200 max-h-[65vh]">
+          <table className="min-w-full text-sm">
+            <thead className={THEAD_STICKY}>
+              <tr className={THEAD_TR}>
+                <SortableTh campo="destinatario" sortKey={sortKey} dir={dir} onSort={toggle}>
+                  Aprobador
+                </SortableTh>
+                <SortableTh
+                  campo="pendientes"
+                  sortKey={sortKey}
+                  dir={dir}
+                  onSort={toggle}
+                  align="right"
+                >
+                  Pendientes
+                </SortableTh>
+                <SortableTh campo="estado" sortKey={sortKey} dir={dir} onSort={toggle} align="center">
+                  Estado
+                </SortableTh>
+                <SortableTh campo="enviado" sortKey={sortKey} dir={dir} onSort={toggle}>
+                  Enviado
+                </SortableTh>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {ordenados.map((r) => (
+                <tr
+                  key={r.id}
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => setActivo(r.id)}
+                  title="Ver detalle del correo enviado"
+                >
+                  <td className="px-4 py-2.5">
+                    <span className="font-medium text-gray-900">{r.nombre ?? '—'}</span>
+                    <span className="block text-xs text-gray-500">{r.email}</span>
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">
+                    {r.numPendientes}
+                  </td>
+                  <td className="px-4 py-2.5 text-center">
+                    <EstadoRecordatorioBadge estado={r.estado} />
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-700">{fechaHora(r.enviadoEn)}</td>
+                </tr>
+              ))}
+              {ordenados.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                    No hay recordatorios enviados.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {activo != null && (
+        <ModalRecordatorio id={activo} onClose={() => setActivo(null)} />
+      )}
+    </section>
+  );
+}
+
+function ModalRecordatorio({ id, onClose }: { id: number; onClose: () => void }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['soporte-admin', 'recordatorio', id],
+    queryFn: () => soporteAdminApi.recordatorio(id),
+  });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between border-b border-gray-200 p-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">
+              {data?.asunto ?? 'Recordatorio enviado'}
+            </h2>
+            {data && (
+              <p className="text-xs text-gray-500">
+                {data.nombre ?? data.email} · {data.email} · {fechaHora(data.enviadoEn)}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-auto p-4">
+          {isLoading ? (
+            <p className="text-sm text-gray-500">Cargando…</p>
+          ) : isError || !data ? (
+            <p className="text-sm text-red-600">No se pudo cargar el recordatorio.</p>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <EstadoRecordatorioBadge estado={data.estado} />
+                <span className="rounded bg-gray-100 px-2 py-0.5 text-gray-600">
+                  {data.numPendientes} solicitud(es)
+                </span>
+              </div>
+              {data.error && (
+                <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+                  {data.error}
+                </p>
+              )}
+
+              <div>
+                <h3 className="mb-1 text-sm font-medium text-gray-700">
+                  Solicitudes incluidas
+                </h3>
+                <div className="overflow-auto rounded-lg border border-gray-200">
+                  <table className="min-w-full text-sm">
+                    <thead className={THEAD_STICKY}>
+                      <tr className={THEAD_TR}>
+                        <th className="px-3 py-2 text-left">Proveedor</th>
+                        <th className="px-3 py-2 text-right">Monto</th>
+                        <th className="px-3 py-2 text-left">Folio</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {data.solicitudes.map((s) => (
+                        <tr key={s.idCxp}>
+                          <td className="px-3 py-2 text-gray-700">{s.proveedor}</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-gray-700">
+                            {moneda(s.total, s.moneda)}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-gray-500">
+                            {s.folio || '—'}
+                          </td>
+                        </tr>
+                      ))}
+                      {data.solicitudes.length === 0 && (
+                        <tr>
+                          <td colSpan={3} className="px-3 py-4 text-center text-gray-500">
+                            Sin detalle de solicitudes.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-1 text-sm font-medium text-gray-700">Correo enviado</h3>
+                <iframe
+                  title="Vista previa del correo"
+                  srcDoc={data.html}
+                  sandbox=""
+                  className="h-80 w-full rounded-lg border border-gray-200 bg-white"
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -57,6 +57,34 @@ export interface ConversacionAdmin {
 
 export type EstadoTicket = 'abierto' | 'en_proceso' | 'cerrado';
 
+/** Una solicitud incluida en un correo de recordatorio (detalle). */
+export interface SolicitudRecordatorio {
+  idCxp: string;
+  proveedor: string;
+  total: number;
+  moneda: string;
+  folio: string;
+}
+
+/** Renglón del listado de recordatorios de aprobación enviados (sin el HTML). */
+export interface RecordatorioEnviado {
+  id: number;
+  enviadoEn: string;
+  uidAprobador: string;
+  email: string;
+  nombre: string | null;
+  numPendientes: number;
+  estado: 'enviado' | 'fallido';
+}
+
+/** Detalle de un recordatorio (incluye el HTML enviado y las solicitudes). */
+export interface RecordatorioEnviadoDetalle extends RecordatorioEnviado {
+  asunto: string;
+  html: string;
+  solicitudes: SolicitudRecordatorio[];
+  error: string | null;
+}
+
 /** Un ticket de soporte enriquecido para la bandeja de atención. */
 export interface TicketAdmin {
   uuid: string;

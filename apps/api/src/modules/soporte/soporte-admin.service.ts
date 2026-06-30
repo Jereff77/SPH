@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { AtenderTicketDto } from './soporte.schemas.js';
@@ -63,6 +67,34 @@ export interface TicketAdmin {
   fum: string | null;
   atendidoPor: string | null;
   atendidoPorNombre: string | null;
+}
+
+/** Una solicitud incluida en un correo de recordatorio (detalle). */
+export interface SolicitudRecordatorio {
+  idCxp: string;
+  proveedor: string;
+  total: number;
+  moneda: string;
+  folio: string;
+}
+
+/** Renglón del listado de recordatorios de aprobación enviados (sin el HTML). */
+export interface RecordatorioEnviado {
+  id: number;
+  enviadoEn: string;
+  uidAprobador: string;
+  email: string;
+  nombre: string | null;
+  numPendientes: number;
+  estado: 'enviado' | 'fallido';
+}
+
+/** Detalle de un recordatorio (incluye el HTML enviado y las solicitudes). */
+export interface RecordatorioEnviadoDetalle extends RecordatorioEnviado {
+  asunto: string;
+  html: string;
+  solicitudes: SolicitudRecordatorio[];
+  error: string | null;
 }
 
 /**
@@ -312,6 +344,95 @@ export class SoporteAdminService {
       .eq('uuid', ticketId);
     if (error) throw new InternalServerErrorException(error.message);
     return { ok: true };
+  }
+
+  // --- Recordatorios de aprobación CxP (correos enviados) -------------------
+
+  /**
+   * Lista los correos de recordatorio de aprobación enviados (los más recientes).
+   * Devuelve un resumen liviano (sin el HTML). Filtro opcional `q` por
+   * destinatario (correo o nombre), aplicado en memoria para no exponer la cadena
+   * del usuario a un filtro PostgREST.
+   */
+  async recordatoriosAprobacion(
+    limit = 100,
+    q?: string,
+  ): Promise<RecordatorioEnviado[]> {
+    const { data, error } = await this.db
+      .from('mail_recordatorios_aprobacion')
+      .select('id, enviado_en, uid_aprobador, email, nombre, num_pendientes, estado')
+      .order('enviado_en', { ascending: false })
+      .limit(Math.min(Math.max(limit, 1), 500));
+    if (error) throw new InternalServerErrorException(error.message);
+
+    const filas = (data ?? []) as {
+      id: number;
+      enviado_en: string;
+      uid_aprobador: string;
+      email: string;
+      nombre: string | null;
+      num_pendientes: number;
+      estado: 'enviado' | 'fallido';
+    }[];
+
+    const t = (q ?? '').trim().toLowerCase();
+    const filtradas = t
+      ? filas.filter(
+          (f) =>
+            f.email.toLowerCase().includes(t) ||
+            (f.nombre ?? '').toLowerCase().includes(t),
+        )
+      : filas;
+
+    return filtradas.map((f) => ({
+      id: f.id,
+      enviadoEn: f.enviado_en,
+      uidAprobador: f.uid_aprobador,
+      email: f.email,
+      nombre: f.nombre,
+      numPendientes: f.num_pendientes,
+      estado: f.estado,
+    }));
+  }
+
+  /** Detalle de un recordatorio (incluye el HTML enviado y las solicitudes). */
+  async recordatorioAprobacion(id: number): Promise<RecordatorioEnviadoDetalle> {
+    const { data, error } = await this.db
+      .from('mail_recordatorios_aprobacion')
+      .select(
+        'id, enviado_en, uid_aprobador, email, nombre, num_pendientes, estado, asunto, html, solicitudes, error',
+      )
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!data) throw new NotFoundException('El recordatorio no existe.');
+
+    const r = data as {
+      id: number;
+      enviado_en: string;
+      uid_aprobador: string;
+      email: string;
+      nombre: string | null;
+      num_pendientes: number;
+      estado: 'enviado' | 'fallido';
+      asunto: string;
+      html: string;
+      solicitudes: SolicitudRecordatorio[] | null;
+      error: string | null;
+    };
+    return {
+      id: r.id,
+      enviadoEn: r.enviado_en,
+      uidAprobador: r.uid_aprobador,
+      email: r.email,
+      nombre: r.nombre,
+      numPendientes: r.num_pendientes,
+      estado: r.estado,
+      asunto: r.asunto,
+      html: r.html,
+      solicitudes: r.solicitudes ?? [],
+      error: r.error,
+    };
   }
 
   // --- Internos -------------------------------------------------------------

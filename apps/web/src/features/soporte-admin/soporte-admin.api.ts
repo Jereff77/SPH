@@ -2,6 +2,8 @@ import { api } from '@/lib/api';
 import type {
   ConversacionAdmin,
   EstadoTicket,
+  RecordatorioEnviado,
+  RecordatorioEnviadoDetalle,
   SesionAdmin,
   TicketAdmin,
 } from './types';
@@ -20,6 +22,16 @@ export const soporteAdminApi = {
     ),
   atender: (ticketId: string, estado: EstadoTicket) =>
     api.patch<{ ok: true }>(`/soporte/admin/tickets/${ticketId}`, { estado }),
+
+  // --- Recordatorios de aprobación CxP (correos enviados) ---
+  recordatorios: (q?: string) =>
+    api.get<RecordatorioEnviado[]>(
+      `/soporte/admin/recordatorios-aprobacion${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+    ),
+  recordatorio: (id: number) =>
+    api.get<RecordatorioEnviadoDetalle>(
+      `/soporte/admin/recordatorios-aprobacion/${id}`,
+    ),
 };
 
 // --- Helpers de formato (regla 7b: fecha dd/mm/aaaa) ------------------------

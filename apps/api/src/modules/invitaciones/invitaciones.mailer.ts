@@ -66,6 +66,33 @@ export class InvitacionesMailer {
     }
   }
 
+  /**
+   * Envío genérico de un correo HTML por la MISMA cuenta SMTP dedicada
+   * (`SMTP_INVITACIONES_*`). Reutilizable por otros flujos de notificación
+   * (p. ej. el recordatorio de aprobación de CxP) sin duplicar la configuración.
+   * No lanza: si no está configurada o falla el SMTP, loguea y devuelve `false`.
+   */
+  async enviarHtml(
+    para: string | string[],
+    asunto: string,
+    html: string,
+  ): Promise<boolean> {
+    if (!this.disponible) return false;
+    try {
+      await this.transporter().sendMail({
+        from: this.remitente,
+        to: para,
+        subject: asunto,
+        html,
+      });
+      return true;
+    } catch (e) {
+      const destino = Array.isArray(para) ? para.join(', ') : para;
+      this.logger.error(`SMTP dedicado a ${destino}: ${(e as Error).message}`);
+      return false;
+    }
+  }
+
   private plantilla(
     nombre: string,
     link: string,

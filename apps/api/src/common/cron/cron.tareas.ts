@@ -5,3 +5,4 @@
  */
 export const TAREA_CORREO_SYNC = 'correo-sync';
 export const TAREA_CXP_COMPLEMENTOS = 'cxp-aviso-complementos';
+export const TAREA_CXP_RECORDATORIO_APROBACION = 'cxp-recordatorio-aprobacion';

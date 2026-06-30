@@ -11,5 +11,7 @@ import { InvitacionesMailer } from './invitaciones.mailer.js';
 @Module({
   controllers: [InvitacionesController],
   providers: [InvitacionesService, InvitacionesMailer],
+  // Exportado para que otros módulos (p. ej. CxP) reutilicen el envío SMTP dedicado.
+  exports: [InvitacionesMailer],
 })
 export class InvitacionesModule {}

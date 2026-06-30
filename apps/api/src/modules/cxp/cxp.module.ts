@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { CorreoModule } from '../correo/correo.module.js';
+import { InvitacionesModule } from '../invitaciones/invitaciones.module.js';
 import { ProveedoresController } from './proveedores.controller.js';
 import { ProveedoresService } from './proveedores.service.js';
 import { BancosController } from './bancos.controller.js';
@@ -22,6 +23,7 @@ import { PpdController } from './ppd.controller.js';
 import { PpdService } from './ppd.service.js';
 import { BloqueoService } from './bloqueo.service.js';
 import { ComplementosScheduler } from './complementos.scheduler.js';
+import { RecordatorioAprobacionScheduler } from './recordatorio-aprobacion.scheduler.js';
 import { ReportesCxpController } from './reportes.controller.js';
 import { ReportesCxpService } from './reportes.service.js';
 
@@ -31,7 +33,7 @@ import { ReportesCxpService } from './reportes.service.js';
  * registrando los controllers/services de cada submódulo.
  */
 @Module({
-  imports: [CorreoModule],
+  imports: [CorreoModule, InvitacionesModule],
   controllers: [
     ProveedoresController,
     BancosController,
@@ -58,8 +60,9 @@ import { ReportesCxpService } from './reportes.service.js';
     PpdService,
     BloqueoService,
     ComplementosScheduler,
+    RecordatorioAprobacionScheduler,
     ReportesCxpService,
   ],
-  exports: [ComplementosScheduler],
+  exports: [ComplementosScheduler, RecordatorioAprobacionScheduler],
 })
 export class CxpModule {}
