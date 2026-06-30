@@ -29,9 +29,23 @@ export interface FacturaPpd {
   disponible: number;
   numParcialidades: number;
   avance: number; // % pagado del total
-  repPendiente?: boolean; // alguna parcialidad pagada sin REP ni dispensa
-  repVencido?: boolean; // …y con más de 15 días desde el pago (bloquea al usuario)
+  repNivel: RepNivel; // estado del REP de la factura (nivel "peor" de sus parcialidades)
 }
+
+/**
+ * Nivel del Complemento de Pago (REP) de una parcialidad/factura, anclado a
+ * fechas de calendario del mes de pago:
+ *  - 'pendiente' → ámbar: pagada sin REP, aún en plazo.
+ *  - 'vencido_proveedor' → rojo tenue (rosado): venció el día 6 del mes
+ *    siguiente; el proveedor queda bloqueado.
+ *  - 'vencido_usuario' → rojo fuerte: venció el día 21; el usuario queda
+ *    bloqueado para cualquier solicitud.
+ */
+export type RepNivel =
+  | 'ninguno'
+  | 'pendiente'
+  | 'vencido_proveedor'
+  | 'vencido_usuario';
 
 /** Una solicitud parcial (abono) de una factura PPD. */
 export interface ParcialidadPpd {
@@ -54,6 +68,7 @@ export interface ParcialidadPpd {
   urlComplementoXml: string | null; // URL firmada (1 h) o null
   urlComplementoPdf: string | null;
   repPendiente: boolean; // pagada, sin REP y sin dispensa
+  repNivel: RepNivel; // nivel por fechas (ámbar / rosado / rojo)
   diasDesdePago: number | null;
   // Dispensa por excepción:
   complementoExento: boolean;

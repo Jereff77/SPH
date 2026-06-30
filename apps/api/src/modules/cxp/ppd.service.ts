@@ -12,6 +12,12 @@ import { SolicitudesService } from './solicitudes.service.js';
 import { BloqueoService } from './bloqueo.service.js';
 import { parsearComplementoPago, validarRepContra } from './cfdi.js';
 import { firmarDocumentos } from './documentos.util.js';
+import {
+  leerRepConfig,
+  nivelRepPendiente,
+  SEVERIDAD_REP,
+  type RepNivel,
+} from './rep-fechas.js';
 import type { NuevaFacturaPpdDto, NuevaParcialPpdDto } from './ppd.schemas.js';
 
 const BUCKET_CFDI = 'CFDIproveedores';
@@ -146,6 +152,10 @@ export class PpdService {
       .eq('status', true);
     if (pErr) throw new InternalServerErrorException(pErr.message);
 
+    // Plazos del REP (configurables) y "hoy" para evaluar el nivel por fechas.
+    const cfg = await leerRepConfig(this.supabase.admin);
+    const hoy = new Date();
+
     const agg = new Map<
       string,
       {
@@ -153,8 +163,7 @@ export class PpdService {
         pagado: number;
         num: number;
         moneda: string;
-        repPendiente: boolean; // alguna parcialidad pagada sin REP ni dispensa
-        repVencido: boolean; // …y con más de 15 días desde el pago (bloquea)
+        repNivel: RepNivel; // nivel "peor" entre las parcialidades de la factura
       }
     >();
     for (const p of parciales ?? []) {
@@ -165,8 +174,7 @@ export class PpdService {
           pagado: 0,
           num: 0,
           moneda: 'MXN',
-          repPendiente: false,
-          repVencido: false,
+          repNivel: 'ninguno' as RepNivel,
         };
       a.moneda = p.moneda ?? a.moneda;
       if (p.idEstado !== 3) {
@@ -174,14 +182,14 @@ export class PpdService {
         a.num += 1;
         if (p.idEstado === 6 || p.idEstado === 7) a.pagado += p.montoAplicado ?? 0;
       }
-      // Complemento (REP) pendiente/vencido: parcialidad pagada, sin REP y no dispensada.
+      // Complemento (REP) pendiente: parcialidad pagada, sin REP y no dispensada.
       if (
         (p.idEstado === 6 || p.idEstado === 7) &&
         !p.uuidComplemento &&
         !p.complementoExento
       ) {
-        a.repPendiente = true;
-        if ((this.diasDesde(p.fecPago) ?? 0) > 15) a.repVencido = true;
+        const nivel = nivelRepPendiente(p.fecPago, hoy, cfg);
+        if (SEVERIDAD_REP[nivel] > SEVERIDAD_REP[a.repNivel]) a.repNivel = nivel;
       }
       agg.set(p.idCxpPPD, a);
     }
@@ -192,8 +200,7 @@ export class PpdService {
         pagado: 0,
         num: 0,
         moneda: 'MXN',
-        repPendiente: false,
-        repVencido: false,
+        repNivel: 'ninguno' as RepNivel,
       };
       const total = m.total ?? 0;
       return {
@@ -204,8 +211,7 @@ export class PpdService {
         disponible: round2(total - a.solicitado),
         numParcialidades: a.num,
         avance: total > 0 ? Math.round((a.pagado / total) * 100) : 0,
-        repPendiente: a.repPendiente,
-        repVencido: a.repVencido,
+        repNivel: a.repNivel,
       };
     });
   }
@@ -251,16 +257,26 @@ export class PpdService {
     );
     const saldo = await this.saldoDe(idCxpPPD);
 
+    // Plazos del REP (configurables) y "hoy" para evaluar el nivel por fechas.
+    const cfg = await leerRepConfig(this.supabase.admin);
+    const hoy = new Date();
+
     const parcialidades = await Promise.all(
       (parciales ?? []).map(async (p) => {
         const pagada = p.idEstado === 6 || p.idEstado === 7;
         const tieneRep = !!p.uuidComplemento;
+        const repPendiente = pagada && !tieneRep && !p.complementoExento;
         return {
           ...p,
           categoria: cuentas.get(p.idCategoria)?.cuenta ?? null,
           clasificacion: cuentas.get(p.idCategoria)?.seccion ?? null,
           // Estado del complemento (REP). Una parcialidad dispensada NO está pendiente.
-          repPendiente: pagada && !tieneRep && !p.complementoExento,
+          repPendiente,
+          // Nivel por fechas: 'pendiente' (ámbar) / 'vencido_proveedor' (rosado) /
+          // 'vencido_usuario' (rojo). 'ninguno' si no hay pendiente.
+          repNivel: repPendiente
+            ? nivelRepPendiente(p.fecPago, hoy, cfg)
+            : ('ninguno' as RepNivel),
           diasDesdePago: pagada ? this.diasDesde(p.fecPago) : null,
           urlComplementoXml: await this.urlFirmadaRep(p.urlComplementoXml),
           urlComplementoPdf: await this.urlFirmadaRep(p.urlComplementoPdf),

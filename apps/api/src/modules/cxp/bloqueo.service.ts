@@ -4,20 +4,20 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
-
-/** Días tras la aplicación del pago en que, sin complemento (REP), el usuario
- * queda bloqueado para crear cualquier solicitud de pago. */
-export const DIAS_BLOQUEO_REP = 15;
+import { boundVencidoISO, leerRepConfig, type RepConfig } from './rep-fechas.js';
 
 /**
  * Candado de Complemento de Pago (REP) para CxP. Antes de permitir crear una
  * solicitud de pago (de cualquier tipo) se verifican dos niveles, derivados de
- * los datos (no hay flag persistente; el bloqueo se levanta solo al subir el REP):
- *  - Nivel 1 (proveedor): si el proveedor tiene una parcialidad PPD pagada sin su
- *    REP, no se admite NINGUNA solicitud de ese proveedor.
- *  - Nivel 2 (usuario): si una parcialidad PPD pagada por el usuario lleva >15
- *    días sin REP, el usuario no puede crear NINGUNA solicitud (de cualquier
- *    proveedor) hasta subirlo.
+ * los datos (no hay flag persistente; el bloqueo se levanta solo al subir el REP).
+ * Los plazos se miden con **fechas de calendario ancladas al mes del pago**
+ * (configurables en `SPHConfiguraciones`, ver `rep-fechas.ts`):
+ *  - Nivel 1 (proveedor): si el proveedor tiene una parcialidad PPD pagada cuyo
+ *    REP venció (día 6 del mes siguiente al pago), no se admite NINGUNA solicitud
+ *    de ese proveedor.
+ *  - Nivel 2 (usuario): si una parcialidad PPD pagada por el usuario venció a su
+ *    plazo mayor (día 21 del mes siguiente al pago) sin REP, el usuario no puede
+ *    crear NINGUNA solicitud (de cualquier proveedor) hasta subirlo.
  * Los usuarios de soporte (`catUsers.isSupport`) se saltan el candado.
  */
 @Injectable()
@@ -33,8 +33,16 @@ export class BloqueoService {
     return data?.isSupport === true;
   }
 
-  /** Nivel 1: ¿el proveedor tiene alguna parcialidad PPD pagada sin REP? */
-  private async proveedorConRepPendiente(idProveedor: string): Promise<boolean> {
+  /**
+   * Nivel 1: ¿el proveedor tiene alguna parcialidad PPD pagada sin REP cuyo plazo
+   * del proveedor ya venció (día 6 del mes siguiente al pago)?
+   */
+  private async proveedorConRepVencido(
+    idProveedor: string,
+    cfg: RepConfig,
+    hoy: Date,
+  ): Promise<boolean> {
+    const limite = boundVencidoISO(cfg.diaBloqueoProveedor, hoy);
     const { data, error } = await this.supabase.admin
       .from('cxp')
       .select('idCxp')
@@ -44,16 +52,23 @@ export class BloqueoService {
       .in('idEstado', [6, 7])
       .is('uuidComplemento', null)
       .eq('complementoExento', false) // las dispensadas no bloquean
+      .not('fecPago', 'is', null)
+      .lt('fecPago', limite)
       .limit(1);
     if (error) throw new InternalServerErrorException(error.message);
     return (data?.length ?? 0) > 0;
   }
 
-  /** Nivel 2: ¿el usuario tiene una parcialidad PPD pagada hace >15 días sin REP? */
-  private async usuarioConRepVencido(uidr: string): Promise<boolean> {
-    const limite = new Date(
-      Date.now() - DIAS_BLOQUEO_REP * 86_400_000,
-    ).toISOString();
+  /**
+   * Nivel 2: ¿el usuario tiene una parcialidad PPD pagada sin REP cuyo plazo del
+   * usuario ya venció (día 21 del mes siguiente al pago)?
+   */
+  private async usuarioConRepVencido(
+    uidr: string,
+    cfg: RepConfig,
+    hoy: Date,
+  ): Promise<boolean> {
+    const limite = boundVencidoISO(cfg.diaBloqueoUsuario, hoy);
     const { data, error } = await this.supabase.admin
       .from('cxp')
       .select('idCxp')
@@ -64,7 +79,7 @@ export class BloqueoService {
       .is('uuidComplemento', null)
       .eq('complementoExento', false) // las dispensadas no bloquean
       .not('fecPago', 'is', null)
-      .lte('fecPago', limite)
+      .lt('fecPago', limite)
       .limit(1);
     if (error) throw new InternalServerErrorException(error.message);
     return (data?.length ?? 0) > 0;
@@ -79,16 +94,22 @@ export class BloqueoService {
   async verificar(uidr: string, idProveedor: string | null): Promise<void> {
     if (await this.esSoporte(uidr)) return;
 
-    if (await this.usuarioConRepVencido(uidr)) {
+    const cfg = await leerRepConfig(this.supabase.admin);
+    const hoy = new Date();
+
+    if (await this.usuarioConRepVencido(uidr, cfg, hoy)) {
       throw new ForbiddenException(
-        'Tiene un complemento de pago (REP) vencido: pasaron más de 15 días de un pago PPD sin subir su complemento. ' +
+        'Tiene un complemento de pago (REP) vencido de un pago PPD anterior sin subir su complemento. ' +
           'Súbalo en “Solicitudes de Pago PPD” para poder crear nuevas solicitudes de pago.',
       );
     }
 
-    if (idProveedor && (await this.proveedorConRepPendiente(idProveedor))) {
+    if (
+      idProveedor &&
+      (await this.proveedorConRepVencido(idProveedor, cfg, hoy))
+    ) {
       throw new ForbiddenException(
-        'Este proveedor tiene un complemento de pago (REP) pendiente de un pago anterior. ' +
+        'Este proveedor tiene un complemento de pago (REP) vencido de un pago anterior. ' +
           'Súbalo en “Solicitudes de Pago PPD” antes de generar otra solicitud de pago para este proveedor.',
       );
     }

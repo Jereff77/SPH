@@ -3,23 +3,21 @@ import { Cron } from '@nestjs/schedule';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { SmtpService } from '../correo/smtp.service.js';
 import { CuentasService } from '../correo/cuentas.service.js';
-import { DIAS_BLOQUEO_REP } from './bloqueo.service.js';
+import { inicioMesMxISO, leerRepConfig, partesMx } from './rep-fechas.js';
 import { RegistroCronService } from '../../common/cron/registro-cron.service.js';
 import { TAREA_CXP_COMPLEMENTOS } from '../../common/cron/cron.tareas.js';
-
-/** A partir de cuántos días sin complemento empieza el aviso diario (faltan 5
- * para el bloqueo de 15 → del día 10 al 14). */
-const DIAS_AVISO_DESDE = DIAS_BLOQUEO_REP - 5; // 10
 
 const DIA_MS = 86_400_000;
 const moneda = (n: number) =>
   (n ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
 /**
- * Aviso diario de Complementos de Pago (REP) pendientes. Cada día, para las
- * parcialidades PPD pagadas hace 10–14 días sin su REP (faltando ≤5 días para el
- * bloqueo de 15), envía un correo al solicitante y al gerente que autorizó,
- * desde la cuenta del buzón de facturas. Reutiliza el SMTP del módulo Correo.
+ * Aviso diario de Complementos de Pago (REP) pendientes. En la ventana previa al
+ * bloqueo del usuario (del día `diaAviso` —16 por defecto— al día anterior al
+ * `diaBloqueoUsuario` —21—), para las parcialidades PPD pagadas el MES ANTERIOR
+ * sin su REP, envía un correo al solicitante y al gerente que autorizó, desde la
+ * cuenta del buzón de facturas. Reutiliza el SMTP del módulo Correo. Los plazos
+ * son configurables (`SPHConfiguraciones`, ver `rep-fechas.ts`).
  */
 @Injectable()
 export class ComplementosScheduler {
@@ -67,9 +65,19 @@ export class ComplementosScheduler {
 
   /** Ejecutable también de forma manual (pruebas / disparo puntual). */
   async enviarAvisos(): Promise<{ enviados: number; pendientes: number }> {
-    const ahora = Date.now();
-    const desde = new Date(ahora - DIAS_BLOQUEO_REP * DIA_MS).toISOString(); // > hoy-15
-    const hasta = new Date(ahora - DIAS_AVISO_DESDE * DIA_MS).toISOString(); // <= hoy-10
+    const cfg = await leerRepConfig(this.supabase.admin);
+    const hoy = new Date();
+    const ahora = hoy.getTime();
+    const { anio, mes, dia: diaHoy } = partesMx(hoy); // hora de México (UTC-6)
+    // Solo se avisa en la ventana previa al bloqueo del usuario: del día de aviso
+    // hasta el día anterior al bloqueo (fuera de ahí no hay nada que avisar).
+    if (diaHoy < cfg.diaAviso || diaHoy >= cfg.diaBloqueoUsuario) {
+      return { enviados: 0, pendientes: 0 };
+    }
+    const restantes = cfg.diaBloqueoUsuario - diaHoy; // días para el bloqueo del usuario
+    // Parcialidades pagadas el MES ANTERIOR (su bloqueo de usuario cae este mes).
+    const desde = inicioMesMxISO(anio, mes - 1);
+    const hasta = inicioMesMxISO(anio, mes);
 
     const { data: parciales, error } = await this.supabase.admin
       .from('cxp')
@@ -82,8 +90,8 @@ export class ComplementosScheduler {
       .is('uuidComplemento', null)
       .eq('complementoExento', false) // no avisar de las dispensadas
       .not('fecPago', 'is', null)
-      .gt('fecPago', desde)
-      .lte('fecPago', hasta);
+      .gte('fecPago', desde)
+      .lt('fecPago', hasta);
     if (error) {
       this.logger.error(`No se pudieron leer las parcialidades: ${error.message}`);
       return { enviados: 0, pendientes: 0 };
@@ -121,7 +129,6 @@ export class ComplementosScheduler {
     let enviados = 0;
     for (const p of lista) {
       const dias = Math.floor((ahora - new Date(p.fecPago!).getTime()) / DIA_MS);
-      const restantes = Math.max(0, DIAS_BLOQUEO_REP - dias);
       const sol = p.uidr ? correos.get(p.uidr) : undefined;
       const ger = p.autorizo ? correos.get(p.autorizo) : undefined;
       const destinatarios = [sol?.email, ger?.email].filter(

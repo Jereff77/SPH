@@ -758,17 +758,27 @@ Cada pago de una parcialidad PPD obliga al proveedor a emitir un **Complemento d
   `RFC_RECEPTORES_AUTORIZADOS`; emisor == RFC del proveedor de la factura; un `DoctoRelacionado.IdDocumento` =
   `cxp_ppd.folio`; `ImpPagado` == monto de la parcialidad (±0.01); UUID del REP no repetido. Solo sobre
   parcialidades **pagadas** (idEstado 6/7) y sin REP previo.
-- **Candado escalonado** (`bloqueo.service.ts`, derivado de datos — se levanta solo al subir el REP; `isSupport`
-  exento). Se verifica al inicio de **las 7 altas** (`crear`, urgente, línea de captura, devolución, sin XML,
-  `crearConFactura`, `nuevaParcial`):
-  - **Nivel 1 — proveedor (inmediato):** si el proveedor tiene una parcialidad PPD pagada sin REP, **se bloquea
-    cualquier tipo** de solicitud de pago de ese proveedor (403).
-  - **Nivel 2 — usuario (>15 días):** si una parcialidad PPD pagada por el usuario (`uidr`) lleva >15 días sin
-    REP, el usuario no puede crear **ninguna** solicitud de pago (de cualquier proveedor) hasta subirlo (403).
-- **Aviso diario** (`complementos.scheduler.ts`, `@Cron('0 13 * * *')` ≈07:00 MX): para parcialidades pagadas
-  hace **10–14 días** sin REP (faltando ≤5 días para el bloqueo), envía correo al **solicitante (`uidr`)** y al
-  **gerente que autorizó (`autorizo`)** con la **cuenta activa del buzón de facturas** (reutiliza
-  `SmtpService.enviarNotificacion` + `CuentasService`; `CorreoModule` exporta ambos y `CxpModule` lo importa).
+- **Candado escalonado por FECHAS DE CALENDARIO** (`bloqueo.service.ts` + `rep-fechas.ts`, derivado de datos —
+  se levanta solo al subir/dispensar el REP; `isSupport` exento). Desde **v2.51.0** el plazo NO se mide en
+  "días desde el pago" sino con **fechas ancladas al MES del pago** (alineado al SAT, que da hasta el día 5
+  natural del mes siguiente para emitir el REP), calculadas en **hora de México (UTC-6 fijo)**. Se verifica al
+  inicio de **las 7 altas** (`crear`, urgente, línea de captura, devolución, sin XML, `crearConFactura`,
+  `nuevaParcial`):
+  - **Nivel 1 — proveedor (día 6 del mes siguiente al pago):** una vez vencido, **se bloquea cualquier tipo**
+    de solicitud de pago de ese proveedor (403). Antes de esa fecha hay **ventana de gracia** (en ≤v2.50 era
+    inmediato). Query: `fecPago < boundVencidoISO(diaBloqueoProveedor, hoy)`.
+  - **Nivel 2 — usuario (día 21 del mes siguiente al pago, = día 6 + 15):** una vez vencido, el usuario
+    (`uidr`) no puede crear **ninguna** solicitud (de cualquier proveedor) hasta subirlo (403). Query:
+    `fecPago < boundVencidoISO(diaBloqueoUsuario, hoy)`.
+  - **Configurable:** `SPHConfiguraciones.PPD_REP_DIA_BLOQUEO_PROVEEDOR` (6), `PPD_REP_DIA_BLOQUEO_USUARIO`
+    (21), `PPD_REP_DIA_AVISO` (16). `leerRepConfig` valida rango 1–28 y cae a defaults; el código opera con los
+    defaults aunque las filas no existan. ⚠️ El nivel "peor" por factura/parcialidad sale del backend como
+    `repNivel` (`ninguno`/`pendiente`/`vencido_proveedor`/`vencido_usuario`); el front solo pinta (ver más abajo).
+- **Aviso diario** (`complementos.scheduler.ts`, `@Cron('0 13 * * *')` ≈07:00 MX): en la **ventana de los días
+  16 a 20** (del `diaAviso` al día previo al bloqueo del usuario), para parcialidades pagadas el **mes anterior**
+  sin REP, envía correo **solo** al **solicitante (`uidr`)** y al **gerente que autorizó (`autorizo`)** con la
+  **cuenta activa del buzón de facturas** (reutiliza `SmtpService.enviarNotificacion` + `CuentasService`;
+  `CorreoModule` exporta ambos y `CxpModule` lo importa).
 - **Dispensa por excepción (plan B, permiso `403` «Dispensar complemento PPD»):** salida para cuando el REP
   **nunca llegará** (p. ej. **proveedor de única vez**) y, sin ella, el usuario quedaría bloqueado de forma
   permanente. Un usuario con el permiso 403 marca **esa parcialidad** como **exenta** con un **motivo
@@ -781,12 +791,14 @@ Cada pago de una parcialidad PPD obliga al proveedor a emitir un **Complemento d
 - **Front:** en el detalle PPD, columna **Complemento (REP)** por parcialidad pagada: "✓ REP subido" (link
   firmado) / "Pendiente (n d)" en ámbar/rojo (+ botones **Subir** y **Dispensar**) / **"Dispensado (excepción)"**.
   El candado se refleja con el mensaje 403 del backend en el modal de alta.
-- **Resaltado en el listado PPD (v2.34.0):** `PpdService.listar()` devuelve por factura dos banderas —
-  `repPendiente` (alguna parcialidad pagada sin REP ni dispensa) y `repVencido` (…y con **>15 días** desde el
-  pago). En `PpdPage` la fila se pinta en **rojo (`bg-rose-100`)** si `repVencido` y en **ámbar (`bg-amber-50`)**
-  si solo `repPendiente`, para detectar de un vistazo las facturas que requieren el REP (se levanta solo al subir
-  el complemento o dispensarlo). Además, la columna **Proveedor** se acota (máx. 500px; el concepto hace *wrap*
-  hacia abajo en vez de ensanchar la tabla) y **Folio** muestra el folio fiscal completo.
+- **Resaltado en el listado PPD (v2.34.0; semáforo de 3 estados desde v2.51.0):** `PpdService.listar()` devuelve
+  por factura el campo **`repNivel`** (el nivel "peor" de sus parcialidades, vía `nivelRepPendiente` +
+  `SEVERIDAD_REP`); el detalle lo devuelve por parcialidad. En `PpdPage` la fila/etiqueta se pinta según el
+  nivel: **ámbar (`bg-amber-50`)** = `pendiente` (pagada sin REP, **desde el pago**, aún en plazo); **rojo tenue
+  (`bg-rose-100`)** = `vencido_proveedor` (día 6 → proveedor bloqueado); **rojo fuerte (`bg-red-200`)** =
+  `vencido_usuario` (día 21 → usuario bloqueado). Se levanta solo al subir el complemento o dispensarlo. Tipo
+  `RepNivel` compartido en `ppd.api.ts`. Además, la columna **Proveedor** se acota (máx. 500px; el concepto hace
+  *wrap* hacia abajo en vez de ensanchar la tabla) y **Folio** muestra el folio fiscal completo.
 
 ### Regla de negocio del PPD (confirmada 2026-06-17)
 Una factura puede ser **PPD aunque se pague en una sola exhibición**: el proveedor emite el CFDI al **iniciar**

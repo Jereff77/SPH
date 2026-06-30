@@ -161,18 +161,22 @@ export function PpdPage() {
                     <tr
                       key={f.idCxpPPD}
                       className={`border-t ${
-                        f.repVencido
-                          ? 'bg-rose-100 hover:bg-rose-200'
-                          : f.repPendiente
-                            ? 'bg-amber-50 hover:bg-amber-100'
-                            : 'hover:bg-gray-50'
+                        f.repNivel === 'vencido_usuario'
+                          ? 'bg-red-200 hover:bg-red-300'
+                          : f.repNivel === 'vencido_proveedor'
+                            ? 'bg-rose-100 hover:bg-rose-200'
+                            : f.repNivel === 'pendiente'
+                              ? 'bg-amber-50 hover:bg-amber-100'
+                              : 'hover:bg-gray-50'
                       }`}
                       title={
-                        f.repVencido
-                          ? 'Complemento de pago (REP) vencido'
-                          : f.repPendiente
-                            ? 'Complemento de pago (REP) pendiente'
-                            : undefined
+                        f.repNivel === 'vencido_usuario'
+                          ? 'Complemento de pago (REP) vencido — usuario bloqueado'
+                          : f.repNivel === 'vencido_proveedor'
+                            ? 'Complemento de pago (REP) vencido — proveedor bloqueado'
+                            : f.repNivel === 'pendiente'
+                              ? 'Complemento de pago (REP) pendiente'
+                              : undefined
                       }
                     >
                       <td className="px-4 py-2 align-top">
@@ -546,11 +550,22 @@ function Complemento({
       </span>
     );
   }
-  const vencido = (p.diasDesdePago ?? 0) > 15;
+  const clase =
+    p.repNivel === 'vencido_usuario'
+      ? 'font-semibold text-red-700'
+      : p.repNivel === 'vencido_proveedor'
+        ? 'font-semibold text-rose-600'
+        : 'text-amber-600';
+  const etiqueta =
+    p.repNivel === 'vencido_usuario'
+      ? 'Vencido (usuario)'
+      : p.repNivel === 'vencido_proveedor'
+        ? 'Vencido (proveedor)'
+        : 'Pendiente';
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className={`text-xs ${vencido ? 'font-semibold text-red-600' : 'text-amber-600'}`}>
-        Pendiente{p.diasDesdePago != null ? ` (${p.diasDesdePago} d)` : ''}
+      <span className={`text-xs ${clase}`} title="Plazo del REP según el mes de pago">
+        {etiqueta}{p.diasDesdePago != null ? ` (${p.diasDesdePago} d)` : ''}
       </span>
       <div className="flex items-center gap-1">
         <button
