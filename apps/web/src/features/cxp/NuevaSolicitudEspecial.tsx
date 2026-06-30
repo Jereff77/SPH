@@ -388,6 +388,7 @@ export function NuevaDevolucion({ onClose, onCreada }: Props) {
   const [conceptoDevolucion, setConceptoDevolucion] = useState('');
   const [monto, setMonto] = useState('');
   const [justificacion, setJustificacion] = useState('');
+  const [archivo, setArchivo] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const total = Number(monto);
@@ -405,13 +406,16 @@ export function NuevaDevolucion({ onClose, onCreada }: Props) {
 
   const m = useMutation({
     mutationFn: () =>
-      solicitudesApi.crearDevolucion({
-        idInversionista,
-        idCategoria,
-        conceptoDevolucion: conceptoDevolucion.trim(),
-        total,
-        justificacion: justificacion.trim(),
-      }),
+      solicitudesApi.crearDevolucion(
+        {
+          idInversionista,
+          idCategoria,
+          conceptoDevolucion: conceptoDevolucion.trim(),
+          total,
+          justificacion: justificacion.trim(),
+        },
+        archivo,
+      ),
     onSuccess: onCreada,
     onError: (e) => setError(msgError(e, 'No se pudo crear la devolución.')),
   });
@@ -452,6 +456,7 @@ export function NuevaDevolucion({ onClose, onCreada }: Props) {
           className="mt-1"
         />
       </Campo>
+      <CampoDocumentoOpcional archivo={archivo} onChange={setArchivo} />
       <CampoJustificacion value={justificacion} onChange={setJustificacion} />
     </ModalShell>
   );
@@ -568,6 +573,47 @@ export function NuevaSinXml({ onClose, onCreada }: Props) {
       <CampoComprobante pdf={pdf} onChange={setPdf} />
       <CampoJustificacion value={justificacion} onChange={setJustificacion} />
     </ModalShell>
+  );
+}
+
+// ---------- Documento adjunto OPCIONAL (Devoluciones: PDF o imagen) ----------
+
+function CampoDocumentoOpcional({
+  archivo,
+  onChange,
+}: {
+  archivo: File | null;
+  onChange: (f: File | null) => void;
+}) {
+  return (
+    <Campo
+      label="Documento (opcional)"
+      hint={<span className="text-gray-400">PDF o imagen — p. ej. la nota de crédito</span>}
+    >
+      <label className="mt-1 flex cursor-pointer items-center justify-between rounded-lg border border-dashed px-3 py-2.5 text-sm transition hover:bg-gray-50">
+        <span className="truncate text-gray-600">
+          {archivo ? archivo.name : 'Seleccionar PDF o imagen…'}
+        </span>
+        <span className="ml-2 shrink-0 rounded bg-[#1f2a4d] px-2 py-0.5 text-xs text-white">
+          Examinar
+        </span>
+        <input
+          type="file"
+          accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+          className="hidden"
+          onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+        />
+      </label>
+      {archivo && (
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className="mt-1 text-xs text-red-600 hover:underline"
+        >
+          Quitar documento
+        </button>
+      )}
+    </Campo>
   );
 }
 

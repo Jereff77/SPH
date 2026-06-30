@@ -155,6 +155,9 @@ export const solicitudesApi = {
   semanas: () => api.get<string[]>('/cxp/solicitudes/semanas'),
   inversionistas: () =>
     api.get<CatalogoInversionista[]>('/cxp/solicitudes/inversionistas'),
+  /** ¿Hoy está abierto el periodo para subir solicitudes? (no aplica a urgentes). */
+  puedeInsertar: () =>
+    api.get<{ habilitado: boolean }>('/cxp/solicitudes/puede-insertar'),
   analizar: (xml: File, pdf: File) => {
     const fd = new FormData();
     fd.append('xml', xml);
@@ -177,8 +180,16 @@ export const solicitudesApi = {
   // ===== Tipos de solicitud especiales =====
   crearUrgente: (dto: UrgenteDto) =>
     api.post<{ idCxp: string }>('/cxp/solicitudes/urgente', dto),
-  crearDevolucion: (dto: DevolucionDto) =>
-    api.post<{ idCxp: string }>('/cxp/solicitudes/devolucion', dto),
+  crearDevolucion: (dto: DevolucionDto, archivo?: File | null) => {
+    const fd = new FormData();
+    if (archivo) fd.append('archivo', archivo);
+    fd.append('idInversionista', dto.idInversionista);
+    fd.append('idCategoria', dto.idCategoria);
+    fd.append('conceptoDevolucion', dto.conceptoDevolucion);
+    fd.append('total', String(dto.total));
+    fd.append('justificacion', dto.justificacion);
+    return api.postForm<{ idCxp: string }>('/cxp/solicitudes/devolucion', fd);
+  },
   crearLineaCaptura: (pdf: File, dto: LineaCapturaDto) => {
     const fd = new FormData();
     fd.append('pdf', pdf);

@@ -533,10 +533,12 @@ Total, Monto Aplicado, Balance, Urgente, Acciones) con encabezado fijo azul (reg
 ### Acciones (modal con motivo; solo en estado Enviado)
 - **Contenido del modal**: datos de la solicitud (proveedor, folio, concepto, cuenta, subtotal y **«Solicita»**
   = quién la pidió), la **justificación que escribió el solicitante** al enviarla (panel destacado; campo
-  `justificacion` ← `cxp.ultimoComentario`, vía `aprobacion.service`) y el **panel de presupuesto** de la
-  categoría. El campo de texto inferior es el **comentario del aprobador** (obligatorio al Regresar/Rechazar;
-  opcional al Aprobar). *(v2.33.1: se añadieron al modal la justificación del solicitante y «Solicita»; el dato
-  ya viajaba del backend, solo faltaba mostrarlo.)*
+  `justificacion` ← `cxp.ultimoComentario`, vía `aprobacion.service`), una sección **Documentos** con botones
+  **Ver PDF** (`urlCFDI`) / **Ver XML** (`urlXLM`) que abren el documento firmado en pestaña nueva (o "Sin
+  archivos adjuntos") y el **panel de presupuesto** de la categoría. El campo de texto inferior es el
+  **comentario del aprobador** (obligatorio al Regresar/Rechazar; opcional al Aprobar). *(v2.33.1: se añadieron
+  la justificación del solicitante y «Solicita». v2.50.0: se añadió la sección Documentos; las URLs ya viajaban
+  firmadas del backend —`firmarDocumentos`—, solo faltaba mostrarlas.)*
 - **Regresar** (`POST /:idCxp/regresar`, motivo obligatorio): `idEstado→1` (al solicitante para corregir).
 - **Rechazar** (`POST /:idCxp/rechazar`, motivo obligatorio): `idEstado→3` (la factura debe refacturarse).
   - ⚠️ **Gotcha + fix (2026-06-18):** el rechazo hace `UPDATE cxp SET idEstado=3`. El trigger de BD
@@ -601,7 +603,7 @@ Total, Monto Aplicado, Balance, Urgente, Acciones) con encabezado fijo azul (reg
 |---|---|---|---|---|---|---|---|---|
 | **Urgentes** | `POST /cxp/solicitudes/urgente` | 2 | **2 = Enviado** (directo a aprobación) | 1 | **true** | — | Proveedor | `completada=false` |
 | **Línea de Captura** | `POST /cxp/solicitudes/linea-captura` (multipart) | 4 | **2 = Enviado** | 1 | false | **PDF** | Proveedor | `lineaCaptura`, `referencia`, `fechaLimite`, `pagoInmediato` |
-| **Devoluciones** | `POST /cxp/solicitudes/devolucion` | 5 | 1 = Guardado | **2** | false | — | **Inversionista** (`inversionista`) | `referencia` = concepto de devolución |
+| **Devoluciones** | `POST /cxp/solicitudes/devolucion` (multipart) | 5 | 1 = Guardado | **2** | false | **PDF/imagen (opcional)** | **Inversionista** (`inversionista`) | `referencia` = concepto de devolución |
 | **Sin XML** | `POST /cxp/solicitudes/sin-xml` (multipart) | 6 | 1 = Guardado | 1 | false | **PDF** | Proveedor | `folio` (manual), `fecCFDI`, `fechaLimite` (= fecha factura), `moneda` |
 
 **Campos comunes a los 4:** `idCxp` (15, server), `uidr`, `fecSolicitud`=hoy, `montoAplicado`=0,
@@ -618,26 +620,40 @@ Total, Monto Aplicado, Balance, Urgente, Acciones) con encabezado fijo azul (reg
   - Línea de Captura: bloquea si ya existe una solicitud **activa con la misma `lineaCaptura`**.
   - Sin XML: bloquea si ya existe **mismo proveedor + mismo `folio`**.
   - Urgentes/Devoluciones: sin chequeo (no hay clave natural fiable).
-- **No** validan "mes en curso" ni llaman `cxp_puede_insertar` (paridad con v1: estos tipos son atajos
-  manuales; la regla fiscal del mes solo aplica al alta con CFDI).
+- **Periodo de captura (v2.50.0):** el alta de TODOS los tipos salvo **Urgentes** está sujeta al periodo de
+  captura abierto (`cxp_fechas_habilitadas.cfdi=true` hoy). El front consulta `GET /cxp/solicitudes/puede-insertar`
+  (RPC `cxp_puede_insertar`) y, si está cerrado, **deshabilita la apertura** del modal de Pago/Captura/Devolución/
+  SinXML con el aviso "Hoy no está habilitado…"; solo **Urgentes** abre. La red de seguridad real es el **trigger
+  de BD** `cxp_trigger_validar_fecha` (BEFORE INSERT) que lanza `CXP_CFDI_NO_HABILITADO` si `cfdi=false` — y que
+  desde 2026-06-30 **exenta a `esUrgente=true`** (migración `2026-06-30-cxp-trigger-validar-fecha-exenta-urgentes.sql`),
+  para que los Urgentes puedan registrarse cualquier día. *(El service de los tipos especiales no llama
+  `cxp_puede_insertar` directamente; la validación efectiva la impone el trigger.)*
 - **Devoluciones**: la contraparte es un **Inversionista** (selector `GET /cxp/solicitudes/inversionistas`:
   `inversionista` activos, no de prueba). Se guarda `idProveedor`=`idInversionista`, `tipoProveedor=2` y
   `nombreProveedor`=`razonsocial` (resuelto en el backend; v1 lo dejaba en null).
+  - **Documento adjunto OPCIONAL (v2.50.0):** se puede adjuntar un PDF o imagen (p. ej. la nota de crédito).
+    Backend valida tipo por **allowlist de mimetype + magic bytes** (`subirDocumentoDevolucion`) y lo sube vía
+    `subirArchivoCxp` al bucket `CFDIproveedores` (`{yyyy-MM}/{idInversionista}/{idCxp}.{ext}`) → `urlCFDI`. Se
+    sirve firmado en el listado y en la bandeja de aprobación.
   - ⚠️ **Gotcha (2026-06-18):** ese selector filtra **`razonsocial IS NOT NULL`** y muestra esa columna,
     por lo que las **personas físicas sin razón social** no aparecían (caso *Mauricio Valdez Salgado*). Se
     resolvió de fondo con el trigger de BD `v2_trg_inversionista_razonsocial`, que **autocompleta** la
     `razonsocial` de las físicas con su nombre (ver `modulos/clientes.md` §9 y
     `migraciones/2026-06-18-inversionista-autocompleta-razonsocial-fisica.sql`). El selector **no** se modificó.
-- **Archivos** (Línea de Captura y Sin XML): PDF al bucket **`CFDIproveedores`**, ruta
-  `{yyyy-MM}/{idProveedor}/{idCxp}.pdf` → `urlCFDI`.
+- **Archivos** (Línea de Captura, Sin XML y Devolución): al bucket **`CFDIproveedores`**, ruta
+  `{yyyy-MM}/{idProveedor}/{idCxp}.{ext}` → `urlCFDI`. El helper genérico `subirArchivoCxp` centraliza el
+  upload (con **sanitización del segmento** anti path-traversal); `subirComprobante` (PDF obligatorio) y
+  `subirDocumentoDevolucion` (PDF/imagen opcional, allowlist + magic bytes) lo reutilizan.
 
 ### Archivos
 - Backend: `solicitudes.schemas.ts` (schemas `crearUrgente`/`crearLineaCaptura`/`crearDevolucion`/
-  `crearSinXml`), `solicitudes.service.ts` (métodos homónimos + `inversionistas()` +
-  `responsableDeCategoria()` + `subirComprobante()`), `solicitudes.controller.ts` (endpoints).
-- Frontend: `NuevaSolicitudEspecial.tsx` (4 modales: `NuevaUrgente`/`NuevaLineaCaptura`/`NuevaDevolucion`/
-  `NuevaSinXml`, con `SearchSelect` + `InputFecha` compartidos), `solicitudes.api.ts` (DTOs + métodos),
-  `SolicitudesPage.tsx` (drawer con los 5 tipos activos).
+  `crearSinXml`), `solicitudes.service.ts` (métodos homónimos + `inversionistas()` + `puedeInsertar()` +
+  `responsableDeCategoria()` + `subirArchivoCxp()`/`subirComprobante()`/`subirDocumentoDevolucion()`),
+  `solicitudes.controller.ts` (endpoints; `devolucion` es multipart con archivo opcional; `GET puede-insertar`).
+- Frontend: `NuevaSolicitudEspecial.tsx` (4 modales; `NuevaDevolucion` con `CampoDocumentoOpcional`),
+  `solicitudes.api.ts` (DTOs + métodos; `crearDevolucion` con FormData + `puedeInsertar`),
+  `SolicitudesPage.tsx` (drawer con los 5 tipos; bloquea apertura por periodo salvo Urgentes),
+  `AprobarSolicitudModal.tsx` (sección Documentos PDF/XML).
 
 ### Pendiente / notas
 - ⚠️ Cuando se **reactive** el trigger `cxp_validar_fecha_cfdi_estado` (hoy off), revisar el caso **Sin XML**:

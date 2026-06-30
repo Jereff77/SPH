@@ -10,6 +10,10 @@ import { ApiRequestError } from '@/lib/api';
 const moneda = (n: number | null | undefined) =>
   (n ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
+/** Las URLs de documentos llegan ya firmadas (https) desde el backend. */
+const esUrl = (u: string | null | undefined): u is string =>
+  !!u && /^https?:\/\//.test(u);
+
 export type AccionAprobar = 'regresar' | 'rechazar' | 'aprobar';
 
 const META: Record<
@@ -143,6 +147,41 @@ export function AprobarSolicitudModal({
               <span className="text-gray-500">Subtotal</span>
               <span className="font-semibold text-gray-800">{moneda(solicitud.subtotal)}</span>
             </div>
+          </div>
+
+          {/* Documentos adjuntos (CFDI): factura en PDF y XML, URLs firmadas. */}
+          <div className="space-y-2 rounded-lg border border-gray-200 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Documentos
+            </p>
+            {esUrl(solicitud.urlCFDI) || esUrl(solicitud.urlXLM) ? (
+              <div className="flex flex-wrap gap-2">
+                {esUrl(solicitud.urlCFDI) && (
+                  <a
+                    href={solicitud.urlCFDI}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Abrir la factura (PDF) en una pestaña nueva"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100"
+                  >
+                    📄 Ver PDF
+                  </a>
+                )}
+                {esUrl(solicitud.urlXLM) && (
+                  <a
+                    href={solicitud.urlXLM}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Abrir el XML del CFDI en una pestaña nueva"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100"
+                  >
+                    📄 Ver XML
+                  </a>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">Sin archivos adjuntos.</p>
+            )}
           </div>
 
           {/* Justificación del solicitante (lo que escribió al enviar la solicitud) */}

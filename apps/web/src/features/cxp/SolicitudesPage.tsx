@@ -16,13 +16,21 @@ import {
 } from './NuevaSolicitudEspecial';
 import { ApiRequestError } from '@/lib/api';
 
-/** Tipos de solicitud (menú lateral). */
-const TIPOS_SOLICITUD: { id: string; label: string; disponible: boolean }[] = [
-  { id: 'pago', label: 'Solicitud de Pago', disponible: true },
-  { id: 'urgente', label: 'Solicitudes Urgentes', disponible: true },
-  { id: 'captura', label: 'Línea de Captura', disponible: true },
-  { id: 'devolucion', label: 'Devoluciones', disponible: true },
-  { id: 'sinxml', label: 'Facturas sin XML', disponible: true },
+/**
+ * Tipos de solicitud (menú lateral). `exentoPeriodo` = puede registrarse aunque
+ * hoy el periodo de captura esté cerrado (solo las Solicitudes Urgentes).
+ */
+const TIPOS_SOLICITUD: {
+  id: string;
+  label: string;
+  disponible: boolean;
+  exentoPeriodo: boolean;
+}[] = [
+  { id: 'pago', label: 'Solicitud de Pago', disponible: true, exentoPeriodo: false },
+  { id: 'urgente', label: 'Solicitudes Urgentes', disponible: true, exentoPeriodo: true },
+  { id: 'captura', label: 'Línea de Captura', disponible: true, exentoPeriodo: false },
+  { id: 'devolucion', label: 'Devoluciones', disponible: true, exentoPeriodo: false },
+  { id: 'sinxml', label: 'Facturas sin XML', disponible: true, exentoPeriodo: false },
 ];
 
 function fecha(iso: string | null): string {
@@ -55,6 +63,14 @@ export function SolicitudesPage() {
     queryKey: ['cxp-sol-semanas'],
     queryFn: () => solicitudesApi.semanas(),
   });
+
+  // ¿Está abierto hoy el periodo para subir solicitudes? (no aplica a Urgentes).
+  const { data: periodo } = useQuery({
+    queryKey: ['cxp-sol-puede-insertar'],
+    queryFn: () => solicitudesApi.puedeInsertar(),
+    staleTime: 60 * 1000,
+  });
+  const periodoAbierto = periodo?.habilitado; // undefined mientras carga
 
   useEffect(() => {
     if (!rango && semanas[0]) setRango(semanas[0]);
@@ -178,7 +194,11 @@ export function SolicitudesPage() {
 
       {menuTipos && (
         <MenuTipos
+          periodoAbierto={periodoAbierto}
           onElegir={(id) => {
+            // Salvaguarda: solo Urgentes puede abrirse con el periodo cerrado.
+            const tipo = TIPOS_SOLICITUD.find((t) => t.id === id);
+            if (periodoAbierto === false && !tipo?.exentoPeriodo) return;
             setMenuTipos(false);
             setTipoAlta(id);
           }}
@@ -213,12 +233,15 @@ export function SolicitudesPage() {
 
 /** Menú lateral (drawer) para elegir el tipo de solicitud a crear. */
 function MenuTipos({
+  periodoAbierto,
   onElegir,
   onClose,
 }: {
+  periodoAbierto: boolean | undefined;
   onElegir: (id: string) => void;
   onClose: () => void;
 }) {
+  const periodoCerrado = periodoAbierto === false;
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
       <aside
@@ -231,26 +254,45 @@ function MenuTipos({
             ✕
           </button>
         </div>
+        {periodoCerrado && (
+          <p className="mx-4 mb-2 rounded-md bg-amber-400/15 px-3 py-2 text-xs leading-snug text-amber-200">
+            Hoy <b>no está habilitado</b> para subir solicitudes de pago. Solo puedes
+            registrar <b>Solicitudes Urgentes</b>.
+          </p>
+        )}
         <nav className="flex flex-col">
-          {TIPOS_SOLICITUD.map((t) => (
-            <button
-              key={t.id}
-              disabled={!t.disponible}
-              onClick={() => t.disponible && onElegir(t.id)}
-              className={`flex items-center justify-between px-5 py-3.5 text-left text-sm transition ${
-                t.disponible
-                  ? 'hover:bg-white/10'
-                  : 'cursor-not-allowed text-white/40'
-              }`}
-            >
-              {t.label}
-              {!t.disponible && (
-                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide">
-                  Próx.
-                </span>
-              )}
-            </button>
-          ))}
+          {TIPOS_SOLICITUD.map((t) => {
+            const bloqueadoPorPeriodo = periodoCerrado && !t.exentoPeriodo;
+            const habilitado = t.disponible && !bloqueadoPorPeriodo;
+            return (
+              <button
+                key={t.id}
+                disabled={!habilitado}
+                onClick={() => habilitado && onElegir(t.id)}
+                title={
+                  bloqueadoPorPeriodo
+                    ? 'Hoy no está habilitado para subir este tipo de solicitud.'
+                    : undefined
+                }
+                className={`flex items-center justify-between px-5 py-3.5 text-left text-sm transition ${
+                  habilitado
+                    ? 'hover:bg-white/10'
+                    : 'cursor-not-allowed text-white/40'
+                }`}
+              >
+                {t.label}
+                {!t.disponible ? (
+                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide">
+                    Próx.
+                  </span>
+                ) : bloqueadoPorPeriodo ? (
+                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide">
+                    Hoy no
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
         </nav>
       </aside>
     </div>

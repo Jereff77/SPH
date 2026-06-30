@@ -698,6 +698,17 @@ export class SolicitudesService {
     return data ?? [];
   }
 
+  /**
+   * ¿Está abierto hoy el periodo de captura para subir solicitudes? (Fechas CxP,
+   * RPC `cxp_puede_insertar`). Permite al front evitar abrir el alta cuando está
+   * cerrado. NO aplica a Solicitudes Urgentes, que pueden registrarse siempre.
+   */
+  async puedeInsertar(): Promise<{ habilitado: boolean }> {
+    const { data, error } = await this.supabase.admin.rpc('cxp_puede_insertar');
+    if (error) throw new InternalServerErrorException(error.message);
+    return { habilitado: data !== false };
+  }
+
   /** Valida la clasificación y devuelve su aprobador (`uidResponsable`). */
   async responsableDeCategoria(idCategoria: string): Promise<string> {
     if (!idCategoria || idCategoria === '-')
@@ -737,23 +748,107 @@ export class SolicitudesService {
     return data?.razonsocial ?? null;
   }
 
+  /** Tipos de archivo permitidos como documento adjunto → extensión. */
+  private readonly MIME_DOCUMENTO: Record<string, string> = {
+    'application/pdf': 'pdf',
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+  };
+
+  /** Sube un archivo al bucket de CFDI (path `yyyy-MM/<proveedor>/<idCxp>.<ext>`)
+   * y devuelve su URL (se firma al vuelo en cada lectura, ver `documentos.util`). */
+  private async subirArchivoCxp(
+    buffer: Buffer,
+    contentType: string,
+    ext: string,
+    idProveedor: string,
+    idCxp: string,
+  ): Promise<string> {
+    // Defensa en profundidad: el segmento <proveedor> no debe alterar la ruta
+    // (los ids reales son alfanuméricos; un id con `/`, `\` o `..` no existe en BD,
+    // pero blindamos el helper para que ningún flujo futuro abra path traversal).
+    if (/[/\\]|\.\./.test(idProveedor))
+      throw new BadRequestException('Identificador de contraparte inválido.');
+    const ym = new Date().toISOString().slice(0, 7); // yyyy-MM
+    const path = `${ym}/${idProveedor}/${idCxp}.${ext}`;
+    const { error } = await this.supabase.admin.storage
+      .from(BUCKET_CFDI)
+      .upload(path, buffer, { contentType, upsert: true });
+    if (error) {
+      this.logger.error(`Error subiendo archivo ${path}: ${error.message}`);
+      throw new InternalServerErrorException('No se pudo subir el archivo.');
+    }
+    return this.supabase.admin.storage.from(BUCKET_CFDI).getPublicUrl(path).data
+      .publicUrl;
+  }
+
   /** Sube un comprobante PDF al bucket de CFDI y devuelve su URL pública. */
   private async subirComprobante(
     pdf: Buffer,
     idProveedor: string,
     idCxp: string,
   ): Promise<string> {
-    const ym = new Date().toISOString().slice(0, 7); // yyyy-MM
-    const path = `${ym}/${idProveedor}/${idCxp}.pdf`;
-    const { error } = await this.supabase.admin.storage
-      .from(BUCKET_CFDI)
-      .upload(path, pdf, { contentType: 'application/pdf', upsert: true });
-    if (error) {
-      this.logger.error(`Error subiendo comprobante ${path}: ${error.message}`);
-      throw new InternalServerErrorException('No se pudo subir el archivo PDF.');
+    return this.subirArchivoCxp(pdf, 'application/pdf', 'pdf', idProveedor, idCxp);
+  }
+
+  /**
+   * Verifica que el CONTENIDO real del buffer coincida con el tipo declarado
+   * (magic bytes), porque el mimetype del multipart lo fija el cliente y es
+   * falsificable. Evita guardar contenido arbitrario disfrazado de PDF/imagen.
+   */
+  private contenidoCoincide(buffer: Buffer, ext: string): boolean {
+    const b = buffer;
+    switch (ext) {
+      case 'pdf':
+        return b.length >= 4 && b.toString('latin1', 0, 4) === '%PDF';
+      case 'jpg':
+        return b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+      case 'png':
+        return (
+          b.length >= 8 &&
+          b[0] === 0x89 &&
+          b[1] === 0x50 &&
+          b[2] === 0x4e &&
+          b[3] === 0x47 &&
+          b[4] === 0x0d &&
+          b[5] === 0x0a &&
+          b[6] === 0x1a &&
+          b[7] === 0x0a
+        );
+      case 'webp':
+        return (
+          b.length >= 12 &&
+          b.toString('latin1', 0, 4) === 'RIFF' &&
+          b.toString('latin1', 8, 12) === 'WEBP'
+        );
+      default:
+        return false;
     }
-    return this.supabase.admin.storage.from(BUCKET_CFDI).getPublicUrl(path).data
-      .publicUrl;
+  }
+
+  /** Valida y sube el documento adjunto OPCIONAL de una devolución (PDF o imagen). */
+  private async subirDocumentoDevolucion(
+    archivo: { buffer: Buffer; mimetype: string },
+    idProveedor: string,
+    idCxp: string,
+  ): Promise<string> {
+    const ext = this.MIME_DOCUMENTO[archivo.mimetype];
+    if (!ext)
+      throw new BadRequestException(
+        'El documento adjunto debe ser PDF o imagen (JPG, PNG o WEBP).',
+      );
+    if (!this.contenidoCoincide(archivo.buffer, ext))
+      throw new BadRequestException(
+        'El contenido del archivo no corresponde a un PDF o imagen válidos.',
+      );
+    return this.subirArchivoCxp(
+      archivo.buffer,
+      archivo.mimetype,
+      ext,
+      idProveedor,
+      idCxp,
+    );
   }
 
   /** Inserta una solicitud + su comentario inicial (auditado). */
@@ -867,10 +962,14 @@ export class SolicitudesService {
     );
   }
 
-  /** Devoluciones (tipoOperacion=5, idEstado=1). La contraparte es un Inversionista. */
+  /**
+   * Devoluciones (tipoOperacion=5, idEstado=1). La contraparte es un Inversionista.
+   * `archivo` es un documento adjunto OPCIONAL (PDF o imagen, p. ej. la nota de crédito).
+   */
   async crearDevolucion(
     dto: CrearDevolucionDto,
     actorUid: string,
+    archivo?: { buffer: Buffer; mimetype: string },
   ): Promise<{ idCxp: string }> {
     await this.bloqueo.verificar(actorUid, null); // contraparte = inversionista (sin PPD)
     const uidGerente = await this.responsableDeCategoria(dto.idCategoria);
@@ -878,6 +977,9 @@ export class SolicitudesService {
     if (!nombreProveedor)
       throw new BadRequestException('El cliente/inversionista no existe.');
     const idCxp = this.generarId(15);
+    const urlCFDI = archivo
+      ? await this.subirDocumentoDevolucion(archivo, dto.idInversionista, idCxp)
+      : null;
     return this.insertarEspecial(
       {
         ...this.filaBase(idCxp, actorUid, uidGerente),
@@ -888,6 +990,7 @@ export class SolicitudesService {
         concepto: dto.conceptoDevolucion,
         referencia: dto.conceptoDevolucion,
         total: dto.total,
+        ...(urlCFDI ? { urlCFDI } : {}),
         ultimoComentario: dto.justificacion,
         idEstado: 1,
         esUrgente: false,

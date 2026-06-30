@@ -73,6 +73,12 @@ export class SolicitudesController {
     return this.svc.inversionistas();
   }
 
+  /** ¿Hoy está abierto el periodo para subir solicitudes? (no aplica a urgentes). */
+  @Get('puede-insertar')
+  puedeInsertar() {
+    return this.svc.puedeInsertar();
+  }
+
   // ===================== Alta de tipos especiales =====================
 
   /** Urgentes (tipoOperacion=2): sin archivos. */
@@ -98,13 +104,21 @@ export class SolicitudesController {
     return this.svc.crearLineaCaptura(dto, pdf.buffer, actor.uid);
   }
 
-  /** Devoluciones (tipoOperacion=5): contraparte = inversionista, sin archivos. */
+  /** Devoluciones (tipoOperacion=5): contraparte = inversionista, documento OPCIONAL (PDF o imagen). */
   @Post('devolucion')
+  @UseInterceptors(
+    FileInterceptor('archivo', { limits: { fileSize: LIMITE_ARCHIVO } }),
+  )
   async crearDevolucion(
     @CurrentUser() actor: AuthUser,
+    @UploadedFile() archivo: Express.Multer.File | undefined,
     @Body(new ZodValidationPipe(crearDevolucionSchema)) dto: CrearDevolucionDto,
   ) {
-    return this.svc.crearDevolucion(dto, actor.uid);
+    return this.svc.crearDevolucion(
+      dto,
+      actor.uid,
+      archivo ? { buffer: archivo.buffer, mimetype: archivo.mimetype } : undefined,
+    );
   }
 
   /** Facturas sin XML (tipoOperacion=6): requiere PDF. */
