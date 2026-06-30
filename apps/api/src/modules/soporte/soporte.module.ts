@@ -5,6 +5,7 @@ import { SoporteAdminController } from './soporte-admin.controller.js';
 import { SoporteAdminService } from './soporte-admin.service.js';
 import { KbService } from './kb.service.js';
 import { DiagnosticoService } from './diagnostico.service.js';
+import { ConsultasService } from './consultas.service.js';
 import { CorreoModule } from '../correo/correo.module.js';
 
 /**
@@ -19,6 +20,6 @@ import { CorreoModule } from '../correo/correo.module.js';
 @Module({
   imports: [CorreoModule],
   controllers: [SoporteController, SoporteAdminController],
-  providers: [SoporteService, SoporteAdminService, KbService, DiagnosticoService],
+  providers: [SoporteService, SoporteAdminService, KbService, DiagnosticoService, ConsultasService],
 })
 export class SoporteModule {}

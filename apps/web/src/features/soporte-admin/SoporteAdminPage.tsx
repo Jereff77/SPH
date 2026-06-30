@@ -294,6 +294,46 @@ function ModalConversacion({
                     )}
                   </div>
                 </div>
+                {/* Razonamiento del agente (auditoría): herramientas + SQL generado */}
+                {(m.debugSql || (m.debugMeta?.traza && m.debugMeta.traza.length > 0)) && (
+                  <details className="mx-auto w-[85%] rounded-lg border border-gray-200 bg-gray-50 text-[11px] text-gray-600">
+                    <summary className="cursor-pointer px-2 py-1 font-medium text-gray-500">
+                      🔎 Razonamiento del agente (herramientas / SQL)
+                    </summary>
+                    <div className="space-y-2 px-2 py-2">
+                      {m.debugMeta?.traza && m.debugMeta.traza.length > 0 && (
+                        <ol className="space-y-1">
+                          {m.debugMeta.traza.map((p, i) =>
+                            p.tipo === 'pensamiento' ? (
+                              <li key={i} className="italic text-indigo-700">
+                                💭 {p.texto}
+                              </li>
+                            ) : (
+                              <li key={i} className="pl-2">
+                                ⚙️ <span className="font-mono text-gray-800">{p.tool}</span>
+                                {p.tool === 'consultar_datos' && typeof p.args?.consulta === 'string' ? (
+                                  <span className="text-gray-500"> </span>
+                                ) : p.args && Object.keys(p.args).length > 0 ? (
+                                  <span className="text-gray-500"> ({JSON.stringify(p.args)})</span>
+                                ) : null}
+                                {p.error ? (
+                                  <span className="text-red-600"> — error: {p.error}</span>
+                                ) : p.total_filas != null ? (
+                                  <span className="text-green-700"> — {p.total_filas} fila(s)</span>
+                                ) : null}
+                              </li>
+                            ),
+                          )}
+                        </ol>
+                      )}
+                      {m.debugSql && (
+                        <pre className="overflow-auto rounded bg-gray-900 p-2 text-[10px] leading-snug text-gray-100">
+                          {m.debugSql}
+                        </pre>
+                      )}
+                    </div>
+                  </details>
+                )}
                 <p className="text-center text-[11px] text-gray-400">{fechaHora(m.fc)}</p>
               </div>
             ))

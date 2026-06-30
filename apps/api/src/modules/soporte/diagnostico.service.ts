@@ -85,7 +85,7 @@ export class DiagnosticoService {
         function: {
           name: 'por_que_no_aparece_en_planes',
           description:
-            'Diagnostica por qué un inversionista NO aparece en el selector de Ventas → Planes (donde se le crea o consulta su plan de pagos). Primero obtén el idInversionista con buscar_cliente. Devuelve la causa concreta y la acción recomendada.',
+            'ÚSALA SOLO para el selector de INVERSIONISTAS de Ventas → Planes (crear/consultar el plan de pagos de un inversionista). NO la uses para naves ni para Arrendatarios. Primero obtén el idInversionista con buscar_cliente. Devuelve la causa y la acción.',
           parameters: {
             type: 'object',
             properties: {
@@ -95,6 +95,34 @@ export class DiagnosticoService {
               },
             },
             required: ['idInversionista'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'diagnosticar_nave',
+          description:
+            'Diagnostica por qué una NAVE no aparece como disponible para vincular/rentar/vender, o su estado actual. Úsala cuando el usuario diga que una nave "no le aparece", "no la ve", "no se puede vincular/rentar" o pregunte si está libre. La disponibilidad depende del contexto: en ARRENDATARIOS una nave está disponible si Arrendada=false; en VENTAS si su situación es "Disponible".',
+          parameters: {
+            type: 'object',
+            properties: {
+              parque: {
+                type: 'string',
+                description: 'Nombre (o parte) del parque, p. ej. "Acupark II".',
+              },
+              numNave: {
+                type: 'string',
+                description: 'Número o nombre de la nave, p. ej. "4".',
+              },
+              contexto: {
+                type: 'string',
+                enum: ['arrendatarios', 'ventas'],
+                description:
+                  'Para qué se quiere la nave: "arrendatarios" (rentar) o "ventas" (vender). Si no estás seguro, omítelo.',
+              },
+            },
+            required: ['parque', 'numNave'],
           },
         },
       },
@@ -116,6 +144,8 @@ export class DiagnosticoService {
           return await this.buscarCliente(args, perfil);
         case 'por_que_no_aparece_en_planes':
           return await this.porQueNoApareceEnPlanes(args, perfil);
+        case 'diagnosticar_nave':
+          return await this.diagnosticarNave(args, perfil);
         default:
           return { error: `Herramienta desconocida: ${nombre}` };
       }
@@ -226,6 +256,15 @@ export class DiagnosticoService {
       accionSugerida = 'El cliente debería aparecer y tener al menos un plan activo.';
     }
 
+    // Todas las causas posibles aquí son de ESTADO de datos (corregibles en la app),
+    // no fallas de sistema.
+    const tipoFalla =
+      apareceEnSelector && (propiedades.length === 0 || !tienePlanActivo)
+        ? 'datos'
+        : !apareceEnSelector
+          ? 'datos'
+          : 'ninguna';
+
     return {
       existe: true,
       apareceEnSelector,
@@ -237,7 +276,103 @@ export class DiagnosticoService {
         propiedadesVinculadas: propiedades.length,
         tienePlanActivo,
       },
+      tipoFalla,
+      corregibleEnApp: tipoFalla === 'datos',
       accionSugerida,
     };
+  }
+
+  private async diagnosticarNave(
+    args: Record<string, unknown>,
+    perfil: PerfilDiag,
+  ): Promise<unknown> {
+    // Arrendatarios (claves 20/25) o Ventas (300/610) o soporte.
+    if (!this.tieneAcceso(perfil, [20, 25, 300, 610])) {
+      return { error: 'sin_permiso', mensaje: 'El usuario no tiene permiso para consultar naves.' };
+    }
+    const parque = typeof args.parque === 'string' ? args.parque : '';
+    const numNave = args.numNave != null ? String(args.numNave) : '';
+    const contexto = args.contexto === 'ventas' ? 'ventas' : args.contexto === 'arrendatarios' ? 'arrendatarios' : null;
+
+    // Parte alfabética del parque (allowlist), p. ej. "Acupark" — evita el problema
+    // "2" vs "II" trayendo todos los parques que coincidan y dejando desambiguar.
+    const qParque = parque.replace(/[^\p{L} ]/gu, ' ').replace(/\s+/g, ' ').trim();
+    const nName = numNave.replace(/[^\p{L}\p{N}]/gu, '');
+    const nNum = parseInt(numNave.replace(/\D/g, ''), 10);
+    if (!qParque || !nName) {
+      return { error: 'Indica el parque y el número de nave.' };
+    }
+
+    const filtroNum = Number.isFinite(nNum)
+      ? `numNaveNAME.eq.${nName},numNave.eq.${nNum}`
+      : `numNaveNAME.eq.${nName}`;
+
+    const { data, error } = await this.db
+      .from('naves')
+      .select('idNave, numNave, numNaveNAME, situacion, Arrendada, status, esTicket, parques!inner(nomParque)')
+      .ilike('parques.nomParque', `%${qParque}%`)
+      .or(filtroNum)
+      .limit(10);
+    if (error) throw new Error(error.message);
+
+    if (!data || data.length === 0) {
+      return {
+        encontrada: false,
+        mensaje: `No encontré la nave "${numNave}" en un parque que coincida con "${parque}". Puede que no esté dada de alta, o que el nombre del parque/nave no sea exacto.`,
+      };
+    }
+
+    const coincidencias = data.map((n) => {
+      const parqueRel = n.parques as unknown as { nomParque: string | null } | { nomParque: string | null }[];
+      const nomParque = Array.isArray(parqueRel) ? parqueRel[0]?.nomParque : parqueRel?.nomParque;
+      const activa = n.status === true;
+      const arrendada = n.Arrendada === true;
+      const disponibleArrendar = activa && !arrendada && n.esTicket === false;
+      const disponibleVender = activa && n.situacion === 'Disponible' && n.esTicket === false;
+
+      let causaArrendatarios: string;
+      if (!activa) causaArrendatarios = 'La nave está inactiva (status = false).';
+      else if (arrendada)
+        causaArrendatarios =
+          'La nave ya está marcada como RENTADA (Arrendada = true): no aparece en el selector de Arrendatarios, que solo muestra naves libres. Si ese arrendamiento ya no aplica, hay que LIBERARLA (ponerla como no arrendada) para poder vincularla a otro arrendatario.';
+      else causaArrendatarios = 'La nave está LIBRE (Arrendada = false): debería aparecer para rentar en ese parque.';
+
+      let causaVentas: string;
+      if (!activa) causaVentas = 'La nave está inactiva (status = false).';
+      else if (n.situacion !== 'Disponible')
+        causaVentas = `La nave no está disponible para venta (situación = "${n.situacion}"): el selector de Ventas solo muestra naves con situación "Disponible".`;
+      else causaVentas = 'La nave está Disponible para venta.';
+
+      // El estado de la nave (rentada/inactiva) es una falla de DATOS corregible
+      // operativamente (liberar / activar), no una falla de sistema.
+      const tipoFalla =
+        contexto === 'ventas'
+          ? activa && n.situacion === 'Disponible'
+            ? 'ninguna'
+            : 'datos'
+          : activa && !arrendada
+            ? 'ninguna'
+            : 'datos';
+
+      return {
+        parque: nomParque,
+        nave: n.numNaveNAME ?? n.numNave,
+        situacion: n.situacion,
+        arrendada,
+        activa,
+        esTicket: n.esTicket === true,
+        disponibleParaRentar: disponibleArrendar,
+        disponibleParaVender: disponibleVender,
+        tipoFalla,
+        corregibleEnApp: tipoFalla === 'datos',
+        ...(contexto === 'arrendatarios'
+          ? { diagnostico: causaArrendatarios }
+          : contexto === 'ventas'
+            ? { diagnostico: causaVentas }
+            : { diagnosticoArrendatarios: causaArrendatarios, diagnosticoVentas: causaVentas }),
+      };
+    });
+
+    return { encontrada: true, total: coincidencias.length, coincidencias };
   }
 }

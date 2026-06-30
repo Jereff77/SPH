@@ -1,25 +1,62 @@
-import { useCallback, useState } from 'react';
-import { soporteApi, type MensajeSoporte, type PropuestaTicket } from './soporte.api';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  soporteApi,
+  type MensajeSoporte,
+  type PropuestaTicket,
+  type SesionSoporte,
+} from './soporte.api';
+
+// La conversación en curso se recuerda entre recargas (el historial completo vive
+// server-side; aquí solo guardamos cuál es la sesión activa).
+const LS_SESION = 'sph_soporte_session';
 
 /**
  * Lógica del Agente de IA de Soporte (widget flotante). El frontend NO habla con
- * Supabase: todo pasa por `soporteApi` (backend proxy). Mantiene una conversación
- * en curso; "nueva conversación" la reinicia. La persistencia es server-side.
+ * Supabase: todo pasa por `soporteApi` (backend proxy). La persistencia es
+ * server-side; al recargar se retoma la última conversación y se pueden abrir las
+ * anteriores.
  */
 export function useSoporte() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [mensajes, setMensajes] = useState<MensajeSoporte[]>([]);
   const [ocupado, setOcupado] = useState(false);
+  const [cargando, setCargando] = useState(false);
   // Datos de la última respuesta del agente para la escalación.
   const [puedeEscalar, setPuedeEscalar] = useState(false);
   const [modulosUlt, setModulosUlt] = useState<string[]>([]);
+
+  // Al montar: retoma la conversación en curso (si la había) cargando sus mensajes.
+  useEffect(() => {
+    const guardada = localStorage.getItem(LS_SESION);
+    if (!guardada) return;
+    setCargando(true);
+    soporteApi
+      .mensajes(guardada)
+      .then((msgs) => {
+        setSessionId(guardada);
+        setMensajes(msgs);
+        const ultAi = [...msgs].reverse().find((m) => m.tipo === 'ai');
+        setPuedeEscalar(!!ultAi?.escalable);
+      })
+      .catch(() => {
+        // La sesión ya no existe o no es accesible: empezamos limpio.
+        localStorage.removeItem(LS_SESION);
+      })
+      .finally(() => setCargando(false));
+  }, []);
+
+  const recordarSesion = useCallback((id: string | null) => {
+    if (id) localStorage.setItem(LS_SESION, id);
+    else localStorage.removeItem(LS_SESION);
+  }, []);
 
   const nuevaConversacion = useCallback(() => {
     setSessionId(null);
     setMensajes([]);
     setPuedeEscalar(false);
     setModulosUlt([]);
-  }, []);
+    recordarSesion(null);
+  }, [recordarSesion]);
 
   const enviar = useCallback(
     async (texto: string, rutaActual?: string) => {
@@ -31,6 +68,7 @@ export function useSoporte() {
       try {
         const data = await soporteApi.enviar(t, sessionId ?? undefined, rutaActual);
         setSessionId(data.sessionId);
+        recordarSesion(data.sessionId);
         setModulosUlt(data.modulos ?? []);
         setPuedeEscalar(!!data.escalable);
         setMensajes((prev) => [
@@ -56,7 +94,48 @@ export function useSoporte() {
         setOcupado(false);
       }
     },
-    [ocupado, sessionId],
+    [ocupado, sessionId, recordarSesion],
+  );
+
+  // --- Conversaciones anteriores -------------------------------------------
+
+  /** Lista las conversaciones previas del usuario (para el panel de historial). */
+  const listarSesiones = useCallback((): Promise<SesionSoporte[]> => soporteApi.sesiones(), []);
+
+  /** Abre una conversación anterior cargando sus mensajes. */
+  const abrirSesion = useCallback(
+    async (id: string) => {
+      setCargando(true);
+      try {
+        const msgs = await soporteApi.mensajes(id);
+        setSessionId(id);
+        recordarSesion(id);
+        setMensajes(msgs);
+        setModulosUlt([]);
+        const ultAi = [...msgs].reverse().find((m) => m.tipo === 'ai');
+        setPuedeEscalar(!!ultAi?.escalable);
+      } catch (e) {
+        console.error('No se pudo abrir la conversación:', e);
+      } finally {
+        setCargando(false);
+      }
+    },
+    [recordarSesion],
+  );
+
+  /** Renombra una conversación (el título lo ve el usuario en el historial). */
+  const renombrarSesion = useCallback(
+    (id: string, titulo: string) => soporteApi.renombrar(id, titulo.trim()),
+    [],
+  );
+
+  /** Elimina una conversación; si es la activa, empieza una nueva. */
+  const eliminarSesion = useCallback(
+    async (id: string) => {
+      await soporteApi.eliminar(id);
+      if (id === sessionId) nuevaConversacion();
+    },
+    [sessionId, nuevaConversacion],
   );
 
   /**
@@ -108,12 +187,18 @@ export function useSoporte() {
   );
 
   return {
+    sessionId,
     mensajes,
     ocupado,
+    cargando,
     puedeEscalar,
     enviar,
     proponerTicket,
     escalar,
     nuevaConversacion,
+    listarSesiones,
+    abrirSesion,
+    renombrarSesion,
+    eliminarSesion,
   };
 }

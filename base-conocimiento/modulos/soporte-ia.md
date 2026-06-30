@@ -129,33 +129,52 @@ Tiene **dos pestañas**:
 - Parámetros `SOPORTE_IA_*` en `SPHConfiguraciones`.
 - SQL: `base-conocimiento/migraciones/2026-06-12-soporte-ia.sql`.
 
-## 10. Herramientas de diagnóstico (function-calling) — Fase 1 (v2.46.0)
-El agente puede **diagnosticar problemas reales** consultando la BD en vivo (no solo explicar el
-sistema), replicando lo que hace un desarrollador: ante "no me aparece X / no me deja Y" sobre un
-cliente, mira los datos y devuelve **causa + acción**.
+## 10. Capacidades de datos del agente (function-calling) — v2.46.0 → v2.47.0
+Además de explicar el sistema, el agente **diagnostica problemas reales** y **responde preguntas de
+datos** consultando la BD en vivo, vía **function-calling** (OpenRouter).
 
-- **Arquitectura:** **function-calling** vía OpenRouter. La edge `soporte-chat` reenvía las `tools`
-  y devuelve el `message` del modelo (con `tool_calls`); el **tool-loop vive en el backend**
-  (`SoporteService.enviar`), que es quien tiene acceso a datos, RBAC y auditoría. Tope de
-  **4 iteraciones** de herramientas por pregunta.
-- **Catálogo** (`DiagnosticoService`, `diagnostico.service.ts`):
-  - `buscar_cliente(texto)` → identifica al cliente por nombre/razón social/RFC. Devuelve id + nombre
-    + tipos (sin CURP/correo/teléfono/RFC). Filtro con **allowlist** (sin metacaracteres PostgREST).
-  - `por_que_no_aparece_en_planes(idInversionista)` → evalúa las condiciones reales del selector de
-    Planes (`inversionista=true`, `pruebas=false`, `status=true`) + si tiene propiedades/plan activo;
-    devuelve causa(s) + acción.
-- **Seguridad:** cada herramienta valida **RBAC** del que pregunta (claves **300/610** o `isSupport`)
-  ANTES de consultar; **solo lectura**; **switch cerrado** (nombre inválido → no ejecuta); errores de
-  BD no se filtran al modelo (solo al log). Lo que viaja a OpenRouter es la pregunta + el **resultado
-  saneado** (causa+acción), nunca filas crudas. 📌 **Decisión consciente:** el nombre/razón social y
-  el `idInversionista` sí viajan al LLM (aceptable: el usuario ya tiene permiso 300/610 para verlos).
-- **⚠️ Operativo:** la edge **NO** se despliega con el push de api/web; requiere
-  `supabase functions deploy soporte-chat`. Y el modelo de `SOPORTE_IA_MODELO` debe soportar tools
-  (p. ej. `openai/gpt-4o-mini` o `anthropic/claude-3.5-sonnet`).
-- **Backward-compatible:** si la edge vieja aún no está desplegada, ignora `tools` y no devuelve
-  `message` → el backend cae a la respuesta de texto (el agente funciona como antes, sin diagnóstico).
-- **Pendiente (Fases 2-3):** resto del Patrón A (`radiografia_cliente`, otros selectores, permisos) y
-  **detectores de anomalía** que escalan ticket diagnosticado (idEstado=3+Pagado, folio duplicado…).
+### Arquitectura común
+- La edge `soporte-chat` reenvía `tools` y devuelve `message` (con `tool_calls`); el **tool-loop vive
+  en el backend** (`SoporteService.enviar`, **tope 6 iteraciones**), que tiene acceso a datos, RBAC y
+  auditoría. Modelo en `SOPORTE_IA_MODELO` (debe soportar tools; hoy **`openai/gpt-4o`**).
+- **Instrumentación / auditoría:** cada mensaje guarda en `v2_soporte_mensajes` el **`debug_sql`** (SQL
+  generado) y **`debug_meta.traza`** (razonamiento del modelo `tipo:'pensamiento'` + herramientas
+  `tipo:'herramienta'` con error/total_filas). Se ve en **Configuraciones → Soporte → Conversaciones**
+  (bloque "🔎 Razonamiento del agente", solo soporte). El system prompt pide al modelo **explicar en
+  1-2 frases** por qué usa cada herramienta (queda en la traza).
+
+### A) Herramientas de diagnóstico ENLATADAS (`DiagnosticoService`, `diagnostico.service.ts`)
+- `buscar_cliente(texto)` → identifica cliente por nombre/razón social/RFC (id + nombre + tipos, sin
+  PII; filtro allowlist).
+- `por_que_no_aparece_en_planes(idInversionista)` → condiciones del selector de Planes + propiedades/plan.
+- `diagnosticar_nave(parque, numNave, contexto)` → disponibilidad de la nave. **Arrendatarios** =
+  `status=true AND Arrendada=false`; **Ventas** = `situacion='Disponible'` (reglas reales de v1). Trae
+  todas las coincidencias por parque (resuelve "Acupark 2"≈"Acupark II").
+- Cada una valida **RBAC por clave** (300/610/20/25 o `isSupport`) ANTES de consultar; solo lectura;
+  **switch cerrado**; salida saneada con **`tipoFalla`** (`datos` corregible vs `sistema` → escalar).
+
+### B) CONSULTA DE DATOS libre acotada por claves (`ConsultasService`, `consultas.service.ts`) — text-to-SQL
+Responde preguntas analíticas ("cuántos clientes nuevos…") sobre **los módulos cuya clave tiene el
+usuario**. Herramientas `describir_tablas(tablas)` (columnas bajo demanda) + `consultar_datos(sql)`.
+- **Doble barrera de seguridad:** (1) **backend** valida que sea SELECT y que el SQL **solo toque
+  tablas del universo permitido por las claves** del usuario (mapa `MODULOS_DATOS` + `COMUNES`;
+  `tablasFueraDeUniverso`); (2) **BD**: ejecuta vía `agente_consulta_sql` con el rol **`v2_agente_ro`**
+  (SELECT solo de negocio, nunca sistema/auth/secretos; BYPASSRLS, límite = sus grants). Coherente con
+  el RBAC por clave del proyecto (no hay aislamiento por fila).
+- **Prompt compacto:** lista de tablas por módulo + **RELACIONES CLAVE** (JOINs) — las columnas se
+  piden con `describir_tablas` (evita un prompt gigante para usuarios con muchas claves).
+- El **error real de Postgres se devuelve al MODELO** (no al usuario) para que **auto-corrija** el SQL;
+  el usuario solo ve la respuesta redactada.
+- Objetos BD: rol `v2_agente_ro`, funciones `agente_consulta_sql` (SECURITY INVOKER, valida solo-SELECT,
+  cap 5000 filas) y `agente_esquema` (metadatos). Migración
+  `migraciones/2026-06-29-agente-consulta-sql-rol-ro.sql`.
+
+### Operativo / pendientes
+- La edge `soporte-chat` se despliega aparte (`supabase functions deploy soporte-chat`), NO con el push.
+- ⚠️ **Deuda:** con `anthropic/claude-3.5-haiku` la edge `soporte-chat` devolvió **502** (Montse/`ia-chat`
+  sí funciona con haiku) → falta **alinear `soporte-chat` con `ia-chat`** (p. ej. quitar `temperature`);
+  mientras, se usa `openai/gpt-4o`. Otras deudas: mover lecturas de `DiagnosticoService` de `admin` a un
+  rol RO; detectores de anomalía que escalan ticket; afinar el parser `tablasFueraDeUniverso`.
 
 ## 8. Fase 2 (futura)
 Migrar el router de la KB a **búsqueda semántica con `pgvector`** (tabla `v2_kb_embeddings`)
@@ -173,9 +192,10 @@ implementación sin tocar el resto. La KB en markdown sigue siendo la fuente de 
   errores de lectura con `v2_soporte_ro` (ahora se loguean, no se silencian) y (2) las REGLAS de
   `construirSystemPrompt`. **No** consulta permisos de OTROS usuarios ni datos de negocio (eso es
   Montse AI o un ticket).
-- **El agente SÍ consulta la BD en vivo mediante herramientas de diagnóstico** (desde v2.46.0, §10).
-  La edge `soporte-chat` ahora soporta **function-calling** y el **tool-loop vive en el backend**.
-  Las herramientas son **enlatadas** (no SQL libre): el modelo elige cuál y con qué parámetros, el
+- **El agente SÍ consulta la BD en vivo** (desde v2.46.0, §10): herramientas **enlatadas** de
+  diagnóstico **y** (desde v2.47.0) **text-to-SQL acotado por claves** (`consultar_datos`). La edge
+  `soporte-chat` soporta **function-calling** y el **tool-loop vive en el backend**. Para el diagnóstico,
+  el modelo elige la herramienta y sus parámetros; el
   backend ejecuta una consulta fija de solo lectura y devuelve un resultado saneado.
 - El marcador `[[ESCALAR]]` que el modelo añade al final de una respuesta es **interno**: el
   backend lo detecta para mostrar el botón de ticket y lo **retira** del texto visible.

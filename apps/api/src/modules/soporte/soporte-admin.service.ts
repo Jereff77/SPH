@@ -28,6 +28,9 @@ export interface MensajeAdmin {
   tokensEntrada: number | null;
   tokensSalida: number | null;
   fc: string;
+  /** Razonamiento del agente (auditoría): SQL generado y traza de herramientas. */
+  debugSql: string | null;
+  debugMeta: unknown;
 }
 
 /** Conversación completa (cabecera + mensajes) para revisión. */
@@ -183,7 +186,7 @@ export class SoporteAdminService {
     const { data, error } = await this.db
       .from('v2_soporte_mensajes')
       .select(
-        'uuid, pregunta, respuesta, escalable, modulos_detectados, ruta_origen, tokens_entrada, tokens_salida, fc',
+        'uuid, pregunta, respuesta, escalable, modulos_detectados, ruta_origen, tokens_entrada, tokens_salida, fc, debug_sql, debug_meta',
       )
       .eq('session_id', sessionId)
       .order('fc', { ascending: true });
@@ -200,6 +203,8 @@ export class SoporteAdminService {
         tokens_entrada: number | null;
         tokens_salida: number | null;
         fc: string;
+        debug_sql: string | null;
+        debug_meta: unknown;
       }[]
     ).map((m) => ({
       uuid: m.uuid,
@@ -211,6 +216,8 @@ export class SoporteAdminService {
       tokensEntrada: m.tokens_entrada,
       tokensSalida: m.tokens_salida,
       fc: m.fc,
+      debugSql: m.debug_sql ?? null,
+      debugMeta: m.debug_meta ?? null,
     }));
 
     return {

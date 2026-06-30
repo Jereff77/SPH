@@ -3,10 +3,19 @@ import { useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useSoporte } from './useSoporte';
-import type { MensajeSoporte } from './soporte.api';
+import type { MensajeSoporte, SesionSoporte } from './soporte.api';
 
 const hora = (iso: string) =>
   new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+
+const fechaSesion = (iso: string) =>
+  new Date(iso).toLocaleDateString('es-MX', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
 const MD = {
   p: ({ children }: { children?: React.ReactNode }) => <p className="mb-2 last:mb-0">{children}</p>,
@@ -117,18 +126,68 @@ function FormEscalar({
  */
 export function SoporteWidget() {
   const { pathname } = useLocation();
-  const { mensajes, ocupado, puedeEscalar, enviar, proponerTicket, escalar, nuevaConversacion } =
-    useSoporte();
+  const {
+    mensajes,
+    ocupado,
+    cargando,
+    puedeEscalar,
+    enviar,
+    proponerTicket,
+    escalar,
+    nuevaConversacion,
+    listarSesiones,
+    abrirSesion,
+    renombrarSesion,
+    eliminarSesion,
+  } = useSoporte();
   const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState('');
   const [escalando, setEscalando] = useState(false);
   const [proponiendo, setProponiendo] = useState(false);
   const [propuesta, setPropuesta] = useState<{ asunto: string; resumen: string } | null>(null);
+  // Panel de conversaciones anteriores.
+  const [verHistorial, setVerHistorial] = useState(false);
+  const [sesiones, setSesiones] = useState<SesionSoporte[]>([]);
+  const [cargandoSesiones, setCargandoSesiones] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (abierto) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [mensajes, ocupado, abierto, escalando]);
+    if (abierto && !verHistorial) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [mensajes, ocupado, abierto, escalando, verHistorial]);
+
+  const abrirHistorial = async () => {
+    setVerHistorial(true);
+    setCargandoSesiones(true);
+    try {
+      setSesiones(await listarSesiones());
+    } catch (e) {
+      console.error('No se pudieron cargar las conversaciones:', e);
+    } finally {
+      setCargandoSesiones(false);
+    }
+  };
+
+  const elegirSesion = async (id: string) => {
+    await abrirSesion(id);
+    setVerHistorial(false);
+    setEscalando(false);
+    setPropuesta(null);
+  };
+
+  const renombrar = async (s: SesionSoporte) => {
+    const titulo = window.prompt('Nuevo nombre de la conversación:', s.titulo ?? '');
+    if (titulo == null || !titulo.trim()) return;
+    await renombrarSesion(s.uuid, titulo);
+    setSesiones((prev) =>
+      prev.map((x) => (x.uuid === s.uuid ? { ...x, titulo: titulo.trim() } : x)),
+    );
+  };
+
+  const borrar = async (s: SesionSoporte) => {
+    if (!window.confirm('¿Eliminar esta conversación?')) return;
+    await eliminarSesion(s.uuid);
+    setSesiones((prev) => prev.filter((x) => x.uuid !== s.uuid));
+  };
 
   const mandar = () => {
     if (texto.trim() && !ocupado) {
@@ -187,7 +246,19 @@ export function SoporteWidget() {
             </div>
             <div className="flex items-center gap-1">
               <button
-                onClick={nuevaConversacion}
+                onClick={() => (verHistorial ? setVerHistorial(false) : void abrirHistorial())}
+                title={verHistorial ? 'Volver al chat' : 'Conversaciones anteriores'}
+                className={`rounded p-1.5 text-white/80 hover:bg-white/10 ${verHistorial ? 'bg-white/15' : ''}`}
+              >
+                🕘
+              </button>
+              <button
+                onClick={() => {
+                  nuevaConversacion();
+                  setVerHistorial(false);
+                  setEscalando(false);
+                  setPropuesta(null);
+                }}
                 title="Nueva conversación"
                 className="rounded p-1.5 text-white/80 hover:bg-white/10"
               >
@@ -203,9 +274,63 @@ export function SoporteWidget() {
             </div>
           </div>
 
-          {/* Mensajes */}
+          {/* Panel de conversaciones anteriores */}
+          {verHistorial ? (
+            <div className="flex flex-1 flex-col overflow-y-auto">
+              <div className="border-b bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500">
+                Conversaciones anteriores
+              </div>
+              {cargandoSesiones ? (
+                <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
+                  Cargando…
+                </div>
+              ) : sesiones.length === 0 ? (
+                <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-slate-400">
+                  Aún no tienes conversaciones guardadas.
+                </div>
+              ) : (
+                <ul className="divide-y">
+                  {sesiones.map((s) => (
+                    <li
+                      key={s.uuid}
+                      className="group flex items-center gap-2 px-3 py-2 hover:bg-slate-50"
+                    >
+                      <button
+                        onClick={() => void elegirSesion(s.uuid)}
+                        className="flex min-w-0 flex-1 flex-col text-left"
+                      >
+                        <span className="truncate text-sm text-slate-800">
+                          {s.titulo?.trim() || 'Conversación'}
+                        </span>
+                        <span className="text-[10px] text-slate-400">{fechaSesion(s.fc)}</span>
+                      </button>
+                      <button
+                        onClick={() => void renombrar(s)}
+                        title="Renombrar"
+                        className="rounded p-1 text-slate-400 opacity-0 hover:bg-slate-200 hover:text-slate-700 group-hover:opacity-100"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => void borrar(s)}
+                        title="Eliminar"
+                        className="rounded p-1 text-red-400 opacity-0 hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+                      >
+                        🗑
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+          /* Mensajes */
           <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-3 py-4">
-            {mensajes.length === 0 && !ocupado ? (
+            {cargando ? (
+              <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
+                Cargando conversación…
+              </div>
+            ) : mensajes.length === 0 && !ocupado ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center text-slate-400">
                 <span className="text-3xl">👋</span>
                 <p className="text-sm">
@@ -260,8 +385,10 @@ export function SoporteWidget() {
             )}
             <div ref={bottomRef} />
           </div>
+          )}
 
-          {/* Input */}
+          {/* Input (oculto en el historial) */}
+          {!verHistorial && (
           <div className="border-t bg-white px-3 pb-3 pt-2">
             <div className="flex items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-400 focus-within:bg-white">
               <textarea
@@ -286,6 +413,7 @@ export function SoporteWidget() {
               El asistente puede equivocarse. Verifica lo importante.
             </p>
           </div>
+          )}
         </div>
       )}
     </>

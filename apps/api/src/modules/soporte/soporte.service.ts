@@ -6,6 +6,7 @@ import { CuentasService } from '../correo/cuentas.service.js';
 import { SmtpService } from '../correo/smtp.service.js';
 import { KbService } from './kb.service.js';
 import { DiagnosticoService, type ToolSpec } from './diagnostico.service.js';
+import { ConsultasService } from './consultas.service.js';
 import type { Env } from '../../common/config/env.validation.js';
 import type { EscalarDto, MensajeDto, ProponerTicketDto } from './soporte.schemas.js';
 
@@ -51,7 +52,8 @@ interface RespuestaEdge {
 }
 
 // Tope de iteraciones del tool-loop (evita bucles de llamadas a herramientas).
-const MAX_ITER_TOOLS = 4;
+// Margen para: describir_tablas → consultar_datos (+ algún reintento de SQL).
+const MAX_ITER_TOOLS = 6;
 
 // Marcador que el modelo añade cuando recomienda escalar a un humano. El backend
 // lo detecta (escalable=true) y lo retira del texto mostrado al usuario.
@@ -86,6 +88,7 @@ export class SoporteService {
     private readonly config: ConfigService<Env, true>,
     private readonly kb: KbService,
     private readonly diagnostico: DiagnosticoService,
+    private readonly consultas: ConsultasService,
     private readonly cuentas: CuentasService,
     private readonly smtp: SmtpService,
   ) {}
@@ -196,7 +199,14 @@ export class SoporteService {
 
     // 5) Mensajes para el modelo.
     const promptBase = await this.param('SOPORTE_IA_PROMPT', DEFAULT_PROMPT);
-    const system = this.construirSystemPrompt(promptBase, seleccion.contenido, perfil, dto.rutaActual);
+    const esquemaDatos = this.consultas.esquemaPrompt(perfil);
+    const system = this.construirSystemPrompt(
+      promptBase,
+      seleccion.contenido,
+      perfil,
+      dto.rutaActual,
+      esquemaDatos,
+    );
     const messages: ChatMessage[] = [{ role: 'system', content: system }];
     for (const m of historial.slice(-10)) {
       messages.push({ role: m.tipo === 'user' ? 'user' : 'assistant', content: m.texto });
@@ -209,10 +219,13 @@ export class SoporteService {
     // 7) Tool-loop: invoca el modelo con las herramientas de diagnóstico. Si pide
     //    una herramienta, el backend la ejecuta (SOLO LECTURA, RBAC, saneada) y le
     //    devuelve el resultado; se repite hasta que el modelo responde en texto.
-    const tools = this.diagnostico.toolSpecs();
+    const tools = [...this.diagnostico.toolSpecs(), ...this.consultas.toolSpecs(perfil)];
     let edge: RespuestaEdge = {};
     let tokensEntrada = 0;
     let tokensSalida = 0;
+    // Instrumentación de depuración: SQL generado y traza de herramientas/errores.
+    const sqlsGenerados: string[] = [];
+    const traza: Record<string, unknown>[] = [];
     for (let iter = 0; ; iter++) {
       edge = await this.invocarEdge(userJwt, messages, modelo, tools);
       tokensEntrada += edge.tokens?.entrada ?? 0;
@@ -233,6 +246,9 @@ export class SoporteService {
         content: edge.message?.content ?? '',
         tool_calls: toolCalls,
       });
+      // Razonamiento del modelo en esta iteración (por qué va a usar las herramientas).
+      const pensamiento = edge.message?.content?.trim();
+      if (pensamiento) traza.push({ iter, tipo: 'pensamiento', texto: pensamiento });
       for (const tc of toolCalls) {
         let args: Record<string, unknown> = {};
         try {
@@ -240,7 +256,22 @@ export class SoporteService {
         } catch {
           args = {};
         }
-        const resultado = await this.diagnostico.ejecutar(tc.function.name, args, perfil);
+        const resultado = this.consultas.maneja(tc.function.name)
+          ? await this.consultas.ejecutar(tc.function.name, args, perfil, uid)
+          : await this.diagnostico.ejecutar(tc.function.name, args, perfil);
+        // Traza de depuración.
+        const r = resultado as Record<string, unknown> | null;
+        if (tc.function.name === 'consultar_datos' && typeof args.consulta === 'string') {
+          sqlsGenerados.push(args.consulta);
+        }
+        traza.push({
+          iter,
+          tipo: 'herramienta',
+          tool: tc.function.name,
+          args,
+          error: r?.error ?? null,
+          total_filas: r?.total_filas ?? null,
+        });
         messages.push({
           role: 'tool',
           tool_call_id: tc.id,
@@ -264,6 +295,8 @@ export class SoporteService {
       escalable,
       tokensEntrada: tokensEntrada || null,
       tokensSalida: tokensSalida || null,
+      debugSql: sqlsGenerados.join('\n---\n') || null,
+      debugMeta: traza.length ? { traza } : null,
     });
 
     // 10) Auto-título de la sesión con el primer mensaje.
@@ -492,6 +525,7 @@ export class SoporteService {
     kbContenido: string,
     perfil: PerfilUsuario,
     ruta?: string,
+    esquemaDatos?: string,
   ): string {
     const glosario = this.kb.glosario();
     const directorio = this.kb.directorio();
@@ -510,7 +544,14 @@ export class SoporteService {
       `- Tú SOLO conoces los permisos del usuario que te escribe (los de abajo). NO puedes consultar los permisos de OTROS usuarios ni datos de negocio (cuántos inversionistas hay, montos, saldos, reportes): para eso remite al módulo correspondiente u ofrece escalar a un ticket. Esto NO aplica a los permisos del propio usuario, que SÍ debes responder.`,
       `- Siempre que menciones que algo lo gestiona o autoriza otra persona, canaliza al usuario con el responsable correcto según el DIRECTORIO DE CONTACTOS.`,
       `- Si el problema necesita intervención humana (un dato incorrecto, algo que el sistema hizo solo, una falla), ofrece escalar a un ticket y añade en una línea aparte exactamente el marcador ${MARCADOR_ESCALAR} (el sistema lo usa para mostrar el botón de ticket; no lo expliques al usuario).`,
-      `- HERRAMIENTAS DE DIAGNÓSTICO: tienes funciones que consultan el estado real de un caso (p. ej. por qué un cliente NO aparece en un selector). Cuando el usuario reporte que "no aparece / no le sale / no le deja" algo sobre un CLIENTE concreto, ÚSALAS para diagnosticar con datos reales en vez de adivinar: primero "buscar_cliente" para identificarlo y luego la herramienta de diagnóstico que corresponda. Basa tu respuesta en lo que devuelvan (causa + acción). Si una herramienta devuelve "sin_permiso", explícale que no tiene permiso y canalízalo según el directorio. NUNCA inventes datos que la herramienta no devolvió.`,
+      `- HERRAMIENTAS DE DIAGNÓSTICO: tienes funciones que consultan el estado real de un caso. Úsalas en vez de adivinar cuando el usuario reporte "no aparece / no le sale / no le deja". Elige la herramienta SEGÚN LO QUE no aparece: si es una NAVE (no aparece para rentar/vincular/vender) usa "diagnosticar_nave"; si es un INVERSIONISTA en Ventas → Planes usa "por_que_no_aparece_en_planes"; para identificar a un cliente por su nombre usa "buscar_cliente". Basa tu respuesta SOLO en lo que devuelvan (causa + acción).`,
+      `- ⛔ NO fuerces una herramienta fuera de su contexto: el que una empresa sea o no "Inversionista" NO explica por qué una NAVE no aparece para rentar (eso depende de si la nave está libre). Si NINGUNA herramienta aplica al problema, NO inventes la causa: pide los datos que falten (p. ej. nombre del parque y número de nave) u ofrece escalar un ticket. Si una herramienta devuelve "sin_permiso", explícale que no tiene permiso y canalízalo según el directorio.`,
+      `- CLASIFICA Y AYUDA A RESOLVER. Tras diagnosticar, di con claridad si la falla es **de datos** o **del sistema**, y actúa en consecuencia:`,
+      `   • FALLA DE DATOS (el estado de un registro causa el problema: una nave marcada como rentada que no se liberó, un cliente sin la casilla "Inversionista", un RFC duplicado, un registro inactivo o de prueba, etc.): es CORREGIBLE operativamente. Explica la causa en lenguaje simple y da los PASOS EXACTOS para corregirla en la app (módulo/pantalla y qué hacer). Si la corrección necesita un permiso que el usuario NO tiene (mira sus permisos), dile a quién acudir según el DIRECTORIO. Tú NUNCA modificas datos: guías para que lo haga quien corresponde.`,
+      `   • FALLA DEL SISTEMA (algo que NO debería ocurrir y el usuario no puede arreglar: datos contradictorios, un cálculo que no cuadra, un comportamiento defectuoso): NO inventes una solución ni le pidas al usuario que "arregle" algo que no le toca. Explícale que es un tema del sistema y ofrece escalar un ticket con ${MARCADOR_ESCALAR}; el ticket debe llevar el diagnóstico técnico (qué se observó en los datos) para que soporte/desarrollo lo atienda.`,
+      `   • Si no puedes determinar con los datos si es de sistema o de datos, dilo honestamente y ofrece escalar para revisión.`,
+      `- PREGUNTAS DE DATOS DEL NEGOCIO: además de ayudar con el uso del sistema, puedes responder preguntas analíticas (cuántos, cuáles, totales, montos, comparativas, "clientes nuevos del mes"…). Si tienes disponible la herramienta "consultar_datos" y la sección "CONSULTA DE DATOS" más abajo, ÚSALA: arma un SELECT sobre las tablas listadas ahí y responde con los resultados reales. NUNCA inventes ni des cifras de memoria. Si la pregunta es de un módulo cuya clave el usuario NO tiene, no aparecerá en tus tablas permitidas: dilo y canalízalo según el directorio.`,
+      `- EXPLICA TU RAZONAMIENTO: ANTES de llamar a una herramienta, escribe en UNA o DOS frases QUÉ vas a consultar y POR QUÉ eso responde la pregunta (p. ej. "Para saber quién renta la nave, busco en arrenPropiedades el arrendador vinculado a esa nave y obtengo su nombre del catálogo de clientes"). Ese texto queda registrado para auditoría. No expongas SQL ni nombres internos en la respuesta FINAL al usuario, solo en esa explicación previa.`,
       '- No reveles detalles técnicos internos (SQL, nombres de funciones de base de datos, secretos, ids internos).',
       '',
       `CONTEXTO DEL USUARIO QUE PREGUNTA:`,
@@ -525,6 +566,8 @@ export class SoporteService {
       directorio ? `DIRECTORIO DE CONTACTOS (a quién canalizar):\n${directorio}` : '',
       '',
       glosario ? `GLOSARIO (términos transversales):\n${glosario}` : '',
+      '',
+      esquemaDatos ? esquemaDatos : '',
       '',
       kbContenido
         ? `DOCUMENTACIÓN RELEVANTE (base de conocimiento):\n${kbContenido}`
@@ -545,6 +588,8 @@ export class SoporteService {
       escalable: boolean;
       tokensEntrada: number | null;
       tokensSalida: number | null;
+      debugSql?: string | null;
+      debugMeta?: unknown;
     },
   ): Promise<void> {
     const { error } = await this.dbActor(uid)
@@ -559,6 +604,8 @@ export class SoporteService {
         escalable: m.escalable,
         tokens_entrada: m.tokensEntrada,
         tokens_salida: m.tokensSalida,
+        debug_sql: m.debugSql ?? null,
+        debug_meta: m.debugMeta ?? null,
       });
     if (error) this.logger.error(`No se pudo guardar el mensaje: ${error.message}`);
   }

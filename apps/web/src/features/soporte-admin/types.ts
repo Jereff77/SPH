@@ -23,6 +23,22 @@ export interface MensajeAdmin {
   tokensEntrada: number | null;
   tokensSalida: number | null;
   fc: string;
+  /** Razonamiento del agente: SQL generado y traza de herramientas (auditoría). */
+  debugSql: string | null;
+  debugMeta: { traza?: TrazaPaso[] } | null;
+}
+
+/** Un paso de la traza del agente: su razonamiento o una herramienta ejecutada. */
+export interface TrazaPaso {
+  iter: number;
+  tipo?: 'pensamiento' | 'herramienta';
+  /** Razonamiento del modelo (cuando tipo = 'pensamiento'). */
+  texto?: string;
+  /** Herramienta ejecutada (cuando tipo = 'herramienta'). */
+  tool?: string;
+  args?: Record<string, unknown>;
+  error?: string | null;
+  total_filas?: number | null;
 }
 
 /** Conversación completa (cabecera + mensajes). */

@@ -32,6 +32,11 @@ export class SupabaseService implements OnModuleInit {
     string,
     { client: SupabaseClient<Database>; exp: number }
   >();
+  // Cliente de SOLO LECTURA para consultas de datos del Agente (rol v2_agente_ro).
+  private readonly agenteRoCache = new Map<
+    string,
+    { client: SupabaseClient<Database>; exp: number }
+  >();
 
   constructor(private readonly config: ConfigService<Env, true>) {}
 
@@ -116,6 +121,32 @@ export class SupabaseService implements OnModuleInit {
       global: { headers: { Authorization: `Bearer ${jwt}` } },
     });
     this.soporteRoCache.set(uid || '_anon', { client, exp });
+    return client;
+  }
+
+  /**
+   * Cliente de **SOLO LECTURA de NEGOCIO** para el motor text-to-SQL del Agente. El
+   * JWT lleva `role: v2_agente_ro` (rol Postgres con SELECT solo sobre tablas de
+   * negocio, sin sistema/sensibles, BYPASSRLS). Se usa para invocar la RPC
+   * `agente_consulta_sql`, que ejecuta el SELECT con esos privilegios. El filtrado
+   * por CLAVE de permiso (qué módulos puede ver el usuario) se hace ANTES, en el
+   * backend (`ConsultasService`). Requiere el rol `v2_agente_ro` en BD (ver
+   * base-conocimiento/migraciones/2026-06-29-agente-consulta-sql-rol-ro.sql).
+   */
+  agenteRo(uid: string): SupabaseClient<Database> {
+    const now = Math.floor(Date.now() / 1000);
+    const cached = this.agenteRoCache.get(uid || '_anon');
+    if (cached && cached.exp - now > 300) return cached.client;
+
+    const url = this.config.get('SUPABASE_URL', { infer: true });
+    const anonKey = this.config.get('SUPABASE_ANON_KEY', { infer: true });
+    const exp = now + 3600;
+    const jwt = this.firmarJwt('v2_agente_ro', uid, now, exp);
+    const client = createClient<Database>(url, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+    });
+    this.agenteRoCache.set(uid || '_anon', { client, exp });
     return client;
   }
 

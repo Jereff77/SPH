@@ -169,22 +169,20 @@ export class SaldosVencidosService {
   // ------------------------------- helpers -------------------------------
 
   /**
-   * Propiedades en alcance: plan activo (`pdpActivo = true`) e inversionista real
-   * (`inversionista = true`, `pruebas = false`). A diferencia del Dashboard, los
-   * **Tickets se incluyen** por defecto (decisión de negocio para vencidos).
+   * Propiedades en alcance: plan activo (`pdpActivo = true`), titular **no de
+   * pruebas** (`pruebas = false`) y, con `incluirTickets`, **venta real
+   * (`inversionista = true`) O ticket (`esTicket = true`)** — los tickets de A3 se
+   * integran a la cartera de cobranza. Sin `incluirTickets`: solo ventas reales
+   * no-ticket (comportamiento previo).
    */
   private async scopePropiedades(incluirTickets: boolean): Promise<Map<string, PropScope>> {
-    let q = this.supabase.admin
+    const { data, error } = await this.supabase.admin
       .from('propiedades')
       .select(
-        'idPropiedad, idNave, idParque, nomDescriptivo, idInversionista, inversionista!inner(razonsocial)',
+        'idPropiedad, idNave, idParque, nomDescriptivo, idInversionista, esTicket, inversionista!inner(razonsocial, inversionista)',
       )
       .eq('pdpActivo', true)
-      .eq('inversionista.inversionista', true)
       .eq('inversionista.pruebas', false);
-    if (!incluirTickets) q = q.eq('esTicket', false);
-
-    const { data, error } = await q;
     if (error) throw new InternalServerErrorException(error.message);
 
     type Row = {
@@ -193,9 +191,18 @@ export class SaldosVencidosService {
       idParque: string | null;
       nomDescriptivo: string | null;
       idInversionista: string | null;
-      inversionista: { razonsocial: string | null } | { razonsocial: string | null }[] | null;
+      esTicket: boolean | null;
+      inversionista:
+        | { razonsocial: string | null; inversionista: boolean | null }
+        | { razonsocial: string | null; inversionista: boolean | null }[]
+        | null;
     };
-    const rows = (data ?? []) as unknown as Row[];
+    const rows = ((data ?? []) as unknown as Row[]).filter((r) => {
+      const inv = Array.isArray(r.inversionista) ? r.inversionista[0] : r.inversionista;
+      const esInvReal = inv?.inversionista === true;
+      const esTicket = r.esTicket === true;
+      return incluirTickets ? esInvReal || esTicket : esInvReal && !esTicket;
+    });
 
     // Nombre de parque (no hay FK propiedades→parques: se resuelve aparte).
     const idParques = [...new Set(rows.map((r) => r.idParque).filter((x): x is string => !!x))];
