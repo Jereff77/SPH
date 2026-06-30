@@ -52,13 +52,18 @@ no tienen ninguna solicitud pendiente. Las solicitudes **sin aprobador asignado*
 
 ## Reglas de negocio y validaciones
 - Solo envía si `cxp_puede_autorizar()` es `true` ese día.
-- Un correo por aprobador **con ≥1 pendiente**; los pendientes sin aprobador no se notifican.
+- Un correo por aprobador **activo** (`catUsers.status = true`) **con ≥1 pendiente**; los
+  pendientes sin aprobador, o asignados a un aprobador **inactivo/inexistente**, no se notifican.
 - El identity/correo del aprobador sale de la BD (`uidGerente` → `catUsers`), nunca del cliente.
 
 ## Gotchas / trampas conocidas
 - 📌 **`uidGerente = '-'`** es el centinela de "sin aprobador" (patrón `NULLIF(TRIM(x),'-')`).
   Hay que excluirlo: si se cuela en la consulta a `catUsers` (columna `uid` es `uuid`), la
   consulta **falla** y deja a TODOS sin correo. Ya está filtrado en el scheduler.
+- 📌 **Aprobadores inactivos** (`catUsers.status = false`) conservan su correo en BD. Hay que
+  **omitirlos** (se resuelve `status` y se saltan): de lo contrario un dado-de-baja seguiría
+  recibiendo recordatorios (caso real: Ivvy Barragán, con solicitudes aún asignadas). Sus
+  solicitudes quedan **sin aprobador activo** → conviene **reasignarlas** (dato operativo).
 - Si `SMTP_INVITACIONES_*` no está configurado, la tarea registra y sale **sin enviar**
   (no rompe). Verificar esas envs + `APP_WEB_URL` en el entorno.
 - La tabla `mail_recordatorios_aprobacion` se accede sin tipar (`as any`/cliente genérico)

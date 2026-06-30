@@ -153,12 +153,15 @@ export class RecordatorioAprobacionScheduler {
       return { habilitado: true, aprobadores: porGerente.size, enviados: 0 };
     }
 
-    // Correos y nombres de los aprobadores.
+    // Correos, nombres y estado (activo) de los aprobadores.
     const uids = [...porGerente.keys()];
-    const datos = new Map<string, { email: string | null; nombre: string }>();
+    const datos = new Map<
+      string,
+      { email: string | null; nombre: string; activo: boolean }
+    >();
     const { data: users, error: usersErr } = await this.supabase.admin
       .from('catUsers')
-      .select('uid, email, nomCompleto, nombre')
+      .select('uid, email, nomCompleto, nombre, status')
       .in('uid', uids);
     if (usersErr)
       this.logger.error(`No se pudieron resolver los aprobadores: ${usersErr.message}`);
@@ -166,6 +169,7 @@ export class RecordatorioAprobacionScheduler {
       datos.set(u.uid, {
         email: u.email,
         nombre: u.nomCompleto ?? u.nombre ?? u.email ?? u.uid,
+        activo: u.status === true,
       });
 
     const baseUrl = (this.config.get('APP_WEB_URL', { infer: true }) ?? '').replace(
@@ -174,12 +178,20 @@ export class RecordatorioAprobacionScheduler {
     );
     const enlace = `${baseUrl}/cxp/aprobar`;
 
-    // 5) Un correo por aprobador con pendientes.
+    // 5) Un correo por aprobador ACTIVO con pendientes.
     let enviados = 0;
     for (const [uid, solicitudes] of porGerente) {
       const info = datos.get(uid);
-      const email = info?.email ?? null;
-      const nombre = info?.nombre ?? uid;
+      // Omitir aprobadores inactivos (status=false) o que ya no existen: aunque
+      // tengan solicitudes asignadas, no deben recibir el recordatorio.
+      if (!info || !info.activo) {
+        this.logger.warn(
+          `Aprobador ${uid} inactivo o inexistente; se omite (${solicitudes.length} pendiente(s)).`,
+        );
+        continue;
+      }
+      const email = info.email;
+      const nombre = info.nombre;
       if (!email) {
         this.logger.warn(`Aprobador ${uid} sin correo registrado; se omite.`);
         continue;
