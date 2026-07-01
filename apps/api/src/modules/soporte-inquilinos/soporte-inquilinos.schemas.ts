@@ -43,12 +43,16 @@ export const responderSchema = z.object({
 });
 export type ResponderDto = z.infer<typeof responderSchema>;
 
-/** Vínculo manual del incidente con inquilino/nave/parque (que luego "aprende"). */
+/**
+ * Vínculo manual del incidente con inquilino/nave/parque (que luego "aprende").
+ * ⚠️ Los IDs son de v1 (texto corto estilo FlutterFlow, p. ej. `9qZzRbzAznSP`),
+ * NO UUIDs: validar como string no vacío, nunca con `.uuid()`.
+ */
 export const vincularSchema = z.object({
-  idArrendador: z.string().uuid().nullable().optional(),
-  idNavArrend: z.string().uuid().nullable().optional(),
-  idNave: z.string().uuid().nullable().optional(),
-  idParque: z.string().uuid().nullable().optional(),
+  idArrendador: z.string().trim().min(1).max(64).nullable().optional(),
+  idNavArrend: z.string().trim().min(1).max(64).nullable().optional(),
+  idNave: z.string().trim().min(1).max(64).nullable().optional(),
+  idParque: z.string().trim().min(1).max(64).nullable().optional(),
 });
 export type VincularDto = z.infer<typeof vincularSchema>;
 

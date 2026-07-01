@@ -1,8 +1,8 @@
 ---
 modulo: Soporte a Inquilinos (Arrendatarios)
 estado: desarrollado
-version_doc: 2.0
-ultima_actualizacion: 2026-06-23
+version_doc: 2.1
+ultima_actualizacion: 2026-07-01
 rutas: [/arrendatarios/soporte]
 claves_permiso: [31, 32, 33, 34, 35, 36]
 tablas: [incidentes, incidentes_remitentes, incidentes_seguimientos, correo_cuentas, correo_mensajes, correo_adjuntos, inversionista, arrenPropiedades, v_arrendadasNaves, naves, parques, catUsers, segModulosUsuarios, SPHConfiguraciones]
@@ -172,9 +172,20 @@ cliente de correo del inquilino no "hile" bien la conversación:
   `SOPORTE_INQUILINOS_IA_MODELO` y `SOPORTE_INQUILINOS_IA_CATEGORIAS` (IA, con defaults).
 - Columnas de `incidentes` usadas por fases: `asignadoA` (F2), `categoria`/`prioridad` (F4).
 - SQL: `migraciones/2026-06-23-soporte-inquilinos.sql` (F1) +
-  `migraciones/2026-06-23-soporte-inquilinos-f2-f3.sql` (permisos 35/36 + `incidentes_seguimientos`).
+  `migraciones/2026-06-23-soporte-inquilinos-f2-f3.sql` (permisos 35/36 + `incidentes_seguimientos`) +
+  `migraciones/2026-07-01-soporte-inquilinos-ids-uuid-a-text.sql` (fix v2.51.2: columnas de vínculo `uuid`→`text`).
 
 ## Gotchas / trampas conocidas
+- ⛔ **Los IDs de vínculo son `text` (v1), NO UUIDs.** `idArrendador`/`idNavArrend`/`idNave`/`idParque`
+  provienen de tablas de v1 (heredadas de FlutterFlow) y son **texto corto** (p. ej. `9qZzRbzAznSP`,
+  `b8EiKD9wSs9h`), no UUIDs. Por eso el `vincularSchema` los valida con `z.string().trim().min(1).max(64)`
+  y **jamás** con `.uuid()`, y las columnas en `incidentes`/`incidentes_remitentes` son `text` (como
+  `arre_pagos`/`arre_ordenante`). 🐛 **Regresión histórica (corregida v2.51.2):** el módulo nació (v2.42.0)
+  con esos campos como `.uuid()` en Zod **y** como columnas `uuid` en BD → el "Vincular" fallaba con
+  **400 "Datos de entrada inválidos"** (1er muro Zod) y habría fallado con `22P02` en BD (2º muro); nunca
+  se pudo vincular un incidente (37 incidentes, 0 vinculados). Fix: schema a `.string().min(1).max(64)` +
+  migración `2026-07-01-soporte-inquilinos-ids-uuid-a-text.sql` (columnas vacías → `ALTER … TYPE text`
+  seguro). **No revertir el schema a `.uuid()`.**
 - 📌 **La cuenta debe estar configurada** (pestaña Cuenta) o la bandeja/sincronización no operan
   (mensaje claro "No hay una cuenta de correo de soporte configurada").
 - 📌 **El remitente casi nunca coincide con el inquilino** (lo escribe una persona del inquilino);
