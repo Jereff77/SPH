@@ -83,8 +83,9 @@ cliente de correo del inquilino no "hile" bien la conversación:
 ## Firma corporativa (desafío 2)
 - Se construye server-side en `firma.builder.ts` (`construirFirmaHtml`): **logo** (de
   `ConfiguracionService.obtenerLogos()`, fondo claro, bucket público `branding`) + **nombre
-  completo** + **cargo/rol** + **teléfono** del usuario (de `catUsers`) + **correo de contacto** de
-  la cuenta + "Grupo SPH Bienes Raíces".
+  completo** + **cargo/rol** del usuario (de `catUsers`) + **correo de contacto** de
+  la cuenta + "Grupo SPH Bienes Raíces". 📌 **No incluye el teléfono** del usuario (se quitó en
+  v2.51.3 a pedido del negocio; `firma.builder.ts` ya no recibe ni lee `telefono`).
 - `SmtpService.responder(...)` recibió un parámetro **opcional** `firmaHtml`: cuando se pasa, el
   correo sale en **HTML** (cuerpo + firma) y se guarda `bodyHtml` (así el enviado muestra la firma
   en el hilo). **Los demás consumidores (CxP/PPD) NO se afectan** (sin `firmaHtml` = solo texto).

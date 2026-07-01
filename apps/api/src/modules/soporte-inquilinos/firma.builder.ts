@@ -1,7 +1,7 @@
 /**
  * Construye la FIRMA HTML corporativa que se anexa a cada respuesta de Soporte a
  * Inquilinos (desafío 2). Incluye logotipo de la empresa + datos del usuario que
- * responde (nombre, cargo/rol, teléfono) + el correo de contacto y datos de SPH.
+ * responde (nombre, cargo/rol) + el correo de contacto y datos de SPH.
  *
  * Se mantiene como HTML inline (sin clases CSS) porque los clientes de correo no
  * cargan hojas de estilo externas. El logo usa una URL pública del bucket
@@ -13,9 +13,7 @@ export interface DatosFirma {
   nombre: string | null;
   /** Cargo / rol del usuario (no hay campo "puesto" dedicado; se usa el rol). */
   cargo: string | null;
-  /** Teléfono directo del usuario. */
-  telefono: string | null;
-  /** Correo de la cuenta de soporte (contacto@portal.gruposph.mx). */
+  /** Correo de la cuenta de soporte (p. ej. soporteaclientes@portal.gruposph.mx). */
   correoContacto: string | null;
   /** URL pública del logotipo (fondo claro) o null. */
   logoUrl: string | null;
@@ -46,11 +44,6 @@ export function construirFirmaHtml(d: DatosFirma): string {
   filas.push(
     `<div style="font-size:12px;color:${GRIS};margin:1px 0">${escapar(EMPRESA)}</div>`,
   );
-  if (d.telefono?.trim()) {
-    filas.push(
-      `<div style="font-size:12px;color:${GRIS};margin:1px 0">Tel: ${escapar(d.telefono.trim())}</div>`,
-    );
-  }
   if (d.correoContacto?.trim()) {
     const correo = escapar(d.correoContacto.trim());
     filas.push(

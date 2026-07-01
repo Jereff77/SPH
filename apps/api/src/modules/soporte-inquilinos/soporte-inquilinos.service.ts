@@ -661,7 +661,7 @@ export class SoporteInquilinosService {
   private async construirFirma(actorUid: string, correoContacto: string): Promise<string> {
     const { data: usuario } = await this.supabase.admin
       .from('catUsers')
-      .select('nomCompleto, nombre, apellidos, telefono, rol')
+      .select('nomCompleto, nombre, apellidos, rol')
       .eq('uid', actorUid)
       .maybeSingle();
     let logoUrl: string | null = null;
@@ -678,7 +678,6 @@ export class SoporteInquilinosService {
     return construirFirmaHtml({
       nombre,
       cargo: usuario?.rol ?? null,
-      telefono: usuario?.telefono ?? null,
       correoContacto,
       logoUrl,
     });
