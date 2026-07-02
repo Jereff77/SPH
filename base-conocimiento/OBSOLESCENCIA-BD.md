@@ -1,8 +1,8 @@
 ---
 documento: Obsolescencia de la base de datos (registro de retiro)
 estado: vivo
-ultima_actualizacion: 2026-06-21
-palabras_clave: [obsoleto, deprecado, retirar, eliminar, limpieza, RPC, vista, cdg, backup, duplicado, transicion, apagar v1, ia, v_pdpdetalle, reutilizado, saldos_vencidos, cuenta_corriente, fifo]
+ultima_actualizacion: 2026-07-01
+palabras_clave: [obsoleto, deprecado, retirar, eliminar, limpieza, RPC, vista, cdg, backup, duplicado, transicion, apagar v1, ia, v_pdpdetalle, reutilizado, saldos_vencidos, cuenta_corriente, fifo, inpc, incremento, arrepdpdetalle]
 ---
 
 # Obsolescencia de la base de datos — qué se podrá eliminar al apagar v1
@@ -134,5 +134,37 @@ correspondiente; entonces se marcará cada una como "reutilizar" o "retirar".
 
 > Conforme migremos módulos y detectemos objetos sin uso, se agregan aquí con: nombre, tipo, por qué se
 > considera obsoleto, qué lo reemplaza y si algún proceso externo (n8n/IA) lo consume.
+
+### 2026-07-01 — 🟡 Funciones de incremento de renta por INPC (Arrendatarios)
+
+Detectadas durante el análisis del **incremento automático al capturar el INPC** (acordado con el
+usuario: dejar UNA sola función correcta; estas quedan obsoletas para retiro posterior).
+**Verificación de consumidores (2026-07-01):** código v2 `apps/api`/`apps/web` → **0 usos**; funciones/
+vistas/triggers de la BD que las invoquen → **0**; `cron.job` → **0** (⚠️ NO existe ningún cron de INPC:
+hoy todo incremento es manual, vía doble clic en Planes de Renta); v1 (apagado) → solo los 2 usos
+huérfanos indicados abajo.
+
+| Objeto | Tipo | Por qué se retira | Consumidores |
+|---|---|---|---|
+| `actualizar_inpc_por_ciclo(ciclo_inicio, nuevo_inpc)` | función | **ROTA**: hace `UPDATE … SET cantidad = …`, pero `cantidad` hoy es **columna generada** → falla si se ejecuta (es de un modelo de datos anterior). Además aplica un mismo INPC global a todos los planes ignorando la regla del desfase. | Nadie |
+| `actualizar_inpc_todos_los_planes()` | función | Wrapper masivo que itera todos los planes llamando `arrepdpdetalle_actualizar_inpc`; hereda su limitación (solo escribe la columna `INPC`, **no recalcula `pm2`** → no cambia montos). | Nadie |
+| `arrepdpdetalle_actualizar_inpc(id_arrepdp)` | función | Resuelve el INPC oficial con el desfase de **3 meses hardcodeado** (`primer mes del año − 3`), pero **solo escribe la columna `INPC`**, sin recalcular `pm2` → no mueve montos. Su lógica de resolución se absorbe (con desfase configurable) en la función nueva. | Nadie |
+| `arrepdpdetalle_actualizar_inpc_desde_anio(id_arrepdp, anio_inicio)` | función | Ídem anterior con año inicial parametrizado. Mismas limitaciones. | Nadie |
+| `arrepdpdetalle_actualizar_pm2_con_inpc_acumulado(id_arrepdp)` | función | **Matemática ERRÓNEA**: hace `pm2_nuevo = pm2_anterior + INPC` (suma el porcentaje como pesos en vez de aplicarlo) e **ignora `ptsINPC`**. Peligrosa si alguien la ejecutara. | Nadie |
+| `arrepdp_listar_contratos_ciclo_inpc(p_anio, p_mes)` | función | Localiza contratos con aniversario en un mes dado, pero sin filtrar `status`/`vigente`/`pdpActivo` y con corte de fin grueso (`fecFin > 31/dic`). Su semántica sirve de **referencia** para la nueva función, corregida. | Solo v1 apagado (`contratos_incremento_widget.dart`, SQL crudo vía `cdg`) |
+
+**NO retirar (relacionadas pero vigentes):**
+- **`arrepdpdetalle_actualizar_campo_manual`** — la usa v2 (doble clic en la corrida, `PATCH
+  /arrendatarios/planes/:id/detalle`). Única con la matemática correcta
+  (`pm2 = pm2_anterior × (1 + (INPC+pts)/100)`, plano hacia años futuros). **Base de la función
+  automatizada nueva.**
+- **`inpc_trigger_corregir_id`** — trigger vivo (`inpc_before_insert_update_trigger`) de la tabla `inpc`.
+- **`inpc_verificar_vigencia_ultimo_registro()`** — huérfana tras apagar v1 (la usaba la Bienvenida para
+  avisar INPC desactualizado), pero su lógica (¿está al día el INPC según la fecha de publicación ~día 10?)
+  es **candidata a reutilizarse** en el flujo automático (aviso de captura faltante). Decidir en el diseño;
+  si no se usa, pasará a esta lista.
+
+> Retiro: como todo en este documento, cada `DROP` requiere autorización explícita caso por caso, tras el
+> despliegue de la función nueva.
 
 - _(siguiente hallazgo…)_

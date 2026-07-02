@@ -48,6 +48,12 @@ const SoporteInquilinosPage = lazy(() =>
     default: m.SoporteInquilinosPage,
   })),
 );
+// Responsables de parque (Arrendatarios, permiso 212): destinatarios del correo de incrementos INPC.
+const ResponsablesPage = lazy(() =>
+  import('@/features/arrendatarios/ResponsablesPage').then((m) => ({
+    default: m.ResponsablesPage,
+  })),
+);
 // Cron (Configuraciones → Cron, solo soporte): chunk propio.
 const CronPage = lazy(() =>
   import('@/features/cron/CronPage').then((m) => ({ default: m.CronPage })),
@@ -117,6 +123,14 @@ export const router = createBrowserRouter([
             element: (
               <Suspense fallback={cargando}>
                 <ReportesArrePage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/arrendatarios/responsables',
+            element: (
+              <Suspense fallback={cargando}>
+                <ResponsablesPage />
               </Suspense>
             ),
           },

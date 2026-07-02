@@ -592,6 +592,9 @@ export class CobranzaService {
       pm2: base,
       constM2: 1,
       fecPago: null,
+      // Cargo extraordinario: EXENTO del incremento anual por INPC (el flujo
+      // de incrementos solo toca filas con aplicaInpc=true).
+      aplicaInpc: false,
     };
     const { error: insErr } = await db.from('arrePdpDetalle').insert(fila);
     if (insErr) {

@@ -89,7 +89,9 @@ actor para auditoría). Crear un plan orquesta **3 RPCs en secuencia**:
     BEFORE**.
   - Triggers **`trg_v2_iva_ins`** (BEFORE INSERT, siempre) y **`trg_v2_iva_upd`** (BEFORE UPDATE **OF**
     `pm2`,`constM2`,`concepto`). Así los crons diarios de v1 que tocan `anio`/`ciclo`/`fecPago` **no** lo
-    disparan; el cron de **INPC** sí (cambia `pm2`) → recalcula el IVA, que es lo correcto.
+    disparan; quien cambia `pm2` (el flujo de **Incrementos INPC** —`modulos/incrementos-inpc.md`— o la
+    edición manual) sí → recalcula el IVA, que es lo correcto. ⚠️ Corrección 2026-07-02: **NO existe
+    ningún cron de INPC** (verificado en `cron.job`); antes del módulo de incrementos todo era manual.
   - SQL en `base-conocimiento/migraciones/2026-06-16-arrepdpdetalle-iva.sql` (incluye el backfill de las
     30,409 filas, hecho sin auditar con DISABLE/ENABLE de `trg_auditoria`).
 - **Backend (`cobranza.service.ts`):** `pagos()` devuelve `monto = cantidad + iva` (+ `base` e `iva`

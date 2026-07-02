@@ -16,6 +16,8 @@ import { ConfigArrendatarioModal } from './ConfigArrendatarioModal';
 import { ConsultaInpcModal } from './ConsultaInpcModal';
 import { RenovarPlanModal } from './RenovarPlanModal';
 import { CancelarAnticipadoModal } from './CancelarAnticipadoModal';
+import { incrementosApi } from './incrementos.api';
+import { IncrementosBitacoraModal } from './IncrementosBitacora';
 import { useAuth } from '@/features/auth/useAuth';
 import { SearchSelect } from '@/components/SearchSelect';
 import { THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
@@ -365,6 +367,14 @@ function CorridaPlan({ plan }: { plan: PlanRenta }) {
     queryFn: () => arrendatariosApi.resumen(plan.idArrePdp),
   });
   const [abierta, setAbierta] = useState<number | null>(null);
+  // Incrementos INPC del plan (bitácora arre_incrementos, legible con clave 20)
+  const [verIncrementos, setVerIncrementos] = useState(false);
+  const { data: incrementos = [] } = useQuery({
+    queryKey: ['incrementos-bitacora', plan.idArrePdp, ''],
+    queryFn: () => incrementosApi.bitacora({ idArrePdp: plan.idArrePdp }),
+  });
+  const aplicados = incrementos.filter((i) => i.estado === 'aplicado');
+  const ultimo = aplicados[0];
 
   if (!isLoading && data.length === 0) {
     return (
@@ -375,6 +385,41 @@ function CorridaPlan({ plan }: { plan: PlanRenta }) {
   }
 
   return (
+    <>
+      {incrementos.length > 0 && (
+        <div className="mb-2 flex items-center justify-between rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-xs text-green-800">
+          <span>
+            ✅ {aplicados.length} incremento(s) INPC aplicado(s)
+            {ultimo && (
+              <>
+                {' · '}último: año {ultimo.anioAplicado} con{' '}
+                {ultimo.idInpc === 'MANUAL'
+                  ? 'edición manual'
+                  : `${(Number(ultimo.inpcAplicado) + Number(ultimo.ptsAplicados)).toFixed(2)}%`}{' '}
+                el {fechaCorta(ultimo.fc)}
+                {ultimo.desactualizado && (
+                  <strong className="ml-1 text-amber-700">
+                    ⚠️ aplicado con un INPC distinto al vigente
+                  </strong>
+                )}
+              </>
+            )}
+          </span>
+          <button
+            onClick={() => setVerIncrementos(true)}
+            className="shrink-0 font-medium text-[#3f5b87] hover:underline"
+          >
+            Historial
+          </button>
+        </div>
+      )}
+      {verIncrementos && (
+        <IncrementosBitacoraModal
+          filtro={{ idArrePdp: plan.idArrePdp }}
+          titulo="Historial de incrementos INPC del plan"
+          onClose={() => setVerIncrementos(false)}
+        />
+      )}
     <div className="overflow-auto rounded-xl border bg-white" style={{ maxHeight: '60vh' }}>
       <table className="min-w-full border-collapse text-sm">
         <thead className={THEAD_STICKY}>
@@ -416,6 +461,7 @@ function CorridaPlan({ plan }: { plan: PlanRenta }) {
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 

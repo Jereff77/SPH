@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { IncrementosService } from './incrementos.service.js';
 import type {
   CancelarAnticipadoDto,
   ConceptoFinanciadoDto,
@@ -44,7 +45,10 @@ interface RpcResultado {
 export class PlanesArreService {
   private readonly logger = new Logger(PlanesArreService.name);
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly incrementos: IncrementosService,
+  ) {}
 
   private generarId(n: number): string {
     const bytes = randomBytes(n);
@@ -464,6 +468,20 @@ export class PlanesArreService {
         p_valor: dto.valor,
       });
     if (error) throw new InternalServerErrorException(error.message);
+
+    // La edición manual de INPC/pts (año ≥ 2, la RPC recalcula pm2) queda en la
+    // bitácora de incrementos (origen='manual') para que el flujo automático
+    // sepa que ese plan+año ya se movió. Best-effort: no bloquea la edición.
+    if ((dto.campo === 'INPC' || dto.campo === 'ptsINPC') && dto.anioDesde >= 2) {
+      await this.incrementos.registrarManual({
+        idArrePdp,
+        anio: dto.anioDesde,
+        campo: dto.campo,
+        concepto: dto.concepto,
+        valor: dto.valor,
+        actorUid,
+      });
+    }
   }
 
   /** Agrega un concepto financiado (KVA / adecuación) al plan. */

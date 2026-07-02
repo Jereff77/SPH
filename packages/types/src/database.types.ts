@@ -25,6 +25,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      arre_incrementos: {
+        Row: {
+          anioAplicado: number
+          correoNotificado: string[] | null
+          desfaseMeses: number | null
+          detalle: Json
+          estado: string
+          fc: string
+          fecNotificacion: string | null
+          fecReversion: string | null
+          id: string
+          idArrePdp: string
+          idInpc: string
+          inpcAplicado: number
+          motivoReversion: string | null
+          origen: string
+          ptsAplicados: number
+          revertidoPor: string | null
+          uidr: string
+        }
+        Insert: {
+          anioAplicado: number
+          correoNotificado?: string[] | null
+          desfaseMeses?: number | null
+          detalle: Json
+          estado?: string
+          fc?: string
+          fecNotificacion?: string | null
+          fecReversion?: string | null
+          id?: string
+          idArrePdp: string
+          idInpc: string
+          inpcAplicado: number
+          motivoReversion?: string | null
+          origen: string
+          ptsAplicados?: number
+          revertidoPor?: string | null
+          uidr: string
+        }
+        Update: {
+          anioAplicado?: number
+          correoNotificado?: string[] | null
+          desfaseMeses?: number | null
+          detalle?: Json
+          estado?: string
+          fc?: string
+          fecNotificacion?: string | null
+          fecReversion?: string | null
+          id?: string
+          idArrePdp?: string
+          idInpc?: string
+          inpcAplicado?: number
+          motivoReversion?: string | null
+          origen?: string
+          ptsAplicados?: number
+          revertidoPor?: string | null
+          uidr?: string
+        }
+        Relationships: []
+      }
       arre_ordenante: {
         Row: {
           id: string
@@ -721,6 +781,7 @@ export type Database = {
       arrePdpDetalle: {
         Row: {
           anio: number
+          aplicaInpc: boolean
           cantidad: number | null
           cantidad2: number | null
           cantidadAplicada: number | null
@@ -753,6 +814,7 @@ export type Database = {
         }
         Insert: {
           anio?: number
+          aplicaInpc?: boolean
           cantidad?: number | null
           cantidad2?: number | null
           cantidadAplicada?: number | null
@@ -785,6 +847,7 @@ export type Database = {
         }
         Update: {
           anio?: number
+          aplicaInpc?: boolean
           cantidad?: number | null
           cantidad2?: number | null
           cantidadAplicada?: number | null
@@ -5196,6 +5259,30 @@ export type Database = {
         }
         Relationships: []
       }
+      parque_responsables: {
+        Row: {
+          fc: string
+          id: string
+          idParque: string
+          uid: string
+          uidr: string | null
+        }
+        Insert: {
+          fc?: string
+          id?: string
+          idParque: string
+          uid: string
+          uidr?: string | null
+        }
+        Update: {
+          fc?: string
+          id?: string
+          idParque?: string
+          uid?: string
+          uidr?: string | null
+        }
+        Relationships: []
+      }
       parques: {
         Row: {
           direccion: string | null
@@ -9176,6 +9263,15 @@ export type Database = {
         }
         Returns: Json
       }
+      arrepdp_aplicar_incremento_inpc: {
+        Args: {
+          p_anio: number
+          p_id_arre_pdp: string
+          p_id_inpc: string
+          p_inpc: number
+        }
+        Returns: Json
+      }
       arrepdp_crear_plan_completo_rpc: {
         Args: {
           p_construccion_m2: number
@@ -9251,6 +9347,14 @@ export type Database = {
           rtaBase: number
           vigente: boolean
         }[]
+      }
+      arrepdp_revertir_incremento_inpc: {
+        Args: {
+          p_anio: number
+          p_id_arre_pdp: string
+          p_previo: Json
+        }
+        Returns: Json
       }
       arrepdpdetalle_actualizar_campo_manual: {
         Args: {

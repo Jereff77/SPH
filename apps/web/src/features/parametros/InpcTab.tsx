@@ -1,6 +1,8 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { parametrosApi, type InpcItem } from './parametros.api';
+import { incrementosApi } from '@/features/arrendatarios/incrementos.api';
+import { IncrementosPreviewModal } from '@/features/arrendatarios/IncrementosPreviewModal';
 import {
   SortableTh,
   THEAD_STICKY,
@@ -27,10 +29,24 @@ export function InpcTab() {
   const [nota, setNota] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
+  /** idInpc con la vista previa de incrementos abierta (tras guardar o manual). */
+  const [previewDe, setPreviewDe] = useState<string | null>(null);
 
   const { data = [], isLoading } = useQuery({
     queryKey: QKEY,
     queryFn: () => parametrosApi.listarInpc(),
+  });
+
+  // Banner de pendientes: ¿el INPC más reciente tiene incrementos sin aplicar?
+  const masReciente = useMemo(() => {
+    if (!data.length) return null;
+    return [...data].sort((a, b) => b.anio * 100 + b.mes - (a.anio * 100 + a.mes))[0] ?? null;
+  }, [data]);
+  const { data: pendientes } = useQuery({
+    queryKey: ['incrementos-preview', masReciente?.id],
+    queryFn: () => incrementosApi.preview(masReciente!.id),
+    enabled: !!masReciente,
+    staleTime: 60_000,
   });
 
   const filtrados = useMemo(() => {
@@ -73,9 +89,26 @@ export function InpcTab() {
         ...payload,
       });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Disparo del flujo de incrementos: localizar el registro guardado y
+      // abrir la vista previa (nada se aplica sin confirmación explícita).
+      const anioNum = Number(anio);
+      const mesNum = Number(mes);
+      const consecutivoEditado = editando;
       reset();
       invalidar();
+      const lista = await queryClient.fetchQuery({
+        queryKey: QKEY,
+        queryFn: () => parametrosApi.listarInpc(),
+      });
+      const registro =
+        consecutivoEditado != null
+          ? lista.find((r) => r.consecutivo === consecutivoEditado)
+          : lista.find((r) => r.anio === anioNum && r.mes === mesNum);
+      if (registro) {
+        void queryClient.invalidateQueries({ queryKey: ['incrementos-preview', registro.id] });
+        setPreviewDe(registro.id);
+      }
     },
     onError,
   });
@@ -104,11 +137,34 @@ export function InpcTab() {
   const inputCls =
     'rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30';
 
+  const nPendientes = pendientes?.aplicables.length ?? 0;
+  const nReaplicables = pendientes?.omitidos.filter((o) => o.requiereReaplicacion).length ?? 0;
+
   return (
     <div className="space-y-4">
       {error && (
         <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {masReciente && (nPendientes > 0 || nReaplicables > 0) && (
+        <div className="flex items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span>
+            ⚠️ El INPC <strong>{masReciente.id}</strong> tiene{' '}
+            {nPendientes > 0 && <strong>{nPendientes} incremento(s) de renta sin aplicar</strong>}
+            {nPendientes > 0 && nReaplicables > 0 && ' y '}
+            {nReaplicables > 0 && (
+              <strong>{nReaplicables} plan(es) aplicados con un valor distinto al vigente</strong>
+            )}
+            .
+          </span>
+          <button
+            onClick={() => setPreviewDe(masReciente.id)}
+            className="shrink-0 rounded-lg bg-[#1f2a4d] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#172039]"
+          >
+            Revisar y aplicar
+          </button>
         </div>
       )}
 
@@ -223,11 +279,25 @@ export function InpcTab() {
                     Editar
                   </button>
                   <button
-                    onClick={() => eliminar.mutate(r.consecutivo)}
-                    disabled={eliminar.isPending}
-                    className="text-xs font-medium text-red-600 hover:underline"
+                    onClick={() => setPreviewDe(r.id)}
+                    className="mr-3 text-xs font-medium text-[#3f5b87] hover:underline"
+                    title="Incrementos de renta de este INPC"
                   >
-                    Eliminar
+                    Incrementos
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `¿Eliminar el registro de INPC ${r.id} (valor ${r.inpc})?\n\nLos incrementos de renta ya aplicados con este INPC NO se revierten (siguen en la bitácora); solo se borra el registro del catálogo.`,
+                        )
+                      )
+                        eliminar.mutate(r.consecutivo);
+                    }}
+                    disabled={eliminar.isPending}
+                    className="text-xs font-medium text-red-600 hover:underline disabled:opacity-40"
+                  >
+                    {eliminar.isPending ? 'Eliminando…' : 'Eliminar'}
                   </button>
                 </td>
               </tr>
@@ -235,6 +305,10 @@ export function InpcTab() {
           </tbody>
         </table>
       </div>
+
+      {previewDe && (
+        <IncrementosPreviewModal idInpc={previewDe} onClose={() => setPreviewDe(null)} />
+      )}
     </div>
   );
 }
