@@ -10,3 +10,18 @@ body {
   margin: 0;
   min-height: 100vh;
 }
+
+/*
+ * Oculta la barra de desplazamiento visible conservando el scroll funcional
+ * (rueda, touch, teclado). Úsese SOLO en contenedores internos con scroll
+ * propio (sidebar, paneles, modales), NUNCA en el scroll principal de la
+ * página. CSS plano a propósito: las utilidades `@utility` de Tailwind v4 no
+ * siempre se regeneran con el hot-reload; el CSS plano se emite siempre.
+ */
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE/Edge antiguo */
+  scrollbar-width: none; /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}

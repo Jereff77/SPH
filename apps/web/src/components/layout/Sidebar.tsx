@@ -128,7 +128,7 @@ export function Sidebar({ colapsado, onNavegar }: SidebarProps) {
       </div>
 
       {/* Menú */}
-      <nav className="flex-1 overflow-y-auto p-2">
+      <nav className="scrollbar-hide flex-1 overflow-y-auto p-2">
         {grupos.map((grupo) => {
           const abierto = grupoAbierto === grupo.id;
 

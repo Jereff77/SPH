@@ -400,6 +400,20 @@
      existentes a `FiltroColumnaOpciones` **cuando se toquen esas pantallas**. Primera aplicada:
      **Fideicomiso → Dispersión** (Nombre / Personalidad / Adhesión).
 
+7d. **🎚️ OCULTAR SCROLLBAR EN CONTENEDORES INTERNOS (regla de diseño).** Los contenedores con **scroll
+   propio** (menú lateral, paneles, listas y modales con `overflow`) **ocultan la barra de desplazamiento
+   visible** conservando el scroll 100% funcional (rueda, touch, teclado). ⚠️ **Solo** en contenedores
+   internos, **NUNCA** en el scroll principal de la página/documento (ahí el usuario necesita la referencia
+   visual de su posición).
+   - **Patrón de implementación:** clase reutilizable **`.scrollbar-hide`** en `apps/web/src/index.css`
+     (cubre los tres motores: Firefox `scrollbar-width`, IE/Edge antiguo `-ms-overflow-style`, WebKit
+     `::-webkit-scrollbar`). Añadirla al elemento que ya tiene `overflow-*`. No repetir CSS suelto.
+   - **Gotcha (Tailwind v4):** se dejó como **CSS plano** a propósito — las utilidades `@utility` no siempre
+     se regeneran con el hot-reload del dev server; el CSS plano se emite siempre. Si tras el cambio la barra
+     sigue visible, recarga forzada (`Ctrl/⌘ + Shift + F5`).
+   - **Migración:** aplicar `.scrollbar-hide` a otros contenedores internos con scrollbar visible cuando se
+     toquen esas pantallas. Primera aplicada: **menú lateral (`Sidebar.tsx`)** (v2.51.4).
+
 8. **📚 BASE DE CONOCIMIENTO (regla de documentación para el agente de soporte).** Existe una KB en
    `version2/base-conocimiento/` pensada para un **futuro agente de IA de soporte** (explicar cómo usar
    el sistema, diagnosticar problemas y decidir cuándo escalar a ticket). En consecuencia:
