@@ -7,7 +7,7 @@ submodulos: [Login, Recuperar, Restablecer, Cambiar contraseña]
 rutas: [/login, /recuperar, /restablecer, /configuraciones/cambiar-contrasena]
 claves_permiso: []
 tablas: [catUsers, SPHConfiguraciones]
-palabras_clave: [login, iniciar sesión, contraseña, password, usuario, correo, dominio, sesión, token, cerrar sesión, recuperar, olvidé mi contraseña, restablecer, enlace de recuperación, correo de recuperación]
+palabras_clave: [login, iniciar sesión, contraseña, password, usuario, correo, dominio, sesión, token, cerrar sesión, recuperar, olvidé mi contraseña, restablecer, enlace de recuperación, correo de recuperación, "no me deja entrar", "me sacó el sistema", loguearme, "sesión expirada", "demasiados intentos", "credenciales inválidas", "no me llegó el correo de recuperación", "enlace expirado o no válido", "usuario inactivo"]
 relacionado_con: [configuraciones]
 ---
 
@@ -112,7 +112,7 @@ Cómo funciona por dentro (técnico):
 - **Configuraciones → Usuarios / Permisos:** el perfil y los permisos del usuario se cargan al iniciar
   sesión y gobiernan lo que ve.
 
-## 8. 🩺 Diagnóstico / problemas comunes
+## 8. 🩺 Para el agente de soporte (diagnóstico / problemas comunes)
 
 | Síntoma | Causa probable | Qué hacer |
 |---|---|---|

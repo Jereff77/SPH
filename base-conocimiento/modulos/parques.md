@@ -7,7 +7,7 @@ submodulos: [Parques, Disponibilidad]
 rutas: [/parques, /parques/disponibilidad]
 claves_permiso: [700, 701, 702, 710]
 tablas: [parques, naves, v_naves, v_disponibilidad, propiedades, arrenPropiedades, arrePdp, inversionista]
-palabras_clave: [parque, parque industrial, nave, bodega, local, lote, manzana, mza, KVA, kva, energia, disponibilidad, terreno, construccion, GYM, coworking, cafeteria, inquilino, arrendatario, dueño, inversionista]
+palabras_clave: [parque, parque industrial, nave, bodega, local, lote, manzana, mza, KVA, kva, energia, disponibilidad, terreno, construccion, GYM, coworking, cafeteria, inquilino, arrendatario, dueño, inversionista, "no veo el botón para crear un parque", "no me deja poner la nave como vendida", "el arrendatario aparece vacío", "la cantidad de naves no coincide"]
 relacionado_con: [propietarios, arrendatarios, cxp, configuraciones]
 ---
 
@@ -153,7 +153,7 @@ por `idParque`.
   plan de pagos de renta). El arrendatario es un `inversionista` (gotcha #2).
 - **CxP:** los pagos/presupuestos pueden referenciar naves/propiedades.
 
-## 9. 🩺 Diagnóstico / problemas comunes
+## 9. Para el agente de soporte (🩺 diagnóstico / problemas comunes)
 
 | Síntoma que reporta el usuario | Causa probable | Qué hacer |
 |---|---|---|

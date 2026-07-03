@@ -4,10 +4,10 @@ estado: parcial              # Proveedores, Bancos, Solicitudes (alta+listado), 
 version_doc: 0.9
 ultima_actualizacion: 2026-07-02
 submodulos: [Proveedores, Bancos, Solicitudes, "Pagar solicitudes", Aprobación, Pago/Conciliación, Reportes, "Claves SAT"]
-rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes, /cxp/pagar]
+rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes, /cxp/pagar, /cxp/ppd, /cxp/aprobar, /cxp/reportes]
 claves_permiso: [400, 401, 402, 410, 420, 430, 431, 440, 441, 450, 460, 470]
-tablas: [cxp, catProveedores, catBancos, catClavesProdServ, cxpComentarios, cxp_fechas_habilitadas, movbancarios, PresCategorias, v_resumenPresupuesto, SPHConfiguraciones]
-palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, lectura de comprobante, documentos privados, URL firmada, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, carga masiva, layout, plantilla, importación, Excel, retención, IVA, ISR, tiempo real, SSE, badge, círculo, contador, número de pendientes, pendientes por aprobar, aviso en el menú, notificación en el menú, solicitudes por aprobar]
+tablas: [cxp, cxp_ppd, catProveedores, catBancos, catClavesProdServ, cxpComentarios, cxp_fechas_habilitadas, movbancarios, PresCategorias, v_resumenPresupuesto, SPHConfiguraciones]
+palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, lectura de comprobante, documentos privados, URL firmada, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, carga masiva, layout, plantilla, importación, Excel, retención, IVA, ISR, tiempo real, SSE, badge, círculo, contador, número de pendientes, pendientes por aprobar, aviso en el menú, notificación en el menú, solicitudes por aprobar, PPD, parcialidades, "complemento de pago", REP, dispensar, "saldo disponible", "factura diferida", "no me deja autorizar", "cfdi rechazado", "error interno del servidor", "solicitud duplicada", "pago mal conciliado"]
 relacionado_con: [configuraciones, inversionistas, fideicomiso]
 ---
 
@@ -228,7 +228,7 @@ parametrizadas desde el backend.
       (por eso el trigger de fecha no la degrada). Queda como PPD pagada al 100% (disponible $0) con **REP
       vencido** pendiente de subir o dispensar (clave 403).
 
-## 8. 🩺 Diagnóstico / problemas comunes
+## 8. Para el agente de soporte (diagnóstico / problemas comunes)
 
 | Síntoma | Causa probable | Qué hacer |
 |---|---|---|

@@ -9,7 +9,7 @@ claves_permiso: []
 acceso: solo soporte (catUsers.isSupport = true)
 tablas: [v2_cron_ejecuciones, cron.job, cron.job_run_details]
 funciones: [v2_cron_jobs, v2_cron_run_details]
-palabras_clave: [cron, tarea programada, tareas programadas, job, jobs, scheduler, pg_cron, ejecución, ejecuciones, historial de tareas, bitácora de tareas, automático, programado, soporte, monitoreo]
+palabras_clave: [cron, tarea programada, tareas programadas, job, jobs, scheduler, pg_cron, ejecución, ejecuciones, historial de tareas, bitácora de tareas, automático, programado, soporte, monitoreo, "no se ejecutó la tarea", "por qué no corrió el cron", "tarea aparece inactiva", "el programador de tareas", "los procesos automáticos", "última ejecución en memoria", "se reinició el backend"]
 relacionado_con: [configuraciones, correo, cxp, arrendatarios, auditoria-y-ver-como]
 ---
 
@@ -103,11 +103,15 @@ ej., forzar la sincronización del correo o reenviar los avisos de complementos 
 
 SQL en `base-conocimiento/migraciones/2026-06-11-cron-monitoreo.sql`.
 
-## 7. Gotchas
+## 7. 🩺 Para el agente de soporte (diagnóstico / gotchas)
 
-- El estado **"Última (en memoria)"** y **"Próxima"** de las tareas del backend vienen del `SchedulerRegistry`
-  y **se reinician cuando el backend se reinicia/redeploya**. El historial **persistente** está en
-  `v2_cron_ejecuciones` (no se pierde con los reinicios).
-- Las fechas se muestran en **horario de México** y formato `dd/mm/aaaa hh:mm` (regla 7b).
-- Si una tarea del backend aparece como **inactiva**, suele ser porque su módulo no está cargado o el
-  `ScheduleModule` no se inicializó.
+- "No se ejecutó la tarea" / "la última ejecución en memoria está vacía o desactualizada" → causa: el
+  estado **"Última (en memoria)"** y **"Próxima"** de las tareas del backend vienen del
+  `SchedulerRegistry`, que vive en memoria del proceso Node y **se reinicia cuando el backend se
+  reinicia/redeploya** → regla: el historial **persistente** real está en `v2_cron_ejecuciones` (no se
+  pierde con los reinicios); verificar ahí antes de asumir que la tarea no corrió.
+- "Las fechas no cuadran con mi hora" → causa: las fechas se muestran en **horario de México** y
+  formato `dd/mm/aaaa hh:mm` (regla 7b) → no es un error, es el formato estándar del sistema.
+- "La tarea aparece como inactiva" / "por qué no corrió el cron" → causa: su módulo no está cargado o
+  el `ScheduleModule` no se inicializó → regla: revisar que el módulo del backend esté registrado y que
+  `ScheduleModule` esté inicializado.

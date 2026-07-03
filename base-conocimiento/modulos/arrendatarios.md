@@ -1,14 +1,14 @@
 ---
 modulo: Arrendatarios
 estado: desarrollado
-version_doc: 1.3
-ultima_actualizacion: 2026-06-15
+version_doc: 1.4
+ultima_actualizacion: 2026-07-03
 rutas_v2: [/arrendatarios, /arrendatarios/planes, /arrendatarios/reportes]
 rutas_v1: [i02_arrendatarios]
 claves_permiso: [10, 20, 21, 22, 23, 24, 25]
 tablas: [inversionista, arrenPropiedades, arrePdp, arrePdpDetalle, arreConceptos, inversionista_docs, naves, parques, inpc, movbancarios, v_arrendadasNaves, catUsers, segModulos]
 rpcs: [arrepdp_crear_plan_simple_rpc, arrepdp_generar_corrida_desde_plan_simple, arrepdpdetalle_aplicar_meses_gracia, arrepdpdetalle_obtener_resumen_por_plan, arrepdpdetalle_actualizar_campo_manual, arrepdpdetalle_calcular_anio_por_plan, arrepdpdetalle_recalcular_anos_contrato, actualizar_anios_planes_nuevos, actualizar_ciclo_plan_pago, actualizar_inpc_por_ciclo, arrepdp_agregar_concepto_financiado, arrepdp_eliminar_plan_con_restricciones, aplicar_pago_arrendatario, pagos_arrendatarios, contratos_por_vencer, contratos_vencidos_sin_renovacion, movbancarios_sin_aplicar, v2_arrepdp_renovar, v2_arrepdp_activar_renovaciones, v2_arrepdp_cancelar_anticipado]
-palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo]
+palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo, arrendatario no aparece, no aparece en arrendatarios, no aparece en el selector, nave no disponible, nave disponible para rentar, sin clasificar]
 relacionado_con: [parques, clientes, inversionistas, cxp]
 ---
 
@@ -484,8 +484,20 @@ recalcula bien).
   Usa **📥 Importar estado de cuenta** (Gestión de Pagos) y sube el **.xlsx de BanBajío**: registra los
   **SPEI recibidos** faltantes (sin duplicar, por clave de rastreo) y luego ya puedes aplicarlos con 💲.
   Ver "Importar estado de cuenta (BanBajío → `movbancarios`)" en este documento.
-- "El arrendatario no aparece" → debe estar marcado como `arrendatario`/`usuarioFinal`
-  y activo en **Clientes**.
+- **"El arrendatario/inquilino no aparece"** (en el selector de Arrendatarios → Planes de Renta) → el
+  selector real (`PlanesArreService.arrendatarios()`, `apps/api/src/modules/arrendatarios/planes-arre.service.ts`,
+  endpoint `GET /arrendatarios/lista`, clave 20) lista registros de `inversionista` con
+  **`(arrendatario=true OR usuarioFinal=true) AND status=true`**. Si al registro le falta la bandera
+  `arrendatario`/`usuarioFinal`, o está inactivo (`status=false`), no aparece — aunque exista. Si además
+  no tiene **ninguna** bandera de tipo (`inversionista`, `arrendatario`, `ticket`, `usuarioFinal` todas
+  en `false`), el cliente está en el estado **"Sin clasificar"** de Clientes (DISTINTO de "Papelera" =
+  `pruebas=true`); ver `modulos/clientes.md` §10 para el diagnóstico completo y el caso real (NEXGEN).
+  La corrección de datos (marcar el tipo) se hace en **Clientes (clave 300)**.
+- **"La nave no aparece disponible para vincular/rentar"** → el selector de naves disponibles
+  (`PlanesArreService.navesDisponibles()`, Configuración → Propiedades) exige **`status=true AND
+  Arrendada=false`** (y excluye parques de Tickets, `esTicket=false`). Una nave con `Arrendada=true` ya
+  está vinculada a un arrendatario vigente; vuelve a `Arrendada=false` al **cancelar anticipadamente**
+  o **Liberar nave** (ver "Reglas de negocio" arriba), o si nunca se ha vinculado.
 - "No veo el botón de Configuración / Renovar / Cancelación / Liberar" → es por **permiso**: cada botón
   exige su clave (Config=25, Renovar=23, Cancelación=22, Liberar=24). Pídele al administrador que te asigne
   la clave en **Configuraciones → Permisos** (los usuarios de soporte ven todo).

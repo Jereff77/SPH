@@ -7,7 +7,7 @@ submodulos: [Usuarios, Parámetros, Permisos, Sistema, Cambiar contraseña]
 rutas: [/configuraciones/usuarios, /configuraciones/parametros, /configuraciones/permisos, /configuraciones/sistema, /configuraciones/cambiar-contrasena, /registro]
 claves_permiso: [200, 203, 210, 212, 213, 214, 215, 216, 220, 221]
 tablas: [catUsers, crm_responsableComercial, v2_invitaciones, segModulos, segModulosUsuarios, segPlantillasPermisos, segDetallesPlantilla, inpc, PresCategorias, PresDetalle, Presupuestos, v_resumenPresupuesto, cxp_fechas_habilitadas, catClavesProdServ, SPHConfiguraciones]
-palabras_clave: [usuarios, invitación, invitar usuario, registro, alta de usuario, correo autorizado, permisos, plantillas, parámetros, INPC, cuentas, presupuesto, fechas CxP, claves SAT, retención, IVA, ISR, CFDI, logos, favicon, dominios, correos autorizados, contraseña, soporte, responsable comercial]
+palabras_clave: [usuarios, invitación, invitar usuario, registro, alta de usuario, correo autorizado, permisos, plantillas, parámetros, INPC, cuentas, presupuesto, fechas CxP, claves SAT, retención, IVA, ISR, CFDI, logos, favicon, dominios, correos autorizados, contraseña, soporte, responsable comercial, "no veo el submenú", "no aparece el toggle de soporte", "no puedo eliminar una cuenta", "no me deja crear un INPC", "el logo no respeta el tamaño", "cambié un permiso y no toma efecto", "error 403"]
 relacionado_con: [autenticacion, auditoria, parques, cxp]
 ---
 
@@ -208,7 +208,7 @@ un administrador cree la contraseña por ellos:
 - **Permisos ↔ todos los módulos:** las claves de `segModulos` gobiernan el acceso a cada pantalla/acción.
 - **Parámetros ↔ CxP / Arrendamientos:** INPC y cuentas/presupuesto alimentan pagos y rentas.
 
-## 10. 🩺 Diagnóstico / problemas comunes
+## 10. Para el agente de soporte (diagnóstico / problemas comunes)
 
 | Síntoma | Causa probable | Qué hacer |
 |---|---|---|

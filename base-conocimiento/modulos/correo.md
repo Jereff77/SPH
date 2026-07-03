@@ -7,7 +7,7 @@ submodulos: [Bandeja, Cuenta]
 rutas: [/correo]
 claves_permiso: [800, 801]
 tablas: [correo_cuentas, correo_mensajes, correo_adjuntos]
-palabras_clave: [correo, email, buzón, bandeja, factura, comprobante, IMAP, SMTP, Hostinger, responder, adjunto, conversación, hilo, sincronizar, contraseña cifrada]
+palabras_clave: [correo, email, buzón, bandeja, factura, comprobante, IMAP, SMTP, Hostinger, responder, adjunto, conversación, hilo, sincronizar, contraseña cifrada, "no llegan los correos", "no puedo guardar la cuenta", "falla la conexión imap/smtp", "no veo correo en el menú", "no sincroniza el buzón", "buzón vacío", "no puedo responder", "el correo no se sincroniza solo"]
 relacionado_con: [cxp, configuraciones]
 ---
 
@@ -81,7 +81,7 @@ cachea 5 min y refresca tras Sincronizar),
   frontend nunca recibe la contraseña; todo IMAP/SMTP ocurre en el backend. Escrituras auditadas.
 - ⚠️ Sin `EMAIL_ENCRYPTION_KEY` configurada, no se pueden guardar/usar cuentas (mensaje claro).
 
-## 7. 🩺 Diagnóstico
+## 7. 🩺 Para el agente de soporte (diagnóstico)
 | Síntoma | Causa | Qué hacer |
 |---|---|---|
 | "No puedo guardar la cuenta." | Falta `EMAIL_ENCRYPTION_KEY` en el servidor. | Configurarla en EasyPanel (api). |

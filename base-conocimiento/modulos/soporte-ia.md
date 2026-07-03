@@ -1,14 +1,14 @@
 ---
 modulo: Asistente / Agente de IA de Soporte
 estado: desarrollado
-version_doc: 1.0
-ultima_actualizacion: 2026-06-12
+version_doc: 1.1
+ultima_actualizacion: 2026-07-03
 submodulos: [Widget de chat, Diagnóstico de permisos, Escalación a ticket, Auditoría de conversaciones (solo soporte), Bandeja de tickets (solo soporte)]
 rutas: [(transversal — widget flotante en toda la app), /configuraciones/soporte]
 claves_permiso: []
 acceso_auditoria: solo soporte (catUsers.isSupport = true)
 tablas: [v2_soporte_sesiones, v2_soporte_mensajes, v2_soporte_tickets, SPHConfiguraciones, segModulosUsuarios, segModulos, catUsers]
-palabras_clave: [asistente, ayuda, soporte, agente, IA, inteligencia artificial, chat, chatbot, cómo hago, cómo se hace, no me deja, no puedo, no aparece, no veo, error, ticket, escalar, OpenRouter, widget, burbuja, dudas, tutorial, guía]
+palabras_clave: [asistente, ayuda, soporte, agente, IA, inteligencia artificial, chat, chatbot, cómo hago, cómo se hace, no me deja, no puedo, no aparece, no veo, error, ticket, escalar, OpenRouter, widget, burbuja, dudas, tutorial, guía, "widget de chat", "burbuja de ayuda", "crear ticket", "escalar a soporte", "quién revisó mi ticket", "auditoría de conversaciones", "text-to-SQL", "consultar_datos", "razonamiento del agente"]
 relacionado_con: [configuraciones, correo, auditoria-y-ver-como]
 ---
 
@@ -41,20 +41,31 @@ relacionado_con: [configuraciones, correo, auditoria-y-ver-como]
      controladas y **auditadas**.
 
 ## 3. Seguridad (regla clave): el agente SOLO informa
-- **Jamás modifica la base de datos.** El **perfil del usuario** (permisos, nombre) se lee con el
-  rol `v2_soporte_ro` (`SELECT` sobre un conjunto mínimo: permisos, catálogo, `catUsers` no
-  sensible). Las **herramientas de diagnóstico** (§10, Fase 1) leen tablas de negocio
-  (`inversionista`, `propiedades`) con el cliente **`admin`** mediante **consultas fijas y
-  parametrizadas** (no text-to-SQL), validando RBAC en código y devolviendo resultado saneado.
-  ⚠️ **Deuda (validador 2026-06-29):** esas lecturas deberían usar `v2_soporte_ro` (defensa en
-  profundidad); requiere **ampliar los grants** del rol a `inversionista`/`propiedades` (SELECT) —
-  cambio de BD pendiente de autorización (ver `contexto.md` §9). Hoy el motor NO bloquearía una
-  mutación accidental en esa ruta (service_role salta RLS); la garantía es solo de código (todas
-  las herramientas son `SELECT`).
+- **Jamás modifica la base de datos.** El **perfil del usuario** (nombre, correo, si es soporte,
+  permisos) se lee **completo** con el rol de **solo lectura** `v2_soporte_ro`
+  (`SoporteService.perfilUsuario`): `segModulosUsuarios` (permisos) y `catUsers`
+  (nombre/correo/`isSupport`). ⚠️ **Fix 2026-07-03 (bug de root):** `v2_soporte_ro` tenía la
+  **política RLS** de `catUsers` pero le faltaba el **`GRANT SELECT`** sobre la tabla (Postgres
+  exige ambos); sin el grant la lectura fallaba **en silencio** y el agente **no detectaba a los
+  usuarios de soporte** (creía que no lo eran y no conocía su nombre real, aunque sí veía sus
+  permisos por `segModulosUsuarios`, que sí tenía grant). Corregido con
+  `GRANT SELECT ON "catUsers" TO v2_soporte_ro;` (migración
+  `migraciones/2026-07-03-soporte-ro-grant-catusers.sql`). Si `catUsers` volviera a fallar,
+  `perfilUsuario` lo **registra en log** (ya no se silencia) y el prompt marca `perfilIncierto` en
+  vez de asumir "no es soporte".
+- **Ya NO existen herramientas "enlatadas" de diagnóstico.** Se retiraron por completo
+  (2026-07-03): `buscar_cliente`, `por_que_no_aparece_en_planes`, `diagnosticar_nave` y el archivo
+  `diagnostico.service.ts` que las contenía. El agente diagnostica **razonando**: consulta el
+  estado real de un registro con `consultar_datos`/`describir_tablas` (§10 — text-to-SQL acotado
+  por las claves del usuario, rol **`v2_agente_ro`**, **solo SELECT**) y lo **cruza con las reglas
+  de negocio documentadas en esta KB** (p. ej. `modulos/clientes.md`, `modulos/arrendatarios.md`,
+  `modulos/inversionistas.md`). Por eso esas reglas de negocio **deben vivir escritas en la KB**:
+  el agente ya no las trae "de fábrica" en código; **solo sabe lo que está aquí**.
 - El modelo **no tiene ninguna herramienta de escritura**. Persistir el chat y **crear tickets**
   son acciones **deterministas del backend** (auditadas); el ticket se crea **solo si el usuario
-  lo confirma**. Las herramientas que el modelo SÍ puede invocar (§10) son **solo de lectura** y se
-  ejecutan por un **switch cerrado** (un nombre inventado por el modelo no ejecuta nada).
+  lo confirma**. La única herramienta de datos que el modelo puede invocar (§10) es de **solo
+  lectura** y se ejecuta por un **switch cerrado** (un nombre inventado por el modelo no ejecuta
+  nada).
 
 ## 4. Diagnóstico de permisos
 El agente conoce las **claves de permiso** de cada pantalla (del frontmatter de la KB) y los
@@ -129,33 +140,34 @@ Tiene **dos pestañas**:
 - Parámetros `SOPORTE_IA_*` en `SPHConfiguraciones`.
 - SQL: `base-conocimiento/migraciones/2026-06-12-soporte-ia.sql`.
 
-## 10. Capacidades de datos del agente (function-calling) — v2.46.0 → v2.47.0
-Además de explicar el sistema, el agente **diagnostica problemas reales** y **responde preguntas de
-datos** consultando la BD en vivo, vía **function-calling** (OpenRouter).
+## 10. Capacidades de datos del agente (function-calling) — v2.46.0 → razonador (2026-07-03)
+Además de explicar el sistema, el agente **diagnostica problemas reales** consultando la BD en vivo y
+**razonando** con las reglas de negocio de esta KB, vía **function-calling** (OpenRouter). Desde
+**2026-07-03** el diseño pasó de "clasificador que escala" a **"solucionador de primer nivel que
+razona"**: ya **no** hay herramientas que traigan la regla de negocio "enlatada" en código — el modelo
+consulta el **dato crudo** y la **KB le da el criterio** para interpretarlo y guiar la solución. Ver
+`PLAN-agente-soporte-razonador.md` (diseño) y `PLAN-agente-soporte-guiar-cliente-sin-tipo.md` (caso
+real que originó el rediseño).
 
 ### Arquitectura común
-- La edge `soporte-chat` reenvía `tools` y devuelve `message` (con `tool_calls`); el **tool-loop vive
-  en el backend** (`SoporteService.enviar`, **tope 6 iteraciones**), que tiene acceso a datos, RBAC y
-  auditoría. Modelo en `SOPORTE_IA_MODELO` (debe soportar tools; hoy **`openai/gpt-4o`**).
+- La edge `soporte-chat` reenvía `tools` y devuelve `message` (con `tool_calls`); el **tool-loop vive en
+  el backend** (`SoporteService.enviar`, **tope 6 iteraciones**), que tiene acceso a datos, RBAC y
+  auditoría. Modelo en `SOPORTE_IA_MODELO` (debe soportar tools). **Objetivo del rediseño: Sonnet 5**
+  vía OpenRouter (fallback Sonnet 4.6 si el 5 no estuviera en catálogo); requiere fijar el parámetro en
+  BD y desplegar la edge sin `temperature` (Fase 4 del plan) — mientras tanto el código sigue con el
+  modelo por defecto anterior.
 - **Instrumentación / auditoría:** cada mensaje guarda en `v2_soporte_mensajes` el **`debug_sql`** (SQL
   generado) y **`debug_meta.traza`** (razonamiento del modelo `tipo:'pensamiento'` + herramientas
   `tipo:'herramienta'` con error/total_filas). Se ve en **Configuraciones → Soporte → Conversaciones**
   (bloque "🔎 Razonamiento del agente", solo soporte). El system prompt pide al modelo **explicar en
   1-2 frases** por qué usa cada herramienta (queda en la traza).
 
-### A) Herramientas de diagnóstico ENLATADAS (`DiagnosticoService`, `diagnostico.service.ts`)
-- `buscar_cliente(texto)` → identifica cliente por nombre/razón social/RFC (id + nombre + tipos, sin
-  PII; filtro allowlist).
-- `por_que_no_aparece_en_planes(idInversionista)` → condiciones del selector de Planes + propiedades/plan.
-- `diagnosticar_nave(parque, numNave, contexto)` → disponibilidad de la nave. **Arrendatarios** =
-  `status=true AND Arrendada=false`; **Ventas** = `situacion='Disponible'` (reglas reales de v1). Trae
-  todas las coincidencias por parque (resuelve "Acupark 2"≈"Acupark II").
-- Cada una valida **RBAC por clave** (300/610/20/25 o `isSupport`) ANTES de consultar; solo lectura;
-  **switch cerrado**; salida saneada con **`tipoFalla`** (`datos` corregible vs `sistema` → escalar).
-
-### B) CONSULTA DE DATOS libre acotada por claves (`ConsultasService`, `consultas.service.ts`) — text-to-SQL
-Responde preguntas analíticas ("cuántos clientes nuevos…") sobre **los módulos cuya clave tiene el
-usuario**. Herramientas `describir_tablas(tablas)` (columnas bajo demanda) + `consultar_datos(sql)`.
+### La única herramienta de datos: CONSULTA DE DATOS libre acotada por claves (`ConsultasService`, `consultas.service.ts`) — text-to-SQL
+Responde tanto preguntas **analíticas** ("cuántos clientes nuevos…") como de **diagnóstico** ("¿este
+cliente tiene el flag arrendatario? ¿está activo? ¿es de prueba? ¿esta nave está Arrendada o
+Disponible?"), sobre **los módulos cuya clave tiene el usuario**. Herramientas `describir_tablas(tablas)`
+(columnas bajo demanda) + `consultar_datos(sql)`. Es la **única** vía de datos del agente: no hay
+herramientas alternas ni atajos deterministas.
 - **Doble barrera de seguridad:** (1) **backend** valida que sea SELECT y que el SQL **solo toque
   tablas del universo permitido por las claves** del usuario (mapa `MODULOS_DATOS` + `COMUNES`;
   `tablasFueraDeUniverso`); (2) **BD**: ejecuta vía `agente_consulta_sql` con el rol **`v2_agente_ro`**
@@ -169,19 +181,57 @@ usuario**. Herramientas `describir_tablas(tablas)` (columnas bajo demanda) + `co
   cap 5000 filas) y `agente_esquema` (metadatos). Migración
   `migraciones/2026-06-29-agente-consulta-sql-rol-ro.sql`.
 
+### Método de razonamiento (system prompt, `construirSystemPrompt`)
+El prompt no solo da acceso a la herramienta: le indica al modelo **CÓMO diagnosticar y CUÁNDO
+escalar** — esto reemplaza la lógica que antes vivía "enlatada" en cada herramienta retirada:
+1. Entender el problema real (no solo el síntoma literal).
+2. **Verificar, no asumir**: si la causa depende de un dato (¿existe el registro?, ¿tiene marcada la
+   casilla/tipo?, ¿está activo?, ¿es de prueba?, ¿la nave está libre?), **consultarlo** con
+   `consultar_datos` antes de responder. Nunca inventar la causa.
+3. Contrastar el dato con las **reglas del módulo** (esta KB — p. ej. la regla del selector de
+   Arrendatarios en `modulos/arrendatarios.md`, la del selector de Planes en `modulos/inversionistas.md`,
+   o los estados "Papelera" (`pruebas=true`) / "Sin clasificar" (sin ninguna bandera de tipo, DISTINTO
+   de Papelera) en `modulos/clientes.md` §10).
+4. **Clasificar** la causa: *datos/configuración* (el usuario lo corrige en la app) vs *sistema/
+   plataforma* (bug, datos contradictorios, o algo que nadie corrige desde la interfaz).
+5. **Resolver, no solo diagnosticar**: dar los pasos exactos y accionables en la app (módulo, pantalla,
+   botón, casilla) e indicar **dónde** encontrar el registro.
+6. **Guiar → canalizar → escalar** (en ese orden; escalar es el ÚLTIMO recurso):
+   - **Guiar:** si el usuario **tiene** el permiso del módulo donde se corrige el dato (p. ej. 300
+     Clientes), darle los pasos para que lo haga él mismo.
+   - **Canalizar:** si al usuario **le falta un permiso** que necesita, decirle qué clave y con quién
+     tramitarla (`modulos/directorio-contactos.md`) — **sin** ticket.
+   - **Escalar (ticket), SOLO como último recurso:** cuando el caso requiere (a) un **cambio de
+     plataforma** (desarrollo) o (b) una corrección de **datos que nadie puede hacer desde la
+     interfaz** (falla de sistema real). El agente **nunca** afirma "hay que tocar la base de datos":
+     solo señala que "requiere revisión de Jereff/el equipo técnico"; la decisión y ejecución quedan
+     del lado humano.
+7. Ser honesto: si no puede verificar algo, decirlo; nunca inventar.
+- ⛔ **Regla dura del prompt:** marcar/quitar el **tipo** de un cliente (Inversionista/Arrendatario/
+  Ticket/Usuario final) es una corrección de **DATOS** en **Clientes (clave 300)**, **NUNCA** un cambio
+  de permisos — no se deriva al administrador de permisos por esto.
+
+### Perfil del usuario en el prompt (primer insumo, antes de razonar)
+El bloque "CONTEXTO DEL USUARIO" se inyecta **al inicio y de forma prominente** en el system prompt:
+**nombre, correo, si es SOPORTE (acceso total) y la lista de permisos**, leídos con `v2_soporte_ro`
+(§3, con el fix del grant a `catUsers`). Regla dura del prompt: *"ANTES de decidir nada, mira quién
+pregunta y a qué tiene acceso"* — evita que el agente le pida permisos a un usuario de soporte que ya
+los tiene, o que canalice a alguien que ya puede corregirlo él mismo.
+
 ### Operativo / pendientes
 - La edge `soporte-chat` se despliega aparte (`supabase functions deploy soporte-chat`), NO con el push.
-- ⚠️ **Deuda:** con `anthropic/claude-3.5-haiku` la edge `soporte-chat` devolvió **502** (Montse/`ia-chat`
-  sí funciona con haiku) → falta **alinear `soporte-chat` con `ia-chat`** (p. ej. quitar `temperature`);
-  mientras, se usa `openai/gpt-4o`. Otras deudas: mover lecturas de `DiagnosticoService` de `admin` a un
-  rol RO; detectores de anomalía que escalan ticket; afinar el parser `tablasFueraDeUniverso`.
+- ⚠️ **Deuda/pendiente del rediseño (Fase 4, `PLAN-agente-soporte-razonador.md`):** quitar `temperature`
+  del cuerpo que la edge envía a OpenRouter (misma raíz del 502 histórico con haiku; alinear con
+  `ia-chat`) y fijar `SOPORTE_IA_MODELO` a Sonnet 5 (fallback 4.6) en BD, luego desplegar la edge.
+- Otras deudas: afinar el parser `tablasFueraDeUniverso` (el aislamiento inter-módulo del text-to-SQL
+  es "mejor esfuerzo"; la barrera dura es la lista blanca de grants del rol `v2_agente_ro`).
 
 ## 8. Fase 2 (futura)
 Migrar el router de la KB a **búsqueda semántica con `pgvector`** (tabla `v2_kb_embeddings`)
 para preguntas vagas; el contrato de `KbService.seleccionar()` ya está aislado para cambiar la
 implementación sin tocar el resto. La KB en markdown sigue siendo la fuente de verdad.
 
-## 9. Gotchas
+## 9. Para el agente de soporte (gotchas / notas del propio asistente)
 - El agente **solo sabe lo que está en esta KB**: si un módulo está incompleto aquí, el agente
   lo reflejará. Mantener los `modulos/*.md` al día (regla 8) mejora directamente sus respuestas.
 - **Permisos del propio usuario (SÍ los conoce).** El backend (`perfilUsuario`) lee los permisos del
@@ -192,11 +242,12 @@ implementación sin tocar el resto. La KB en markdown sigue siendo la fuente de 
   errores de lectura con `v2_soporte_ro` (ahora se loguean, no se silencian) y (2) las REGLAS de
   `construirSystemPrompt`. **No** consulta permisos de OTROS usuarios ni datos de negocio (eso es
   Montse AI o un ticket).
-- **El agente SÍ consulta la BD en vivo** (desde v2.46.0, §10): herramientas **enlatadas** de
-  diagnóstico **y** (desde v2.47.0) **text-to-SQL acotado por claves** (`consultar_datos`). La edge
-  `soporte-chat` soporta **function-calling** y el **tool-loop vive en el backend**. Para el diagnóstico,
-  el modelo elige la herramienta y sus parámetros; el
-  backend ejecuta una consulta fija de solo lectura y devuelve un resultado saneado.
+- **El agente SÍ consulta la BD en vivo** (§10): vía **text-to-SQL acotado por claves**
+  (`consultar_datos`). Desde el **rediseño razonador (2026-07-03)** se **retiraron las herramientas
+  enlatadas** de diagnóstico: el agente **razona** (consulta → analiza → responde) en vez de ejecutar
+  diagnósticos fijos. La edge `soporte-chat` soporta **function-calling** y el **tool-loop vive en el
+  backend**; el modelo escribe un `SELECT` que el backend **valida** (solo lectura + allowlist de módulos
+  según los permisos del usuario) y ejecuta con un **rol de solo lectura**, devolviendo un resultado saneado.
 - El marcador `[[ESCALAR]]` que el modelo añade al final de una respuesta es **interno**: el
   backend lo detecta para mostrar el botón de ticket y lo **retira** del texto visible.
 - La carpeta `base-conocimiento/` se incluye en la imagen de producción del backend (Dockerfile);

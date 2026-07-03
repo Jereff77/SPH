@@ -83,7 +83,7 @@ Cada cambio tiene un **tipo**, con su color en la pantalla:
 - **Auditoría:** los cambios al changelog quedan registrados en la bitácora (`auditoria`), como cualquier
   otra tabla de datos.
 
-## 6. 🩺 Diagnóstico / problemas comunes
+## 6. Para el agente de soporte (🩺 diagnóstico / problemas comunes)
 
 | Síntoma | Causa probable | Qué hacer |
 |---|---|---|

@@ -103,7 +103,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.2,
+        // ⚠️ Sin `temperature` (ni otros sampling params): los modelos nuevos
+        // (Sonnet 5 / familia Opus 4.7+) los RECHAZAN con 400 → era la causa del 502.
+        // El modelo usa su default, suficiente para soporte. Alineado con `ia-chat`.
         ...(tools ? { tools, tool_choice: 'auto' } : {}),
       }),
     });

@@ -3,9 +3,10 @@ modulo: CRM
 estado: stub
 version_doc: 0.1
 ultima_actualizacion: 2026-06-04
-rutas_v1: [i07_c_r_m]
+rutas: []
+claves_permiso: []
 tablas: [crm_leads, crm_Agenda, crm_tipoActividad, empresas, leads_poraprobar]
-palabras_clave: [CRM, lead, prospecto, oportunidad, empresa, inmobiliaria, asesor, etapa, embudo, actividad comercial, agenda]
+palabras_clave: [CRM, lead, prospecto, oportunidad, empresa, inmobiliaria, asesor, etapa, embudo, actividad comercial, agenda, "no encuentro un lead", "cómo doy de alta un prospecto", "leads por aprobar", "similitud de leads", "duplicado", "no veo CRM en el menú", "cómo cambio de etapa"]
 relacionado_con: [configuraciones]
 ---
 
@@ -25,5 +26,5 @@ actividades comerciales; detección de leads similares y migración de "por apro
 - Usa búsqueda por similitud (extensión `pg_trgm`/`fuzzystrmatch`) para detectar leads duplicados.
 - Hay integraciones por correo / posibles flujos n8n (vistas `n8n_*`): confirmar antes de tocar objetos.
 
-## Para el agente
+## Para el agente de soporte
 Explicar a alto nivel; para operaciones de CRM, **levantar ticket** o remitir a v1 mientras no se migre.

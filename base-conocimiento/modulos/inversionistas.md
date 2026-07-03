@@ -1,13 +1,13 @@
 ---
 modulo: Inversionistas / Propietarios (Ventas)
 estado: parcial              # Gestión de Cobranza + Dashboard gráfico + Planes + Escrituras en v2
-version_doc: 2.1
-ultima_actualizacion: 2026-06-22
+version_doc: 2.2
+ultima_actualizacion: 2026-07-03
 submodulos: [Gestión de Cobranza, Dashboard gráfico, Reportes, Planes, Configuración, Escrituras]
 rutas: [/ventas, /ventas/dashboard, /ventas/reportes, /ventas/planes, /ventas/escrituras]
 claves_permiso: [600, 610, 611, 620, 630]
 tablas: [inversionista, inversionista_docs, propiedades, naves, kvasAsignados, pdp, pdpDetalle, pagos, rgPdp, rgPdpDetalle, raPdp, raPdpDetalle, comentarios, actividad, parques, v_rentasCombinadas, iaSesiones, iaConversaciones]
-palabras_clave: [inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, avance, renta garantizada, renta administrada, configuración, documentos, escrituración, dashboard, gráfico, atrasos, vencido, días de atraso, KPI, gestión de cobranza, reportes, estado de cuenta, vencidos, saldo vencido, exportar, CSV, PDF, JSON, Montse AI, asistente, IA, chat, OpenRouter, comentarios, razón social]
+palabras_clave: [inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, avance, renta garantizada, renta administrada, configuración, documentos, escrituración, dashboard, gráfico, atrasos, vencido, días de atraso, KPI, gestión de cobranza, reportes, estado de cuenta, vencidos, saldo vencido, exportar, CSV, PDF, JSON, Montse AI, asistente, IA, chat, OpenRouter, comentarios, razón social, inversionista no aparece, no aparece en planes, no aparece en el selector, sin clasificar, "trasladar saldo", "devolución", "escrituración pendiente", "nave no aparece disponible"]
 relacionado_con: [parques, arrendatarios, cxp, clientes, fideicomiso]
 ---
 
@@ -427,3 +427,21 @@ parque (`parques.nomParque`) y nave (`naves.numNaveNAME`) **por separado**, inve
 - **Dashboard, limpieza pendiente:** tras excluir el parque de Tickets, la **columna "T"** de la tabla y la
   columna **"F"** (ticket) de la fila de totales quedan **siempre en 0**; se pueden retirar de la UI (decisión
   pendiente del usuario). La lógica de fila amarilla "si es Ticket" quedó inactiva.
+
+## 9. Para el agente de soporte
+
+- **"El inversionista/propietario no aparece en el selector de Planes"** (`/ventas/planes`) → el
+  selector real (`PlanesService.inversionistas()`, `apps/api/src/modules/ventas/planes.service.ts`,
+  desde **v2.44.1**) lista registros de `inversionista` con **`inversionista=true AND pruebas=false AND
+  status=true`** — **no** exige tener propiedad o plan activo (así se puede dar de alta el primer plan
+  desde este mismo selector). Si al registro le falta la bandera `inversionista`, es de prueba
+  (`pruebas=true`, = estado **"Papelera"** de Clientes) o está inactivo (`status=false`), no aparece. Si
+  además no tiene **ninguna** bandera de tipo, el cliente está en el estado **"Sin clasificar"** de
+  Clientes (DISTINTO de Papelera); ver `modulos/clientes.md` §10 para el diagnóstico completo. La
+  corrección de datos (marcar la bandera `inversionista`) se hace en **Clientes (clave 300)**.
+- **"La nave no aparece disponible para vincular/vender"** → el selector de naves disponibles
+  (`PlanesService.navesDisponibles()`, Config → Propiedades) exige **`naves.situacion='Disponible'`**
+  (NO depende de la columna `Arrendada`, que es del módulo Arrendatarios). Al vincularla a un
+  inversionista pasa a `situacion='Vendida'` y deja de listarse; vuelve a `'Disponible'` solo si se
+  **desvincula** (botón 🗑 de la tarjeta), y eso **solo se permite si la propiedad NO tiene plan de
+  pagos** (`tienenPdp`/`idPdp`).

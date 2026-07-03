@@ -1,12 +1,11 @@
 ---
 modulo: Incrementos de renta por INPC (Arrendatarios)
-claves_permiso: [212 (capturar INPC + aplicar/revertir/reaplicar + Responsables), 20 (leer bitácora por plan)]
-entidades: [arre_incrementos, parque_responsables, arrePdpDetalle.aplicaInpc, SPHConfiguraciones (ARRE_INPC_DESFASE_MESES, ARRE_INPC_GERENTE_UID), inpc]
-palabras_clave: [incremento, INPC, renta, aniversario, aplicar incremento, revertir incremento, re-aplicar,
-  desfase, responsable de parque, gerente, correo de incrementos, bitácora de incrementos, reserva incompleta,
-  no se aplicó el incremento, incremento pendiente, captura tardía, aplicaInpc, snapshot]
-relacionados: [arrendatarios, configuraciones (Parámetros→INPC), parques]
-estado: ✅
+estado: desarrollado
+rutas: [/configuraciones/parametros, /arrendatarios/responsables, /arrendatarios/planes]
+claves_permiso: [212, 20]
+tablas: [arre_incrementos, parque_responsables, arrePdpDetalle, SPHConfiguraciones, inpc]
+palabras_clave: [incremento, INPC, renta, aniversario, aplicar incremento, revertir incremento, re-aplicar, desfase, responsable de parque, gerente, correo de incrementos, bitácora de incrementos, reserva incompleta, "no se aplicó el incremento", "incremento pendiente", captura tardía, aplicaInpc, snapshot, "se aplicó con otro valor", duplicados, "por qué no se aplicó", "renta no subió"]
+relacionado_con: [arrendatarios, configuraciones, parques]
 ---
 
 # Incrementos de renta por INPC
@@ -64,6 +63,34 @@ de parque y a la gerente.
 - La **edición manual** del INPC (doble clic en la corrida) sigue viva y registra `origen='manual'` en la
   bitácora (sin snapshot → no reversible automáticamente).
 - Correo **best-effort**: si el SMTP falla, los incrementos NO se revierten; se reenvía después.
+
+## Para el agente de soporte (reglas de datos / diagnóstico)
+- **"No se aplicó el incremento" / "incremento pendiente" / "reserva incompleta"** → si el proceso murió
+  entre la reserva del candado y la RPC, queda una fila en `arre_incrementos` con `estado='aplicado'` y
+  `detalle.estado='en_proceso'` (fuente: RPC `arrepdp_aplicar_incremento_inpc`). Diagnóstico: la vista
+  previa (`IncrementosPreviewModal.tsx`) lo señala como "reserva incompleta"; la corrección es dar
+  **"Revertir"** desde ahí (libera la reserva sin tocar la corrida de renta).
+- **"Se aplicó con otro valor" / "renta no subió lo que esperaba"** → el INPC guardado en la corrida de
+  renta **NO es la fuente de verdad de si ya se aplicó** (hay arrastres históricos de versiones previas
+  del cálculo). La fuente de verdad es la tabla `arre_incrementos`. Si el INPC vigente (capturado en
+  Parámetros→INPC) difiere del que quedó registrado en `arre_incrementos` para ese plan/año, la vista
+  previa muestra el badge ⚠️ "aplicado con valor distinto al vigente" (se calcula al vuelo, comparando
+  contra `arre_incrementos`) y ofrece **"Revertir y re-aplicar"**.
+- **"Duplicados" en un parque/nave (dos planes vigentes por la misma nave)** → patrón conocido y
+  confirmado en **SERRANA naves 79/80** (mismo `idNavArrend`, fechas idénticas 2023→2033, cero pagos;
+  los planes `PDP_251222*` se recrearon el 22/dic/2025 y los planes v1 quedaron activos por error) y
+  sospechado sin diagnosticar en **CHANGER & DRESSER nave 87**. Si el usuario reporta un incremento
+  duplicado o dos corridas de renta para el mismo local/nave, es este patrón: verificar `idNavArrend`
+  repetido en planes vigentes antes de aplicar/revertir nada — está pendiente de saneamiento manual
+  (no automatizar la corrección sin autorización, ver "Decisiones y pendientes").
+- **"Por qué no se aplicó" (caso general, sin ser reserva incompleta ni duplicado)** → el automático
+  **NO** toca un plan si: tiene pagos registrados en el año objetivo ("dinero cobrado manda", ni aplicar
+  ni revertir proceden), el aniversario del **mes** ya quedó atrás (salvo re-aplicación por corrección
+  confirmada), el monto ya fue modificado sin bitácora, o el plan está inactivo. Estos casos aparecen en
+  la vista previa como ⚠️ **manuales**, no como error.
+- **Permisos**: capturar el INPC, aplicar/revertir/re-aplicar y administrar Responsables de parque
+  requieren la clave **212** (única clave para las tres acciones, decisión de negocio 2026-07-02: no
+  están separadas). Consultar la bitácora de incrementos por plan requiere la clave **20**.
 
 ## Gotchas / trampas conocidas
 - **"Reserva incompleta"**: si el proceso muere entre la reserva del candado y la RPC, queda una fila

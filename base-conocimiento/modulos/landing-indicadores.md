@@ -8,7 +8,7 @@ rutas: [/]
 claves_permiso: []
 tablas: [inpc]
 apis_externas: [Banxico SIE API (serie SF43718)]
-palabras_clave: [inicio, landing, dashboard, tipo de cambio, dólar, USD, MXN, INPC, indicadores, Banxico]
+palabras_clave: [inicio, landing, dashboard, tipo de cambio, dólar, USD, MXN, INPC, indicadores, Banxico, "no carga el tipo de cambio", "aparece como raya", "inpc desactualizado", "la página principal", "el tablero"]
 relacionado_con: [configuraciones, autenticacion]
 ---
 
@@ -55,7 +55,7 @@ relacionado_con: [configuraciones, autenticacion]
 - **Configuraciones → Parámetros (INPC):** alimenta la tarjeta de INPC.
 - **Configuraciones → Sistema:** define el logotipo que se muestra centrado.
 
-## 6. 🩺 Diagnóstico / problemas comunes
+## 6. Para el agente de soporte (🩺 diagnóstico / problemas comunes)
 
 | Síntoma | Causa probable | Qué hacer |
 |---|---|---|

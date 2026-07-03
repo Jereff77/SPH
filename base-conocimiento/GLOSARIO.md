@@ -1,8 +1,8 @@
 ---
 documento: Glosario transversal
 estado: vivo
-ultima_actualizacion: 2026-06-10
-palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parque, PDP, KVA, INPC, situacion, status, esTicket, auditoria, ver como, saldo vencido, días de atraso, cartera vencida, tipo de pago, escrituración, Montse AI, asistente]
+ultima_actualizacion: 2026-07-03
+palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parque, PDP, KVA, INPC, situacion, status, esTicket, auditoria, ver como, saldo vencido, días de atraso, cartera vencida, tipo de pago, escrituración, Montse AI, asistente, pruebas, papelera, sin clasificar]
 ---
 
 # Glosario — entidades y términos transversales
@@ -85,6 +85,14 @@ palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parq
 - **`cantidad` / `inpcTotal` (en `arrePdpDetalle`):** **columnas GENERADAS** (`cantidad = pm2 × constM2`,
   `inpcTotal = INPC + ptsINPC`). No se escriben directamente: cambian solas al cambiar `pm2`/`constM2` o
   `INPC`/`ptsINPC`. Por eso editar el INPC no mueve el monto salvo que se recalcule el `pm2`.
+- **`pruebas` (en `inversionista`) ⟺ "Papelera".** Marca un registro de **prueba/descarte**, no un
+  cliente real vigente. `pruebas=true` es el estado **"Papelera"** del módulo **Clientes**.
+- **Cliente "Sin clasificar" (DISTINTO de "Papelera").** Registro de `inversionista` **activo**
+  (`status=true`) y **NO de prueba** (`pruebas=false`) que **no tiene ninguna bandera de tipo** marcada
+  (`inversionista=false AND arrendatario=false AND ticket=false AND usuarioFinal=false`). Existe y es un
+  cliente real; simplemente no se le asignó ningún tipo (o se le quitaron todos). Por no tener bandera de
+  tipo, **no aparece en ningún selector de negocio** (Arrendatarios, Ventas/Planes…), que filtran
+  siempre por esas banderas. Detalle, caso real y regla completa en `modulos/clientes.md` §10.
 
 ## Seguridad, identidad y soporte
 

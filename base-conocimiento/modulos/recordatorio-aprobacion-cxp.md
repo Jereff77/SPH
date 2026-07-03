@@ -1,10 +1,11 @@
 ---
 modulo: Recordatorio de aprobación CxP (correo automático)
-claves_permiso: [430 (aprobador destinatario), isSupport (ver bitácora)]
-entidades: [cxp, catUsers, cxp_fechas_habilitadas, mail_recordatorios_aprobacion]
-palabras_clave: [recordatorio, recordatorio de aprobación, correo a aprobadores, aviso por correo, solicitudes por aprobar, pendientes de aprobar, cron 7am, recordatorio diario, n8n, miércoles, mail_recordatorios_aprobacion, recordatorios enviados]
-relacionados: [cxp, cron, soporte-ia, correo]
-estado: ✅
+estado: desarrollado
+rutas: [/configuraciones/soporte, /configuraciones/cron]
+claves_permiso: [430]
+tablas: [cxp, catUsers, cxp_fechas_habilitadas, mail_recordatorios_aprobacion]
+palabras_clave: [recordatorio, recordatorio de aprobación, correo a aprobadores, aviso por correo, solicitudes por aprobar, pendientes de aprobar, cron 7am, recordatorio diario, n8n, miércoles, mail_recordatorios_aprobacion, recordatorios enviados, "no me llegó el recordatorio", "no recibí el correo de aprobadores", "aprobador inactivo sigue recibiendo correo", "sin aprobador asignado", "apagar recordatorio de n8n"]
+relacionado_con: [cxp, cron, soporte-ia, correo]
 ---
 
 # Recordatorio de aprobación CxP (correo automático)
@@ -47,7 +48,10 @@ no tienen ninguna solicitud pendiente. Las solicitudes **sin aprobador asignado*
 - **Lectura (solo soporte):** `SoporteAdminController` (`@UseGuards(JwtAuthGuard,
   SoporteGuard)`): `GET /soporte/admin/recordatorios-aprobacion` y `…/:id` (detalle con
   HTML). Front: pestaña en `apps/web/src/features/soporte-admin/SoporteAdminPage.tsx`
-  (HTML del correo renderizado en `<iframe sandbox="">`).
+  (HTML del correo renderizado en `<iframe sandbox="">`), montada en la ruta
+  `/configuraciones/soporte`. El acceso a esta bitácora **no** usa una clave de permiso
+  numérica: lo protege el guard `SoporteGuard` (flag especial `isSupport` del usuario), a
+  diferencia de la clave `430` que aplica al aprobador destinatario del correo.
 - **Migración:** `base-conocimiento/migraciones/2026-06-30-recordatorio-aprobacion-cxp.sql`.
 
 ## Reglas de negocio y validaciones
@@ -55,6 +59,30 @@ no tienen ninguna solicitud pendiente. Las solicitudes **sin aprobador asignado*
 - Un correo por aprobador **activo** (`catUsers.status = true`) **con ≥1 pendiente**; los
   pendientes sin aprobador, o asignados a un aprobador **inactivo/inexistente**, no se notifican.
 - El identity/correo del aprobador sale de la BD (`uidGerente` → `catUsers`), nunca del cliente.
+
+## Para el agente de soporte (reglas de datos / diagnóstico)
+- **"No me llegó el recordatorio" / "no recibí el correo de aprobadores"** → revisar primero si
+  la solicitud tiene **`uidGerente = '-'`** (o vacío): ese es el centinela de "sin aprobador"
+  (patrón `NULLIF(TRIM(x),'-')`) → no hay a quién notificar, es esperado. Regla verificada: el
+  scheduler (`apps/api/src/modules/cxp/recordatorio-aprobacion.scheduler.ts`) excluye estas filas
+  antes de consultar `catUsers`; si no se excluyeran, la consulta a `catUsers` (columna `uid`
+  tipo `uuid`) **fallaría** y dejaría a TODOS los aprobadores sin correo ese día.
+- **"Aprobador inactivo sigue recibiendo correo" / "aprobador dado de baja aparece con
+  pendientes"** → causa: `catUsers.status = false` pero el aprobador **conserva su correo en
+  BD**. Regla verificada: el scheduler resuelve `status` desde `catUsers` y **omite** a los
+  inactivos (caso real confirmado: **Ivvy Barragán**, dada de baja con solicitudes aún
+  asignadas). Diagnóstico correcto: esas solicitudes quedan **sin aprobador activo** y deben
+  **reasignarse** manualmente (dato operativo, no un bug del recordatorio).
+- **"Sin aprobador asignado" / "esta solicitud nunca notifica a nadie"** → mismo centinela
+  `uidGerente = '-'`/vacío de arriba: la solicitud no tiene aprobador, hay que asignarle uno.
+- **"No me llegó el correo aunque hoy sí puedo aprobar"** → verificar en orden: (1)
+  `cxp_puede_autorizar()` / `cxp_fechas_habilitadas.autorizar` de HOY (si es `false`, no se
+  envía nada ese día, es esperado); (2) variables `SMTP_INVITACIONES_*` y `APP_WEB_URL` en el
+  entorno — si `SMTP_INVITACIONES_*` no está configurado, la tarea registra la corrida y sale
+  **sin enviar** (no rompe, pero tampoco notifica).
+- **"Quiero apagar el recordatorio de n8n de los miércoles"** → es un pendiente operativo
+  conocido (ver "Decisiones y pendientes"): el flujo de n8n de los miércoles **todavía no se ha
+  apagado** en producción; hasta entonces puede llegar un correo duplicado los miércoles.
 
 ## Gotchas / trampas conocidas
 - 📌 **`uidGerente = '-'`** es el centinela de "sin aprobador" (patrón `NULLIF(TRIM(x),'-')`).

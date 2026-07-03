@@ -6,7 +6,7 @@ ultima_actualizacion: 2026-07-01
 rutas: [/arrendatarios/soporte]
 claves_permiso: [31, 32, 33, 34, 35, 36]
 tablas: [incidentes, incidentes_remitentes, incidentes_seguimientos, correo_cuentas, correo_mensajes, correo_adjuntos, inversionista, arrenPropiedades, v_arrendadasNaves, naves, parques, catUsers, segModulosUsuarios, SPHConfiguraciones]
-palabras_clave: [soporte a inquilinos, incidente, incidentes, ticket, reporte de falla, queja, mantenimiento, nave, parque, contacto@portal.gruposph.mx, correo de soporte, bandeja de incidentes, responder incidente, firma, firma corporativa, logo en el correo, vincular inquilino, remitente, estado del incidente, nuevo, en proceso, resuelto, detenido, cerrado, sin avance 7 días, asignar, asignación, agente, gerente, ver todos, pipeline, tablero, kanban, seguimientos, árbol de seguimientos, bitácora, nota interna, clasificar, IA, categoría, prioridad, folio en el asunto, mismo incidente, hilo, cadena de correos, INC-]
+palabras_clave: [soporte a inquilinos, incidente, incidentes, ticket, reporte de falla, queja, mantenimiento, nave, parque, contacto@portal.gruposph.mx, correo de soporte, bandeja de incidentes, responder incidente, firma, firma corporativa, logo en el correo, vincular inquilino, remitente, estado del incidente, nuevo, en proceso, resuelto, detenido, cerrado, sin avance 7 días, asignar, asignación, agente, gerente, ver todos, pipeline, tablero, kanban, seguimientos, árbol de seguimientos, bitácora, nota interna, clasificar, IA, categoría, prioridad, folio en el asunto, mismo incidente, hilo, cadena de correos, INC-, "no me responden", "se cerró solo", "el incidente desapareció"]
 relacionado_con: [correo, arrendatarios, clientes, soporte-ia]
 ---
 

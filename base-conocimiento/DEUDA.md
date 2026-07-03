@@ -53,7 +53,7 @@ el control real vive en los guards. La RLS de la BD es herencia de v1.
 | P1-2 | 🟠 | Acceso anónimo a `actividad` (correos/uids) y `crm_responsableComercial` | ✅ |
 | P1-3 | 🟠 | CORS `*` en las edge functions; `comprobante-extraer` sin auth de usuario | ✅ |
 | P1-4 | 🟠 | 51/53 funciones `SECURITY DEFINER` ejecutables por `anon`; 3 vistas SECURITY DEFINER; 163 con `search_path` mutable | ✅ |
-| P1-5 | 🟠 | `DiagnosticoService` usa `service_role` en vez de rol RO acotado (deuda ya reconocida) | ✅ |
+| P1-5 | 🟠 | ~~`DiagnosticoService` usa `service_role`~~ → **✅ RESUELTO (2026-07-03): el servicio se ELIMINÓ** (rediseño razonador; los enlatados se retiraron) | ✅ resuelto |
 | P1-6 | 🟠 | `editarCuenta` sin `@RequierePermiso(213)` (escalación horizontal en Parámetros) | ✅ |
 | P1-7 | 🟠 | Módulo Permisos/Usuarios escribe sin `comoActor()` (gap de auditoría en el módulo más sensible) | ✅ |
 | P1-8 | 🟠 | Rotar `service_role`/`JWT secret` (expuestos en logs) | 📌 |
@@ -155,8 +155,10 @@ el control real vive en los guards. La RLS de la BD es herencia de v1.
 - **P1-4 · Superficie `SECURITY DEFINER`/RPC:** 51/53 funciones definer ejecutables por `anon`; 3 vistas
   definer (advisor ERROR); 163 funciones con `search_path` mutable. **Arreglo:** inventariar y `REVOKE` de
   `anon`; `SET search_path`; recrear las vistas sin definer. Ver FASE 5.
-- **P1-5 · `DiagnosticoService` usa `service_role`** en vez del rol RO acotado (deuda ya documentada en
-  `modulos/soporte-ia.md`). **Arreglo:** mover a `v2_soporte_ro`.
+- **P1-5 · `DiagnosticoService` usa `service_role`** → **✅ RESUELTO (2026-07-03, rediseño razonador).** El
+  `DiagnosticoService` (herramientas enlatadas de diagnóstico) se **eliminó por completo**; el agente ahora
+  consulta la BD vía text-to-SQL `consultar_datos`, que usa el rol de solo lectura acotado `v2_agente_ro`
+  (allowlist de tablas). Ya no existe uso de `service_role` para diagnóstico del agente.
 - **P1-6 · `editarCuenta` sin `@RequierePermiso(213)`** (`parametros.controller.ts`) → escalación horizontal
   dentro del módulo. **Arreglo:** añadir el decorador.
 - **P1-7 · Permisos/Usuarios escriben sin `comoActor()`** (`permisos.service.ts`, `usuarios.service.ts`) → gap
@@ -189,6 +191,11 @@ el control real vive en los guards. La RLS de la BD es herencia de v1.
   **Arreglo:** migrar a `fallaBd()` progresivamente.
 - **P2-8 · Higiene:** activar `auth_leaked_password_protection`; confirmar con negocio si el RBAC por-módulo
   (no por-fila) es la política deseada; limpieza de obsoletos ya catalogada en `OBSOLESCENCIA-BD.md`.
+- **P2-9 · Parser textual del text-to-SQL del agente** (`tablasFueraDeUniverso`, `consultas.service.ts`):
+  valida las tablas del `SELECT` por análisis de **TEXTO** (no AST) → aislamiento inter-módulo *best-effort*.
+  Se mitigó un bypass (`FROM"tabla"` sin espacio) con normalización (2026-07-03, rediseño razonador); la
+  **barrera dura** que protege lo sensible es la **allowlist del rol `v2_agente_ro`**, no el parser.
+  **Arreglo futuro:** validar con un parser SQL real (AST) si se requiere aislamiento estricto por módulo.
 
 ---
 

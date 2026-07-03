@@ -57,6 +57,14 @@ Para errores, comportamientos raros, datos que “el sistema cambió solo”, o 
 | Dato incorrecto que requiere corrección | Soporte | Juan Jereff López | jereff@aceleremos.com · (871) 125-5488 |
 | Cualquier caso sin responsable claro | (el agente ofrece **levantar un ticket**) | — | Botón “Crear ticket de soporte” |
 
+## Para el agente de soporte
+
+Cuando un usuario menciona que **le falta un permiso/acceso**, que **necesita un alta**, o que algo **lo
+gestiona otra persona**: identifica el módulo, dile **a quién acudir** (tablas §1/§2) con **nombre y correo**
+concretos, y si el caso no está cubierto ofrécele **levantar un ticket**. Para **fallas técnicas o datos que
+"el sistema cambió solo"** → §3 (Soporte / Juan Jereff López) o ticket. Nunca dejes al usuario sin destino:
+este directorio existe justo para canalizarlo.
+
 ---
 
 > **Nota de mantenimiento.** Mantén esta tabla al día: es lo que el agente usa para canalizar a las personas.

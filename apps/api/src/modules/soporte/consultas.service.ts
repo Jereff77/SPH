@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
-import type { PerfilDiag } from './diagnostico.service.js';
+import type { PerfilDiag, ToolSpec } from './soporte.types.js';
 
 /**
  * Motor de CONSULTA DE DATOS del Agente (text-to-SQL acotado por claves).
@@ -16,11 +16,6 @@ import type { PerfilDiag } from './diagnostico.service.js';
  * solo la **lista de tablas** por módulo y pide las **columnas bajo demanda** con
  * `describir_tablas` antes de armar el SELECT con `consultar_datos`.
  */
-
-interface ToolSpec {
-  type: 'function';
-  function: { name: string; description: string; parameters: Record<string, unknown> };
-}
 
 /** Tablas de referencia (catálogos) consultables por cualquiera con acceso a datos. */
 const COMUNES = [
@@ -309,8 +304,13 @@ export class ConsultasService {
    *    expansión de vistas) para blindar al 100% el aislamiento entre módulos.
    */
   private tablasFueraDeUniverso(sql: string, universo: Set<string>): string[] {
-    // Quitar literales de texto para no confundir comas/paréntesis internos.
-    const limpio = sql.replace(/'[^']*'/g, "''");
+    // Quitar literales de texto para no confundir comas/paréntesis internos, y
+    // NORMALIZAR: garantizar un espacio tras FROM/JOIN aunque el identificador venga
+    // pegado (p. ej. `FROM"cxp"`, sintaxis válida en Postgres) — así el parser no se lo
+    // salta y no se evade el acotamiento por módulo (mitiga el bypass del validador).
+    const limpio = sql
+      .replace(/'[^']*'/g, "''")
+      .replace(/\b(from|join)\b(?=[^\s(,])/gi, '$1 ');
 
     const ctes = new Set<string>();
     for (const m of limpio.matchAll(/\bwith\s+("?[\w]+"?)\s+as\b|,\s*("?[\w]+"?)\s+as\s*\(/gi)) {

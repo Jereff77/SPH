@@ -1,0 +1,21 @@
+-- =============================================================================
+-- 2026-07-03 · Fix: v2_soporte_ro no puede leer "catUsers"
+--   (bug "el Agente de Soporte no detecta soporte/root")
+-- -----------------------------------------------------------------------------
+-- SÍNTOMA: el Agente de Soporte no reconoce a un usuario con isSupport=true
+--   (p. ej. Juanjereff) y le pide permisos que ya tiene; además su nombre cae a
+--   'usuario' en el system prompt.
+-- CAUSA (verificada en prod): "catUsers" tiene RLS ON y EXISTE la política
+--   `v2_soporte_ro_select` para el rol v2_soporte_ro (SELECT), PERO al rol le
+--   FALTA el GRANT SELECT de tabla. En Postgres se requieren AMBOS (privilegio de
+--   tabla + política RLS); sin el grant, SoporteService.perfilUsuario() falla con
+--   "permission denied for table catUsers" y el catch deja esSoporte=false.
+--   (Los permisos sí se leen porque segModulosUsuarios sí tiene grant + política.)
+-- FIX: conceder SELECT sobre "catUsers" al rol. La política RLS ya acota la lectura
+--   al registro del propio usuario. Aditivo, solo lectura, no toca datos.
+--
+-- REVERSIBLE:
+--   REVOKE SELECT ON "catUsers" FROM v2_soporte_ro;
+-- =============================================================================
+
+GRANT SELECT ON "catUsers" TO v2_soporte_ro;

@@ -7,7 +7,7 @@ submodulos: [Auditoría (bitácora), Ver como]
 rutas: [/configuraciones/usuarios]
 claves_permiso: [200]
 tablas: [auditoria, actividad, catUsers]
-palabras_clave: [auditoría, bitácora, historial, trazabilidad, quién cambió, antes y después, log, ver como, impersonar, soporte, así estaba, el sistema lo cambió]
+palabras_clave: [auditoría, bitácora, historial, trazabilidad, quién cambió, antes y después, log, ver como, impersonar, soporte, así estaba, el sistema lo cambió, "quién cambió este dato", "el sistema lo cambió solo", "no veo el historial", "el long-press no hace nada", "no me deja guardar", "modo solo lectura", "un cambio no aparece en la bitácora"]
 relacionado_con: [configuraciones, autenticacion]
 ---
 
@@ -84,7 +84,7 @@ Dos funciones transversales orientadas a soporte y trazabilidad.
 - **Usuarios (Configuraciones):** es el punto de consulta del historial y el origen del selector de
   "Ver como".
 
-## 6. 🩺 Diagnóstico / problemas comunes
+## 6. Para el agente de soporte (diagnóstico / problemas comunes)
 
 | Síntoma | Causa probable | Qué hacer |
 |---|---|---|

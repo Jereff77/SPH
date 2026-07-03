@@ -7,7 +7,7 @@ rutas_v2: [/fideicomiso/dashboard, /fideicomiso/aportaciones, /fideicomiso/adhes
 rutas_v1: [i06_fideicomiso]
 claves_permiso: [500, 510, 511, 520, 530, 540]
 tablas: [fidePdpDispersion, fideicomiso, fideCondiciones, fide_periodos_dispersion, fideContabilidad, fideContaConceptos, fideContaHistorial, fideSaldosBanco, v_fideicomiso, v_propiedadesfide, v_pagos]
-palabras_clave: [fideicomiso, dispersión, dispersiones, aportación, aportaciones, adhesión, adhesiones, rendimiento, kardex, ticket, contabilidad, pivote, concepto contable, inversión, rendimiento promedio, retención ISR, comisión SPH]
+palabras_clave: [fideicomiso, dispersión, dispersiones, aportación, aportaciones, adhesión, adhesiones, rendimiento, kardex, ticket, contabilidad, pivote, concepto contable, inversión, rendimiento promedio, retención ISR, comisión SPH, "se duplicó en dispersiones", "aparece repetido", "renglón duplicado", "no se puede editar la celda", "se duplica y no se puede modificar", "número de adhesión", "rfc invertido", "nombre invertido", "aportación no aparece"]
 relacionado_con: [inversionistas, clientes, parques]
 ---
 
@@ -160,7 +160,7 @@ URL real del PDF (en v1 se insertaba `urldoc=''`, un bug).
 `tipoPago='Ticket'`) — la misma alta se logra hoy con Configuración (pestaña Propiedades + Plan de Pagos).
 Evaluar si se agrega como atajo.
 
-## Para el agente
+## Para el agente de soporte (reglas de datos / diagnóstico)
 - Si el usuario pregunta por **rendimientos/dispersiones** de un inversionista → Reportes/Kardex
   (`/fideicomiso/reportes`) o Dispersion (`/fideicomiso/dispersiones`).
 - Si pregunta por **dar de alta una inversión / ticket / condiciones / plan de pagos del fideicomiso** → es
@@ -168,3 +168,41 @@ Evaluar si se agrega como atajo.
   Adhesiones (condiciones) y Plan de Pagos.
 - Gotcha: en `v_fideicomiso`, el campo `idfide` es en realidad el `idfideCond` (id de la condición), no el
   id del fideicomiso maestro.
+
+- **Síntoma: "se duplicó en Dispersiones" / "aparece repetido" (un mismo ticket sale varias veces en el
+  Desglose Detallado)** → Causa: las RPCs de Dispersión (`plan_dispersiones_dinamico`, `resumen_*`)
+  agrupan por `fideCondiciones.noAdhesion`, **sin** filtrar por inversionista; si **dos inversionistas
+  distintos** comparten el mismo número de adhesión, el desglose mezcla las aportaciones de ambos y
+  repite la fila (no hay duplicado real en BD). Regla verificada: fix v2.40.1 (2026-06-22) —
+  `config-fide.service.ts` → `validarAdhesionUnica()` (llamada en `guardarCondiciones`) rechaza con
+  `BadRequestException` si el `noAdhesion` ya pertenece a la propiedad de otro inversionista del
+  fideicomiso. Diagnóstico:
+  `SELECT fc."noAdhesion" FROM "fideCondiciones" fc JOIN propiedades p USING("idPropiedad") GROUP BY 1 HAVING count(DISTINCT p."idInversionista")>1`.
+  El saneo (reasignar o eliminar la condición sobrante) es **manual/autorizado**, no lo hace la validación.
+
+- **Síntoma: "renglón duplicado" en Contabilidad (mismo concepto/mes aparece partido en dos filas)** →
+  Causa: `pivot_contabilidad` agrupa por `tipo, concepto, subconcepto, descripcion, aplicaIVA`; si el mes
+  tiene un `aplicaIVA` **distinto** al de los demás meses del mismo concepto, aparece partido en dos
+  renglones aunque en BD haya un solo registro por mes (no es un duplicado real). Regla verificada: fix
+  v2.30.2 — al crear una celda nueva (edición inline o modal «Nuevo») el `aplicaIVA` se **hereda** del
+  concepto (backend `ivaDelConcepto()`) en vez de nacer en `false`. Corrección de un renglón ya partido:
+  encender el toggle de IVA (`PATCH celda-iva`) de esa celda hasta igualar el resto del concepto.
+
+- **Síntoma: "no se puede editar la celda" en Contabilidad (el clic no abre el input, o edita la fila
+  equivocada)** → Causa: cuando una fila se parte por IVA (ver arriba), las dos filas del pivote
+  comparten `tipo/concepto/subconcepto/descripcion`; `rowKey` en `ContabilidadPage.tsx` **no incluía**
+  `aplicaIVA`, así que ambas filas tenían la misma clave de React y la edición inline se activaba en las
+  DOS a la vez. Regla verificada: fix front 2026-06-18 — `rowKey` ahora incluye
+  `…|${f.aplicaIVA ? '1' : '0'}`, de modo que cada renglón es único y editable por separado. Si persiste,
+  conviene fusionar el renglón (unificar el IVA del dato).
+
+- **Síntoma: "se duplica y no se puede modificar" (al editar una celda de Contabilidad se crea un
+  registro nuevo en vez de actualizar el existente, y la celda deja de responder)** → Causa: INSERT
+  fantasma — `pivot_contabilidad` normaliza `subconcepto`/`descripcion` con `NULLIF(TRIM(x),'-')` al
+  leer, pero `ContabilidadService.buscarRegistro` localizaba el registro con `.eq()` **exacto** contra
+  el dato crudo; si el dato crudo no era exactamente `'-'` (`NULL` nativo o con espacios sobrantes), el
+  `.eq()` no matcheaba y caía al INSERT, creando un duplicado que el pivote reagrupaba en la misma fila
+  (monto sumado, celda ya no editable). Regla verificada: fix v2 (2026-06-18) — `buscarRegistro` ahora
+  filtra server-side por `tipo/concepto/mes/anio/status` y resuelve el match en JS canonizando ambos
+  lados con `canon(x) = NULLIF(TRIM(x),'-')`. Cubre edición de celda, toggle de IVA y alta de movimiento.
+  Detectar reincidencias: `subconcepto/descripcion IS NULL OR = '' OR <> TRIM(...)`.
