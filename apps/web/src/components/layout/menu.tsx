@@ -10,6 +10,9 @@ import {
   IconFideicomiso,
 } from '@/components/icons';
 
+/** Identificadores de contadores dinámicos que el Sidebar resuelve a un número. */
+export type BadgeMenu = 'cxpAprobaciones';
+
 export interface MenuItem {
   label: string;
   to: string;
@@ -17,6 +20,8 @@ export interface MenuItem {
   clave?: number;
   /** Si es true, el ítem solo se muestra a personal de soporte (isSupport). */
   soloSoporte?: boolean;
+  /** Contador dinámico (círculo) a mostrar junto al ítem, resuelto por el Sidebar. */
+  badge?: BadgeMenu;
 }
 
 export interface MenuGrupo {
@@ -90,7 +95,12 @@ export const MENU: MenuGrupo[] = [
     items: [
       { label: 'Solicitudes de pago', to: '/cxp/solicitudes', clave: 420 },
       { label: 'Solicitudes de Pago PPD', to: '/cxp/ppd', clave: 420 },
-      { label: 'Aprobar Solicitudes', to: '/cxp/aprobar', clave: 430 },
+      {
+        label: 'Aprobar Solicitudes',
+        to: '/cxp/aprobar',
+        clave: 430,
+        badge: 'cxpAprobaciones',
+      },
       { label: 'Pagar solicitudes', to: '/cxp/pagar', clave: 400 },
       { label: 'Solicitudes pendientes', to: '/cxp/pendientes', clave: 450 },
       { label: 'Proveedores', to: '/cxp/proveedores', clave: 410 },

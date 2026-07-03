@@ -76,6 +76,24 @@ export class AprobacionService {
     }));
   }
 
+  /**
+   * Cantidad de solicitudes pendientes de aprobación asignadas al aprobador
+   * (mismo filtro que `listar` con Enviado=2: `status`, `uidGerente`, `idEstado`).
+   * Alimenta el badge del menú; usa un COUNT sin traer filas (head:true). Respeta
+   * "Ver como" para coincidir con la bandeja cuando soporte suplanta a un usuario.
+   */
+  async contarPendientes(actorUid: string, verComo?: string): Promise<number> {
+    const uid = await this.supabase.uidEfectivo(actorUid, verComo);
+    const { count, error } = await this.supabase.admin
+      .from('cxp')
+      .select('idCxp', { count: 'exact', head: true })
+      .eq('status', true)
+      .eq('uidGerente', uid)
+      .eq('idEstado', 2);
+    if (error) throw new InternalServerErrorException(error.message);
+    return count ?? 0;
+  }
+
   private async resolverCuentas(ids: (string | null)[]) {
     const unicos = [...new Set(ids.filter((x): x is string => !!x))];
     const mapa = new Map<string, { cuenta: string | null; seccion: string | null }>();

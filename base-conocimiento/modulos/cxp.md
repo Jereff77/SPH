@@ -1,13 +1,13 @@
 ---
 modulo: CxP (Cuentas por Pagar)
 estado: parcial              # Proveedores, Bancos, Solicitudes (alta+listado), Pendientes y Pagar en v2; resto por fases
-version_doc: 0.8
-ultima_actualizacion: 2026-06-17
+version_doc: 0.9
+ultima_actualizacion: 2026-07-02
 submodulos: [Proveedores, Bancos, Solicitudes, "Pagar solicitudes", Aprobación, Pago/Conciliación, Reportes, "Claves SAT"]
 rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes, /cxp/pagar]
 claves_permiso: [400, 401, 402, 410, 420, 430, 431, 440, 441, 450, 460, 470]
 tablas: [cxp, catProveedores, catBancos, catClavesProdServ, cxpComentarios, cxp_fechas_habilitadas, movbancarios, PresCategorias, v_resumenPresupuesto, SPHConfiguraciones]
-palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, lectura de comprobante, documentos privados, URL firmada, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, carga masiva, layout, plantilla, importación, Excel, retención, IVA, ISR, tiempo real, SSE]
+palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, lectura de comprobante, documentos privados, URL firmada, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, carga masiva, layout, plantilla, importación, Excel, retención, IVA, ISR, tiempo real, SSE, badge, círculo, contador, número de pendientes, pendientes por aprobar, aviso en el menú, notificación en el menú, solicitudes por aprobar]
 relacionado_con: [configuraciones, inversionistas, fideicomiso]
 ---
 
@@ -530,6 +530,23 @@ Total, Monto Aplicado, Balance, Urgente, Acciones) con encabezado fijo azul (reg
   `autorizadoFP`) · Nombre · Folio · Fecha CFDI · Monto · Concepto · Justificación · Cuenta/Clasif. ·
   Solicitado por.
 
+### Aviso en el menú — badge de "pendientes por aprobar" (v2.53.0) ✅
+- En el **menú lateral**, un **círculo rojo** con el número de solicitudes que el usuario tiene **pendientes
+  por aprobar** aparece en el grupo **"Cuentas por Pagar"** (visible aunque el submenú esté cerrado o el menú
+  colapsado — como punto flotante sobre el icono) **y** en el ítem **"Aprobar Solicitudes"**. Replica el aviso
+  que existía en v1. Si el conteo es 0 **no se muestra**; a partir de 100 muestra **"99+"**.
+- **El conteo usa EXACTAMENTE el mismo filtro que el listado**: `cxp` con `status=true`,
+  `uidGerente = <usuario>`, `idEstado = 2` (Enviado). Endpoint `GET /cxp/aprobar/pendientes/conteo` →
+  `{ total }`, protegido con el **mismo `@RequierePermiso(430)`** del controlador (no expone el conteo a quien
+  no puede aprobar; solo cuenta **sus** solicitudes, no las de todos). Backend: `AprobacionService.contarPendientes`
+  (COUNT con `head:true`, respeta "Ver como" vía `uidEfectivo`).
+- **Frontend:** hook `useConteoAprobacionesCxp(puedeAprobar)` (`features/cxp/useConteoAprobaciones.ts`) con
+  **polling cada 60 s + refresco al reenfocar la ventana**, habilitado **solo si `tienePermiso(430)`** (evita
+  llamadas 403 de ruido). El menú declara el contador con el campo `badge: 'cxpAprobaciones'` en `menu.tsx`
+  (`MenuItem.badge`, extensible a futuros contadores); el `Sidebar.tsx` resuelve el número y lo pinta.
+- 📌 **Nota:** el refresco es por polling (no realtime); existe el SSE `/cxp/aprobar/stream` que podría
+  invalidar el conteo en vivo a futuro, pero se optó por polling por simplicidad y robustez.
+
 ### Acciones (modal con motivo; solo en estado Enviado)
 - **Contenido del modal**: datos de la solicitud (proveedor, folio, concepto, cuenta, subtotal y **«Solicita»**
   = quién la pidió), la **justificación que escribió el solicitante** al enviarla (panel destacado; campo
@@ -577,10 +594,12 @@ Total, Monto Aplicado, Balance, Urgente, Acciones) con encabezado fijo azul (reg
   (la RPC omite la validación cuando `p_autorizo` = aprobador FP).
 
 ### Archivos
-- Backend: `aprobacion.{service,controller,schemas}.ts`, `aprobacion-stream.controller.ts` (SSE 430),
+- Backend: `aprobacion.{service,controller,schemas}.ts` (incluye `contarPendientes` + endpoint
+  `GET /cxp/aprobar/pendientes/conteo`), `aprobacion-stream.controller.ts` (SSE 430),
   `sse-auth.guard.ts` (generalizado: lee la clave de `@RequierePermiso` con Reflector).
-- Frontend: `AprobarSolicitudesPage.tsx`, `AprobarSolicitudModal.tsx`, `aprobar.api.ts`,
-  `useCxpRealtime.ts` (hook SSE genérico; `usePagosRealtime` ahora lo envuelve).
+- Frontend: `AprobarSolicitudesPage.tsx`, `AprobarSolicitudModal.tsx`, `aprobar.api.ts` (+ `conteoPendientes`),
+  `useConteoAprobaciones.ts` (badge del menú), `useCxpRealtime.ts` (hook SSE genérico; `usePagosRealtime` ahora
+  lo envuelve). Menú/badge: `components/layout/{menu.tsx (MenuItem.badge), Sidebar.tsx (Contador)}`.
 
 ### RPCs/objetos reutilizados (sin crear nada nuevo)
 `cxp_autorizar_solicitud_pago`, `cxp_puede_autorizar`, vista `v_resumenPresupuesto`, parámetro

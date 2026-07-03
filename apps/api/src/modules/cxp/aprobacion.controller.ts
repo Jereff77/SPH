@@ -46,6 +46,16 @@ export class AprobacionController {
     );
   }
 
+  /** Conteo de pendientes de aprobación del usuario (badge del menú). */
+  @Get('pendientes/conteo')
+  async conteoPendientes(
+    @CurrentUser() actor: AuthUser,
+    @Headers('x-ver-como') verComo?: string,
+  ) {
+    const total = await this.svc.contarPendientes(actor.uid, verComo || undefined);
+    return { total };
+  }
+
   @Get(':idCxp/presupuesto')
   presupuesto(
     @CurrentUser() actor: AuthUser,

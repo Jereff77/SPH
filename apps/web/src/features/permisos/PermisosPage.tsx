@@ -9,7 +9,6 @@ import {
 } from '@/components/tabla/SortableTh';
 import { useSort, type Accessors } from '@/components/tabla/useSort';
 import { SearchSelect } from '@/components/SearchSelect';
-import { useAuth } from '@/features/auth/useAuth';
 import { ApiRequestError } from '@/lib/api';
 
 const ACCESSORS_PERM: Accessors<PermisoUsuario> = {
@@ -31,7 +30,6 @@ const CATEGORIAS = [
 
 export function PermisosPage() {
   const queryClient = useQueryClient();
-  const { esSoporte } = useAuth();
   const [uid, setUid] = useState('');
   const [moduloFiltro, setModuloFiltro] = useState('');
   const [busqueda, setBusqueda] = useState('');
@@ -195,17 +193,15 @@ export function PermisosPage() {
                     <SortableTh campo="area" sortKey={sortKey} dir={dir} onSort={ordenar}>
                       Área / Acción
                     </SortableTh>
-                    {esSoporte && (
-                      <SortableTh
-                        campo="clave"
-                        sortKey={sortKey}
-                        dir={dir}
-                        onSort={ordenar}
-                        align="center"
-                      >
-                        Clave
-                      </SortableTh>
-                    )}
+                    <SortableTh
+                      campo="clave"
+                      sortKey={sortKey}
+                      dir={dir}
+                      onSort={ordenar}
+                      align="center"
+                    >
+                      Clave
+                    </SortableTh>
                     <SortableTh
                       campo="acceso"
                       sortKey={sortKey}
@@ -220,7 +216,7 @@ export function PermisosPage() {
                 <tbody className="divide-y">
                   {isLoading && (
                     <tr>
-                      <td colSpan={esSoporte ? 5 : 4} className="px-4 py-6 text-center text-gray-400">
+                      <td colSpan={5} className="px-4 py-6 text-center text-gray-400">
                         Cargando permisos…
                       </td>
                     </tr>
@@ -232,11 +228,9 @@ export function PermisosPage() {
                       </td>
                       <td className="px-4 py-2 text-gray-600">{p.seccion}</td>
                       <td className="px-4 py-2 text-gray-500">{p.area}</td>
-                      {esSoporte && (
-                        <td className="px-4 py-2 text-center font-mono text-xs text-gray-500">
-                          {p.clave ?? '—'}
-                        </td>
-                      )}
+                      <td className="px-4 py-2 text-center font-mono text-xs text-gray-500">
+                        {p.clave ?? '—'}
+                      </td>
                       <td className="px-4 py-2 text-center">
                         <Toggle
                           checked={p.acceso}

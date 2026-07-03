@@ -59,6 +59,8 @@ export const aprobarApi = {
     api.post<ResultadoAprobacion>(`/cxp/aprobar/${idCxp}/aprobar`, { comentario }),
   fueraPresupuesto: (idCxp: string) =>
     api.post<{ ok: true }>(`/cxp/aprobar/${idCxp}/fuera-presupuesto`),
+  conteoPendientes: () =>
+    api.get<{ total: number }>('/cxp/aprobar/pendientes/conteo'),
 };
 
 /** Estados visibles/filtrables en la bandeja de aprobación. */
