@@ -387,12 +387,20 @@ recalcula bien).
 - **Vencimientos** (tab, v2.29.0 — **pestaña por defecto**): dos grupos (excluye Tickets y cancelados):
   - **Por vencer** (`'1 Mes'`/`'2 Meses'`/`'3 Meses'`): el **contrato activo** de la nave (vínculo
     `arrenPropiedades.status=true`), que sigue corriendo.
-  - **Vencidos** (`'No'`): planes con **`fecFin` < hoy** cuya nave **no tiene contrato vigente** (no
-    renovado/re-rentado) — misma regla que el sidebar del dashboard (`contratos_vencidos_sin_renovacion`).
-  - ⚠️ **Gotcha corregido (2026-06-17)**: al vencer, la nave **se libera** (vínculo `status=false`), así que
-    los vencidos **NO** pueden salir del vínculo activo. La versión anterior partía solo del vínculo activo →
-    mostraba 1/2/3 meses pero **nunca los vencidos**. Ahora los vencidos se enriquecen por `idNavArrend`
-    aunque el vínculo esté inactivo. (Comparado en BD: 18 por-vencer + 21 vencidos sin renovación.)
+  - **Vencidos** (`'No'`): planes con **`fecFin` < hoy** que **siguen vinculados** a su nave
+    (`arrenPropiedades.status=true`) y cuya **nave física (`idNave`) no tiene contrato vigente** — misma
+    regla que el sidebar del dashboard (`contratos_vencidos_sin_renovacion`). Excluye datos de prueba.
+  - ⚠️ **Regla vigente (2026-07-02, v2.52.1) — REEMPLAZA el gotcha de 2026-06-17**: si la nave se
+    **desvincula** (`status=false`: el cliente se fue o se re-rentó a otro, incl. botón 🔓 Liberar nave), el
+    contrato **SALE** de "sin renovación" (la nave queda disponible). Antes (2026-06-17) se listaban los
+    vencidos aunque el vínculo estuviera inactivo → dejaba clientes que ya no tenían la nave (caso real
+    **DON CACAHUATO**, naves 37/38 Spartek; la 37 re-rentada a otro). Además la deduplicación pasó de
+    `idNavArrend` a **`idNave`** (nave física) para descontar re-rentas a otro arrendatario. En prod la lista
+    bajó de **22 → 14** (salen desvinculados, re-rentados y datos de prueba; quedan los pendientes reales con
+    vínculo activo, p. ej. SEMINUEVOS 113/110).
+  - ⚠️ **Próximos por vencer (`contratos_por_vencer`)**: verificado que NO arrastra el bug (0 vínculos
+    cerrados, 0 re-rentas) — solo se cuelan **2 filas de prueba**. El fix (excluir `pruebas`) quedó
+    **PENDIENTE de OK** (ver `migraciones/2026-07-02-arrepdp-vencimientos-vinculo-activo.sql`, Parte 2).
   - Backend `reportes-arre.service.ts` → `vencimientos()` (enriquece en memoria, sin vistas; "hoy" en zona
     México; ordena por urgencia Vencido→1→2→3). Columnas: Arrendatario · Parque · Nave · Inicio · Fin ·
     **Estado** (badge) · **Días** ("Vence en N d"/"Venció hace N d", front con `hoyMexico()`) · Renta base

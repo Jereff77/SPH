@@ -551,11 +551,12 @@ export class ReportesArreService {
    * Reporte de **Vencimientos**. Dos grupos, ambos sin Tickets ni cancelados:
    * - **Por vencer** ('1 Mes' / '2 Meses' / '3 Meses'): el contrato **activo** de la
    *   nave (vínculo `arrenPropiedades.status=true`), que sigue corriendo.
-   * - **Vencidos** ('No'): planes cuya `fecFin` ya pasó y cuya nave **no tiene ningún
-   *   contrato vigente** (no renovado/re-rentado) — misma regla que el sidebar del
-   *   dashboard (`contratos_vencidos_sin_renovacion`). Al vencer, la nave se libera
-   *   (vínculo `status=false`), por eso NO pueden salir del vínculo activo; se
-   *   enriquecen por `idNavArrend` aunque el vínculo esté inactivo.
+   * - **Vencidos** ('No'): planes cuya `fecFin` ya pasó, que **siguen vinculados** a su
+   *   nave (`arrenPropiedades.status=true`) y cuya **nave física (`idNave`) no tiene
+   *   ningún contrato vigente** — misma regla que el sidebar del dashboard
+   *   (`contratos_vencidos_sin_renovacion`). Si el vínculo se cerró (`status=false`) el
+   *   cliente se fue / la nave se re-rentó → **NO** debe aparecer (la nave queda
+   *   disponible). Se excluyen arrendatarios de prueba. Regla acordada 2026-07-02.
    *
    * Cada fila lleva arrendatario/parque/nave + fechas + renta base + moneda. El
    * cálculo de "días" lo hace el front (zona horaria México). No usa vistas nuevas.
@@ -577,8 +578,7 @@ export class ReportesArreService {
       this.supabase.admin
         .from('arrenPropiedades')
         .select('idNavArrend, idArrePdp, idArrendador, idNave, idParque')
-        .eq('status', true)
-        .not('idArrePdp', 'is', null),
+        .eq('status', true),
       this.supabase.admin.from('arrePdp').select('*').eq('status', true),
     ]);
     if (error) throw new InternalServerErrorException(error.message);
@@ -588,13 +588,19 @@ export class ReportesArreService {
     const planes = (planesRaw ?? []) as unknown as PlanVencRow[];
     const planPorId = new Map(planes.map((p) => [p.idArrePdp, p]));
 
-    // Naves con algún contrato vigente (fecFin nula o >= hoy) → descarta los
-    // vencidos que ya fueron renovados / re-rentados.
-    const navesConVigente = new Set(
-      planes
-        .filter((p) => p.idNavArrend && (!p.fecFin || (finISO(p.fecFin) as string) >= hoy))
-        .map((p) => p.idNavArrend as string),
-    );
+    // Vínculo ACTIVO por idNavArrend (trae idNave/arrendador/parque). Un vencido solo
+    // cuenta si su vínculo sigue activo (status=true): desvinculado = el cliente se fue.
+    const vinculoActivoPorNav = new Map(activos.map((ap) => [ap.idNavArrend, ap]));
+
+    // Naves FÍSICAS (idNave) con algún contrato vigente (fecFin nula o >= hoy) → nave
+    // ocupada/renovada; su último contrato vencido no debe listarse como "sin renovación".
+    const navesOcupadas = new Set<string>();
+    for (const p of planes) {
+      if (!p.idNavArrend) continue;
+      if (p.fecFin && (finISO(p.fecFin) as string) < hoy) continue; // solo contratos vigentes
+      const ap = vinculoActivoPorNav.get(p.idNavArrend);
+      if (ap?.idNave) navesOcupadas.add(ap.idNave);
+    }
 
     const POR_VENCER = new Set(['1 Mes', '2 Meses', '3 Meses']);
 
@@ -626,30 +632,27 @@ export class ReportesArreService {
       incluidos.add(plan.idArrePdp);
     }
 
-    // B) Vencidos sin renovación: fecFin < hoy y la nave no tiene contrato vigente.
-    const vencidos = planes.filter(
-      (p) =>
-        !p.canceladoAnticipado &&
-        !!p.fecFin &&
-        (finISO(p.fecFin) as string) < hoy &&
-        !!p.idNavArrend &&
-        !navesConVigente.has(p.idNavArrend) &&
-        !incluidos.has(p.idArrePdp),
-    );
-    // El vínculo pudo liberarse (status=false): se lee por idNavArrend sin filtrar status.
-    const { data: propsVenc } = await this.supabase.admin
-      .from('arrenPropiedades')
-      .select('idNavArrend, idArrendador, idNave, idParque')
-      .in('idNavArrend', orEmpty(vencidos.map((p) => p.idNavArrend)));
-    const propVencPorNav = new Map((propsVenc ?? []).map((p) => [p.idNavArrend, p]));
+    // B) Vencidos sin renovación: fecFin < hoy, VÍNCULO ACTIVO (no desvinculado) y la
+    //    nave física no tiene ningún contrato vigente. El vínculo activo ya trae
+    //    nave/parque/arrendatario, así que no hace falta releer arrenPropiedades.
+    const vencidos = planes.filter((p) => {
+      if (p.canceladoAnticipado || !p.fecFin) return false;
+      if ((finISO(p.fecFin) as string) >= hoy) return false; // aún no vence
+      if (!p.idNavArrend || incluidos.has(p.idArrePdp)) return false;
+      const ap = vinculoActivoPorNav.get(p.idNavArrend);
+      if (!ap) return false; // desvinculado: el cliente ya no tiene la nave
+      if (ap.idNave && navesOcupadas.has(ap.idNave)) return false; // nave ya ocupada/renovada
+      return true;
+    });
     for (const p of vencidos) {
-      const ap = p.idNavArrend ? propVencPorNav.get(p.idNavArrend) : undefined;
+      const ap = p.idNavArrend ? vinculoActivoPorNav.get(p.idNavArrend) : undefined;
+      if (!ap) continue; // garantizado por el filtro; guarda de tipo sin aserción non-null
       cands.push({
         plan: p,
         idNavArrend: p.idNavArrend ?? '',
-        idArrendador: ap?.idArrendador ?? null,
-        idNave: ap?.idNave ?? null,
-        idParque: ap?.idParque ?? null,
+        idArrendador: ap.idArrendador,
+        idNave: ap.idNave,
+        idParque: ap.idParque,
         estado: 'No',
       });
       incluidos.add(p.idArrePdp);
@@ -669,7 +672,7 @@ export class ReportesArreService {
         .in('idParque', orEmpty(cands.map((c) => c.idParque))),
       this.supabase.admin
         .from('inversionista')
-        .select('idInversionista, nombre, apellido1, apellido2, razonsocial')
+        .select('idInversionista, nombre, apellido1, apellido2, razonsocial, pruebas')
         .in('idInversionista', orEmpty(cands.map((c) => c.idArrendador))),
     ]);
 
@@ -683,6 +686,7 @@ export class ReportesArreService {
       if (parque?.esTicket === true) continue; // Tickets se gestionan en Ventas.
       const nave = c.idNave ? navePorId.get(c.idNave) : undefined;
       const inv = c.idArrendador ? invPorId.get(c.idArrendador) : undefined;
+      if (inv?.pruebas === true) continue; // excluir datos de prueba (mismo criterio que la RPC)
       filas.push({
         idArrePdp: c.plan.idArrePdp,
         idNavArrend: c.idNavArrend,
