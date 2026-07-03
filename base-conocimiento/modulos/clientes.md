@@ -1,13 +1,13 @@
 ---
 modulo: Clientes
 estado: desarrollado
-version_doc: 1.2
-ultima_actualizacion: 2026-06-29
-submodulos: [Listado, Alta/Edición, Papelera, Control de duplicados por RFC]
+version_doc: 1.3
+ultima_actualizacion: 2026-07-03
+submodulos: [Vista unificada, Alta/Edición, Papelera, Guardia de papelera, Control de duplicados por RFC]
 rutas: [/clientes]
 claves_permiso: [300]
-tablas: [inversionista]
-palabras_clave: [cliente, clientes, inversionista, arrendatario, ticket, usuario final, papelera, prueba, razón social, RFC, CURP, contpaq, personalidad, persona física, persona moral, alta cliente, editar cliente, CRM, duplicado, duplicados, RFC duplicado, RFC genérico, homoclave, verificar RFC]
+tablas: [inversionista, propiedades, pdpDetalle, arrenPropiedades, arrePdp]
+palabras_clave: [cliente, clientes, inversionista, arrendatario, ticket, usuario final, papelera, sin clasificar, prueba, no aparece, no me aparece, no aparece en arrendatarios, no aparece en ventas, sin tipo asignado, todos los clientes, vista unificada, columna tipo, paginación, razón social, RFC, CURP, contpaq, personalidad, persona física, persona moral, alta cliente, editar cliente, CRM, duplicado, duplicados, RFC duplicado, RFC genérico, homoclave, verificar RFC, "no me deja mandar a papelera", "no puedo mandar a papelera", "tiene una nave", recursos ligados, desvincular, dependencias, huérfano]
 relacionado_con: [inversionistas, arrendatarios]
 ---
 
@@ -21,17 +21,34 @@ relacionado_con: [inversionistas, arrendatarios]
 - **Origen:** migra la pantalla "Clientes" del módulo **CRM** de v1 (`i07_c_r_m/clientes`). En v2 se llama
   simplemente **Clientes** (el resto del CRM —leads, pipeline, inmobiliarias, soporte— no está migrado).
 
-## 2. Pantalla (`/clientes`)
-- **Chips de tipo** (1 activo): **Inversionistas** (`inversionista=true`), **Arrendatarios**
-  (`arrendatario=true`), **Ticket** (`ticket=true`), **Usuario Final** (`usuarioFinal=true`) y **Papelera**.
-  - *Papelera* = `pruebas=true` **o** sin ningún tipo asignado (`inversionista=false AND arrendatario=false
-    AND ticket=false`), tal como v1.
-- **Buscador** (texto libre): filtra por nombre, razón social, RFC, CURP, correo y teléfono.
-- **Tabla** (encabezado azul sticky, columnas ordenables): **Opciones · Personalidad · idContpac · Razón
-  Social · Nombre · Apellido 1 · Apellido 2 · Fecha nac. · Teléfono · Correo · RFC · CURP**. Ordenada por
-  razón social. Sin paginación (volúmenes chicos, ~380 registros).
-- **Acciones por fila:** **✏️ Editar** (abre el formulario) y **🗑 Mover a papelera**.
-- **Botón "+ Agregar nuevo":** abre el formulario de alta (con el tipo del chip activo pre-marcado).
+## 2. Pantalla (`/clientes`) — vista unificada (rediseño 2026-07-03, v2.54.0)
+Una **sola vista con TODO el padrón** (ya no hay "vistas" separadas por tipo). El backend trae todo con
+`GET /clientes?tipo=todos` y el front filtra/ordena/pagina en memoria (volumen chico, ~395 registros).
+- **Columna "Tipo"** (nueva, con badges de color; un cliente puede tener **varias**):
+  - **Papelera** (gris) ⟺ `pruebas=true`.
+  - **Sin clasificar** (ámbar) ⟺ `pruebas=false` y ninguna bandera de tipo activa (el caso "no aparece";
+    ver §10).
+  - **Inversionista** (azul) / **Arrendatario** (verde) / **Ticket** (morado) / **Usuario Final** (teal)
+    ⟺ su bandera. Los multi-tipo muestran varios badges.
+- **Chips = filtro rápido** (ya NO son vistas excluyentes): **Todos** (activo por defecto), Inversionistas,
+  Arrendatarios, Ticket, Usuario Final, Papelera. Un chip fija la selección del **filtro de la columna
+  Tipo** (comparten un único estado); "Todos" la limpia.
+- **Papelera oculta por defecto, visible al buscar:** en la vista **Todos** (sin búsqueda) NO se muestran
+  los `pruebas=true` (para no ensuciar). **En cuanto se escribe en el buscador**, la papelera **sí** se
+  incluye (para hallar un extraviado); y el **chip Papelera** también la muestra explícitamente. Los "Sin
+  clasificar" (no son papelera) se muestran **siempre**.
+- **Buscador** (texto libre): filtra por nombre, razón social, RFC, CURP, correo y teléfono, sobre **todo**
+  el padrón cargado.
+- **Filtros de columna (regla 7c):** **todas** las columnas de datos tienen embudo multi-selección
+  (`FiltroColumnaOpciones`), no solo Personalidad. La columna **Razón Social** tiene ancho fijo de 350px.
+- **Paginación:** **30 registros por página** (cliente), sobre el resultado ya filtrado/ordenado; el
+  buscador siempre busca en todo el padrón, no solo en la página visible.
+- **Acciones por fila:** **✏️ Editar** y **🗑 Mover a papelera** (con guardia, ver §4).
+- **Botón "+ Agregar nuevo":** abre el alta; si el filtro está en un **tipo único**, premarca esa casilla
+  (con el chip "Todos" no premarca ninguna → el usuario elige).
+- **Componentes reutilizables nuevos:** `apps/web/src/components/Badge.tsx` (pill de color estándar) y
+  `apps/web/src/components/Paginacion.tsx` (control de paginación) — extraídos para reúso (antes se
+  reescribían inline en varias features).
 
 ## 3. Formulario de alta/edición (`ClienteModal`)
 Campos: **Personalidad** (Física/Moral), Nombre*, Razón social, Primer/Segundo apellido, Fecha de
@@ -66,18 +83,39 @@ Para evitar registros duplicados (los usuarios no buscaban antes de dar de alta)
   `error.message` de Postgres al cliente (patrón preexistente en todo `clientes.service.ts`); pendiente
   sustituir por mensaje genérico + log server-side (no se cambió aquí por estar fuera del alcance del cambio).
 
-## 4. Mover a la papelera
+## 4. Mover a la papelera (con guardia anti-huérfanos, v2.54.0)
 Replica v1: `pruebas=true`, `tipoCliente='0001'`, y apaga todas las banderas de tipo
 (`inversionista/arrendatario/ticket/usuarioFinal = false`). No borra el registro (queda en la Papelera).
 
+**Guardia (nuevo):** antes de archivar, el backend verifica que el cliente **no tenga recursos vivos
+ligados** que quedarían huérfanos. Si los tiene, **rechaza con 409** y un mensaje que guía a desligarlo
+primero; el front muestra un aviso ("Desligar en Ventas / Arrendatarios") **sin** archivar.
+- **Detector** `ClientesService.dependenciasBloqueantes(id)` (solo lectura, sin objetos de BD): cuenta en
+  **4 tablas de recurso vivo** y devuelve `[{recurso, cantidad, modulo}]` de las que tengan filas:
+  `propiedades.idInversionista` (Propiedades), `pdpDetalle.idInversionista` (Plan de pagos),
+  `arrenPropiedades.idArrendador` (Naves rentadas), `arrePdp.idArrendador` (Plan de renta).
+  ⚠️ **Gotcha:** el mismo id de cliente se referencia con dos nombres — `idInversionista` **e**
+  `idArrendador` (= `idInversionista`, ver GLOSARIO).
+- **Umbral:** solo esas 4 "duras" bloquean archivar; el **historial** (pagos, facturas, incidentes, docs,
+  comentarios) **no** bloquea. El motivo (bug real): antes se archivaba un cliente con nave asignada y la
+  **nave quedaba atrapada** en él.
+- **Reutilizable a futuro:** el detector queda como base para el **borrado físico permanente** (backlog;
+  ver §8), que exigirá **cero** ataduras de cualquier tabla y será solo para `isSupport`.
+
 ## 5. Endpoints (backend, `@Controller('clientes')`, clave 300)
-- `GET /clientes?tipo=` — listado por chip (`inversionistas|arrendatarios|ticket|usuarioFinal|papelera`).
+- `GET /clientes?tipo=` — listado. `tipo=todos` (v2.54.0) trae el **padrón completo** (lo usa la vista
+  unificada); los valores por chip (`inversionistas|arrendatarios|ticket|usuarioFinal|papelera`) siguen
+  disponibles.
 - `GET /clientes/verificar-rfc?rfc=&excluirId=` — verifica duplicados por RFC (v2.45.0). ⚠️ Declarado
   **antes** de `GET /clientes/:id` para no colisionar como parámetro.
+- `GET /clientes/:id/dependencias` (v2.54.0) — ataduras vivas que impiden archivar (naves/propiedades/
+  planes); devuelve `[{recurso, cantidad, modulo}]` (nombres de **negocio**, no de tabla). Declarado
+  antes de `:id`.
 - `GET /clientes/:id` — cliente completo (para abrir/editar el existente desde un aviso de duplicado).
 - `POST /clientes` — alta (valida RFC obligatorio/único/no-genérico).
 - `PATCH /clientes/:id` — edición (misma validación, excluyendo su propio id).
-- `POST /clientes/:id/papelera` — mover a la papelera.
+- `POST /clientes/:id/papelera` — mover a la papelera. **Revalida el guardia** (§4): 409 si hay
+  dependencias vivas.
 
 ## 6. Seguridad
 - `JwtAuthGuard + PermisoGuard` con `@RequierePermiso(300)`. Escrituras auditadas (`comoActor`), bloqueadas
@@ -114,3 +152,62 @@ Replica v1: `pruebas=true`, `tipoCliente='0001'`, y apaga todas las banderas de 
   (`SolicitudesService.inversionistas`) filtra `razonsocial IS NOT NULL` y muestra esa columna; las físicas
   sin razón social (p. ej. *Mauricio Valdez Salgado*) **no aparecían**. Con el trigger + el saneo de datos
   (físicas activas con `razonsocial` vacía → su nombre) ya aparecen, sin tocar el código del selector.
+
+## 10. Para el agente de soporte — por qué un cliente no aparece en su módulo
+
+> Caso real que originó esta sección: **NEXGEN Packaging México** (`idInversionista=RQDyoUAlJcnq5M95q4lR`)
+> existía, estaba **activo** y con **RFC válido**, pero `inversionista=false, arrendatario=false,
+> ticket=false, usuarioFinal=false, pruebas=false` — sin ninguna bandera de tipo asignada. No aparecía
+> en Arrendatarios ni en Ventas, y el usuario (que sí tenía el permiso 300 de Clientes) terminó abriendo
+> un ticket para algo que podía resolver él mismo.
+
+**Síntoma:** "busco a un cliente/inquilino/propietario en Inversionistas, Arrendatarios o Ventas y no me
+aparece", aunque el usuario esté seguro de que existe.
+
+**Causa (regla de datos, tabla `inversionista`):** el registro **existe** pero no cumple el requisito
+del selector del módulo donde se busca — casi siempre, **no tiene marcada la bandera del tipo**
+correspondiente. Hay **dos estados distintos** que producen este síntoma (NO son lo mismo):
+- **"Papelera"** — `pruebas=true`. El cliente fue movido explícitamente a la papelera (dejó de
+  considerarse un cliente vigente).
+- **"Sin clasificar"** — `pruebas=false` **y** ninguna bandera de tipo activa (`inversionista=false AND
+  arrendatario=false AND ticket=false AND usuarioFinal=false`). El cliente **existe y está activo**;
+  simplemente nunca se le asignó ningún tipo (o se le quitaron todos). Es un estado **DISTINTO** de
+  Papelera: no es un descarte, es un pendiente de clasificación.
+
+**Por qué no aparece en el selector del módulo:** cada selector de negocio filtra por su(s) bandera(s)
+de tipo, sin excepción:
+- **Arrendatarios → Planes de Renta:** `(arrendatario=true OR usuarioFinal=true) AND status=true` —
+  ver `modulos/arrendatarios.md`.
+- **Ventas → Planes:** `inversionista=true AND pruebas=false AND status=true` — ver
+  `modulos/inversionistas.md`.
+- **Clientes → chip Ticket / Usuario Final:** `ticket=true` / `usuarioFinal=true` respectivamente.
+
+Un cliente en **Papelera** o **Sin clasificar** no cumple ninguna de esas condiciones → **no aparece en
+ningún selector de negocio**, aunque el registro exista y esté activo (`status=true`).
+
+**Diagnóstico (con `consultar_datos`):** confirmar en `inversionista` los valores de `inversionista`,
+`arrendatario`, `ticket`, `usuarioFinal`, `pruebas` y `status` del registro. Si todas las banderas de
+tipo están en `false`, distinguir **Papelera** (`pruebas=true`) de **Sin clasificar** (`pruebas=false`).
+
+**Solución (regla de negocio, no de UI):** para que el cliente aparezca en el selector de un módulo,
+alguien con la **clave 300 (Clientes)** debe marcarle la bandera del tipo correspondiente (y, si estaba
+en Papelera, sacarlo de `pruebas=true`) desde el módulo **Clientes**.
+
+**Pasos de UI (vista unificada, v2.54.0):**
+1. Entrar a **Clientes** (`/clientes`). Por defecto muestra **Todos** (sin la papelera).
+2. **Escribir el nombre/RFC en el buscador** — así aparece aunque esté en **Papelera** (el buscador sí la
+   incluye) o **Sin clasificar** (siempre visible). Se reconoce por su **badge** en la columna **Tipo**
+   (gris "Papelera" / ámbar "Sin clasificar").
+3. **✏️ Editar** en su fila → marcar la(s) **casilla(s) de tipo** que corresponda(n) (Inversionista /
+   Arrendatario / Ticket / Usuario final). Si estaba en Papelera, al asignarle un tipo y guardar sale de
+   ella. **Guardar.** (Al editar un registro viejo, el **RFC es obligatorio y no puede ser genérico**,
+   §3b.)
+
+**Síntoma 2: "no me deja mandar a un cliente a la papelera / me sale que tiene una nave"** (guardia
+anti-huérfanos, §4). **Causa:** el cliente tiene **recursos vivos ligados** — el sistema lo **bloquea a
+propósito** para que la nave/propiedad/plan no quede atrapada. **Regla verificada** (`ClientesService.
+dependenciasBloqueantes` → `moverPapelera` responde 409; endpoint `GET /clientes/:id/dependencias`,
+clave 300): bloquean `propiedades`/`pdpDetalle` (idInversionista) y `arrenPropiedades`/`arrePdp`
+(idArrendador). **Solución:** **desligar primero** el recurso en su módulo (naves/renta → **Arrendatarios**;
+propiedades/plan de pagos → **Ventas**) y luego reintentar mandarlo a la papelera; el aviso de la pantalla
+indica qué tiene y dónde desligarlo.

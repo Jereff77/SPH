@@ -73,6 +73,9 @@ export class ClientesService {
   async listar(tipo: TipoCliente) {
     let q = this.supabase.admin.from('inversionista').select(COLS);
     switch (tipo) {
+      case 'todos':
+        // Padrón completo (sin filtro): la vista unificada resuelve tipo por columna.
+        break;
       case 'inversionistas':
         q = q.eq('inversionista', true);
         break;
@@ -228,6 +231,65 @@ export class ClientesService {
     if (error) fallaBd(this.logger, 'clientes.actualizar', error);
   }
 
+  /**
+   * Ataduras VIVAS que impedirían archivar (mandar a la papelera) al cliente:
+   * naves/propiedades/planes que quedarían huérfanos. Solo lectura (conteos por
+   * tabla, en paralelo). El HISTORIAL (pagos, facturas, incidentes, documentos,
+   * comentarios) NO bloquea archivar. Diseñado para reutilizarse a futuro por el
+   * borrado físico (que exigirá cero ataduras de CUALQUIER tabla).
+   */
+  async dependenciasBloqueantes(
+    id: string,
+  ): Promise<{ recurso: string; cantidad: number; modulo: string }[]> {
+    const admin = this.supabase.admin;
+    const defs: {
+      recurso: string;
+      modulo: string;
+      q: PromiseLike<{ count: number | null; error: unknown }>;
+    }[] = [
+      {
+        recurso: 'Propiedades',
+        modulo: 'Ventas',
+        q: admin
+          .from('propiedades')
+          .select('*', { count: 'exact', head: true })
+          .eq('idInversionista', id),
+      },
+      {
+        recurso: 'Plan de pagos',
+        modulo: 'Ventas → Planes',
+        q: admin
+          .from('pdpDetalle')
+          .select('*', { count: 'exact', head: true })
+          .eq('idInversionista', id),
+      },
+      {
+        recurso: 'Naves rentadas',
+        modulo: 'Arrendatarios',
+        q: admin
+          .from('arrenPropiedades')
+          .select('*', { count: 'exact', head: true })
+          .eq('idArrendador', id),
+      },
+      {
+        recurso: 'Plan de renta',
+        modulo: 'Arrendatarios',
+        q: admin
+          .from('arrePdp')
+          .select('*', { count: 'exact', head: true })
+          .eq('idArrendador', id),
+      },
+    ];
+    const res = await Promise.all(
+      defs.map(async (d) => {
+        const { count, error } = await d.q;
+        if (error) fallaBd(this.logger, 'clientes.dependenciasBloqueantes', error);
+        return { recurso: d.recurso, cantidad: count ?? 0, modulo: d.modulo };
+      }),
+    );
+    return res.filter((r) => r.cantidad > 0);
+  }
+
   /** Mueve el cliente a la papelera (replica v1: limpia tipos y marca prueba). */
   async moverPapelera(id: string, actorUid: string): Promise<void> {
     const { data, error: selErr } = await this.supabase.admin
@@ -237,6 +299,16 @@ export class ClientesService {
       .maybeSingle();
     if (selErr) fallaBd(this.logger, 'clientes.moverPapelera (select)', selErr);
     if (!data) throw new NotFoundException('Cliente no encontrado.');
+
+    // Guardia anti-huérfanos: no archivar si tiene recursos vivos ligados.
+    const bloqueos = await this.dependenciasBloqueantes(id);
+    if (bloqueos.length > 0) {
+      const detalle = bloqueos.map((b) => `${b.recurso} (${b.cantidad})`).join(', ');
+      throw new ConflictException(
+        `No se puede mandar a la papelera: el cliente todavía tiene ${detalle}. ` +
+          'Desvincúlalo primero en el módulo correspondiente y vuelve a intentarlo.',
+      );
+    }
 
     const { error } = await this.supabase
       .comoActor(actorUid)

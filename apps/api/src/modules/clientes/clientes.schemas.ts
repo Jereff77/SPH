@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { normalizarRfc, rfcFormatoValido, esRfcGenerico } from './rfc.util.js';
 
-/** Tipos de cliente (chips) que filtran el listado. */
+/** Tipos de cliente (chips) que filtran el listado. `'todos'` = padrón completo. */
 export const TIPOS_CLIENTE = [
+  'todos',
   'inversionistas',
   'arrendatarios',
   'ticket',

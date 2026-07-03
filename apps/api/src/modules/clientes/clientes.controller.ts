@@ -46,6 +46,12 @@ export class ClientesController {
     return this.clientes.verificarRfc(rfc ?? '', excluirId || undefined);
   }
 
+  /** Ataduras vivas (naves/propiedades/planes) que impiden mandar al cliente a la papelera. */
+  @Get(':id/dependencias')
+  dependencias(@Param('id') id: string) {
+    return this.clientes.dependenciasBloqueantes(id);
+  }
+
   /** Cliente completo por id (para abrir/editar el existente desde un aviso de duplicado). */
   @Get(':id')
   obtener(@Param('id') id: string) {

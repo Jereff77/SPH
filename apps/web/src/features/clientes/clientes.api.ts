@@ -1,11 +1,52 @@
 import { api } from '@/lib/api';
 
 export type TipoCliente =
+  | 'todos'
   | 'inversionistas'
   | 'arrendatarios'
   | 'ticket'
   | 'usuarioFinal'
   | 'papelera';
+
+/** Etiquetas de la columna "Tipo" (un cliente puede tener varias). */
+export type EtiquetaTipo =
+  | 'Inversionista'
+  | 'Arrendatario'
+  | 'Ticket'
+  | 'Usuario Final'
+  | 'Papelera'
+  | 'Sin clasificar';
+
+/** Opciones para el filtro de columna "Tipo" (orden de despliegue). */
+export const OPCIONES_TIPO: EtiquetaTipo[] = [
+  'Inversionista',
+  'Arrendatario',
+  'Ticket',
+  'Usuario Final',
+  'Sin clasificar',
+  'Papelera',
+];
+
+/**
+ * Etiquetas de tipo de un cliente. Semántica acordada:
+ * - `pruebas=true` ⟺ **Papelera** (nombre histórico de la columna; tiene prioridad).
+ * - si no, las banderas activas (puede ser varias → multi-tipo).
+ * - si no tiene ninguna → **Sin clasificar** (cliente real sin tipo; hay que asignarle uno).
+ */
+export function etiquetasTipo(
+  c: Pick<
+    Cliente,
+    'pruebas' | 'inversionista' | 'arrendatario' | 'ticket' | 'usuarioFinal'
+  >,
+): EtiquetaTipo[] {
+  if (c.pruebas) return ['Papelera'];
+  const t: EtiquetaTipo[] = [];
+  if (c.inversionista) t.push('Inversionista');
+  if (c.arrendatario) t.push('Arrendatario');
+  if (c.ticket) t.push('Ticket');
+  if (c.usuarioFinal) t.push('Usuario Final');
+  return t.length > 0 ? t : ['Sin clasificar'];
+}
 
 export interface Cliente {
   idInversionista: string;
@@ -69,13 +110,25 @@ export interface VerificarRfcResp {
   coincidencias: RfcCoincidencia[];
 }
 
-export const CHIPS: { id: TipoCliente; label: string }[] = [
-  { id: 'inversionistas', label: 'Inversionistas' },
-  { id: 'arrendatarios', label: 'Arrendatarios' },
-  { id: 'ticket', label: 'Ticket' },
-  { id: 'usuarioFinal', label: 'Usuario Final' },
-  { id: 'papelera', label: 'Papelera' },
+/**
+ * Chips de filtro rápido. Cada uno fija la selección del filtro de la columna
+ * "Tipo" (`etiquetas`). "Todos" limpia el filtro (selección vacía = sin filtro).
+ */
+export const CHIPS: { id: TipoCliente; label: string; etiquetas: EtiquetaTipo[] }[] = [
+  { id: 'todos', label: 'Todos', etiquetas: [] },
+  { id: 'inversionistas', label: 'Inversionistas', etiquetas: ['Inversionista'] },
+  { id: 'arrendatarios', label: 'Arrendatarios', etiquetas: ['Arrendatario'] },
+  { id: 'ticket', label: 'Ticket', etiquetas: ['Ticket'] },
+  { id: 'usuarioFinal', label: 'Usuario Final', etiquetas: ['Usuario Final'] },
+  { id: 'papelera', label: 'Papelera', etiquetas: ['Papelera'] },
 ];
+
+/** Una atadura viva que impide mandar el cliente a la papelera (F2). */
+export interface Dependencia {
+  recurso: string;
+  cantidad: number;
+  modulo: string;
+}
 
 export const clientesApi = {
   listar: (tipo: TipoCliente) => api.get<Cliente[]>(`/clientes?tipo=${tipo}`),
@@ -90,4 +143,7 @@ export const clientesApi = {
   actualizar: (id: string, dto: ClienteInput) =>
     api.patch<{ ok: true }>(`/clientes/${id}`, dto),
   moverPapelera: (id: string) => api.post<{ ok: true }>(`/clientes/${id}/papelera`, {}),
+  /** Ataduras vivas que impedirían archivar al cliente (F2). */
+  dependencias: (id: string) =>
+    api.get<Dependencia[]>(`/clientes/${encodeURIComponent(id)}/dependencias`),
 };
