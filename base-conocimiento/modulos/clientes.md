@@ -1,8 +1,8 @@
 ---
 modulo: Clientes
 estado: desarrollado
-version_doc: 1.3
-ultima_actualizacion: 2026-07-03
+version_doc: 1.4
+ultima_actualizacion: 2026-07-04
 submodulos: [Vista unificada, Alta/Edición, Papelera, Guardia de papelera, Control de duplicados por RFC]
 rutas: [/clientes]
 claves_permiso: [300]
@@ -99,6 +99,15 @@ primero; el front muestra un aviso ("Desligar en Ventas / Arrendatarios") **sin*
 - **Umbral:** solo esas 4 "duras" bloquean archivar; el **historial** (pagos, facturas, incidentes, docs,
   comentarios) **no** bloquea. El motivo (bug real): antes se archivaba un cliente con nave asignada y la
   **nave quedaba atrapada** en él.
+- **🐛 (CORREGIDO 2026-07-04, v2.55.1) "Plan de renta" bloqueaba con planes YA TERMINADOS.** El conteo de
+  `arrePdp` solo filtraba `status=true` (fila viva), pero un plan de renta **finalizado**
+  (`arrePdpVigente='No'`) sigue con `status=true` en su propia fila — solo se soft-borra el **vínculo**
+  padre (`arrenPropiedades.status=false`), no el plan histórico. Por eso el guardia bloqueaba archivar con
+  "Plan de renta (N)" aunque el arrendamiento ya estuviera cerrado, mientras el panel "Lo que tiene ligado"
+  del sheet de edición (que arma la lista de rentas **a partir de** los `arrenPropiedades` activos) sí
+  mostraba "sin nada ligado" — dos criterios distintos, resultados contradictorios. **Regla de negocio
+  confirmada:** un plan `arrePdpVigente='No'` no es un recurso vivo y NO debe bloquear. Fix: se agregó
+  `.neq('arrePdpVigente', 'No')` a esa comprobación (mismo patrón que usa `planes-arre.service.ts`).
 - **Reutilizable a futuro:** el detector queda como base para el **borrado físico permanente** (backlog;
   ver §8), que exigirá **cero** ataduras de cualquier tabla y será solo para `isSupport`.
 

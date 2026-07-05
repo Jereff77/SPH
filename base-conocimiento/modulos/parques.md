@@ -1,13 +1,13 @@
 ---
 modulo: Parques
 estado: desarrollado          # desarrollado | parcial | stub (pendiente)
-version_doc: 1.0
-ultima_actualizacion: 2026-06-04
+version_doc: 1.1
+ultima_actualizacion: 2026-07-04
 submodulos: [Parques, Disponibilidad]
 rutas: [/parques, /parques/disponibilidad]
 claves_permiso: [700, 701, 702, 710]
 tablas: [parques, naves, v_naves, v_disponibilidad, propiedades, arrenPropiedades, arrePdp, inversionista]
-palabras_clave: [parque, parque industrial, nave, bodega, local, lote, manzana, mza, KVA, kva, energia, disponibilidad, terreno, construccion, GYM, coworking, cafeteria, inquilino, arrendatario, dueño, inversionista, "no veo el botón para crear un parque", "no me deja poner la nave como vendida", "el arrendatario aparece vacío", "la cantidad de naves no coincide"]
+palabras_clave: [parque, parque industrial, nave, bodega, local, lote, manzana, mza, KVA, kva, energia, disponibilidad, terreno, construccion, GYM, coworking, cafeteria, inquilino, arrendatario, dueño, inversionista, "no veo el botón para crear un parque", "no me deja poner la nave como vendida", "el arrendatario aparece vacío", "la cantidad de naves no coincide", "la nave aparece duplicada", "aparece un arrendatario que ya se fue", "arrendatario fantasma", "sale dos veces la misma nave"]
 relacionado_con: [propietarios, arrendatarios, cxp, configuraciones]
 ---
 
@@ -144,6 +144,22 @@ por `idParque`.
    KVA's sin datos; esa funcionalidad está pendiente (no es un error de datos).
 6. **`esTicket = true`** excluye parques/naves que en realidad son contenedores de tickets; no son
    parques reales y se filtran.
+7. **🐛 (CORREGIDO 2026-07-04, v2.55.1) `v_naves` mostraba arrendatarios ya desvinculados y duplicaba
+   naves.** La vista unía `arrenPropiedades` **sin filtrar `status=true`**: cualquier vínculo de renta ya
+   cerrado (histórico) seguía apareciendo como si la nave estuviera ocupada, y si una nave tenía **más de
+   un vínculo** en `arrenPropiedades` (activo o no), la nave salía **duplicada** en la pantalla (una fila
+   por vínculo). Diagnosticado en "Prueba Parque" (6 de 10 naves con arrendatario fantasma) y reproducido
+   en vivo por el usuario. Fix: `LEFT JOIN "arrenPropiedades" arren ON arren."idNave"=n."idNave" AND
+   arren.status=true`. De paso se corrigió que `nomParque` se unía por `prop."idParque"` (el parque de la
+   propiedad) en vez de `n."idParque"` (el parque real de la nave) — salía vacío en naves sin propiedad.
+   Ver `migraciones/2026-07-04-v-naves-fix-arrendador-inactivo-y-parque.sql`. Sin impacto en consumidores
+   (nadie esperaba filas duplicadas); el Agente de Soporte también consulta esta vista (rol
+   `v2_agente_ro`) y se benefició del fix.
+8. **Naves "Vendida" sin propiedad (huérfanas):** si se borra la fila de `propiedades` (dueño) **fuera
+   del flujo normal** (p. ej. directo en BD), `naves.situacion` **no** se resetea solo — queda "Vendida"
+   sin ningún dueño real. El flujo normal (desvincular desde Propietarios) sí actualiza ambos lados
+   correctamente. Diagnosticado y saneado en "Prueba Parque" (2026-07-04); no se encontró el mismo patrón
+   en ningún parque real (solo en el contenedor de Tickets, fuera de alcance de este módulo).
 
 ## 8. Relaciones con otros módulos
 
@@ -173,5 +189,9 @@ por `idParque`.
 
 - ✅ Parques, Disponibilidad, crear/editar parque, agregar naves, editar nave, etiqueta personalizable,
   filtros y orden, permisos 700/701/702/710.
+- ✅ (2026-07-04, v2.55.1) `v_naves` corregida: ya no muestra arrendatarios desvinculados ni duplica naves.
 - ⏳ **KVA's por nave** (sección no desarrollada).
 - ⏳ Disponibilidad podría migrarse al formato de tarjetas (hoy es tabla).
+- ⏳ **Backlog (fuera de alcance, no atacado):** ~29 naves huérfanas ("Vendida" sin propiedad) dentro del
+  contenedor de Tickets (`A3 (Tickets)`, `esTicket=true`) — no es un parque real, se filtra en la pantalla
+  de Parques; queda pendiente para cuando se trabaje ese módulo.

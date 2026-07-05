@@ -277,7 +277,11 @@ export class ClientesService {
         q: admin
           .from('arrePdp')
           .select('*', { count: 'exact', head: true })
-          .eq('idArrendador', id),
+          .eq('idArrendador', id)
+          .eq('status', true)
+          // Un plan ya terminado (arrePdpVigente='No') no es un recurso vivo:
+          // no debe bloquear el archivado del cliente.
+          .neq('arrePdpVigente', 'No'),
       },
     ];
     const res = await Promise.all(
