@@ -80,6 +80,16 @@ export interface EditarNaveDto {
   fecEntrega: string | null;
 }
 
+/** Un evento de la trayectoria de una nave (línea de tiempo, desde la auditoría). */
+export interface EventoHistorialNave {
+  fecha: string;
+  dimension: 'renta' | 'venta';
+  evento: string;
+  detalle: string | null;
+  motivo: string | null;
+  actor: string;
+}
+
 /** Situaciones asignables desde el editor de naves ("Vendida" se asigna en Propietarios). */
 export const SITUACIONES = ['Disponible', 'Apartado', 'Bloqueado'] as const;
 
@@ -90,6 +100,8 @@ export const parquesApi = {
   naves: (idParque: string) =>
     api.get<NaveItem[]>(`/parques/${idParque}/naves`),
   nave: (idNave: string) => api.get<NaveItem>(`/parques/naves/${idNave}`),
+  historialNave: (idNave: string) =>
+    api.get<EventoHistorialNave[]>(`/parques/naves/${idNave}/historial`),
   crear: (dto: CrearParqueDto) =>
     api.post<{ idParque: string }>('/parques', dto),
   editar: (idParque: string, dto: EditarParqueDto) =>

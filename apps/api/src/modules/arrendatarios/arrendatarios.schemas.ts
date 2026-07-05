@@ -106,6 +106,16 @@ export const vincularNaveArreSchema = z.object({
 });
 export type VincularNaveArreDto = z.infer<typeof vincularNaveArreSchema>;
 
+/**
+ * Liberar una nave arrendada (Config → Propiedades). El `motivo` es opcional pero
+ * recomendado: alimenta la trazabilidad de la nave (se guarda en `motivoBaja` y lo
+ * audita `trg_auditoria`). El actor y la fecha los toma la auditoría del JWT.
+ */
+export const liberarNaveArreSchema = z.object({
+  motivo: z.string().trim().max(400).optional().default(''),
+});
+export type LiberarNaveArreDto = z.infer<typeof liberarNaveArreSchema>;
+
 /** Metadatos de un documento del arrendatario (bucket `Documentos`). */
 export const docArreSchema = z.object({
   idInversionista: z.string().trim().min(1, 'Falta el arrendatario.'),

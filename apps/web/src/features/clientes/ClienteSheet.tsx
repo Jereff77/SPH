@@ -1,15 +1,19 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   clientesApi,
   type Cliente,
   type ClienteInput,
   type RfcCoincidencia,
   type VerificarRfcResp,
+  type VinculoDoc,
 } from './clientes.api';
+import { Sheet } from '@/components/Sheet';
+import { Badge, type BadgeColor } from '@/components/Badge';
+import { useAuth } from '@/features/auth/useAuth';
 
-const vacio = (
-  pre: Partial<ClienteInput> = {},
-): ClienteInput => ({
+const vacio = (pre: Partial<ClienteInput> = {}): ClienteInput => ({
   nombre: '',
   apellido1: '',
   apellido2: '',
@@ -79,8 +83,186 @@ const nombreCoincidencia = (c: RfcCoincidencia): string =>
 const tiposDe = (c: RfcCoincidencia): string =>
   TIPOS.filter((t) => c[t.k]).map((t) => t.label).join(', ') || 'sin tipo asignado';
 
-/** Alta/edición de un cliente (replica `DatInversionistaWidget` de v1). */
-export function ClienteModal({
+/** Color del chip de estado del plan (verde=activo, ámbar=con plan inactivo, gris=sin plan). */
+const colorEstado = (e: string): BadgeColor => {
+  if (e === 'Plan activo' || e === 'Renta activa') return 'verde';
+  if (e.startsWith('Sin')) return 'gris';
+  return 'ambar';
+};
+
+/** Formatea una fecha ISO (yyyy-mm-dd) a dd/mm/aaaa (regla 7b). */
+const fechaCorta = (iso: string | null): string => {
+  if (!iso) return '';
+  const p = iso.split('-');
+  return p.length === 3 ? `${Number(p[2])}/${Number(p[1])}/${p[0]}` : iso;
+};
+
+/** Tarjeta compacta de un documento del cliente. */
+function TarjetaDoc({ d }: { d: VinculoDoc }) {
+  return (
+    <div className="rounded border bg-gray-50 px-3 py-2 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate font-medium text-gray-800">📄 {d.titulo}</span>
+        {d.fecha && <span className="shrink-0 text-xs text-gray-400">{fechaCorta(d.fecha)}</span>}
+      </div>
+      {d.descripcion && <p className="mt-0.5 truncate text-xs text-gray-500">{d.descripcion}</p>}
+    </div>
+  );
+}
+
+/** Tarjeta compacta de una nave (propiedad/ticket/renta). Con `onNav`, un doble
+ *  clic navega al plan/pantalla donde se gestiona la nave. */
+function TarjetaNave({
+  nave,
+  parque,
+  situacion,
+  estadoPlan,
+  extra,
+  onNav,
+}: {
+  nave: string;
+  parque: string;
+  situacion: string;
+  estadoPlan: string;
+  extra?: string | null;
+  onNav?: () => void;
+}) {
+  return (
+    <div
+      onDoubleClick={onNav}
+      title={onNav ? 'Doble clic para ir a su plan' : undefined}
+      className={`flex items-center justify-between gap-2 rounded border bg-gray-50 px-3 py-2 text-sm ${
+        onNav ? 'cursor-pointer hover:bg-gray-100' : ''
+      }`}
+    >
+      <div className="min-w-0">
+        <div className="truncate font-medium text-gray-800">{nave}</div>
+        <div className="truncate text-xs text-gray-500">
+          {parque} · {situacion}
+          {extra ? ` · Vigencia: ${extra}` : ''}
+        </div>
+      </div>
+      <Badge color={colorEstado(estadoPlan)}>{estadoPlan}</Badge>
+    </div>
+  );
+}
+
+/** Panel "lo que tiene ligado" del cliente en edición (solo lectura, sin montos). */
+function VinculosCliente({ id }: { id: string }) {
+  const navigate = useNavigate();
+  const { tienePermiso } = useAuth();
+  const { data, isLoading } = useQuery({
+    queryKey: ['cliente-vinculos', id],
+    queryFn: () => clientesApi.vinculos(id),
+  });
+
+  // Doble clic en una tarjeta → su plan. Solo si el usuario tiene acceso al
+  // módulo destino (si no, la tarjeta no navega, para no mandarlo a un muro).
+  const puedeVentas = tienePermiso(610);
+  const puedeArre = tienePermiso(20);
+  const irVentas = (idPropiedad: string) =>
+    navigate(
+      `/ventas/planes?inversionista=${encodeURIComponent(id)}&propiedad=${encodeURIComponent(idPropiedad)}`,
+    );
+  const irArre = (idNavArrend: string) =>
+    navigate(
+      `/arrendatarios/planes?arrendador=${encodeURIComponent(id)}&nave=${encodeURIComponent(idNavArrend)}`,
+    );
+
+  return (
+    <div className="space-y-3 border-t pt-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+        Lo que tiene ligado
+      </p>
+      {isLoading ? (
+        <p className="text-sm text-gray-400">Cargando…</p>
+      ) : !data ? (
+        <p className="text-sm text-gray-400">No se pudo cargar.</p>
+      ) : !data.propiedades.length &&
+        !data.tickets.length &&
+        !data.rentas.length &&
+        !data.documentos.length &&
+        !data.otros.length ? (
+        <p className="text-sm text-gray-400">Sin propiedades, rentas, documentos ni planes ligados.</p>
+      ) : (
+        <>
+          {data.propiedades.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-gray-600">
+                Propiedades ({data.propiedades.length})
+              </p>
+              {data.propiedades.map((v, i) => (
+                <TarjetaNave
+                  key={`prop-${i}`}
+                  nave={v.nave}
+                  parque={v.parque}
+                  situacion={v.situacion}
+                  estadoPlan={v.estadoPlan}
+                  onNav={puedeVentas ? () => irVentas(v.idPropiedad) : undefined}
+                />
+              ))}
+            </div>
+          )}
+          {data.tickets.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-gray-600">Tickets ({data.tickets.length})</p>
+              {data.tickets.map((v, i) => (
+                <TarjetaNave
+                  key={`tk-${i}`}
+                  nave={v.nave}
+                  parque={v.parque}
+                  situacion={v.situacion}
+                  estadoPlan={v.estadoPlan}
+                  onNav={puedeVentas ? () => irVentas(v.idPropiedad) : undefined}
+                />
+              ))}
+            </div>
+          )}
+          {data.rentas.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-gray-600">
+                Naves en renta ({data.rentas.length})
+              </p>
+              {data.rentas.map((v, i) => (
+                <TarjetaNave
+                  key={`rta-${i}`}
+                  nave={v.nave}
+                  parque={v.parque}
+                  situacion={v.situacion}
+                  estadoPlan={v.estadoPlan}
+                  extra={v.vigencia}
+                  onNav={puedeArre ? () => irArre(v.idNavArrend) : undefined}
+                />
+              ))}
+            </div>
+          )}
+          {data.documentos.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-gray-600">
+                Documentos ({data.documentos.length})
+              </p>
+              {data.documentos.map((d, i) => (
+                <TarjetaDoc key={`doc-${i}`} d={d} />
+              ))}
+            </div>
+          )}
+          {data.otros.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {data.otros.map((o) => (
+                <Badge key={o.recurso} color="gris">
+                  {o.recurso}: {o.cantidad}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Alta/edición de un cliente en un sheet lateral (reemplaza al modal centrado). */
+export function ClienteSheet({
   cliente,
   preset,
   onClose,
@@ -144,9 +326,7 @@ export function ClienteModal({
   const exacta = dup?.coincidencias.find((c) => c.tipoCoincidencia === 'exacto') ?? null;
   const similar = dup?.coincidencias.find((c) => c.tipoCoincidencia === 'base') ?? null;
   // Tipos que el usuario quiere y que el registro existente aún NO tiene.
-  const faltantes = exacta
-    ? TIPOS.filter((t) => form[t.k] && !exacta[t.k])
-    : [];
+  const faltantes = exacta ? TIPOS.filter((t) => form[t.k] && !exacta[t.k]) : [];
   // El alta/guardado se bloquea ante coincidencia exacta, o ante similar no confirmada.
   const bloqueado = !!exacta || (!!similar && !form.permitirSimilar);
 
@@ -208,27 +388,10 @@ export function ClienteModal({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <form
-        onSubmit={guardar}
-        className="max-h-[92vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white shadow-xl"
-      >
-        <div className="flex items-center justify-between border-b bg-[#1f2a4d] px-5 py-3 text-white">
-          <h2 className="text-base font-semibold">
-            {cliente ? 'Editar cliente' : 'Nuevo cliente'}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-white/80 hover:text-white"
-            aria-label="Cerrar"
-          >
-            ✕
-          </button>
-        </div>
-
+    <Sheet titulo={cliente ? 'Editar cliente' : 'Nuevo cliente'} onClose={onClose}>
+      <form onSubmit={guardar} className="flex min-h-full flex-col">
         <div className="space-y-4 p-5">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="text-xs text-gray-600">
               Personalidad
               <select
@@ -267,9 +430,7 @@ export function ClienteModal({
             {campo('CURP', 'CURP', 'text', 18)}
           </div>
 
-          {verificando && (
-            <p className="text-xs text-gray-400">Verificando RFC…</p>
-          )}
+          {verificando && <p className="text-xs text-gray-400">Verificando RFC…</p>}
           {rfcError && <p className="text-xs text-red-600">{rfcError}</p>}
 
           {/* Duplicado EXACTO: mismo cliente → editar, no recrear. */}
@@ -360,9 +521,12 @@ export function ClienteModal({
           </div>
 
           {error && <p className="text-xs text-red-600">{error}</p>}
+
+          {/* Panel de vínculos: solo en edición (en alta aún no hay id). */}
+          {cliente && <VinculosCliente id={cliente.idInversionista} />}
         </div>
 
-        <div className="flex justify-end gap-2 border-t px-5 py-3">
+        <div className="sticky bottom-0 mt-auto flex justify-end gap-2 border-t bg-white px-5 py-3">
           <button
             type="button"
             onClick={onClose}
@@ -379,6 +543,6 @@ export function ClienteModal({
           </button>
         </div>
       </form>
-    </div>
+    </Sheet>
   );
 }

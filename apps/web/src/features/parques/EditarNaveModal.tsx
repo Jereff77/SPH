@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { parquesApi, SITUACIONES, type NaveItem } from './parques.api';
 import { ApiRequestError } from '@/lib/api';
@@ -19,6 +19,7 @@ const inputCls =
  * asignable aquí (esa transición es del módulo Propietarios).
  */
 export function EditarNaveModal({ idNave, nomParque, onClose, onGuardada }: Props) {
+  const [tab, setTab] = useState<'datos' | 'historial'>('datos');
   const { data: nave, isLoading } = useQuery({
     queryKey: ['nave', idNave],
     queryFn: () => parquesApi.nave(idNave),
@@ -31,21 +32,107 @@ export function EditarNaveModal({ idNave, nomParque, onClose, onGuardada }: Prop
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl"
+        className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-xl"
       >
-        {isLoading || !nave ? (
-          <p className="py-8 text-center text-sm text-gray-400">Cargando nave…</p>
-        ) : (
-          <Formulario
-            nave={nave}
-            nomParque={nomParque}
-            onClose={onClose}
-            onGuardada={onGuardada}
-          />
-        )}
+        <div className="flex gap-1 border-b px-5 pt-4">
+          <TabBtn activo={tab === 'datos'} onClick={() => setTab('datos')}>
+            Datos
+          </TabBtn>
+          <TabBtn activo={tab === 'historial'} onClick={() => setTab('historial')}>
+            Historial
+          </TabBtn>
+        </div>
+        <div className="overflow-y-auto p-5">
+          {isLoading || !nave ? (
+            <p className="py-8 text-center text-sm text-gray-400">Cargando nave…</p>
+          ) : tab === 'datos' ? (
+            <Formulario
+              nave={nave}
+              nomParque={nomParque}
+              onClose={onClose}
+              onGuardada={onGuardada}
+            />
+          ) : (
+            <HistorialNave idNave={idNave} />
+          )}
+        </div>
       </div>
     </div>
   );
+}
+
+function TabBtn({
+  activo,
+  onClick,
+  children,
+}: {
+  activo: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-t-lg px-4 py-2 text-sm font-medium transition-colors ${
+        activo
+          ? 'border-b-2 border-[#1f2a4d] text-[#1f2a4d]'
+          : 'text-gray-500 hover:text-gray-700'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Pestaña de trazabilidad: línea de tiempo de la nave (reconstruida de la auditoría). */
+function HistorialNave({ idNave }: { idNave: string }) {
+  const { data: eventos = [], isLoading } = useQuery({
+    queryKey: ['nave-historial', idNave],
+    queryFn: () => parquesApi.historialNave(idNave),
+  });
+
+  if (isLoading)
+    return (
+      <p className="py-8 text-center text-sm text-gray-400">Cargando historial…</p>
+    );
+  if (eventos.length === 0)
+    return (
+      <p className="py-8 text-center text-sm text-gray-400">
+        Sin movimientos registrados para esta nave.
+      </p>
+    );
+
+  return (
+    <ol className="relative ml-1 space-y-4 border-l-2 border-gray-100 pl-5">
+      {eventos.map((e, i) => (
+        <li key={i} className="relative">
+          <span className="absolute -left-[27px] top-1 h-3 w-3 rounded-full border-2 border-white bg-[#1f2a4d]" />
+          <div className="flex flex-col gap-x-2 sm:flex-row sm:items-baseline sm:justify-between">
+            <span className="text-sm font-medium text-gray-800">{e.evento}</span>
+            <span className="shrink-0 text-xs text-gray-400">{fmtFecha(e.fecha)}</span>
+          </div>
+          {e.detalle && <p className="text-xs text-gray-600">{e.detalle}</p>}
+          {e.motivo && (
+            <p className="text-xs italic text-gray-500">Motivo: {e.motivo}</p>
+          )}
+          <p className="text-[11px] text-gray-400">por {e.actor}</p>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function fmtFecha(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function Formulario({
@@ -156,7 +243,7 @@ function Formulario({
         </select>
       </label>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="block text-xs text-gray-600">
           Manzana
           <input

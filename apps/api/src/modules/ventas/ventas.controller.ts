@@ -360,8 +360,11 @@ export class VentasController {
   async desvincularNave(
     @CurrentUser() actor: AuthUser,
     @Param('idPropiedad') idPropiedad: string,
+    @Query('motivo') motivo?: string,
   ) {
-    return this.planes.desvincularNave(idPropiedad, actor.uid);
+    // El motivo (opcional) alimenta la trazabilidad de la nave (motivoBaja, auditado).
+    // Se acota aquí; se guarda parametrizado en el service (sin SQL en string).
+    return this.planes.desvincularNave(idPropiedad, actor.uid, motivo?.slice(0, 400));
   }
 
   // ----- Plan de Pagos: cambiar tipo de pago de una parcialidad -----

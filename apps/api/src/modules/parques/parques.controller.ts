@@ -89,6 +89,13 @@ export class ParquesController {
     return this.svc.obtenerNave(idNave);
   }
 
+  // Historial / trazabilidad de la nave (línea de tiempo reconstruida desde
+  // `auditoria`). Hereda el guard de permiso 700 del controlador.
+  @Get('naves/:idNave/historial')
+  historialNave(@Param('idNave') idNave: string) {
+    return this.svc.historialDeNave(idNave);
+  }
+
   // Edición de nave (capacidad del módulo Parques, clave 700).
   @Patch('naves/:idNave')
   async editarNave(

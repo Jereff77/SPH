@@ -386,8 +386,12 @@ export const ventasApi = {
     nomDescriptivo?: string;
     idParque?: string;
   }) => api.post<{ idPropiedad: string }>('/ventas/planes/propiedades', dto),
-  desvincularNave: (idPropiedad: string) =>
-    api.delete<{ ok: true }>(`/ventas/planes/propiedades/${idPropiedad}`),
+  desvincularNave: (idPropiedad: string, motivo?: string) =>
+    api.delete<{ ok: true }>(
+      `/ventas/planes/propiedades/${idPropiedad}${
+        motivo ? `?motivo=${encodeURIComponent(motivo)}` : ''
+      }`,
+    ),
   crearPlanPagos: (dto: CrearPlanInput) =>
     api.post<{ idPdp: string }>('/ventas/planes/plan-pagos', dto),
   /** Activa/desactiva el PDP de una propiedad (`propiedades.pdpActivo`). */

@@ -22,13 +22,18 @@ export class ConsultasService {
 
   // ---------------------------- Aportaciones (510) ----------------------------
 
-  /** Inversionistas con ticket (status=true, ticket=true), por razón social. */
+  /**
+   * Inversionistas con ticket para el selector: `status=true`, `ticket=true` y
+   * que **no estén en la papelera** (`pruebas=false`), por razón social.
+   * (Papelera = `pruebas=true`; sin este filtro se colaban los archivados.)
+   */
   async inversionistasTicket(): Promise<InversionistaTicketOpt[]> {
     const { data, error } = await this.supabase.admin
       .from('inversionista')
       .select('idInversionista, razonsocial, nombre, apellido1, apellido2')
       .eq('status', true)
       .eq('ticket', true)
+      .eq('pruebas', false)
       .order('razonsocial', { ascending: true, nullsFirst: false });
     if (error) throw new InternalServerErrorException(error.message);
     return (data ?? []).map((i) => ({

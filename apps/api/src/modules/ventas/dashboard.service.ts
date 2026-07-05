@@ -122,6 +122,7 @@ export class DashboardService {
       .select(
         'idPropiedad, idNave, idParque, nomDescriptivo, idInversionista, esTicket, inversionista!inner(razonsocial, inversionista)',
       )
+      .eq('status', true) // excluir propiedades dadas de baja (baja lógica de desvincularNave)
       .eq('pdpActivo', activo)
       .eq('inversionista.pruebas', false);
     if (error) throw new InternalServerErrorException(error.message);

@@ -7,6 +7,7 @@ import {
 } from './arrendatarios.api';
 import { PlanPagoForm } from './PlanPagoForm';
 import { Tabs, type TabDef } from '@/components/Tabs';
+import { useAuth } from '@/features/auth/useAuth';
 
 const SUBTABS: TabDef[] = [
   { id: 'datos', label: 'Datos Generales' },
@@ -229,6 +230,8 @@ function DocumentosTab({ id }: { id: string }) {
 
 function PropiedadesTab({ id, nombre }: { id: string; nombre: string }) {
   const queryClient = useQueryClient();
+  const { tienePermiso } = useAuth();
+  const [liberando, setLiberando] = useState<string | null>(null);
   const { data: props = [], isLoading } = useQuery({
     queryKey: ['arre-propiedades', id],
     queryFn: () => arrendatariosApi.propiedades(id),
@@ -271,6 +274,31 @@ function PropiedadesTab({ id, nombre }: { id: string; nombre: string }) {
       setError(err instanceof Error ? err.message : 'No se pudo vincular la nave.');
     } finally {
       setGuardando(false);
+    }
+  }
+
+  /** Desvincula (libera) una nave. Solo si está libre; el backend revalida (rechaza
+   *  si tiene plan activo/vigente). */
+  async function desvincular(p: (typeof props)[number]) {
+    const etiqueta = p.nomDescriptivo ?? p.numNaveNAME ?? p.idNavArrend;
+    // El motivo alimenta la trazabilidad de la nave (historial). Cancelar el
+    // prompt (null) aborta; dejarlo vacío libera sin motivo.
+    const motivo = window.prompt(
+      `Vas a desvincular la nave "${etiqueta}" de este arrendatario.\n\nMotivo de la liberación (para el historial de la nave):`,
+      '',
+    );
+    if (motivo === null) return;
+    setLiberando(p.idNavArrend);
+    try {
+      await arrendatariosApi.liberarNave(p.idNavArrend, motivo.trim());
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['arre-propiedades', id] }),
+        queryClient.invalidateQueries({ queryKey: ['arre-naves-disp', idParque] }),
+      ]);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'No se pudo desvincular la nave.');
+    } finally {
+      setLiberando(null);
     }
   }
 
@@ -337,7 +365,7 @@ function PropiedadesTab({ id, nombre }: { id: string; nombre: string }) {
                   {nombre} · {p.nomParque ?? '—'}
                 </p>
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex items-center gap-1.5">
                 {p.tienePdp && (
                   <span className="rounded-full bg-[#1f2a4d]/10 px-2 py-0.5 text-[11px] font-medium text-[#1f2a4d]">
                     PDP
@@ -347,6 +375,21 @@ function PropiedadesTab({ id, nombre }: { id: string; nombre: string }) {
                   <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-700">
                     Activo
                   </span>
+                )}
+                {tienePermiso(24) && (
+                  <button
+                    type="button"
+                    onClick={() => desvincular(p)}
+                    disabled={liberando === p.idNavArrend || p.pdpActivo === true}
+                    title={
+                      p.pdpActivo
+                        ? 'Primero quita el plan de pagos para desvincular'
+                        : 'Desvincular nave'
+                    }
+                    className="rounded-lg border border-red-300 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {liberando === p.idNavArrend ? 'Desvinculando…' : 'Desvincular'}
+                  </button>
                 )}
               </div>
             </div>

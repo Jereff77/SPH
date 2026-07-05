@@ -1,14 +1,14 @@
 ---
 modulo: Parques
 estado: desarrollado          # desarrollado | parcial | stub (pendiente)
-version_doc: 1.1
-ultima_actualizacion: 2026-07-04
-submodulos: [Parques, Disponibilidad]
+version_doc: 1.2
+ultima_actualizacion: 2026-07-05
+submodulos: [Parques, Disponibilidad, Historial de la nave]
 rutas: [/parques, /parques/disponibilidad]
 claves_permiso: [700, 701, 702, 710]
-tablas: [parques, naves, v_naves, v_disponibilidad, propiedades, arrenPropiedades, arrePdp, inversionista]
-palabras_clave: [parque, parque industrial, nave, bodega, local, lote, manzana, mza, KVA, kva, energia, disponibilidad, terreno, construccion, GYM, coworking, cafeteria, inquilino, arrendatario, dueño, inversionista, "no veo el botón para crear un parque", "no me deja poner la nave como vendida", "el arrendatario aparece vacío", "la cantidad de naves no coincide", "la nave aparece duplicada", "aparece un arrendatario que ya se fue", "arrendatario fantasma", "sale dos veces la misma nave"]
-relacionado_con: [propietarios, arrendatarios, cxp, configuraciones]
+tablas: [parques, naves, v_naves, v_disponibilidad, propiedades, arrenPropiedades, arrePdp, pdp, raPdp, rgPdp, auditoria, catUsers, inversionista]
+palabras_clave: [parque, parque industrial, nave, bodega, local, lote, manzana, mza, KVA, kva, energia, disponibilidad, terreno, construccion, GYM, coworking, cafeteria, inquilino, arrendatario, dueño, inversionista, historial de la nave, trazabilidad de la nave, "línea de tiempo de la nave", "quién desvinculó la nave", "por qué se desvinculó", "motivo de la baja", "vida de la nave", "por dónde ha pasado la nave", "no veo el botón para crear un parque", "no me deja poner la nave como vendida", "el arrendatario aparece vacío", "la cantidad de naves no coincide", "la nave aparece duplicada", "aparece un arrendatario que ya se fue", "arrendatario fantasma", "sale dos veces la misma nave", "aparece un dueño que ya no es", "propietario fantasma"]
+relacionado_con: [propietarios, arrendatarios, fideicomiso, auditoria-y-ver-como, configuraciones]
 ---
 
 # Módulo: Parques
@@ -34,6 +34,7 @@ relacionado_con: [propietarios, arrendatarios, cxp, configuraciones]
 |---|---|---|---|
 | Parques | `/parques` | 700 (ver) | Lista de parques + tarjetas de KVA's + tarjetas de naves del parque seleccionado. |
 | Disponibilidad | `/parques/disponibilidad` | 710 | Tablero de naves por parque con su situación y ocupante. |
+| Editar nave (modal) | dentro de `/parques` | 700 | Editor de la nave con pestañas **Datos** e **Historial** (la trazabilidad/línea de tiempo de la nave — ver §4b). |
 
 Equivalente en v1 (FlutterFlow): `lib/pages/web_app/i03_parques/` (`parques`, `disponibilidad`).
 
@@ -102,6 +103,35 @@ id del **arrendatario** (ver gotcha #2), `nomDescriptivo`, `tienePdp`, `pdpActiv
 Por nave: `situacion`, `nombre` (ocupante), `idPropiedad`, `idInversionista`, datos físicos. Se filtra
 por `idParque`.
 
+## 4b. Historial / trazabilidad de la nave (v2.56.0)
+
+En **Parques → editar una nave → pestaña "Historial"** se ve la **línea de tiempo de la nave**: por dónde
+ha pasado a lo largo de su vida, con **quién hizo cada cosa, cuándo y con qué motivo**. Cubre las dos
+dimensiones de la nave (venta y renta).
+
+### De dónde sale (clave)
+- **NO existe una bitácora aparte de la nave.** El historial se **RECONSTRUYE desde la tabla `auditoria`**
+  (la bitácora general del sistema, llenada por los triggers `trg_auditoria`). Endpoint
+  `GET /parques/naves/:idNave/historial` (clave 700). Ventaja: el **actor** de cada evento se toma del
+  **JWT verificado** (no falsificable), así que el "quién" es confiable.
+- El backend **traduce** cada registro crudo de auditoría a un evento legible; **no** expone el jsonb
+  técnico al usuario. Solo alcanza lo que la auditoría v2 capturó (desde ~junio 2026); los movimientos
+  anteriores (v1/Flutter, o cambios directos en BD) aparecen como "Sistema (v1)" / "Cambio directo en BD",
+  o no aparecen. Es el límite honesto del historial.
+
+### Qué eventos muestra
+| Dimensión | Eventos |
+|---|---|
+| **Venta** | Vinculada a venta (con inversionista) · Desvinculada de venta (+ motivo) · Plan de pagos creado · Renta Administrada/Garantizada creada |
+| **Renta** | Vinculada a renta (con arrendatario) · Liberada de renta (+ motivo) · Plan de renta creado / renovado / cancelado (+ motivo) / finalizado |
+| **Nave** | Nave creada · Cambio de situación |
+
+### El "por qué": columna `motivoBaja`
+Al **desvincular** una nave de venta (Propietarios) o **liberar** una de renta (Arrendatarios) se **pide un
+motivo**, que se guarda en `propiedades.motivoBaja` (venta) o `arrenPropiedades.motivoBaja` (renta) y queda
+auditado. El actor y la fecha viven en `auditoria` (no se duplican). Ese motivo es el que aparece en la línea
+de tiempo. Ambas operaciones son **baja lógica** (`status=false`): NO borran el vínculo (ver gotcha #8).
+
 ## 5. Reglas de negocio y validaciones
 
 - Al **crear un parque** se generan automáticamente sus naves (cantidad indicada), todas en
@@ -155,11 +185,23 @@ por `idParque`.
    Ver `migraciones/2026-07-04-v-naves-fix-arrendador-inactivo-y-parque.sql`. Sin impacto en consumidores
    (nadie esperaba filas duplicadas); el Agente de Soporte también consulta esta vista (rol
    `v2_agente_ro`) y se benefició del fix.
-8. **Naves "Vendida" sin propiedad (huérfanas):** si se borra la fila de `propiedades` (dueño) **fuera
-   del flujo normal** (p. ej. directo en BD), `naves.situacion` **no** se resetea solo — queda "Vendida"
-   sin ningún dueño real. El flujo normal (desvincular desde Propietarios) sí actualiza ambos lados
-   correctamente. Diagnosticado y saneado en "Prueba Parque" (2026-07-04); no se encontró el mismo patrón
-   en ningún parque real (solo en el contenedor de Tickets, fuera de alcance de este módulo).
+   - **Continuación (v2.56.0):** el mismo hueco existía para la dimensión de **VENTA**. `v_naves` y
+     `v_disponibilidad` unían `propiedades` **sin `status=true`**, así que una propiedad dada de baja
+     (baja lógica) mostraba a su **inversionista/ocupante como fantasma** (síntoma: "aparece un dueño que ya
+     no es"; visto en el contenedor de Tickets `A3`). Fix: `AND prop.status = true` en el LEFT JOIN a
+     `propiedades` de ambas vistas. Ahora **ninguna de las dos muestra vínculos ya dados de baja** (venta o
+     renta). Ver `migraciones/2026-07-05-vistas-prop-status.sql`.
+8. **Desvincular una nave es BAJA LÓGICA, no borrado (v2.56.0).** Tanto desvincular de **venta**
+   (Propietarios) como liberar de **renta** (Arrendatarios) marcan el vínculo con `status=false`, regresan
+   la nave a `Disponible` y **conservan todo el histórico** (planes, pagos) — que alimenta el Historial de la
+   nave (§4b). **NO se borra la fila.**
+   - Guarda de negocio: impide desvincular si hay un plan **activo** (venta: `pdpActivo`; RG/RA: se consulta
+     la **tabla real** por `rentaActiva=true`, porque las banderas `raPdpActivo`/`rgPdpActivo` pueden estar
+     desincronizadas). Los planes **saldados/históricos NO bloquean**.
+   - Antes de v2.56.0 el desvincular de venta hacía un **DELETE físico** que rompía por FK cuando la propiedad
+     tenía plan/pagos (se veía como "Error interno del servidor"), y si se borraba `propiedades` directo en BD
+     la nave quedaba "Vendida" sin dueño. Con la baja lógica esto ya no ocurre. (Saneo histórico de tickets
+     huérfanos: 2026-07-04/05.)
 
 ## 8. Relaciones con otros módulos
 
@@ -190,8 +232,13 @@ por `idParque`.
 - ✅ Parques, Disponibilidad, crear/editar parque, agregar naves, editar nave, etiqueta personalizable,
   filtros y orden, permisos 700/701/702/710.
 - ✅ (2026-07-04, v2.55.1) `v_naves` corregida: ya no muestra arrendatarios desvinculados ni duplica naves.
+- ✅ (2026-07-05, v2.56.0) **Historial de la nave** (pestaña en el editor, reconstruido de `auditoria`);
+  **desvincular = baja lógica** en venta y renta (ya no borra) con **motivo**; `v_naves` y `v_disponibilidad`
+  filtran también `prop.status=true` (ya no muestran propiedades dadas de baja como fantasma).
 - ⏳ **KVA's por nave** (sección no desarrollada).
 - ⏳ Disponibilidad podría migrarse al formato de tarjetas (hoy es tabla).
-- ⏳ **Backlog (fuera de alcance, no atacado):** ~29 naves huérfanas ("Vendida" sin propiedad) dentro del
-  contenedor de Tickets (`A3 (Tickets)`, `esTicket=true`) — no es un parque real, se filtra en la pantalla
-  de Parques; queda pendiente para cuando se trabaje ese módulo.
+- ⏳ **Backlog:** naves-ticket dadas de baja (`propiedades.status=false`) dentro del contenedor de Tickets
+  (`A3 (Tickets)`, `esTicket=true`) — las **vistas ya no las muestran** (filtro `prop.status=true`), pero las
+  filas `status=false` permanecen; limpieza opcional si se trabaja ese módulo. **Gotcha de tickets:** una
+  nave-ticket "A3 · N" puede tener **varios inversionistas históricos en naves físicas distintas** con la
+  misma etiqueta, y sus pagos viven en la tabla `pagos` (por `idPdp` con prefijo `tkt-…`), no en `tickets`.

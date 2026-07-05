@@ -537,8 +537,10 @@ export const arrendatariosApi = {
     api.get<NaveDisponible[]>(`/arrendatarios/naves-disponibles${dq({ idParque })}`),
   vincularNave: (dto: { idArrendador: string; idNave: string; idParque?: string }) =>
     api.post<{ idNavArrend: string }>('/arrendatarios/propiedades', dto),
-  liberarNave: (idNavArrend: string) =>
-    api.post<{ ok: true }>(`/arrendatarios/propiedades/${idNavArrend}/liberar`, {}),
+  liberarNave: (idNavArrend: string, motivo?: string) =>
+    api.post<{ ok: true }>(`/arrendatarios/propiedades/${idNavArrend}/liberar`, {
+      motivo: motivo ?? '',
+    }),
   inpc: () => api.get<InpcRow[]>('/arrendatarios/inpc'),
 
   // Cobranza

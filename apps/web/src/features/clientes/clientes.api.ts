@@ -130,6 +130,43 @@ export interface Dependencia {
   modulo: string;
 }
 
+/** Una propiedad/nave ligada al cliente (sin montos: qué tiene + estado). */
+export interface VinculoNave {
+  /** Para navegar a Ventas → Planes. */
+  idPropiedad: string;
+  nave: string;
+  parque: string;
+  situacion: string;
+  estadoPlan: string;
+}
+
+/** Una nave que el cliente renta (arrendatario), con la vigencia de su plan. */
+export interface VinculoRenta {
+  /** Para navegar a Arrendatarios → Planes. */
+  idNavArrend: string;
+  nave: string;
+  parque: string;
+  situacion: string;
+  estadoPlan: string;
+  vigencia: string | null;
+}
+
+/** Un documento del cliente (`inversionista_docs`). */
+export interface VinculoDoc {
+  titulo: string;
+  descripcion: string;
+  fecha: string | null;
+}
+
+/** Todo lo que el cliente tiene ligado (panel del sheet de edición). */
+export interface ClienteVinculos {
+  propiedades: VinculoNave[];
+  tickets: VinculoNave[];
+  rentas: VinculoRenta[];
+  documentos: VinculoDoc[];
+  otros: { recurso: string; cantidad: number }[];
+}
+
 export const clientesApi = {
   listar: (tipo: TipoCliente) => api.get<Cliente[]>(`/clientes?tipo=${tipo}`),
   obtener: (id: string) => api.get<Cliente>(`/clientes/${encodeURIComponent(id)}`),
@@ -143,7 +180,14 @@ export const clientesApi = {
   actualizar: (id: string, dto: ClienteInput) =>
     api.patch<{ ok: true }>(`/clientes/${id}`, dto),
   moverPapelera: (id: string) => api.post<{ ok: true }>(`/clientes/${id}/papelera`, {}),
+  /** Saca al cliente de la papelera (pruebas=false → "Sin clasificar"). */
+  restaurar: (id: string) => api.post<{ ok: true }>(`/clientes/${id}/restaurar`, {}),
   /** Ataduras vivas que impedirían archivar al cliente (F2). */
   dependencias: (id: string) =>
     api.get<Dependencia[]>(`/clientes/${encodeURIComponent(id)}/dependencias`),
+  /** Detalle de todo lo que el cliente tiene ligado (propiedades/rentas/tickets/otros). */
+  vinculos: (id: string) =>
+    api.get<ClienteVinculos>(`/clientes/${encodeURIComponent(id)}/vinculos`),
+  /** Ids de clientes con alguna nave ligada viva (para resaltar la Papelera). */
+  conVinculos: () => api.get<string[]>('/clientes/con-vinculos'),
 };

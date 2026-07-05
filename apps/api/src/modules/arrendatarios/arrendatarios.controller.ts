@@ -28,6 +28,7 @@ import {
   quitarSugerenciaSchema,
   renovarPlanSchema,
   vincularNaveArreSchema,
+  liberarNaveArreSchema,
   type AgregarConceptoPartidaDto,
   type AplicarPagoDto,
   type CancelarAnticipadoDto,
@@ -39,6 +40,7 @@ import {
   type QuitarSugerenciaDto,
   type RenovarPlanDto,
   type VincularNaveArreDto,
+  type LiberarNaveArreDto,
 } from './arrendatarios.schemas.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard.js';
@@ -298,8 +300,9 @@ export class ArrendatariosController {
   async liberarNave(
     @CurrentUser() actor: AuthUser,
     @Param('idNavArrend') idNavArrend: string,
+    @Body(new ZodValidationPipe(liberarNaveArreSchema)) dto: LiberarNaveArreDto,
   ) {
-    await this.planes.liberarNave(idNavArrend, actor.uid);
+    await this.planes.liberarNave(idNavArrend, actor.uid, dto.motivo);
     return { ok: true };
   }
 

@@ -1,13 +1,13 @@
 ---
 modulo: Inversionistas / Propietarios (Ventas)
 estado: parcial              # Gestión de Cobranza + Dashboard gráfico + Planes + Escrituras en v2
-version_doc: 2.2
-ultima_actualizacion: 2026-07-03
+version_doc: 2.4
+ultima_actualizacion: 2026-07-05
 submodulos: [Gestión de Cobranza, Dashboard gráfico, Reportes, Planes, Configuración, Escrituras]
 rutas: [/ventas, /ventas/dashboard, /ventas/reportes, /ventas/planes, /ventas/escrituras]
 claves_permiso: [600, 610, 611, 620, 630]
 tablas: [inversionista, inversionista_docs, propiedades, naves, kvasAsignados, pdp, pdpDetalle, pagos, rgPdp, rgPdpDetalle, raPdp, raPdpDetalle, comentarios, actividad, parques, v_rentasCombinadas, iaSesiones, iaConversaciones]
-palabras_clave: [inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, avance, renta garantizada, renta administrada, configuración, documentos, escrituración, dashboard, gráfico, atrasos, vencido, días de atraso, KPI, gestión de cobranza, reportes, estado de cuenta, vencidos, saldo vencido, exportar, CSV, PDF, JSON, Montse AI, asistente, IA, chat, OpenRouter, comentarios, razón social, inversionista no aparece, no aparece en planes, no aparece en el selector, sin clasificar, "trasladar saldo", "devolución", "escrituración pendiente", "nave no aparece disponible"]
+palabras_clave: [inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, avance, renta garantizada, renta administrada, configuración, documentos, escrituración, dashboard, gráfico, atrasos, vencido, días de atraso, KPI, gestión de cobranza, reportes, estado de cuenta, vencidos, saldo vencido, exportar, CSV, PDF, JSON, Montse AI, asistente, IA, chat, OpenRouter, comentarios, razón social, inversionista no aparece, no aparece en planes, no aparece en el selector, sin clasificar, "trasladar saldo", "devolución", "escrituración pendiente", "nave no aparece disponible", "plan huérfano", "pdp huérfano", "pdp fantasma", "el plan no tiene parcialidades", "con plan pero vacío", "no me aparece el plan", "plan sin corrida", "total del plan en cero", "no puedo desvincular la nave", "no aparece el cliente en el selector", "no me sale el inversionista en aportaciones", "el cliente existe pero no lo encuentro para asignarlo", "cliente en papelera"]
 relacionado_con: [parques, arrendatarios, cxp, clientes, fideicomiso]
 ---
 
@@ -439,9 +439,54 @@ parque (`parques.nomParque`) y nave (`naves.numNaveNAME`) **por separado**, inve
   además no tiene **ninguna** bandera de tipo, el cliente está en el estado **"Sin clasificar"** de
   Clientes (DISTINTO de Papelera); ver `modulos/clientes.md` §10 para el diagnóstico completo. La
   corrección de datos (marcar la bandera `inversionista`) se hace en **Clientes (clave 300)**.
+  - **⛔ Regla transversal (v2.56.0):** este selector de Ventas→Planes **ya excluía correctamente** la
+    papelera desde antes de v2.56.0 (por eso no tuvo cambio de código en ese cierre). La regla general —
+    "un cliente en Papelera (`pruebas=true`) desaparece de TODOS los selectores operativos, no solo de
+    este" — quedó **confirmada como invariante del sistema** en v2.56.0, tras corregir el mismo hueco en
+    **Arrendatarios → Planes de Renta** y **Fideicomiso → Aportaciones** (que sí se colaban clientes
+    archivados). Ver `modulos/clientes.md` §10 para el detalle completo y el listado de qué selector se
+    corrigió y cuál ya cumplía. **Síntoma equivalente:** "el cliente existe pero no lo encuentro para
+    asignarlo en Ventas" → está en **Papelera**; se restaura editándolo en **Clientes** y marcándole la
+    casilla del tipo correspondiente.
 - **"La nave no aparece disponible para vincular/vender"** → el selector de naves disponibles
   (`PlanesService.navesDisponibles()`, Config → Propiedades) exige **`naves.situacion='Disponible'`**
   (NO depende de la columna `Arrendada`, que es del módulo Arrendatarios). Al vincularla a un
   inversionista pasa a `situacion='Vendida'` y deja de listarse; vuelve a `'Disponible'` solo si se
   **desvincula** (botón 🗑 de la tarjeta), y eso **solo se permite si la propiedad NO tiene plan de
   pagos** (`tienenPdp`/`idPdp`).
+
+### 9a. Detectar un **plan de pagos huérfano** ("con plan" pero no muestra nada)
+
+**Síntoma:** *"la nave/propiedad me sale «(con plan)» pero al abrirla dice «El plan no tiene parcialidades»"*,
+*"el plan no me aparece"*, *"total del plan en $0"*, *"no encuentro dónde está la falla del plan"*. También
+impide **desvincular** la nave (el botón 🗑 no se permite si hay `idPdp`).
+
+**Regla de datos (gotcha central):** el sistema marca **"(con plan)"** con solo ver que
+**`propiedades.idPdp IS NOT NULL`** — **NO valida** que ese plan **exista de verdad** (ni el maestro en `pdp`,
+ni la corrida en `pdpDetalle`). La bandera `propiedades.tienenPdp` es aún **menos fiable** (puede estar en
+`false` con el `idPdp` puesto). Por eso un `idPdp` puede quedar **apuntando al vacío** (plan borrado o alta a
+medias) y la nave se sigue viendo "con plan".
+
+**Cadena de un plan SANO** (venta): `propiedades.idPdp → pdp` (maestro: montos) `→ pdpDetalle` (corrida:
+parcialidades) `→ pagos`. *(Renta, análogo: `arrenPropiedades.idArrePdp → arrePdp → arrePdpDetalle`; ver
+`modulos/arrendatarios.md`.)*
+
+**Cómo deducir que un `idPdp` está huérfano (con `consultar_datos`):**
+1. Toma el `idPdp` de la propiedad: `SELECT "idPdp" FROM propiedades WHERE "idPropiedad"=…` (o el que reporta
+   "(con plan)").
+2. **¿Existe el maestro?** `SELECT count(*) FROM pdp WHERE "idPdp"=<idPdp>` → **0 = huérfano** (no hay
+   cabecera del plan).
+3. **¿Existe la corrida?** `SELECT count(*) FROM "pdpDetalle" WHERE "idPropiedad"=<idPropiedad>` → **0 = sin
+   parcialidades** (por eso "El plan no tiene parcialidades" / total $0).
+4. **¿Hay algo colgando?** `pagos WHERE "idPdp"=<idPdp>` (y `fidePdpDispersion` si aplica). Si todo es 0, el
+   `idPdp` **solo** vive en `propiedades` = puntero a la nada.
+
+**Contraste CLAVE antes de proponer arreglo:**
+- **Puntero vacío** (maestro 0 **y** corrida 0): no hay datos que perder → limpiar es seguro.
+- **Datos colgados** (corrida > 0 con maestro 0, p. ej. parcialidades sin cabecera): **NO borrar** — hay datos
+  reales que perderían su plan; **escalar** para reconstruir el maestro.
+
+**Solución (requiere clave 300/610 y autorización; es reversible):** poner `propiedades.idPdp = NULL` +
+`tienenPdp=false`, `pdpActivo=false`. ⚠️ Si el cliente es **real** (no prueba/papelera), **confirmar primero**
+si esa nave **debía** tener plan (se borró por error → reconstruir) o **nunca** lo tuvo (solo quedó el puntero
+basura → limpiar). El agente NO ejecuta la corrección: **diagnostica y remite** al responsable.

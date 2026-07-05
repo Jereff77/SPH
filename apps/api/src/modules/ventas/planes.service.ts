@@ -550,32 +550,87 @@ export class PlanesService {
   }
 
   /**
-   * Desvincula una nave de un inversionista (elimina la propiedad) y regresa la
-   * nave a 'Disponible'. Réplica de v1 (dat_naves): NO se permite si la
-   * propiedad tiene un plan de pagos (se valida por `idPdp`, el vínculo real).
+   * Desvincula una nave de un inversionista por **BAJA LÓGICA** (conserva el histórico y la
+   * trazabilidad, como `liberarNave` en Arrendatarios): marca `propiedades.status=false`
+   * — NO borra — y regresa la nave a 'Disponible'. El `pdp`/`pagos` y demás planes quedan
+   * intactos, para el historial de la nave y para los cálculos financieros a inversionistas.
+   *
+   * Guarda de **negocio** (ya sin riesgo de FK, porque no hay DELETE): solo se impide si hay
+   * un plan de venta **ACTIVO** (`pdpActivo`) o una Renta Garantizada/Administrada **ACTIVA**
+   * (`rgPdpActivo`/`raPdpActivo`). Los planes saldados/históricos NO bloquean (se conservan
+   * por el `status=false`). Reemplaza la guarda estricta previa (que bloqueaba por cualquier
+   * plan/pago para evitar el FK del DELETE, ya innecesaria).
+   *
+   * El `motivo` es el "por qué" de negocio: se guarda en `propiedades.motivoBaja` (lo audita
+   * `trg_auditoria` con el actor del JWT). El actor y la fecha viven en la tabla `auditoria`.
    */
-  async desvincularNave(idPropiedad: string, actorUid: string): Promise<{ ok: true }> {
+  async desvincularNave(
+    idPropiedad: string,
+    actorUid: string,
+    motivo?: string,
+  ): Promise<{ ok: true }> {
     const { data: prop, error: propErr } = await this.supabase.admin
       .from('propiedades')
-      .select('idPropiedad, idNave, tienenPdp, idPdp')
+      .select('idPropiedad, idNave, pdpActivo, rgPdpActivo, raPdpActivo')
       .eq('idPropiedad', idPropiedad)
       .maybeSingle();
     if (propErr) throw new InternalServerErrorException(propErr.message);
     if (!prop) throw new NotFoundException('Propiedad no encontrada.');
-    // El vínculo real es `idPdp` (la bandera `tienenPdp` está desincronizada en datos
-    // de v1). Bloquear por `idPdp` evita desvincular una nave que sí tiene plan, lo que
-    // dejaría huérfanos el `pdp` y sus parcialidades (con sus pagos).
-    if (prop.tienenPdp || prop.idPdp)
+
+    // Guarda de negocio: solo se impide desvincular si hay un plan de venta ACTIVO o una
+    // Renta Garantizada/Administrada ACTIVA. Los planes saldados/históricos se conservan
+    // con la propiedad status=false.
+    //   - `pdpActivo` (bandera) es fiable para el plan de pagos de venta.
+    //   - Para RG/RA se consultan las TABLAS REALES por `rentaActiva=true`: las banderas
+    //     `rgPdpActivo`/`raPdpActivo` pueden estar desincronizadas (hay propiedades con
+    //     `raPdp.rentaActiva=true` y la bandera en false) — y una RA/RG es ingreso del
+    //     inversionista, así que no se confía solo en la bandera.
+    if (prop.pdpActivo)
       throw new BadRequestException(
-        'No se puede desvincular: la nave tiene un plan de pagos activo.',
+        'No se puede desvincular: la nave tiene un plan de pagos (venta) activo.',
+      );
+    const [rgActiva, raActiva] = await Promise.all([
+      this.supabase.admin
+        .from('rgPdp')
+        .select('idRtaG', { count: 'exact', head: true })
+        .eq('idPropiedad', idPropiedad)
+        .eq('rentaActiva', true),
+      this.supabase.admin
+        .from('raPdp')
+        .select('idRtaA', { count: 'exact', head: true })
+        .eq('idPropiedad', idPropiedad)
+        .eq('rentaActiva', true),
+    ]);
+    if (rgActiva.error) throw new InternalServerErrorException(rgActiva.error.message);
+    if (raActiva.error) throw new InternalServerErrorException(raActiva.error.message);
+    if ((rgActiva.count ?? 0) > 0)
+      throw new BadRequestException(
+        'No se puede desvincular: la nave tiene una Renta Garantizada activa.',
+      );
+    if ((raActiva.count ?? 0) > 0)
+      throw new BadRequestException(
+        'No se puede desvincular: la nave tiene una Renta Administrada activa.',
       );
 
+    const motivoBaja = motivo?.trim() || null;
     const actor = this.supabase.comoActor(actorUid);
-    const { error: delErr } = await actor
+    // BAJA LÓGICA — no DELETE: conserva la fila y todo su histórico (espejo de `liberarNave`,
+    // que pone `idArrePdp=null` y baja sus banderas). El `pdp`/`pagos` NO se tocan.
+    const { error: upErr } = await actor
       .from('propiedades')
-      .delete()
+      .update({
+        status: false,
+        tienenPdp: false,
+        pdpActivo: false,
+        idPdp: null,
+        tieneRgPdp: false,
+        tieneRaPdp: false,
+        rgPdpActivo: false,
+        raPdpActivo: false,
+        motivoBaja,
+      })
       .eq('idPropiedad', idPropiedad);
-    if (delErr) throw new InternalServerErrorException(delErr.message);
+    if (upErr) throw new InternalServerErrorException(upErr.message);
 
     // Regresar la nave a 'Disponible' para que pueda volver a vincularse.
     if (prop.idNave) {
@@ -589,6 +644,13 @@ export class PlanesService {
         .eq('idNave', prop.idNave);
       if (naveErr) throw new InternalServerErrorException(naveErr.message);
     }
+
+    await this.registrarActividadPlan(
+      actorUid,
+      `Se desvinculó la propiedad ${idPropiedad} (nave ${prop.idNave ?? '-'}); queda disponible.${
+        motivoBaja ? ` Motivo: ${motivoBaja}` : ''
+      }`,
+    );
 
     return { ok: true };
   }

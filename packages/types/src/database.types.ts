@@ -418,6 +418,7 @@ export type Database = {
           idNavArrend: string
           idNave: string
           idParque: string
+          motivoBaja: string | null
           pdpActivo: boolean
           pdpVigente: boolean | null
           status: boolean
@@ -431,6 +432,7 @@ export type Database = {
           idNavArrend: string
           idNave: string
           idParque: string
+          motivoBaja?: string | null
           pdpActivo?: boolean
           pdpVigente?: boolean | null
           status?: boolean
@@ -444,6 +446,7 @@ export type Database = {
           idNavArrend?: string
           idNave?: string
           idParque?: string
+          motivoBaja?: string | null
           pdpActivo?: boolean
           pdpVigente?: boolean | null
           status?: boolean
@@ -5725,6 +5728,7 @@ export type Database = {
           idPdp: string | null
           idPropiedad: string
           idUser: string | null
+          motivoBaja: string | null
           nomDescriptivo: string | null
           PActual: boolean | null
           pdpActivo: boolean
@@ -5744,6 +5748,7 @@ export type Database = {
           idPdp?: string | null
           idPropiedad: string
           idUser?: string | null
+          motivoBaja?: string | null
           nomDescriptivo?: string | null
           PActual?: boolean | null
           pdpActivo: boolean
@@ -5763,6 +5768,7 @@ export type Database = {
           idPdp?: string | null
           idPropiedad?: string
           idUser?: string | null
+          motivoBaja?: string | null
           nomDescriptivo?: string | null
           PActual?: boolean | null
           pdpActivo?: boolean

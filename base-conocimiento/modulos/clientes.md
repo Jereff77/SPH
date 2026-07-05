@@ -1,14 +1,14 @@
 ---
 modulo: Clientes
 estado: desarrollado
-version_doc: 1.4
-ultima_actualizacion: 2026-07-04
+version_doc: 1.5
+ultima_actualizacion: 2026-07-05
 submodulos: [Vista unificada, Alta/Edición, Papelera, Guardia de papelera, Control de duplicados por RFC]
 rutas: [/clientes]
 claves_permiso: [300]
 tablas: [inversionista, propiedades, pdpDetalle, arrenPropiedades, arrePdp]
-palabras_clave: [cliente, clientes, inversionista, arrendatario, ticket, usuario final, papelera, sin clasificar, prueba, no aparece, no me aparece, no aparece en arrendatarios, no aparece en ventas, sin tipo asignado, todos los clientes, vista unificada, columna tipo, paginación, razón social, RFC, CURP, contpaq, personalidad, persona física, persona moral, alta cliente, editar cliente, CRM, duplicado, duplicados, RFC duplicado, RFC genérico, homoclave, verificar RFC, "no me deja mandar a papelera", "no puedo mandar a papelera", "tiene una nave", recursos ligados, desvincular, dependencias, huérfano]
-relacionado_con: [inversionistas, arrendatarios]
+palabras_clave: [cliente, clientes, inversionista, arrendatario, ticket, usuario final, papelera, sin clasificar, prueba, no aparece, no me aparece, no aparece en arrendatarios, no aparece en ventas, sin tipo asignado, todos los clientes, vista unificada, columna tipo, paginación, razón social, RFC, CURP, contpaq, personalidad, persona física, persona moral, alta cliente, editar cliente, CRM, duplicado, duplicados, RFC duplicado, RFC genérico, homoclave, verificar RFC, "no me deja mandar a papelera", "no puedo mandar a papelera", "tiene una nave", recursos ligados, desvincular, dependencias, huérfano, "no aparece el cliente en el selector", "no me sale el inversionista en aportaciones", "el cliente existe pero no lo encuentro para asignarlo", "cliente en papelera", "no aparece para asignarlo en ventas", "no aparece para asignarlo en arrendatarios", "no aparece para asignarlo en fideicomiso"]
+relacionado_con: [inversionistas, arrendatarios, fideicomiso]
 ---
 
 # Módulo: Clientes
@@ -185,14 +185,38 @@ correspondiente. Hay **dos estados distintos** que producen este síntoma (NO so
 
 **Por qué no aparece en el selector del módulo:** cada selector de negocio filtra por su(s) bandera(s)
 de tipo, sin excepción:
-- **Arrendatarios → Planes de Renta:** `(arrendatario=true OR usuarioFinal=true) AND status=true` —
-  ver `modulos/arrendatarios.md`.
+- **Arrendatarios → Planes de Renta:** `(arrendatario=true OR usuarioFinal=true) AND status=true AND
+  pruebas=false` — ver `modulos/arrendatarios.md`.
 - **Ventas → Planes:** `inversionista=true AND pruebas=false AND status=true` — ver
   `modulos/inversionistas.md`.
+- **Fideicomiso → Aportaciones:** `ticket=true AND status=true AND pruebas=false` — ver
+  `modulos/fideicomiso.md`.
 - **Clientes → chip Ticket / Usuario Final:** `ticket=true` / `usuarioFinal=true` respectivamente.
 
 Un cliente en **Papelera** o **Sin clasificar** no cumple ninguna de esas condiciones → **no aparece en
 ningún selector de negocio**, aunque el registro exista y esté activo (`status=true`).
+
+**⛔ Regla transversal (v2.56.0) — la papelera SOLO se ve en Clientes:** un cliente con `pruebas=true`
+(Papelera) debe **desaparecer de TODOS los selectores operativos** de los demás módulos (Ventas,
+Arrendatarios, Fideicomiso, CxP/Proveedores); la papelera es intencionalmente visible **únicamente** en
+la pantalla **Clientes** (clave 300), que la muestra a propósito para poder gestionarla. Verificado
+contra código en el cierre v2.56.0:
+- **Ya cumplían antes** (sin cambio): **Ventas → Planes** (`planes.service.ts → inversionistas()`,
+  clave 610) y **CxP → selector de proveedores** ya excluían `pruebas=true`.
+- **Se corrigieron en v2.56.0** (se colaba la papelera, se agregó `.eq('pruebas', false)`):
+  **Arrendatarios → Planes de Renta** (`planes-arre.service.ts → arrendatarios()`, clave 20) y
+  **Fideicomiso → Aportaciones** (`consultas.service.ts → inversionistasTicket()`, clave 510 — antes se
+  colaban clientes archivados, p. ej. *"\_EMPRESA DE MATERIALES"*). También se corrigió el selector de
+  **Soporte a inquilinos**.
+
+**Síntoma nuevo (v2.56.0): "el cliente existe pero no aparece cuando quiero asignarlo en Ventas /
+Arrendatarios / Fideicomiso"** → **Causa más probable: está en la Papelera** (`pruebas=true`). Ya no es
+solo un problema de "Sin clasificar" (bandera de tipo faltante): a partir de v2.56.0 *ningún* selector
+operativo de esos módulos debe mostrar un cliente en papelera, por diseño. **Diagnóstico:** confirmar
+`inversionista.pruebas` del registro con `consultar_datos`. **Solución:** para que el cliente **vuelva a
+aparecer**, hay que **restaurarlo desde Clientes** (los pasos de UI de abajo): buscarlo (el buscador de
+Clientes SÍ incluye la papelera), editarlo y marcarle la casilla del tipo correspondiente — al asignarle
+un tipo y guardar, sale de la papelera.
 
 **Diagnóstico (con `consultar_datos`):** confirmar en `inversionista` los valores de `inversionista`,
 `arrendatario`, `ticket`, `usuarioFinal`, `pruebas` y `status` del registro. Si todas las banderas de

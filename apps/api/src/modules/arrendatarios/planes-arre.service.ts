@@ -61,14 +61,16 @@ export class PlanesArreService {
 
   /**
    * Arrendatarios para el selector: registros de `inversionista` con
-   * `(arrendatario = true OR usuarioFinal = true) AND status = true`, ordenados
-   * por razón social. (Gotcha: el "arrendador" es un inversionista.)
+   * `(arrendatario = true OR usuarioFinal = true) AND status = true` y que **no
+   * estén en la papelera** (`pruebas = false`), ordenados por razón social.
+   * (Gotcha: el "arrendador" es un inversionista; papelera = `pruebas=true`.)
    */
   async arrendatarios() {
     const { data, error } = await this.supabase.admin
       .from('inversionista')
       .select('idInversionista, nombre, apellido1, apellido2, razonsocial')
       .eq('status', true)
+      .eq('pruebas', false)
       .or('arrendatario.eq.true,usuarioFinal.eq.true')
       .order('razonsocial', { ascending: true, nullsFirst: false });
     if (error) throw new InternalServerErrorException(error.message);
@@ -306,8 +308,16 @@ export class PlanesArreService {
    * deben estar vencidos (`arrePdpVigente='No'`) y `pdpActivo=false`. Marca
    * `arrenPropiedades.status=false` y `naves.Arrendada=false`; los planes
    * (`arrePdp`/`arrePdpDetalle`) y sus pagos se conservan. No existía en v1.
+   *
+   * El `motivo` es el "por qué" de negocio: se guarda en `arrenPropiedades.motivoBaja`
+   * (lo audita `trg_auditoria` junto con el actor del JWT) para la trazabilidad de la
+   * nave. El actor y la fecha de la baja viven en la tabla `auditoria`, no se duplican.
    */
-  async liberarNave(idNavArrend: string, actorUid: string): Promise<void> {
+  async liberarNave(
+    idNavArrend: string,
+    actorUid: string,
+    motivo?: string,
+  ): Promise<void> {
     const { data: prop, error: propErr } = await this.supabase.admin
       .from('arrenPropiedades')
       .select('idNavArrend, idNave, pdpActivo, status')
@@ -330,6 +340,7 @@ export class PlanesArreService {
     if ((count ?? 0) > 0)
       throw new BadRequestException('La nave tiene un plan vigente; no se puede liberar.');
 
+    const motivoBaja = motivo?.trim() || null;
     const db = this.supabase.comoActor(actorUid);
     const { error: upPropErr } = await db
       .from('arrenPropiedades')
@@ -339,6 +350,7 @@ export class PlanesArreService {
         pdpActivo: false,
         pdpVigente: false,
         idArrePdp: null,
+        motivoBaja,
       })
       .eq('idNavArrend', idNavArrend);
     if (upPropErr) throw new InternalServerErrorException(upPropErr.message);
@@ -354,7 +366,9 @@ export class PlanesArreService {
     await this.registrarActividad(db, {
       pantalla: 'Arrendatarios',
       nomwidget: 'LiberarNave',
-      comentario: `Se liberó la nave ${prop.idNave ?? '-'} (vínculo ${idNavArrend}); queda disponible para renta.`,
+      comentario: `Se liberó la nave ${prop.idNave ?? '-'} (vínculo ${idNavArrend}); queda disponible para renta.${
+        motivoBaja ? ` Motivo: ${motivoBaja}` : ''
+      }`,
       actorUid,
     });
   }

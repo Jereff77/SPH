@@ -388,11 +388,18 @@ function PropiedadesTab({
 
   async function desvincular(p: PropiedadRow) {
     const etiqueta = p.nomDescriptivo ?? p.nave?.numNaveNAME ?? 'esta nave';
-    if (!window.confirm(`¿Desvincular ${etiqueta} del propietario?`)) return;
+    // El motivo alimenta la trazabilidad de la nave (historial). Cancelar el prompt
+    // (null) aborta; dejarlo vacío desvincula sin motivo. La propiedad NO se borra:
+    // se da de baja (status=false) conservando su histórico.
+    const motivo = window.prompt(
+      `Vas a desvincular ${etiqueta} del propietario.\n\nMotivo de la desvinculación (para el historial de la nave):`,
+      '',
+    );
+    if (motivo === null) return;
     setError(null);
     setBorrando(p.idPropiedad);
     try {
-      await ventasApi.desvincularNave(p.idPropiedad);
+      await ventasApi.desvincularNave(p.idPropiedad, motivo.trim());
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['ventas-propiedades', id] }),
         // La nave vuelve a estar disponible para vincular.

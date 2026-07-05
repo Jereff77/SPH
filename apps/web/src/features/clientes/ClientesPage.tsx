@@ -10,7 +10,7 @@ import {
   type Dependencia,
   type EtiquetaTipo,
 } from './clientes.api';
-import { ClienteModal } from './ClienteModal';
+import { ClienteSheet } from './ClienteSheet';
 import { Badge, type BadgeColor } from '@/components/Badge';
 import { Paginacion } from '@/components/Paginacion';
 import { SortableTh, THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
@@ -124,6 +124,13 @@ export function ClientesPage() {
     queryFn: () => clientesApi.listar('todos'),
   });
 
+  // Ids con naves ligadas vivas → resaltar en rosa los de la Papelera (recursos atrapados).
+  const { data: idsConVinculos = [] } = useQuery({
+    queryKey: ['clientes-con-vinculos'],
+    queryFn: () => clientesApi.conVinculos(),
+  });
+  const setVinculos = useMemo(() => new Set(idsConVinculos), [idsConVinculos]);
+
   const refrescar = () => queryClient.invalidateQueries({ queryKey: ['clientes'] });
 
   const setFiltro = (campo: string, s: Set<string>) =>
@@ -203,6 +210,24 @@ export function ClientesPage() {
     } catch (err) {
       // El backend revalida (409 si cambió entre la consulta y la acción).
       window.alert(err instanceof Error ? err.message : 'No se pudo mover a la papelera.');
+    } finally {
+      setEliminando(null);
+    }
+  }
+
+  async function restaurar(c: Cliente) {
+    if (
+      !window.confirm(
+        `¿Sacar de la papelera a "${c.razonsocial ?? c.nombre ?? ''}"? Quedará como "Sin clasificar"; recuerda asignarle un tipo.`,
+      )
+    )
+      return;
+    setEliminando(c.idInversionista);
+    try {
+      await clientesApi.restaurar(c.idInversionista);
+      await refrescar();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'No se pudo restaurar el cliente.');
     } finally {
       setEliminando(null);
     }
@@ -308,7 +333,19 @@ export function ClientesPage() {
               </tr>
             ) : (
               visibles.map((c) => (
-                <tr key={c.idInversionista} className="hover:bg-gray-50">
+                <tr
+                  key={c.idInversionista}
+                  className={
+                    c.pruebas && setVinculos.has(c.idInversionista)
+                      ? 'bg-pink-100 hover:bg-pink-200'
+                      : 'hover:bg-gray-50'
+                  }
+                  title={
+                    c.pruebas && setVinculos.has(c.idInversionista)
+                      ? 'En papelera pero aún tiene naves/propiedades ligadas — desvincúlalas antes de eliminar'
+                      : undefined
+                  }
+                >
                   <td className="px-3 py-2">
                     <div className="flex items-center justify-center gap-2">
                       <button
@@ -320,16 +357,29 @@ export function ClientesPage() {
                       >
                         ✏️
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => papelera(c)}
-                        disabled={eliminando === c.idInversionista}
-                        title="Mover a la papelera"
-                        className="text-red-600 hover:text-red-800 disabled:opacity-40"
-                        aria-label="Mover a la papelera"
-                      >
-                        {eliminando === c.idInversionista ? '…' : '🗑'}
-                      </button>
+                      {c.pruebas ? (
+                        <button
+                          type="button"
+                          onClick={() => restaurar(c)}
+                          disabled={eliminando === c.idInversionista}
+                          title="Sacar de la papelera"
+                          className="text-green-600 hover:text-green-800 disabled:opacity-40"
+                          aria-label="Sacar de la papelera"
+                        >
+                          {eliminando === c.idInversionista ? '…' : '↩️'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => papelera(c)}
+                          disabled={eliminando === c.idInversionista}
+                          title="Mover a la papelera"
+                          className="text-red-600 hover:text-red-800 disabled:opacity-40"
+                          aria-label="Mover a la papelera"
+                        >
+                          {eliminando === c.idInversionista ? '…' : '🗑'}
+                        </button>
+                      )}
                     </div>
                   </td>
                   <td className="px-3 py-2">
@@ -368,7 +418,7 @@ export function ClientesPage() {
       />
 
       {nuevo && (
-        <ClienteModal
+        <ClienteSheet
           preset={presetNuevo}
           onClose={() => setNuevo(false)}
           onGuardado={refrescar}
@@ -376,7 +426,7 @@ export function ClientesPage() {
         />
       )}
       {editar && (
-        <ClienteModal
+        <ClienteSheet
           cliente={editar}
           onClose={() => setEditar(null)}
           onGuardado={refrescar}

@@ -37,6 +37,12 @@ export class ClientesController {
     return this.clientes.listar(t);
   }
 
+  /** Ids de clientes con alguna nave ligada viva (para resaltar la Papelera). */
+  @Get('con-vinculos')
+  conVinculos() {
+    return this.clientes.idsConVinculos();
+  }
+
   /** Verifica si un RFC ya existe (por base) en cualquier tipo de cliente. */
   @Get('verificar-rfc')
   verificarRfc(
@@ -50,6 +56,12 @@ export class ClientesController {
   @Get(':id/dependencias')
   dependencias(@Param('id') id: string) {
     return this.clientes.dependenciasBloqueantes(id);
+  }
+
+  /** Detalle de todo lo que el cliente tiene ligado (propiedades/rentas/tickets/otros), sin montos. */
+  @Get(':id/vinculos')
+  vinculos(@Param('id') id: string) {
+    return this.clientes.vinculosDe(id);
   }
 
   /** Cliente completo por id (para abrir/editar el existente desde un aviso de duplicado). */
@@ -79,6 +91,13 @@ export class ClientesController {
   @Post(':id/papelera')
   async moverPapelera(@CurrentUser() actor: AuthUser, @Param('id') id: string) {
     await this.clientes.moverPapelera(id, actor.uid);
+    return { ok: true };
+  }
+
+  /** Saca al cliente de la papelera (pruebas=false → queda "Sin clasificar"). */
+  @Post(':id/restaurar')
+  async restaurar(@CurrentUser() actor: AuthUser, @Param('id') id: string) {
+    await this.clientes.restaurar(id, actor.uid);
     return { ok: true };
   }
 }

@@ -1006,12 +1006,13 @@ export class SoporteInquilinosService {
   // Selectores para vincular (inquilino -> naves)
   // ===========================================================================
 
-  /** Arrendatarios (inquilinos) activos. */
+  /** Arrendatarios (inquilinos) activos, excluyendo la papelera (`pruebas=false`). */
   async inquilinos() {
     const { data, error } = await this.supabase.admin
       .from('inversionista')
       .select('idInversionista, razonsocial, nombre, apellido1, apellido2')
       .eq('status', true)
+      .eq('pruebas', false)
       .or('arrendatario.eq.true,usuarioFinal.eq.true')
       .order('razonsocial', { ascending: true, nullsFirst: false });
     if (error) throw new InternalServerErrorException(error.message);

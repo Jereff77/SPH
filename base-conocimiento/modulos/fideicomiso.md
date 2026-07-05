@@ -1,13 +1,13 @@
 ---
 modulo: Fideicomiso
 estado: parcial
-version_doc: 1.3
-ultima_actualizacion: 2026-06-22
+version_doc: 1.4
+ultima_actualizacion: 2026-07-05
 rutas_v2: [/fideicomiso/dashboard, /fideicomiso/aportaciones, /fideicomiso/adhesiones, /fideicomiso/contabilidad, /fideicomiso/dispersiones, /fideicomiso/reportes]
 rutas_v1: [i06_fideicomiso]
 claves_permiso: [500, 510, 511, 520, 530, 540]
 tablas: [fidePdpDispersion, fideicomiso, fideCondiciones, fide_periodos_dispersion, fideContabilidad, fideContaConceptos, fideContaHistorial, fideSaldosBanco, v_fideicomiso, v_propiedadesfide, v_pagos]
-palabras_clave: [fideicomiso, dispersión, dispersiones, aportación, aportaciones, adhesión, adhesiones, rendimiento, kardex, ticket, contabilidad, pivote, concepto contable, inversión, rendimiento promedio, retención ISR, comisión SPH, "se duplicó en dispersiones", "aparece repetido", "renglón duplicado", "no se puede editar la celda", "se duplica y no se puede modificar", "número de adhesión", "rfc invertido", "nombre invertido", "aportación no aparece"]
+palabras_clave: [fideicomiso, dispersión, dispersiones, aportación, aportaciones, adhesión, adhesiones, rendimiento, kardex, ticket, contabilidad, pivote, concepto contable, inversión, rendimiento promedio, retención ISR, comisión SPH, "se duplicó en dispersiones", "aparece repetido", "renglón duplicado", "no se puede editar la celda", "se duplica y no se puede modificar", "número de adhesión", "rfc invertido", "nombre invertido", "aportación no aparece", "no aparece el inversionista en aportaciones", "no me sale el cliente en aportaciones", "no aparece el cliente en el selector", "el cliente existe pero no lo encuentro para asignarlo", "cliente en papelera"]
 relacionado_con: [inversionistas, clientes, parques]
 ---
 
@@ -168,6 +168,27 @@ Evaluar si se agrega como atajo.
   Adhesiones (condiciones) y Plan de Pagos.
 - Gotcha: en `v_fideicomiso`, el campo `idfide` es en realidad el `idfideCond` (id de la condición), no el
   id del fideicomiso maestro.
+
+- **Síntoma: "no aparece el inversionista en Aportaciones" / "no me sale el cliente en el selector de
+  Aportaciones"** (el combo de inversionista en `/fideicomiso/aportaciones` sale vacío o no incluye a un
+  cliente que el usuario sabe que existe) → **Causa (regla verificada):** el selector
+  (`ConsultasService.inversionistasTicket()`, `apps/api/src/modules/fideicomiso/consultas.service.ts`,
+  endpoint `GET /fideicomiso/aportaciones/inversionistas`, clave **510**) exige las **tres** condiciones a
+  la vez sobre `inversionista`: **`status=true AND ticket=true AND pruebas=false`**. Si falta cualquiera,
+  no aparece:
+  - **`pruebas=true`** → el cliente está en la **Papelera** (regla transversal v2.56.0, ver
+    `modulos/clientes.md` §10: la papelera solo se ve en la pantalla Clientes, clave 300; **antes de
+    v2.56.0 este selector SÍ se colaba clientes archivados** —p. ej. *"\_EMPRESA DE MATERIALES"*— y se
+    corrigió agregando `.eq('pruebas', false)`).
+  - **`ticket=false`** → el cliente existe y está activo, pero nunca se le marcó la casilla **Ticket** en
+    Clientes (es el estado "Sin clasificar" para este módulo, aunque tenga otras banderas como
+    Inversionista o Arrendatario).
+  - **`status=false`** → el registro está inactivo/dado de baja.
+  **Diagnóstico (`consultar_datos`):** revisar `inversionista.status`, `inversionista.ticket` e
+  `inversionista.pruebas` del cliente en cuestión. **Solución:** corregir la clasificación desde
+  **Clientes (clave 300)** — buscarlo (el buscador de Clientes SÍ incluye la papelera), editarlo, marcar
+  la casilla **Ticket** y, si estaba en Papelera, guardar para que salga de ella (ver
+  `modulos/clientes.md` §10, pasos de UI).
 
 - **Síntoma: "se duplicó en Dispersiones" / "aparece repetido" (un mismo ticket sale varias veces en el
   Desglose Detallado)** → Causa: las RPCs de Dispersión (`plan_dispersiones_dinamico`, `resumen_*`)

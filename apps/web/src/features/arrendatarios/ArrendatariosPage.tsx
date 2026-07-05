@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   arrendatariosApi,
@@ -35,8 +36,11 @@ const BADGE_VIGENCIA: Record<ArrePdpVigente, string> = {
 export function ArrendatariosPage() {
   const queryClient = useQueryClient();
   const { tienePermiso } = useAuth();
-  const [idArrendador, setIdArrendador] = useState('');
-  const [idNavArrend, setIdNavArrend] = useState('');
+  const [searchParams] = useSearchParams();
+  // Preselección al llegar desde Clientes (doble clic en una nave rentada):
+  // ?arrendador=…&nave=…. Solo se usan como valor inicial.
+  const [idArrendador, setIdArrendador] = useState(() => searchParams.get('arrendador') ?? '');
+  const [idNavArrend, setIdNavArrend] = useState(() => searchParams.get('nave') ?? '');
   const [idArrePdp, setIdArrePdp] = useState('');
   const [config, setConfig] = useState<ArrendatarioOpt | null>(null);
   const [verInpc, setVerInpc] = useState(false);

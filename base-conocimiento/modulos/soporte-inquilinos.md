@@ -1,12 +1,12 @@
 ---
 modulo: Soporte a Inquilinos (Arrendatarios)
 estado: desarrollado
-version_doc: 2.1
-ultima_actualizacion: 2026-07-01
+version_doc: 2.2
+ultima_actualizacion: 2026-07-05
 rutas: [/arrendatarios/soporte]
 claves_permiso: [31, 32, 33, 34, 35, 36]
 tablas: [incidentes, incidentes_remitentes, incidentes_seguimientos, correo_cuentas, correo_mensajes, correo_adjuntos, inversionista, arrenPropiedades, v_arrendadasNaves, naves, parques, catUsers, segModulosUsuarios, SPHConfiguraciones]
-palabras_clave: [soporte a inquilinos, incidente, incidentes, ticket, reporte de falla, queja, mantenimiento, nave, parque, contacto@portal.gruposph.mx, correo de soporte, bandeja de incidentes, responder incidente, firma, firma corporativa, logo en el correo, vincular inquilino, remitente, estado del incidente, nuevo, en proceso, resuelto, detenido, cerrado, sin avance 7 días, asignar, asignación, agente, gerente, ver todos, pipeline, tablero, kanban, seguimientos, árbol de seguimientos, bitácora, nota interna, clasificar, IA, categoría, prioridad, folio en el asunto, mismo incidente, hilo, cadena de correos, INC-, "no me responden", "se cerró solo", "el incidente desapareció"]
+palabras_clave: [soporte a inquilinos, incidente, incidentes, ticket, reporte de falla, queja, mantenimiento, nave, parque, contacto@portal.gruposph.mx, correo de soporte, bandeja de incidentes, responder incidente, firma, firma corporativa, logo en el correo, vincular inquilino, remitente, estado del incidente, nuevo, en proceso, resuelto, detenido, cerrado, sin avance 7 días, asignar, asignación, agente, gerente, ver todos, pipeline, tablero, kanban, seguimientos, árbol de seguimientos, bitácora, nota interna, clasificar, IA, categoría, prioridad, folio en el asunto, mismo incidente, hilo, cadena de correos, INC-, "no me responden", "se cerró solo", "el incidente desapareció", papelera, "inquilino en papelera", "cliente en papelera no sale", "no aparece el inquilino en el selector"]
 relacionado_con: [correo, arrendatarios, clientes, soporte-ia]
 ---
 
@@ -196,6 +196,11 @@ cliente de correo del inquilino no "hile" bien la conversación:
 - 📌 La firma usa el **logo de fondo claro**; si no hay logo configurado, la firma sale sin imagen
   (no falla).
 - 📌 `EMAIL_ENCRYPTION_KEY` debe estar en el backend para guardar/usar la cuenta (igual que Correo).
+- 📌 **El selector de inquilinos EXCLUYE la papelera (v2.56.0).** El método `inquilinos()`
+  (`soporte-inquilinos.service.ts`, usado por `GET inquilinos`, clave **33**, para vincular
+  inquilino→nave) agregó `.eq('pruebas', false)`: antes se colaban ahí clientes en **Papelera**
+  (`inversionista.pruebas=true`). Mismo patrón que el selector de Arrendatarios → Planes de Renta
+  (ver `modulos/arrendatarios.md`).
 
 ## Para el agente de soporte
 - "No veo Soporte a Inquilinos" → falta la clave **31** (pídela en Configuraciones → Permisos).
@@ -205,3 +210,7 @@ cliente de correo del inquilino no "hile" bien la conversación:
 - "El incidente se puso en Detenido solo" → lleva **>7 días sin avance**; al responder vuelve a En Proceso.
 - "Cada vez tengo que decir de qué nave es" → vincúlalo una vez; el sistema **recuerda** el
   remitente y los siguientes correos de ese correo se vinculan solos.
+- "No aparece el inquilino en el selector para vincular" → revisa si está en la **Papelera** de
+  Clientes (`inversionista.pruebas=true`): desde v2.56.0 el selector `inquilinos()` (endpoint
+  `GET inquilinos`, clave 33) lo **excluye explícitamente**. Corrección: restaurarlo en
+  **Clientes → Papelera**.

@@ -36,6 +36,43 @@ export interface RfcCoincidencia {
   tipoCoincidencia: 'exacto' | 'base';
 }
 
+/** Una propiedad/nave ligada al cliente (sin montos: solo "qué tiene + estado"). */
+export interface VinculoNave {
+  /** Para navegar a Ventas → Planes (`?inversionista=&propiedad=`). */
+  idPropiedad: string;
+  nave: string;
+  parque: string;
+  situacion: string;
+  estadoPlan: string;
+}
+
+/** Una nave que el cliente renta (arrendatario), con la vigencia de su plan de renta. */
+export interface VinculoRenta {
+  /** Para navegar a Arrendatarios → Planes (`?arrendador=&nave=`). */
+  idNavArrend: string;
+  nave: string;
+  parque: string;
+  situacion: string;
+  estadoPlan: string;
+  vigencia: string | null;
+}
+
+/** Un documento del cliente (tabla `inversionista_docs`). */
+export interface VinculoDoc {
+  titulo: string;
+  descripcion: string;
+  fecha: string | null;
+}
+
+/** Panorama de todo lo que el cliente tiene ligado (para el panel del sheet de edición). */
+export interface ClienteVinculos {
+  propiedades: VinculoNave[];
+  tickets: VinculoNave[];
+  rentas: VinculoRenta[];
+  documentos: VinculoDoc[];
+  otros: { recurso: string; cantidad: number }[];
+}
+
 const ID_ALFABETO =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
@@ -101,6 +138,25 @@ export class ClientesService {
     });
     if (error) fallaBd(this.logger, 'clientes.listar', error);
     return data ?? [];
+  }
+
+  /**
+   * Ids de clientes con al menos una **nave ligada VIVA** — propiedad como dueño
+   * (`propiedades`) o nave rentada (`arrenPropiedades`), ambas `status=true`. Se usa
+   * para resaltar en la Papelera los que aún tienen recursos atrapados (no eliminables).
+   */
+  async idsConVinculos(): Promise<string[]> {
+    const admin = this.supabase.admin;
+    const [props, rentas] = await Promise.all([
+      admin.from('propiedades').select('idInversionista').eq('status', true),
+      admin.from('arrenPropiedades').select('idArrendador').eq('status', true),
+    ]);
+    if (props.error) fallaBd(this.logger, 'clientes.idsConVinculos (propiedades)', props.error);
+    if (rentas.error) fallaBd(this.logger, 'clientes.idsConVinculos (rentas)', rentas.error);
+    const set = new Set<string>();
+    for (const p of props.data ?? []) if (p.idInversionista) set.add(p.idInversionista);
+    for (const r of rentas.data ?? []) if (r.idArrendador) set.add(r.idArrendador);
+    return [...set];
   }
 
   /** Carga un cliente completo por id (para abrir/editar el existente desde un aviso). */
@@ -253,7 +309,8 @@ export class ClientesService {
         q: admin
           .from('propiedades')
           .select('*', { count: 'exact', head: true })
-          .eq('idInversionista', id),
+          .eq('idInversionista', id)
+          .eq('status', true),
       },
       {
         recurso: 'Plan de pagos',
@@ -261,7 +318,8 @@ export class ClientesService {
         q: admin
           .from('pdpDetalle')
           .select('*', { count: 'exact', head: true })
-          .eq('idInversionista', id),
+          .eq('idInversionista', id)
+          .eq('status', true),
       },
       {
         recurso: 'Naves rentadas',
@@ -269,7 +327,8 @@ export class ClientesService {
         q: admin
           .from('arrenPropiedades')
           .select('*', { count: 'exact', head: true })
-          .eq('idArrendador', id),
+          .eq('idArrendador', id)
+          .eq('status', true),
       },
       {
         recurso: 'Plan de renta',
@@ -292,6 +351,157 @@ export class ClientesService {
       }),
     );
     return res.filter((r) => r.cantidad > 0);
+  }
+
+  /**
+   * Detalle de TODO lo que el cliente tiene ligado (para el panel del sheet de
+   * edición): propiedades que posee, naves que renta, tickets, y otros vínculos
+   * (solo conteos). **SOLO LECTURA y SIN MONTOS** — las cifras financieras viven en
+   * Ventas (clave 610); aquí solo el "qué tiene + estado". Se reúne con consultas
+   * separadas + unión en memoria (patrón de la casa; no depende de FKs).
+   */
+  async vinculosDe(id: string): Promise<ClienteVinculos> {
+    const admin = this.supabase.admin;
+
+    const [propsRes, rentasRes, docsRes] = await Promise.all([
+      admin
+        .from('propiedades')
+        .select('idPropiedad, idNave, idParque, esTicket, pdpActivo, idPdp')
+        .eq('idInversionista', id)
+        .eq('status', true),
+      admin
+        .from('arrenPropiedades')
+        .select('idNavArrend, idNave, idParque, pdpActivo, idArrePdp, tienePdp')
+        .eq('idArrendador', id)
+        .eq('status', true),
+      admin
+        .from('inversionista_docs')
+        .select('titulo, descripcion, fc')
+        .eq('idInversionista', id)
+        .eq('status', true)
+        .order('fc', { ascending: false }),
+    ]);
+    if (propsRes.error) fallaBd(this.logger, 'clientes.vinculosDe (propiedades)', propsRes.error);
+    if (rentasRes.error) fallaBd(this.logger, 'clientes.vinculosDe (rentas)', rentasRes.error);
+    if (docsRes.error) fallaBd(this.logger, 'clientes.vinculosDe (documentos)', docsRes.error);
+    const propsList = propsRes.data ?? [];
+    const rentasList = rentasRes.data ?? [];
+
+    const documentos: VinculoDoc[] = (docsRes.data ?? []).map((d) => ({
+      titulo: d.titulo || 'Documento sin título',
+      descripcion: d.descripcion ?? '',
+      fecha: d.fc ? String(d.fc).slice(0, 10) : null,
+    }));
+
+    // Resolver nombres de nave/parque y la vigencia de las rentas.
+    const idsNave = [
+      ...new Set([...propsList, ...rentasList].map((x) => x.idNave).filter((v): v is string => !!v)),
+    ];
+    const idsParque = [
+      ...new Set([...propsList, ...rentasList].map((x) => x.idParque).filter((v): v is string => !!v)),
+    ];
+    const idsArrePdp = [
+      ...new Set(rentasList.map((r) => r.idArrePdp).filter((v): v is string => !!v)),
+    ];
+
+    const [navesRes, parquesRes, arrePdpRes] = await Promise.all([
+      idsNave.length
+        ? admin.from('naves').select('idNave, numNave, numNaveNAME, situacion').in('idNave', idsNave)
+        : null,
+      idsParque.length
+        ? admin.from('parques').select('idParque, nomParque').in('idParque', idsParque)
+        : null,
+      idsArrePdp.length
+        ? admin.from('arrePdp').select('idArrePdp, arrePdpVigente').in('idArrePdp', idsArrePdp)
+        : null,
+    ]);
+    if (navesRes?.error) fallaBd(this.logger, 'clientes.vinculosDe (naves)', navesRes.error);
+    if (parquesRes?.error) fallaBd(this.logger, 'clientes.vinculosDe (parques)', parquesRes.error);
+    if (arrePdpRes?.error) fallaBd(this.logger, 'clientes.vinculosDe (arrePdp)', arrePdpRes.error);
+
+    const naveMap = new Map((navesRes?.data ?? []).map((n) => [n.idNave, n] as const));
+    const parqueMap = new Map((parquesRes?.data ?? []).map((p) => [p.idParque, p.nomParque] as const));
+    const arrePdpMap = new Map((arrePdpRes?.data ?? []).map((a) => [a.idArrePdp, a] as const));
+
+    const nombreNave = (idNave: string | null): string => {
+      const n = idNave ? naveMap.get(idNave) : undefined;
+      return n?.numNaveNAME || (n?.numNave != null ? `Nave ${n.numNave}` : '—');
+    };
+    const situacionDe = (idNave: string | null): string =>
+      (idNave ? naveMap.get(idNave)?.situacion : null) ?? '—';
+    const parqueDe = (idParque: string | null): string =>
+      (idParque ? parqueMap.get(idParque) : null) ?? '—';
+
+    const propiedades: VinculoNave[] = [];
+    const tickets: VinculoNave[] = [];
+    for (const p of propsList) {
+      const item: VinculoNave = {
+        idPropiedad: p.idPropiedad,
+        nave: nombreNave(p.idNave),
+        parque: parqueDe(p.idParque),
+        situacion: situacionDe(p.idNave),
+        estadoPlan: p.idPdp ? (p.pdpActivo ? 'Plan activo' : 'Con plan (inactivo)') : 'Sin plan',
+      };
+      (p.esTicket ? tickets : propiedades).push(item);
+    }
+
+    const rentas: VinculoRenta[] = rentasList.map((r) => ({
+      idNavArrend: r.idNavArrend,
+      nave: nombreNave(r.idNave),
+      parque: parqueDe(r.idParque),
+      situacion: situacionDe(r.idNave),
+      estadoPlan: r.tienePdp
+        ? r.pdpActivo
+          ? 'Renta activa'
+          : 'Con plan de renta'
+        : 'Sin plan de renta',
+      vigencia: (r.idArrePdp ? arrePdpMap.get(r.idArrePdp)?.arrePdpVigente : null) ?? null,
+    }));
+
+    // Otros vínculos (panorama; solo conteos de historial).
+    const otrosDefs: {
+      recurso: string;
+      q: PromiseLike<{ count: number | null; error: unknown }>;
+    }[] = [
+      {
+        recurso: 'Facturas',
+        q: admin.from('catFacturas').select('*', { count: 'exact', head: true }).eq('idInversionista', id),
+      },
+      {
+        recurso: 'Incidentes de soporte',
+        q: admin.from('incidentes').select('*', { count: 'exact', head: true }).eq('idArrendador', id),
+      },
+    ];
+    const otros = (
+      await Promise.all(
+        otrosDefs.map(async (d) => {
+          const { count, error } = await d.q;
+          if (error) fallaBd(this.logger, 'clientes.vinculosDe (otros)', error);
+          return { recurso: d.recurso, cantidad: count ?? 0 };
+        }),
+      )
+    ).filter((o) => o.cantidad > 0);
+
+    return { propiedades, tickets, rentas, documentos, otros };
+  }
+
+  /** Saca al cliente de la papelera (restaura): `pruebas=false`. Queda "Sin
+   *  clasificar" (sin tipo) hasta que se le asigne uno. Auditado. */
+  async restaurar(id: string, actorUid: string): Promise<void> {
+    const { data, error: selErr } = await this.supabase.admin
+      .from('inversionista')
+      .select('idInversionista')
+      .eq('idInversionista', id)
+      .maybeSingle();
+    if (selErr) fallaBd(this.logger, 'clientes.restaurar (select)', selErr);
+    if (!data) throw new NotFoundException('Cliente no encontrado.');
+
+    const { error } = await this.supabase
+      .comoActor(actorUid)
+      .from('inversionista')
+      .update({ pruebas: false })
+      .eq('idInversionista', id);
+    if (error) fallaBd(this.logger, 'clientes.restaurar', error);
   }
 
   /** Mueve el cliente a la papelera (replica v1: limpia tipos y marca prueba). */

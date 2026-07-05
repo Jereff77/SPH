@@ -1,8 +1,8 @@
 ---
 documento: Glosario transversal
 estado: vivo
-ultima_actualizacion: 2026-07-03
-palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parque, PDP, KVA, INPC, situacion, status, esTicket, auditoria, ver como, saldo vencido, días de atraso, cartera vencida, tipo de pago, escrituración, Montse AI, asistente, pruebas, papelera, sin clasificar]
+ultima_actualizacion: 2026-07-05
+palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parque, PDP, KVA, INPC, situacion, status, esTicket, auditoria, ver como, saldo vencido, días de atraso, cartera vencida, tipo de pago, escrituración, Montse AI, asistente, pruebas, papelera, sin clasificar, baja lógica, motivoBaja, historial de la nave, trazabilidad de la nave, desvincular nave, liberar nave, ticket, tickets]
 ---
 
 # Glosario — entidades y términos transversales
@@ -70,8 +70,22 @@ palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parq
   `Bloqueado`, `Vendida`. ⚠️ `Vendida` solo se asigna desde **Propietarios**, no desde el editor de naves.
 - **`status`** (booleano, muchas tablas): registro activo (true) / inactivo (false). El filtrado típico
   excluye inactivos.
+- **Baja lógica de un vínculo nave↔cliente (v2.56.0).** Desvincular una nave (de **venta** desde
+  Propietarios, o de **renta** desde Arrendatarios) **NO borra** el vínculo: lo marca `status=false`
+  conservando todo el histórico (planes/pagos). Aplica a `propiedades` (venta) y `arrenPropiedades` (renta);
+  la nave vuelve a `Disponible`. El "por qué" se guarda en **`motivoBaja`** (columna de ambas tablas); el
+  actor/fecha los pone la auditoría. Alimenta el **Historial de la nave** (Parques → editar nave → pestaña
+  Historial). ⚠️ Las vistas `v_naves`/`v_disponibilidad` filtran `status=true` para **no** mostrar vínculos
+  dados de baja (si no, saldría un "dueño/ocupante fantasma"). Guarda: no se puede desvincular si hay un plan
+  **activo** (`pdpActivo`, o RG/RA con `rentaActiva=true`).
 - **`esTicket`** (booleano): marca registros que son contenedores de tickets, no datos reales de negocio
   (se filtran).
+- **Tickets (contenedor `A3 (Tickets)`) — gotchas.** Un "ticket" es una `propiedades` con `esTicket=true`.
+  ⚠️ (a) La **etiqueta** "A3 · N" **no identifica una nave única**: hay varias naves físicas (`idNave`
+  distintos) con la misma etiqueta, y un inversionista puede tener varios tickets. (b) Los **pagos de tickets
+  viven en la tabla `pagos`** (ligados por `idPdp` con prefijo `tkt-…`), **no** en la tabla `tickets`
+  (legado/vacío). (c) Dar de baja un ticket es baja lógica: la **nave física sigue viva**, solo el vínculo
+  `propiedades` queda `status=false`.
 - **`fc`, `fum`, `fumUser`, `idUser`:** metadatos de auditoría básica (fecha de creación, última
   modificación y usuario). La auditoría detallada (antes/después) vive en la tabla `auditoria`.
 - **`anio` (en `arrePdpDetalle`, corrida de renta):** año del contrato de cada partida (0 = depósito,
@@ -104,8 +118,10 @@ palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parq
 - **"Ver como":** función de soporte para **observar la app como otro usuario** (solo lectura; no puede
   ejecutar acciones). Se activa con long-press en el logo del sidebar. No cambia la sesión real.
 - **Auditoría / bitácora (`auditoria`):** registra cada cambio (crear/editar/eliminar) con su **diff
-  antes/después** y **quién** lo hizo, tanto de v1 como de v2. La tabla vieja `actividad` (v1) se
-  conserva; su histórico se copió a `auditoria` como registros `LEGACY`.
+  antes/después** y **quién** lo hizo (actor tomado del **JWT verificado**, no falsificable), tanto de v1
+  como de v2. La tabla vieja `actividad` (v1) se conserva; su histórico se copió a `auditoria` como
+  registros `LEGACY`. Además de auditar, **alimenta el "Historial de la nave"** (Parques): esa línea de
+  tiempo se **reconstruye** consultando `auditoria` — no hay una bitácora paralela por nave.
 
 ## Asistente IA
 

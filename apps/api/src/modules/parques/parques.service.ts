@@ -18,6 +18,10 @@ import type {
 const ID_ALFABETO =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
+/** Forma de un UUID (para filtrar `auditoria.uid` text antes de cruzar con `catUsers.uid` uuid). */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface ParqueListado {
   idParque: string;
   nomParque: string | null;
@@ -34,6 +38,38 @@ export interface ResumenKvas {
   kvasMediaDisponibles: number;
   kvasAltaUtilizados: number;
   kvasMediaUtilizados: number;
+}
+
+/**
+ * Un evento de la trayectoria de una nave (línea de tiempo). Se RECONSTRUYE desde
+ * la tabla `auditoria` (llenada por triggers, con el actor del JWT no falsificable),
+ * no de una bitácora paralela. Solo campos mostrables — nunca el jsonb crudo.
+ */
+export interface EventoHistorialNave {
+  /** Timestamp del evento (`auditoria.fc`). */
+  fecha: string;
+  /** Dimensión de la nave a la que pertenece (renta ahora; venta en Fase B). */
+  dimension: 'renta' | 'venta';
+  /** Etiqueta legible (p. ej. "Liberada de renta"). */
+  evento: string;
+  /** Contexto: arrendatario, vigencia… (o null). */
+  detalle: string | null;
+  /** El "por qué" cuando aplica (motivo de baja/cancelación). */
+  motivo: string | null;
+  /** Quién lo hizo: nombre del actor (del JWT); o el origen si no hay uid. */
+  actor: string;
+}
+
+/** Fila cruda de auditoría usada internamente por el traductor de eventos. */
+interface AudRow {
+  fc: string;
+  uid: string | null;
+  origen: number | null;
+  entidad: string;
+  accion: string;
+  cambios: unknown;
+  registro_nuevo: unknown;
+  registro_anterior: unknown;
 }
 
 /**
@@ -183,6 +219,241 @@ export class ParquesService {
     if (error) throw new InternalServerErrorException(error.message);
     if (!data) throw new NotFoundException('Nave no encontrada.');
     return data;
+  }
+
+  // ===================== Historial / trazabilidad de la nave =====================
+
+  /**
+   * Trayectoria de una nave (línea de tiempo) RECONSTRUIDA desde la tabla
+   * `auditoria` — que ya registra cada INSERT/UPDATE/DELETE con el actor del JWT
+   * (no falsificable), la fecha y el diff. NO se usa una bitácora paralela (eso
+   * duplicaría la auditoría). Cubre las dos dimensiones de la nave:
+   *  - RENTA: `arrenPropiedades` (por `idNave`) + `arrePdp` (por `idNavArrend`).
+   *  - VENTA: `propiedades` (por `idNave`) + `pdp`/`raPdp`/`rgPdp` (por `idPropiedad`).
+   *  - `naves` (la nave física).
+   * Se traduce cada registro crudo a un evento legible y NO se devuelve el jsonb
+   * (puede traer datos sensibles).
+   */
+  async historialDeNave(idNave: string): Promise<EventoHistorialNave[]> {
+    const admin = this.supabase.admin;
+
+    // --- RENTA: vínculos (arrendatario) + planes de la nave ---
+    const { data: vinculos, error: vErr } = await admin
+      .from('arrenPropiedades')
+      .select('idNavArrend, idArrendador')
+      .eq('idNave', idNave);
+    if (vErr) {
+      this.logger.error(`historialDeNave vínculos ${idNave}: ${vErr.message}`);
+      throw new InternalServerErrorException('No se pudo cargar el historial de la nave.');
+    }
+    const idNavArrends = [...new Set((vinculos ?? []).map((v) => v.idNavArrend))];
+    let idArrePdps: string[] = [];
+    if (idNavArrends.length) {
+      const { data: planes, error: pErr } = await admin
+        .from('arrePdp')
+        .select('idArrePdp')
+        .in('idNavArrend', idNavArrends);
+      if (pErr) {
+        this.logger.error(`historialDeNave planes renta ${idNave}: ${pErr.message}`);
+        throw new InternalServerErrorException('No se pudo cargar el historial de la nave.');
+      }
+      idArrePdps = [...new Set((planes ?? []).map((p) => p.idArrePdp))];
+    }
+
+    // --- VENTA: propiedades (inversionista) + planes (pdp/raPdp/rgPdp) de la nave ---
+    const { data: props, error: prErr } = await admin
+      .from('propiedades')
+      .select('idPropiedad, idInversionista')
+      .eq('idNave', idNave);
+    if (prErr) {
+      this.logger.error(`historialDeNave propiedades ${idNave}: ${prErr.message}`);
+      throw new InternalServerErrorException('No se pudo cargar el historial de la nave.');
+    }
+    const idPropiedads = [...new Set((props ?? []).map((p) => p.idPropiedad))];
+    let idPdps: string[] = [];
+    let idRtaAs: string[] = [];
+    let idRtaGs: string[] = [];
+    if (idPropiedads.length) {
+      const [pdpQ, raQ, rgQ] = await Promise.all([
+        admin.from('pdp').select('idPdp').in('idPropiedad', idPropiedads),
+        admin.from('raPdp').select('idRtaA').in('idPropiedad', idPropiedads),
+        admin.from('rgPdp').select('idRtaG').in('idPropiedad', idPropiedads),
+      ]);
+      for (const q of [pdpQ, raQ, rgQ])
+        if (q.error) {
+          this.logger.error(`historialDeNave planes venta ${idNave}: ${q.error.message}`);
+          throw new InternalServerErrorException('No se pudo cargar el historial de la nave.');
+        }
+      idPdps = [...new Set((pdpQ.data ?? []).map((x) => x.idPdp))];
+      idRtaAs = [...new Set((raQ.data ?? []).map((x) => x.idRtaA))];
+      idRtaGs = [...new Set((rgQ.data ?? []).map((x) => x.idRtaG))];
+    }
+
+    // --- Registros de auditoría que tocan la nave (todas las fuentes), en paralelo ---
+    const [rNaves, rArren, rArrePdp, rProp, rPdp, rRa, rRg] = await Promise.all([
+      this.audDe('naves', [idNave]),
+      this.audDe('arrenPropiedades', idNavArrends),
+      this.audDe('arrePdp', idArrePdps),
+      this.audDe('propiedades', idPropiedads),
+      this.audDe('pdp', idPdps),
+      this.audDe('raPdp', idRtaAs),
+      this.audDe('rgPdp', idRtaGs),
+    ]);
+    const registros = [...rNaves, ...rArren, ...rArrePdp, ...rProp, ...rPdp, ...rRa, ...rRg];
+
+    // --- Resolver actores (uid → nombre). `auditoria.uid` es text y `catUsers.uid` es
+    //     uuid: un uid legacy sin forma de UUID haría fallar el cast del filtro y perdería
+    //     TODOS los actores. Se filtran antes y se revisa el error (degrada al fallback). ---
+    const uids = [
+      ...new Set(
+        registros.map((r) => r.uid).filter((x): x is string => !!x && UUID_RE.test(x)),
+      ),
+    ];
+    const nombrePorUid = new Map<string, string>();
+    if (uids.length) {
+      const { data: us, error: uErr } = await admin
+        .from('catUsers')
+        .select('uid, nomCompleto')
+        .in('uid', uids);
+      if (uErr) this.logger.warn(`historialDeNave actores ${idNave}: ${uErr.message}`);
+      for (const u of us ?? []) if (u.nomCompleto) nombrePorUid.set(u.uid, u.nomCompleto);
+    }
+
+    // --- Resolver clientes: arrendatarios (por idNavArrend) e inversionistas (por
+    //     idPropiedad). `resolverArrendadores` sirve para cualquier idInversionista. ---
+    const nombreCliente = await this.resolverArrendadores([
+      ...(vinculos ?? []).map((v) => v.idArrendador),
+      ...(props ?? []).map((p) => p.idInversionista),
+    ]);
+    const clientePorNavArrend = new Map<string, string | null>(
+      (vinculos ?? []).map((v) => [v.idNavArrend, nombreCliente.get(v.idArrendador) ?? null]),
+    );
+    const clientePorPropiedad = new Map<string, string | null>(
+      (props ?? []).map((p) => [p.idPropiedad, nombreCliente.get(p.idInversionista) ?? null]),
+    );
+
+    // --- Traducir + ordenar (más reciente primero) ---
+    const eventos = registros
+      .map((r) =>
+        this.traducirEventoNave(r, clientePorNavArrend, clientePorPropiedad, nombrePorUid),
+      )
+      .filter((e): e is EventoHistorialNave => e !== null);
+    eventos.sort((a, b) => b.fecha.localeCompare(a.fecha));
+    return eventos;
+  }
+
+  /** Lee de `auditoria` los registros de una entidad para una lista de ids (solo lectura). */
+  private async audDe(entidad: string, ids: string[]): Promise<AudRow[]> {
+    if (!ids.length) return [];
+    const { data, error } = await this.supabase.admin
+      .from('auditoria')
+      .select('fc, uid, origen, entidad, accion, cambios, registro_nuevo, registro_anterior')
+      .eq('entidad', entidad)
+      .in('id_entidad', ids);
+    if (error) {
+      this.logger.error(`historialDeNave auditoria ${entidad}: ${error.message}`);
+      throw new InternalServerErrorException('No se pudo cargar el historial de la nave.');
+    }
+    return (data ?? []) as unknown as AudRow[];
+  }
+
+  /** Traduce un registro crudo de auditoría a un evento de negocio; null = ruido. */
+  private traducirEventoNave(
+    r: AudRow,
+    clientePorNavArrend: Map<string, string | null>,
+    clientePorPropiedad: Map<string, string | null>,
+    nombrePorUid: Map<string, string>,
+  ): EventoHistorialNave | null {
+    const actor = r.uid
+      ? (nombrePorUid.get(r.uid) ?? `Usuario ${r.uid.slice(0, 8)}`)
+      : r.origen === 1
+        ? 'Sistema (v1)'
+        : 'Cambio directo en BD';
+    const cambios = (r.cambios ?? {}) as Record<
+      string,
+      { antes: unknown; despues: unknown }
+    >;
+    const nuevo = (r.registro_nuevo ?? {}) as Record<string, unknown>;
+    const anterior = (r.registro_anterior ?? {}) as Record<string, unknown>;
+    const evt = (
+      dimension: 'renta' | 'venta',
+      evento: string,
+      detalle: string | null = null,
+      motivo: string | null = null,
+    ): EventoHistorialNave => ({ fecha: r.fc, dimension, actor, evento, detalle, motivo });
+
+    // ---------- La nave física ----------
+    if (r.entidad === 'naves') {
+      if (r.accion === 'INSERT') return evt('venta', 'Nave creada');
+      if (r.accion === 'UPDATE' && cambios.situacion)
+        return evt(
+          'venta',
+          'Cambio de situación',
+          `${String(cambios.situacion.antes)} → ${String(cambios.situacion.despues)}`,
+        );
+      return null;
+    }
+
+    // ---------- RENTA ----------
+    if (r.entidad === 'arrenPropiedades') {
+      const idNavArrend = (nuevo.idNavArrend ?? anterior.idNavArrend) as string | undefined;
+      const cliente = idNavArrend ? (clientePorNavArrend.get(idNavArrend) ?? null) : null;
+      if (r.accion === 'INSERT') return evt('renta', 'Vinculada a renta', cliente);
+      if (r.accion === 'DELETE') return evt('renta', 'Vínculo de renta eliminado', cliente);
+      if (r.accion === 'UPDATE' && cambios.status) {
+        if (cambios.status.despues === false)
+          return evt('renta', 'Liberada de renta', cliente, (nuevo.motivoBaja as string) ?? null);
+        if (cambios.status.despues === true)
+          return evt('renta', 'Re-vinculada a renta', cliente);
+      }
+      return null;
+    }
+    if (r.entidad === 'arrePdp') {
+      if (r.accion === 'INSERT') {
+        const vig = nuevo.arrePdpVigente as string | undefined;
+        return evt('renta', 'Plan de renta creado', vig ? `vigencia: ${vig}` : null);
+      }
+      if (r.accion === 'DELETE') return evt('renta', 'Plan de renta eliminado');
+      if (r.accion === 'UPDATE') {
+        if (cambios.canceladoAnticipado?.despues === true)
+          return evt('renta', 'Plan cancelado anticipadamente', null, (nuevo.motivoCancelacion as string) ?? null);
+        if (cambios.arrePdpVigente?.despues === 'No')
+          return evt('renta', 'Plan de renta finalizado');
+      }
+      return null;
+    }
+
+    // ---------- VENTA ----------
+    if (r.entidad === 'propiedades') {
+      const idProp = (nuevo.idPropiedad ?? anterior.idPropiedad) as string | undefined;
+      const cliente = idProp ? (clientePorPropiedad.get(idProp) ?? null) : null;
+      if (r.accion === 'INSERT') return evt('venta', 'Vinculada a venta', cliente);
+      if (r.accion === 'DELETE') return evt('venta', 'Vínculo de venta eliminado', cliente);
+      if (r.accion === 'UPDATE' && cambios.status) {
+        if (cambios.status.despues === false)
+          return evt('venta', 'Desvinculada de venta', cliente, (nuevo.motivoBaja as string) ?? null);
+        if (cambios.status.despues === true)
+          return evt('venta', 'Re-vinculada a venta', cliente);
+      }
+      return null;
+    }
+    if (r.entidad === 'pdp') {
+      if (r.accion === 'INSERT') return evt('venta', 'Plan de pagos creado');
+      if (r.accion === 'DELETE') return evt('venta', 'Plan de pagos eliminado');
+      return null;
+    }
+    if (r.entidad === 'raPdp') {
+      if (r.accion === 'INSERT') return evt('venta', 'Renta Administrada creada');
+      if (r.accion === 'DELETE') return evt('venta', 'Renta Administrada eliminada');
+      return null;
+    }
+    if (r.entidad === 'rgPdp') {
+      if (r.accion === 'INSERT') return evt('venta', 'Renta Garantizada creada');
+      if (r.accion === 'DELETE') return evt('venta', 'Renta Garantizada eliminada');
+      return null;
+    }
+
+    return null;
   }
 
   /**
