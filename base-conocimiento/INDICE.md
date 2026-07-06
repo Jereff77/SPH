@@ -17,6 +17,8 @@
   `arre_incrementos`, responsables de parque + correo). Sustituirá al kit viejo de funciones INPC.
 - `MAPA-DATOS.md` — qué tabla pertenece a qué módulo y cómo se relacionan (pendiente de poblar; por
   ahora ver los mapas inversos al final de este índice y el `GLOSARIO.md`).
+- `CORREOS.md` — mapa transversal de **todas las cuentas de correo** del sistema (cuál usa cada
+  módulo, mecanismo de envío, y checklist de diagnóstico cuando "no llega un correo").
 - `modulos/<modulo>.md` — un documento súper detallado por módulo.
 
 Cada documento de módulo inicia con un bloque de metadatos (frontmatter YAML) con `claves_permiso`,

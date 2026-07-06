@@ -8,7 +8,7 @@ rutas: [/configuraciones/usuarios, /configuraciones/parametros, /configuraciones
 claves_permiso: [200, 203, 210, 212, 213, 214, 215, 216, 220, 221]
 tablas: [catUsers, crm_responsableComercial, v2_invitaciones, segModulos, segModulosUsuarios, segPlantillasPermisos, segDetallesPlantilla, inpc, PresCategorias, PresDetalle, Presupuestos, v_resumenPresupuesto, cxp_fechas_habilitadas, catClavesProdServ, SPHConfiguraciones]
 palabras_clave: [usuarios, invitación, invitar usuario, registro, alta de usuario, correo autorizado, permisos, plantillas, parámetros, INPC, cuentas, presupuesto, fechas CxP, claves SAT, retención, IVA, ISR, CFDI, logos, favicon, dominios, correos autorizados, contraseña, soporte, responsable comercial, "no veo el submenú", "no aparece el toggle de soporte", "no puedo eliminar una cuenta", "no me deja crear un INPC", "el logo no respeta el tamaño", "cambié un permiso y no toma efecto", "error 403"]
-relacionado_con: [autenticacion, auditoria, parques, cxp]
+relacionado_con: [autenticacion, auditoria, parques, cxp, correo]
 ---
 
 # Módulo: Configuraciones
@@ -84,6 +84,12 @@ un administrador cree la contraseña por ellos:
   página pública `features/registro/RegistroPage.tsx` (ruta `/registro` fuera de `ProtectedRoute`).
 - **BD (objeto nuevo, autorizado):** tabla `public.v2_invitaciones` (RLS ON sin políticas + `trg_auditoria`).
   SQL en `base-conocimiento/migraciones/2026-06-12-invitaciones.sql`.
+- **Botón «Copiar link» (v2.57.0):** en el panel de Invitaciones, junto a Reenviar/Cancelar. Genera un
+  token nuevo (igual que Reenviar) pero **sin enviar correo** — solo copia el enlace al portapapeles,
+  para compartirlo manualmente (WhatsApp, etc.) cuando el correo no llega. Invalida cualquier enlace
+  previo (mismo token único por invitación). Endpoint `POST /invitaciones/:id/link` (clave 200).
+- **Ver también:** `../CORREOS.md` — mapa de **todas** las cuentas de correo del sistema (esta pantalla
+  usa la cuenta dedicada de invitaciones, que también reutilizan CxP y Arrendatarios/Incrementos INPC).
 
 ---
 

@@ -40,6 +40,9 @@ relacionado_con: [cxp, configuraciones]
   UID nuevo (> último), y el sync incremental lo vuelve a ver (latencia: hasta el siguiente ciclo del cron de
   5 min, o al pulsar Sincronizar).
 - **Hilos**: se agrupan por `conversationId` (raíz de `References`/`In-Reply-To`, o el propio Message-ID).
+- **Ver también:** `../CORREOS.md` — mapa de **todas** las cuentas de correo del sistema. Esta cuenta
+  (`agente@portal.gruposph.mx`, "primera cuenta activa") también la reutilizan CxP → Complementos REP
+  y el Agente de IA de Soporte; ⚠️ ver el gotcha de ambigüedad si se activa una tercera cuenta.
 
 ## 3. Pantalla (`/correo`, 2 pestañas)
 - **Bandeja**: lista de conversaciones (remitente, asunto, fecha, no leídos, 📎, **etiqueta de carpeta**) +
