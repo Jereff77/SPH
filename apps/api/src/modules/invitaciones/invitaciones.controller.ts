@@ -64,6 +64,14 @@ export class InvitacionesController {
     return this.invitaciones.reenviar(actor.uid, id);
   }
 
+  /** Genera un enlace nuevo para copiar/compartir manualmente (WhatsApp, etc.), sin enviar correo. */
+  @Post(':id/link')
+  @UseGuards(JwtAuthGuard, PermisoGuard)
+  @RequierePermiso(200)
+  generarLink(@CurrentUser() actor: AuthUser, @Param('id') id: string) {
+    return this.invitaciones.generarLink(actor.uid, id);
+  }
+
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermisoGuard)
   @RequierePermiso(200)

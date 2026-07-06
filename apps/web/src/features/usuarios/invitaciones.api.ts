@@ -42,6 +42,7 @@ export const invitacionesApi = {
     api.post<ResultadoInvitar>('/invitaciones', dto),
   reenviar: (id: string) =>
     api.post<{ enviado: boolean }>(`/invitaciones/${id}/reenviar`),
+  generarLink: (id: string) => api.post<{ link: string }>(`/invitaciones/${id}/link`),
   cancelar: (id: string) => api.delete<{ ok: true }>(`/invitaciones/${id}`),
 
   // --- Públicas (registro) ---

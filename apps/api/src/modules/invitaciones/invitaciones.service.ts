@@ -150,6 +150,27 @@ export class InvitacionesService {
         'El servidor no tiene configurada la cuenta SMTP de invitaciones (SMTP_INVITACIONES_*).',
       );
     }
+    const { inv, token, dias } = await this.regenerarToken(actorUid, id, 'reenviar');
+    const enviado = await this.enviarCorreo(inv.email, inv.nombre ?? '', token, dias);
+    return { enviado };
+  }
+
+  /**
+   * Genera un enlace nuevo para copiar/compartir manualmente (WhatsApp, etc.),
+   * SIN enviar el correo. Invalida cualquier link anterior (mismo token único
+   * por invitación), igual que `reenviar`.
+   */
+  async generarLink(actorUid: string, id: string): Promise<{ link: string }> {
+    const { token } = await this.regenerarToken(actorUid, id, 'copiar el link');
+    return { link: this.construirLink(token) };
+  }
+
+  /** Valida la invitación pendiente y le asigna un token nuevo (uso interno de reenviar/generarLink). */
+  private async regenerarToken(
+    actorUid: string,
+    id: string,
+    accion: string,
+  ): Promise<{ inv: { email: string; nombre: string | null }; token: string; dias: number }> {
     const { data: inv } = await this.supabase.admin
       .from('v2_invitaciones')
       .select('id, email, nombre, estado, fecExpira')
@@ -157,7 +178,7 @@ export class InvitacionesService {
       .maybeSingle();
     if (!inv) throw new NotFoundException('Invitación no encontrada.');
     if (inv.estado !== 'pendiente') {
-      throw new BadRequestException('Solo se pueden reenviar invitaciones pendientes.');
+      throw new BadRequestException(`Solo se puede ${accion} de invitaciones pendientes.`);
     }
 
     const token = randomBytes(32).toString('base64url');
@@ -169,11 +190,10 @@ export class InvitacionesService {
       .update({ tokenHash: this.hash(token), fecExpira, fum: new Date().toISOString(), fumUser: actorUid })
       .eq('id', id);
     if (error) {
-      throw new InternalServerErrorException(`No se pudo reenviar: ${error.message}`);
+      throw new InternalServerErrorException(`No se pudo ${accion}: ${error.message}`);
     }
 
-    const enviado = await this.enviarCorreo(inv.email, inv.nombre ?? '', token, dias);
-    return { enviado };
+    return { inv: { email: inv.email, nombre: inv.nombre }, token, dias };
   }
 
   // ---------------------------------------------------------------------------
@@ -367,17 +387,21 @@ export class InvitacionesService {
     }
   }
 
+  private construirLink(token: string): string {
+    const base =
+      this.config.get('APP_WEB_URL', { infer: true }) ??
+      this.config.get('CORS_ORIGIN', { infer: true }) ??
+      'http://localhost:5173';
+    return `${base.replace(/\/$/, '')}/registro?token=${encodeURIComponent(token)}`;
+  }
+
   private async enviarCorreo(
     email: string,
     nombre: string,
     token: string,
     dias: number,
   ): Promise<boolean> {
-    const base =
-      this.config.get('APP_WEB_URL', { infer: true }) ??
-      this.config.get('CORS_ORIGIN', { infer: true }) ??
-      'http://localhost:5173';
-    const link = `${base.replace(/\/$/, '')}/registro?token=${encodeURIComponent(token)}`;
+    const link = this.construirLink(token);
     let logoUrl: string | null = null;
     try {
       const logos = await this.configuracion.obtenerLogos();

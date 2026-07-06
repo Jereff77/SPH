@@ -47,6 +47,22 @@ export function InvitacionesPanel({ onClose }: { onClose: () => void }) {
       setError(e instanceof ApiRequestError ? e.message : 'No se pudo reenviar.'),
   });
 
+  const mGenerarLink = useMutation({
+    mutationFn: (id: string) => invitacionesApi.generarLink(id),
+    onSuccess: async (r) => {
+      setError(null);
+      try {
+        await navigator.clipboard.writeText(r.link);
+        setAviso('Link copiado al portapapeles. El enlace anterior quedó invalidado.');
+      } catch {
+        setAviso(`No se pudo copiar automáticamente. Enlace: ${r.link}`);
+      }
+      refrescar();
+    },
+    onError: (e) =>
+      setError(e instanceof ApiRequestError ? e.message : 'No se pudo generar el link.'),
+  });
+
   const mCancelar = useMutation({
     mutationFn: (id: string) => invitacionesApi.cancelar(id),
     onSuccess: () => {
@@ -58,7 +74,7 @@ export function InvitacionesPanel({ onClose }: { onClose: () => void }) {
       setError(e instanceof ApiRequestError ? e.message : 'No se pudo cancelar.'),
   });
 
-  const ocupado = mReenviar.isPending || mCancelar.isPending;
+  const ocupado = mReenviar.isPending || mGenerarLink.isPending || mCancelar.isPending;
   const invitaciones = data ?? [];
 
   return (
@@ -118,6 +134,13 @@ export function InvitacionesPanel({ onClose }: { onClose: () => void }) {
                     className="rounded-md border border-[#3f5b87] px-2.5 py-1 text-xs font-medium text-[#3f5b87] hover:bg-[#3f5b87]/10 disabled:opacity-50"
                   >
                     Reenviar
+                  </button>
+                  <button
+                    disabled={ocupado}
+                    onClick={() => mGenerarLink.mutate(inv.id)}
+                    className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                  >
+                    Copiar link
                   </button>
                   <button
                     disabled={ocupado}
