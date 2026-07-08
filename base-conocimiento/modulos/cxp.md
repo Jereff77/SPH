@@ -2,12 +2,12 @@
 modulo: CxP (Cuentas por Pagar)
 estado: parcial              # Proveedores, Bancos, Solicitudes (alta+listado), Pendientes y Pagar en v2; resto por fases
 version_doc: 0.9
-ultima_actualizacion: 2026-07-02
+ultima_actualizacion: 2026-07-07
 submodulos: [Proveedores, Bancos, Solicitudes, "Pagar solicitudes", Aprobación, Pago/Conciliación, Reportes, "Claves SAT"]
 rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes, /cxp/pagar, /cxp/ppd, /cxp/aprobar, /cxp/reportes]
 claves_permiso: [400, 401, 402, 410, 420, 430, 431, 440, 441, 450, 460, 470]
 tablas: [cxp, cxp_ppd, catProveedores, catBancos, catClavesProdServ, cxpComentarios, cxp_fechas_habilitadas, movbancarios, PresCategorias, v_resumenPresupuesto, SPHConfiguraciones]
-palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, lectura de comprobante, documentos privados, URL firmada, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, carga masiva, layout, plantilla, importación, Excel, retención, IVA, ISR, tiempo real, SSE, badge, círculo, contador, número de pendientes, pendientes por aprobar, aviso en el menú, notificación en el menú, solicitudes por aprobar, PPD, parcialidades, "complemento de pago", REP, dispensar, "saldo disponible", "factura diferida", "no me deja autorizar", "cfdi rechazado", "error interno del servidor", "solicitud duplicada", "pago mal conciliado"]
+palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, lectura de comprobante, documentos privados, URL firmada, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, carga masiva, layout, plantilla, importación, Excel, retención, IVA, ISR, tiempo real, SSE, badge, círculo, contador, número de pendientes, pendientes por aprobar, aviso en el menú, notificación en el menú, solicitudes por aprobar, PPD, parcialidades, "complemento de pago", REP, dispensar, "saldo disponible", "factura diferida", "no me deja autorizar", "cfdi rechazado", "error interno del servidor", "solicitud duplicada", "pago mal conciliado", "no me deja subir la factura", "no me deja subir esta factura", "error al subir factura en la tarde", "cfdi no habilitado", "zona horaria", "hora de méxico", "fecha no habilitada"]
 relacionado_con: [configuraciones, inversionistas, fideicomiso]
 ---
 
@@ -227,6 +227,23 @@ parametrizadas desde el backend.
       (`idCxp=ldKdWKfUDHfkMyB`: `idCxpPPD`, `diferido=true`, `idFolioDif=uuid`), **sin tocar `idEstado`/`folio`**
       (por eso el trigger de fecha no la degrada). Queda como PPD pagada al 100% (disponible $0) con **REP
       vencido** pendiente de subir o dispensar (clave 403).
+11. **🕒 Zona horaria — el trigger de fechas medía en UTC, no en hora de México (incidente 2026-07-07, RESUELTO).**
+    - **Síntoma:** "Error interno del servidor" (500) al **subir cualquier factura** (PPD o solicitud normal)
+      o al **autorizar**, pero **solo por la tarde/noche** (a partir de ~18:00 hora de México); en la mañana
+      funcionaba. Reportado con una factura PPD de BIOS 2.0.
+    - **Causa:** la regla de días habilitados (`cxp_fechas_habilitadas`) se validaba con **dos fechas
+      distintas**: la app (`cxp_puede_insertar()` / `cxp_puede_autorizar()`) usa **hora de México**
+      (`America/Mexico_City`), pero el trigger `cxp_trigger_validar_fecha()` usaba **`CURRENT_DATE`** (UTC del
+      servidor). México es UTC-6 (sin horario de verano) → de 18:00 a 23:59 hora local el servidor ya está en
+      el **día siguiente**; si ese día no está habilitado (`cfdi=false` o no existe), el trigger lanza
+      `CXP_CFDI_NO_HABILITADO` y aborta el INSERT/UPDATE → el `AllExceptionsFilter` lo muestra como "Error
+      interno del servidor". Confirmado en logs de Postgres (`...(2026-07-08)...` con México en 2026-07-07).
+    - **Fix (2026-07-07):** alinear el trigger (y el helper huérfano `cxp_validar_fecha_habilitada`) a
+      `(now() AT TIME ZONE 'America/Mexico_City')::date`, igual que la capa de app. Corrige captura **y**
+      autorización vespertina; las urgentes siguen exentas. **Solo BD** (sin redeploy). Registro:
+      `migraciones/2026-07-07-cxp-trigger-fecha-timezone-mexico.sql`.
+    - ⚠️ **No confundir con el gotcha 9** (`trigger_cxp_validar_fecha_cfdi`, otro trigger distinto que sigue
+      DESACTIVADO por otra causa).
 
 ## 8. Para el agente de soporte (diagnóstico / problemas comunes)
 
@@ -244,6 +261,7 @@ parametrizadas desde el backend.
 | "Una solicitud **pagada vuelve sola a Rechazado** (`idEstado=3`) al cambiarla; el `estado` dice 'Pagado'." | Trigger `trigger_cxp_validar_fecha_cfdi` (CFDI de mes anterior a `fc`) — ver gotcha 9. | Trigger **DESACTIVADO** desde 2026-06-23; corregir `idEstado` a 6 en los registros afectados. No reactivar hasta el fix. |
 | "Error interno del servidor al aplicar pago por captura/comprobante." | **Resuelto en v2.22.1.** El INSERT a `movbancarios` enviaba columnas GENERADAS (`numAnio`/`numMes`). | Actualizar a v2.22.1+ (el backend ya no las envía). Si reaparece, revisar que ningún INSERT a `movbancarios` incluya columnas generadas. |
 | "**Error interno del servidor al registrar una factura PPD**." | El folio (UUID) del CFDI **ya existe en `cxp`** (factura capturada antes como solicitud normal/PUE o como otra parcialidad) → viola `cxp_folio_key UNIQUE(folio)`. Ver gotcha 10. | **Resuelto en v2.41.1:** el backend ahora avisa que la factura ya está registrada. La factura es un **duplicado**: verificar si ya se pagó. Si debe vivir en PPD, sanear como el caso 2026-06-23 (ligar la fila existente a un maestro `cxp_ppd`). |
+| "**Error interno del servidor al subir una factura o al autorizar, pero solo por la tarde/noche**." | Bug de zona horaria: el trigger de fechas medía el día en **UTC** en vez de hora de México; después de las 18:00 (México) veía el **día siguiente** (cerrado) y bloqueaba. Ver gotcha 11. | **Resuelto 2026-07-07** (trigger alineado a `America/Mexico_City`). Si reaparece: confirmar que `cxp_trigger_validar_fecha` use hora de México y que hoy exista habilitado en Parámetros → Fechas CxP. |
 
 **Cuándo escalar a ticket:** desaplicar/corregir pagos, inconsistencias de conciliación, solicitudes
 atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
