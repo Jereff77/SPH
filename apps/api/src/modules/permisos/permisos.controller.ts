@@ -40,6 +40,16 @@ export class PermisosController {
     return this.svc.listarPlantillas();
   }
 
+  /**
+   * Matriz completa usuarios × permisos (reporte descargable de la pantalla).
+   * ⚠️ Debe declararse ANTES de `@Get(':uid')`: Nest resuelve por orden y la ruta
+   * comodín capturaría 'matriz' como si fuera un uid.
+   */
+  @Get('matriz')
+  matriz() {
+    return this.svc.matriz();
+  }
+
   @Get(':uid')
   obtenerPermisos(@Param('uid') uid: string) {
     return this.svc.obtenerPermisos(uid);

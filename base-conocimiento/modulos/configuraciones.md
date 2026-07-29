@@ -1,13 +1,13 @@
 ---
 modulo: Configuraciones
 estado: desarrollado
-version_doc: 1.3
-ultima_actualizacion: 2026-06-24
+version_doc: 1.4
+ultima_actualizacion: 2026-07-29
 submodulos: [Usuarios, Parámetros, Permisos, Sistema, Cambiar contraseña]
 rutas: [/configuraciones/usuarios, /configuraciones/parametros, /configuraciones/permisos, /configuraciones/sistema, /configuraciones/cambiar-contrasena, /registro]
 claves_permiso: [200, 203, 210, 212, 213, 214, 215, 216, 220, 221]
 tablas: [catUsers, crm_responsableComercial, v2_invitaciones, segModulos, segModulosUsuarios, segPlantillasPermisos, segDetallesPlantilla, inpc, PresCategorias, PresDetalle, Presupuestos, v_resumenPresupuesto, cxp_fechas_habilitadas, catClavesProdServ, SPHConfiguraciones]
-palabras_clave: [usuarios, invitación, invitar usuario, registro, alta de usuario, correo autorizado, permisos, plantillas, parámetros, INPC, cuentas, presupuesto, fechas CxP, claves SAT, retención, IVA, ISR, CFDI, logos, favicon, dominios, correos autorizados, contraseña, soporte, responsable comercial, "no veo el submenú", "no aparece el toggle de soporte", "no puedo eliminar una cuenta", "no me deja crear un INPC", "el logo no respeta el tamaño", "cambié un permiso y no toma efecto", "error 403"]
+palabras_clave: [usuarios, invitación, invitar usuario, registro, alta de usuario, correo autorizado, permisos, plantillas, parámetros, INPC, cuentas, presupuesto, fechas CxP, claves SAT, retención, IVA, ISR, CFDI, logos, favicon, dominios, correos autorizados, contraseña, soporte, responsable comercial, matriz de permisos, reporte de permisos, descargar permisos, Excel de permisos, clave de permiso, "quién tiene acceso a qué", "qué permisos tiene un usuario", "para qué sirve el permiso", "lista de permisos de todos", "no veo el submenú", "no aparece el toggle de soporte", "no puedo eliminar una cuenta", "no me deja crear un INPC", "el logo no respeta el tamaño", "cambié un permiso y no toma efecto", "error 403"]
 relacionado_con: [autenticacion, auditoria, parques, cxp, correo]
 ---
 
@@ -149,7 +149,7 @@ un administrador cree la contraseña por ellos:
 
 ## 5. Submenú: Permisos (RBAC)
 
-- **Modelo:** `segModulos` (catálogo de ~62 permisos; cada uno tiene una **clave** única:
+- **Modelo:** `segModulos` (catálogo de **80 permisos** al 2026-07-29; cada uno tiene una **clave** única:
   módulo → sección → área → clave), `segModulosUsuarios` (acceso por usuario×permiso),
   `segPlantillasPermisos` + `segDetallesPlantilla` (plantillas reutilizables).
 - **Funciones de negocio reutilizadas (RPCs):** `segmodulosusuarios_smu` (obtener permisos de un
@@ -160,6 +160,31 @@ un administrador cree la contraseña por ellos:
 - **Cómo se aplican los permisos en el sistema:** la autorización es **server-side**. El backend valida
   la clave requerida (`@RequierePermiso`) contra `segModulosUsuarios` con el uid del JWT. Los usuarios
   de soporte (`isSupport`) tienen acceso total. El menú lateral oculta lo que el usuario no tiene.
+
+### 5.1. Reporte descargable: matriz de usuarios × permisos (v2.58.0)
+
+Botón **«📊 Descargar matriz (Excel)»** arriba a la derecha de la pantalla. Baja **de una sola vez
+quién tiene acceso a qué**, en vez de revisar usuario por usuario con el selector.
+
+- **Endpoint:** `GET /permisos/matriz` (`PermisosService.matriz()`). **Solo lectura**; hereda la clave
+  **220** del controlador, así que solo quien ya administra permisos puede descargarlo. No amplía la
+  superficie de datos: con la 220 ya se podían ver los permisos de cualquier usuario uno por uno.
+  ⚠️ La ruta se declara **antes** de `@Get(':uid')` — si no, Nest la captura como si `matriz` fuera un uid.
+- **Generación:** en el navegador con **ExcelJS por carga diferida**
+  (`features/permisos/permisos-export.ts`), mismo patrón que Contabilidad y Kardex — no engorda el
+  bundle inicial.
+- **Contenido (4 hojas):** **Matriz** (usuarios en filas × permisos en columnas, encabezadas por su
+  clave y agrupadas por módulo; `✔` = concedido), **Catálogo de permisos** (con la columna
+  «¿Para qué sirve?» y cuántos usuarios activos tiene cada clave), **Detalle** (lista plana para
+  tablas dinámicas) y **Resumen** (cifras de control).
+- **Incluye usuarios inactivos** (en gris) a propósito: sirve para auditar a quién se le retiró el acceso.
+- **⭐ Usuarios de soporte:** salen con `★` y acceso total, NO con sus marcas individuales — `isSupport`
+  hace **bypass** del RBAC, así que pintar solo sus toggles haría mentir al reporte sobre su alcance real.
+- **Descripciones de cada permiso:** viven en el código, en `features/permisos/permisos-descripciones.ts`
+  (`segModulos` no tiene columna para ellas). Redactadas contra los endpoints que exigen cada clave.
+  📌 **Al dar de alta una clave nueva en `segModulos`, agrégala ahí** o el reporte la muestra sin
+  descripción (no truena). Si se quiere que el área las edite sin desplegar, habría que agregar la
+  columna `descripcion` a `segModulos` (cambio de esquema — requiere autorización).
 
 ### Mapa de claves conocidas
 | Clave | Módulo / acción |
@@ -225,6 +250,10 @@ un administrador cree la contraseña por ellos:
 | "El logo no respeta el tamaño." | Dimensiones mal configuradas (Sistema). | Ajustar ancho/alto en Sistema. |
 | "Cambié un permiso y no toma efecto." | El usuario tiene sesión con permisos cacheados. | Que vuelva a entrar / refresque; verificar en backend. |
 | Error 403 en una acción de configuración. | Falta la clave (200/203/210/220/221). | Escalar a soporte si debería tenerla. |
+| "¿Quién tiene acceso a qué?" / "necesito la lista de permisos de todos." | No hay que revisar usuario por usuario. | Configuraciones → Permisos → botón **«📊 Descargar matriz (Excel)»** (requiere clave 220). Trae los usuarios contra los permisos, con la descripción de cada clave. |
+| "En el reporte un usuario aparece con TODOS los permisos (★)." | Es un usuario de **soporte** (`catUsers.isSupport = true`): hace bypass del RBAC. | Es por diseño; sus toggles individuales no limitan nada. |
+| "Un permiso del reporte sale sin descripción." | La clave es nueva en `segModulos` y no está en `permisos-descripciones.ts`. | Agregarla ahí (cambio de front). No afecta el acceso, solo la leyenda. |
+| "El reporte no trae a un usuario que sí existe." | Verificar que no se haya topado el tope de filas de la lectura (`.range()` en `PermisosService.matriz()`). | Hoy holgado (54 usuarios contra un tope de 10 000); si el padrón creciera muchísimo, subir el rango. |
 
 **Cuándo escalar a ticket:** inconsistencias de permisos (un usuario que debería poder y no puede),
 errores al guardar parámetros que persisten, o datos de presupuesto que no cuadran con CxP.
@@ -232,5 +261,9 @@ errores al guardar parámetros que persisten, o datos de presupuesto que no cuad
 ## 11. Estado y pendientes
 
 - ✅ Los 5 submenús funcionando, con tablas (encabezado fijo azul + filtros + orden) e historial por usuario.
+- ✅ **Reporte descargable de la matriz de permisos** (v2.58.0, §5.1): `GET /permisos/matriz` + Excel de
+  4 hojas generado en el navegador, con la descripción de para qué sirve cada clave.
+  Pendiente opcional: mover esas descripciones a `segModulos.descripcion` (cambio de esquema, por acordar)
+  y que el área valide su redacción.
 - ✅ Claves finas de Parámetros (212/213/214/215/216) **aplicadas** (visualización por pestaña, front+back).
   Pendiente operativo: asignar esas claves a los usuarios que correspondan en Permisos.

@@ -34,6 +34,7 @@ export function PermisosPage() {
   const [moduloFiltro, setModuloFiltro] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [exportando, setExportando] = useState(false);
 
   const { data: usuarios = [] } = useQuery({
     queryKey: ['permisos-usuarios'],
@@ -80,6 +81,27 @@ export function PermisosPage() {
     [usuarios],
   );
 
+  /**
+   * Descarga la matriz completa usuarios × permisos en Excel. Pide los datos al
+   * backend (hereda la clave 220 de esta pantalla) y arma el archivo en el
+   * navegador con ExcelJS por carga diferida, igual que Contabilidad y Kardex:
+   * así el generador no entra al bundle inicial de quien nunca lo usa.
+   */
+  async function descargarMatriz() {
+    setError(null);
+    setExportando(true);
+    try {
+      const datos = await permisosApi.matriz();
+      const hoy = new Date().toISOString().slice(0, 10);
+      const mod = await import('./permisos-export');
+      await mod.exportarMatrizPermisosExcel(datos, `Matriz-Usuarios-Permisos-${hoy}`);
+    } catch (e) {
+      onError(e);
+    } finally {
+      setExportando(false);
+    }
+  }
+
   const modulos = useMemo(
     () => [...new Set(permisos.map((p) => p.modulo))].sort(),
     [permisos],
@@ -112,13 +134,25 @@ export function PermisosPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-800">
-          Permisos
-        </h1>
-        <p className="text-sm text-gray-500">
-          Asigna accesos por usuario y gestiona plantillas de permisos.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-800">
+            Permisos
+          </h1>
+          <p className="text-sm text-gray-500">
+            Asigna accesos por usuario y gestiona plantillas de permisos.
+          </p>
+        </div>
+        {/* Reporte de TODOS los usuarios: no depende del usuario seleccionado. */}
+        <button
+          type="button"
+          onClick={() => void descargarMatriz()}
+          disabled={exportando}
+          title="Descarga la matriz de todos los usuarios contra todos los permisos, con la descripción de cada uno"
+          className="rounded-lg bg-[#1f2a4d] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {exportando ? 'Generando…' : '📊 Descargar matriz (Excel)'}
+        </button>
       </div>
 
       {error && (

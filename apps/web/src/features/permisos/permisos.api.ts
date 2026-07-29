@@ -14,6 +14,29 @@ export interface PermisoUsuario {
   acceso: boolean;
 }
 
+/** Una columna de la matriz (permiso del catálogo `segModulos`). */
+export interface PermisoCatalogo {
+  clave: number;
+  modulo: string;
+  seccion: string;
+  area: string;
+}
+
+/** Una fila de la matriz (usuario + las claves que tiene concedidas). */
+export interface UsuarioMatriz {
+  nombre: string;
+  correo: string;
+  activo: boolean;
+  soporte: boolean;
+  claves: number[];
+}
+
+export interface MatrizPermisos {
+  permisos: PermisoCatalogo[];
+  usuarios: UsuarioMatriz[];
+  generado: string;
+}
+
 export interface PlantillaPermiso {
   idPlantilla: string;
   nombrePlantilla: string;
@@ -27,6 +50,7 @@ export const permisosApi = {
     api.get<PermisoUsuario[]>(`/permisos/${uid}`),
   setAcceso: (uid: string, idsegModulos: string, acceso: boolean) =>
     api.patch<{ ok: true }>(`/permisos/${uid}/${idsegModulos}`, { acceso }),
+  matriz: () => api.get<MatrizPermisos>('/permisos/matriz'),
   listarPlantillas: () => api.get<PlantillaPermiso[]>('/permisos/plantillas'),
   aplicarPlantilla: (
     uid: string,
