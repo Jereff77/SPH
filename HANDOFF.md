@@ -5,7 +5,27 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-07-29 (**v2.58.0** — **Permisos · Matriz descargable de usuarios × permisos**):
+> Última actualización: 2026-07-29 (**v2.59.0** — **Permisos · Columna «Descripción» en la tabla**):
+> la tabla de Configuraciones → Permisos muestra ahora, junto a cada permiso, **para qué sirve** en lenguaje
+> de negocio. Antes ese texto solo existía dentro del Excel de la matriz (v2.58.0): quien asignaba accesos
+> tenía que deducir qué habilita un permiso desde el nombre del catálogo (`Planes de Renta / Configuracion`),
+> que dice **dónde** está pero no **qué hace**. **Cero superficie nueva de datos:** el texto sale de la misma
+> constante del bundle, `features/permisos/permisos-descripciones.ts` (`descripcionPermiso(clave)`) — sin
+> endpoint, sin backend, sin BD. **Verificado 1:1 contra `segModulos`: las 80 claves reales están descritas**
+> (query al catálogo, no de memoria); una clave sin descripción pinta «—» y no truena. El **buscador** de la
+> pantalla también mira la descripción (escribir «renta» o «aprobar» encuentra los permisos aunque el catálogo
+> los nombre de otro modo) y la columna es **ordenable**. Anchos fijos por columna a petición de Jereff
+> (150/150/150/100/250/90 px) con `table-fixed` + `colgroup`, y `min-w-[890px]` en la tabla: en pantallas
+> angostas aparece scroll horizontal dentro del contenedor (no en la página). Solo `apps/web` → **sin cambios
+> de BD/esquema** (solo el registro del changelog, id **89**) + `APP_VERSION_RAW`→2.59.0. Verificado:
+> typecheck limpio; lint con los **2 warnings preexistentes** de `ArrendatariosPage`/`DashboardGraficoPage`
+> (ajenos, 0 errores). Escalabilidad (skill `revision-escalabilidad`): **APTO** — dimensión Caché revisada
+> (0 `useEffect+fetch`, 0 polling en `features/permisos`; el cambio no agrega ninguna lectura); BD/Async N/A.
+> Riesgo bajo → cierre con auto-revisión del orquestador, sin agente validador (no toca dinero/auth/RBAC/RLS
+> ni contratos). Backlog **vigente y sin autorizar**: mover las descripciones a `segModulos.descripcion`
+> (cambio de esquema) para que el área las edite sin desplegar. KB: `modulos/configuraciones.md` §5/§5.2/§10/§11
+> + INDICE. Autor: Toribio/Opus 5.
+> Previa 2026-07-29 (**v2.58.0** — **Permisos · Matriz descargable de usuarios × permisos**):
 > Configuraciones → Permisos suma el botón **«📊 Descargar matriz (Excel)»**, que baja **de una lectura
 > quién tiene acceso a qué** en vez de revisar usuario por usuario. Backend `GET /permisos/matriz`
 > (`PermisosService.matriz()`, **solo lectura**, hereda la clave **220** del controlador; ⚠️ declarado

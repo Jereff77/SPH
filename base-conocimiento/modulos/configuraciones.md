@@ -1,13 +1,13 @@
 ---
 modulo: Configuraciones
 estado: desarrollado
-version_doc: 1.4
+version_doc: 1.5
 ultima_actualizacion: 2026-07-29
 submodulos: [Usuarios, Parámetros, Permisos, Sistema, Cambiar contraseña]
 rutas: [/configuraciones/usuarios, /configuraciones/parametros, /configuraciones/permisos, /configuraciones/sistema, /configuraciones/cambiar-contrasena, /registro]
 claves_permiso: [200, 203, 210, 212, 213, 214, 215, 216, 220, 221]
 tablas: [catUsers, crm_responsableComercial, v2_invitaciones, segModulos, segModulosUsuarios, segPlantillasPermisos, segDetallesPlantilla, inpc, PresCategorias, PresDetalle, Presupuestos, v_resumenPresupuesto, cxp_fechas_habilitadas, catClavesProdServ, SPHConfiguraciones]
-palabras_clave: [usuarios, invitación, invitar usuario, registro, alta de usuario, correo autorizado, permisos, plantillas, parámetros, INPC, cuentas, presupuesto, fechas CxP, claves SAT, retención, IVA, ISR, CFDI, logos, favicon, dominios, correos autorizados, contraseña, soporte, responsable comercial, matriz de permisos, reporte de permisos, descargar permisos, Excel de permisos, clave de permiso, "quién tiene acceso a qué", "qué permisos tiene un usuario", "para qué sirve el permiso", "lista de permisos de todos", "no veo el submenú", "no aparece el toggle de soporte", "no puedo eliminar una cuenta", "no me deja crear un INPC", "el logo no respeta el tamaño", "cambié un permiso y no toma efecto", "error 403"]
+palabras_clave: [usuarios, invitación, invitar usuario, registro, alta de usuario, correo autorizado, permisos, plantillas, parámetros, INPC, cuentas, presupuesto, fechas CxP, claves SAT, retención, IVA, ISR, CFDI, logos, favicon, dominios, correos autorizados, contraseña, soporte, responsable comercial, matriz de permisos, reporte de permisos, descargar permisos, Excel de permisos, clave de permiso, descripción del permiso, columna descripción, "quién tiene acceso a qué", "qué permisos tiene un usuario", "para qué sirve el permiso", "qué hace este permiso", "qué le estoy dando si lo prendo", "no sé qué permiso darle", "lista de permisos de todos", "no veo el submenú", "no aparece el toggle de soporte", "no puedo eliminar una cuenta", "no me deja crear un INPC", "el logo no respeta el tamaño", "cambié un permiso y no toma efecto", "error 403"]
 relacionado_con: [autenticacion, auditoria, parques, cxp, correo]
 ---
 
@@ -157,6 +157,8 @@ un administrador cree la contraseña por ellos:
 - **Acciones:** elegir usuario → ver/editar sus permisos con toggles (optimistas), filtrar por módulo,
   buscar; **aplicar una plantilla** a un usuario (con opción de reemplazar todo) y **crear una plantilla**
   a partir de los permisos de un usuario.
+- **Columnas de la tabla:** Módulo · Sección · Área/Acción · Clave · **Descripción** (§5.2) · Acceso.
+  Todas ordenables (clic en el encabezado) y con anchos fijos (150/150/150/100/250/90 px).
 - **Cómo se aplican los permisos en el sistema:** la autorización es **server-side**. El backend valida
   la clave requerida (`@RequierePermiso`) contra `segModulosUsuarios` con el uid del JWT. Los usuarios
   de soporte (`isSupport`) tienen acceso total. El menú lateral oculta lo que el usuario no tiene.
@@ -182,9 +184,26 @@ quién tiene acceso a qué**, en vez de revisar usuario por usuario con el selec
   hace **bypass** del RBAC, así que pintar solo sus toggles haría mentir al reporte sobre su alcance real.
 - **Descripciones de cada permiso:** viven en el código, en `features/permisos/permisos-descripciones.ts`
   (`segModulos` no tiene columna para ellas). Redactadas contra los endpoints que exigen cada clave.
+  Son las mismas que pinta la columna «Descripción» de la pantalla (§5.2).
   📌 **Al dar de alta una clave nueva en `segModulos`, agrégala ahí** o el reporte la muestra sin
   descripción (no truena). Si se quiere que el área las edite sin desplegar, habría que agregar la
   columna `descripcion` a `segModulos` (cambio de esquema — requiere autorización).
+
+### 5.2. Columna «Descripción»: para qué sirve cada permiso (v2.59.0)
+
+La tabla de la pantalla muestra, junto a cada permiso, **qué puede hacer el usuario si se lo activas**,
+en lenguaje de negocio. Antes ese dato solo existía dentro del Excel de la matriz (§5.1): quien asignaba
+accesos tenía que deducirlo del nombre del catálogo (`Planes de Renta / Configuracion`), que dice **dónde**
+está el permiso pero no **qué habilita**.
+
+- **Fuente del texto:** la misma constante del front, `features/permisos/permisos-descripciones.ts`
+  (`descripcionPermiso(clave)`) — **no** se le pide nada nuevo al backend ni a la BD. Al 2026-07-29 cubre
+  las **80 claves** de `segModulos` (verificado 1:1 contra la tabla).
+- **Búsqueda por descripción:** el buscador de la pantalla también mira ese texto, así que escribir
+  «renta» o «aprobar» encuentra los permisos relacionados aunque el catálogo los nombre de otro modo.
+- **Claves sin descripción:** la celda muestra «—». No rompe nada; solo indica que la clave es nueva y
+  falta agregarla al archivo.
+- **Sin impacto en el acceso:** es texto informativo. Quien decide es el toggle, no la descripción.
 
 ### Mapa de claves conocidas
 | Clave | Módulo / acción |
@@ -252,7 +271,8 @@ quién tiene acceso a qué**, en vez de revisar usuario por usuario con el selec
 | Error 403 en una acción de configuración. | Falta la clave (200/203/210/220/221). | Escalar a soporte si debería tenerla. |
 | "¿Quién tiene acceso a qué?" / "necesito la lista de permisos de todos." | No hay que revisar usuario por usuario. | Configuraciones → Permisos → botón **«📊 Descargar matriz (Excel)»** (requiere clave 220). Trae los usuarios contra los permisos, con la descripción de cada clave. |
 | "En el reporte un usuario aparece con TODOS los permisos (★)." | Es un usuario de **soporte** (`catUsers.isSupport = true`): hace bypass del RBAC. | Es por diseño; sus toggles individuales no limitan nada. |
-| "Un permiso del reporte sale sin descripción." | La clave es nueva en `segModulos` y no está en `permisos-descripciones.ts`. | Agregarla ahí (cambio de front). No afecta el acceso, solo la leyenda. |
+| "¿Qué le estoy dando si prendo este permiso?" / "no sé cuál permiso darle." | No hay que adivinar por el nombre del catálogo. | Configuraciones → Permisos: la columna **«Descripción»** dice para qué sirve cada permiso (§5.2). El buscador también busca dentro de ese texto. |
+| "Un permiso sale sin descripción (o con «—»)." | La clave es nueva en `segModulos` y no está en `permisos-descripciones.ts`. | Agregarla ahí (cambio de front). No afecta el acceso, solo el texto informativo — ni en la pantalla ni en el reporte. |
 | "El reporte no trae a un usuario que sí existe." | Verificar que no se haya topado el tope de filas de la lectura (`.range()` en `PermisosService.matriz()`). | Hoy holgado (54 usuarios contra un tope de 10 000); si el padrón creciera muchísimo, subir el rango. |
 
 **Cuándo escalar a ticket:** inconsistencias de permisos (un usuario que debería poder y no puede),
@@ -263,7 +283,9 @@ errores al guardar parámetros que persisten, o datos de presupuesto que no cuad
 - ✅ Los 5 submenús funcionando, con tablas (encabezado fijo azul + filtros + orden) e historial por usuario.
 - ✅ **Reporte descargable de la matriz de permisos** (v2.58.0, §5.1): `GET /permisos/matriz` + Excel de
   4 hojas generado en el navegador, con la descripción de para qué sirve cada clave.
-  Pendiente opcional: mover esas descripciones a `segModulos.descripcion` (cambio de esquema, por acordar)
-  y que el área valide su redacción.
+- ✅ **Columna «Descripción» en la tabla de Permisos** (v2.59.0, §5.2): el texto que ya alimentaba el
+  Excel ahora se ve en pantalla, y el buscador lo incluye. Solo presentación (sin backend ni BD).
+  Pendiente opcional (mismo de v2.58.0): mover esas descripciones a `segModulos.descripcion` (cambio de
+  esquema, **por acordar con Jereff**) para que el área las edite sin desplegar y valide su redacción.
 - ✅ Claves finas de Parámetros (212/213/214/215/216) **aplicadas** (visualización por pestaña, front+back).
   Pendiente operativo: asignar esas claves a los usuarios que correspondan en Permisos.

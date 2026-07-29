@@ -3,15 +3,17 @@
  *
  * Redactadas contra el código real: cada texto se apoya en los endpoints que
  * exigen esa clave (`@RequierePermiso`) y en las pantallas que la consultan con
- * `tienePermiso()`, no en el nombre del catálogo. Sirven de leyenda del reporte
- * descargable de la matriz de permisos.
+ * `tienePermiso()`, no en el nombre del catálogo. Alimentan la columna
+ * «Descripción» de la pantalla de Permisos y la leyenda del reporte descargable
+ * de la matriz.
  *
  * 📌 Viven en el código, no en la BD: `segModulos` no tiene columna de
  * descripción. Si se quiere que el área las edite sin desplegar, hay que agregar
  * esa columna (cambio de esquema — requiere autorización explícita).
  *
- * ⚠️ Al dar de alta una clave nueva en `segModulos`, agrégala aquí: si falta, el
- * reporte la muestra con la descripción vacía (no truena, pero queda coja).
+ * ⚠️ Al dar de alta una clave nueva en `segModulos`, agrégala aquí: si falta, la
+ * pantalla la pinta con un «—» y el reporte con la celda vacía (no truena, pero
+ * queda coja).
  */
 export const DESCRIPCION_PERMISO: Record<number, string> = {
   /* ── Arrendatarios ── */

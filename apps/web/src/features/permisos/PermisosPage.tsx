@@ -10,12 +10,14 @@ import {
 import { useSort, type Accessors } from '@/components/tabla/useSort';
 import { SearchSelect } from '@/components/SearchSelect';
 import { ApiRequestError } from '@/lib/api';
+import { descripcionPermiso } from './permisos-descripciones';
 
 const ACCESSORS_PERM: Accessors<PermisoUsuario> = {
   modulo: (p) => p.modulo,
   seccion: (p) => p.seccion,
   area: (p) => p.area,
   clave: (p) => p.clave ?? 0,
+  descripcion: (p) => descripcionPermiso(p.clave ?? 0),
   acceso: (p) => p.acceso,
 };
 
@@ -115,7 +117,11 @@ export function PermisosPage() {
         p.modulo.toLowerCase().includes(q) ||
         p.seccion.toLowerCase().includes(q) ||
         (p.area ?? '').toLowerCase().includes(q) ||
-        String(p.clave ?? '').includes(q)
+        String(p.clave ?? '').includes(q) ||
+        // También por lo que hace el permiso: buscar "renta" o "aprobar" y que
+        // salgan los permisos cuya descripción lo menciona, aunque el catálogo
+        // los nombre de otra forma.
+        descripcionPermiso(p.clave ?? 0).toLowerCase().includes(q)
       );
     });
     // Orden base agradable (módulo → sección → clave); useSort puede reordenar.
@@ -197,8 +203,8 @@ export function PermisosPage() {
               type="search"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Módulo, sección, área o clave…"
-              className="mt-1 block w-64 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30"
+              placeholder="Módulo, sección, área, clave o descripción…"
+              className="mt-1 block w-72 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30"
             />
           </label>
         )}
@@ -215,7 +221,17 @@ export function PermisosPage() {
           {/* Tabla de permisos */}
           <div className="lg:col-span-2">
             <div className="max-h-[60vh] overflow-auto rounded-xl border bg-white">
-              <table className="w-full min-w-[520px] text-sm">
+              <table className="w-full min-w-[890px] table-fixed text-sm">
+                {/* Anchos fijos por columna: el texto de la descripción envuelve
+                    dentro de sus 250px en vez de estirar toda la tabla. */}
+                <colgroup>
+                  <col className="w-[150px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[100px]" />
+                  <col className="w-[250px]" />
+                  <col className="w-[90px]" />
+                </colgroup>
                 <thead className={THEAD_STICKY}>
                   <tr className={THEAD_TR}>
                     <SortableTh campo="modulo" sortKey={sortKey} dir={dir} onSort={ordenar}>
@@ -237,6 +253,14 @@ export function PermisosPage() {
                       Clave
                     </SortableTh>
                     <SortableTh
+                      campo="descripcion"
+                      sortKey={sortKey}
+                      dir={dir}
+                      onSort={ordenar}
+                    >
+                      Descripción
+                    </SortableTh>
+                    <SortableTh
                       campo="acceso"
                       sortKey={sortKey}
                       dir={dir}
@@ -250,13 +274,13 @@ export function PermisosPage() {
                 <tbody className="divide-y">
                   {isLoading && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-6 text-center text-gray-400">
+                      <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
                         Cargando permisos…
                       </td>
                     </tr>
                   )}
                   {ordenados.map((p) => (
-                    <tr key={p.idsegModulos} className="hover:bg-gray-50">
+                    <tr key={p.idsegModulos} className="hover:bg-gray-50 align-top">
                       <td className="px-4 py-2 font-medium text-gray-700">
                         {p.modulo}
                       </td>
@@ -264,6 +288,14 @@ export function PermisosPage() {
                       <td className="px-4 py-2 text-gray-500">{p.area}</td>
                       <td className="px-4 py-2 text-center font-mono text-xs text-gray-500">
                         {p.clave ?? '—'}
+                      </td>
+                      {/* Para qué sirve el permiso, del catálogo del front
+                          (`permisos-descripciones.ts`): mismo texto que lleva la
+                          matriz descargable, sin pedirle nada más al backend. */}
+                      <td className="px-4 py-2 text-xs leading-snug text-gray-500">
+                        {descripcionPermiso(p.clave ?? 0) || (
+                          <span className="text-gray-300">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-2 text-center">
                         <Toggle
