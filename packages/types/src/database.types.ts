@@ -4301,35 +4301,153 @@ export type Database = {
           },
         ]
       }
+      kvaAcometidas: {
+        Row: {
+          capacidadBt: number
+          capacidadMt: number
+          fc: string
+          folioCfe: string | null
+          idAcometida: string
+          nombre: string
+          notas: string | null
+          status: boolean
+          tensionKv: number | null
+          uidr: string | null
+        }
+        Insert: {
+          capacidadBt?: number
+          capacidadMt?: number
+          fc?: string
+          folioCfe?: string | null
+          idAcometida?: string
+          nombre: string
+          notas?: string | null
+          status?: boolean
+          tensionKv?: number | null
+          uidr?: string | null
+        }
+        Update: {
+          capacidadBt?: number
+          capacidadMt?: number
+          fc?: string
+          folioCfe?: string | null
+          idAcometida?: string
+          nombre?: string
+          notas?: string | null
+          status?: boolean
+          tensionKv?: number | null
+          uidr?: string | null
+        }
+        Relationships: []
+      }
+      kvaDevoluciones: {
+        Row: {
+          cantidad: number
+          documento: string
+          fc: string
+          fechaDevolucion: string
+          idDevolucion: string
+          idKvas: string
+          observaciones: string | null
+          status: boolean
+          uidr: string | null
+          uidValida: string | null
+          urldoc: string
+        }
+        Insert: {
+          cantidad: number
+          documento: string
+          fc?: string
+          fechaDevolucion?: string
+          idDevolucion?: string
+          idKvas: string
+          observaciones?: string | null
+          status?: boolean
+          uidr?: string | null
+          uidValida?: string | null
+          urldoc: string
+        }
+        Update: {
+          cantidad?: number
+          documento?: string
+          fc?: string
+          fechaDevolucion?: string
+          idDevolucion?: string
+          idKvas?: string
+          observaciones?: string | null
+          status?: boolean
+          uidr?: string | null
+          uidValida?: string | null
+          urldoc?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kvaDevoluciones_idKvas_fkey"
+            columns: ["idKvas"]
+            isOneToOne: false
+            referencedRelation: "kvasAsignados"
+            referencedColumns: ["idKvas"]
+          },
+        ]
+      }
       kvasAsignados: {
         Row: {
+          cantDevuelta: number
           cantKvas: number
+          contratoCfe: string | null
+          etapa: string
           fc: string
+          fechaContratoCfe: string | null
+          figura: string
           idKvas: string
+          idNavArrend: string | null
           idNave: string
           idParque: string
+          idPropiedad: string | null
+          motivoBaja: string | null
+          nivel: string
           status: boolean
-          tipoContrato: number
-          tipoTension: number
+          /** @deprecated 2026-08-03: usar `figura`. Se elimina en la migración F1b. */
+          tipoContrato: number | null
+          /** @deprecated 2026-08-03: usar `nivel`. Se elimina en la migración F1b. */
+          tipoTension: number | null
           uidr: string
         }
         Insert: {
+          cantDevuelta?: number
           cantKvas?: number
+          contratoCfe?: string | null
+          etapa?: string
           fc?: string
+          fechaContratoCfe?: string | null
+          figura: string
           idKvas?: string
+          idNavArrend?: string | null
           idNave: string
           idParque: string
+          idPropiedad?: string | null
+          motivoBaja?: string | null
+          nivel: string
           status?: boolean
-          tipoContrato: number
-          tipoTension: number
+          tipoContrato?: number
+          tipoTension?: number
           uidr: string
         }
         Update: {
+          cantDevuelta?: number
           cantKvas?: number
+          contratoCfe?: string | null
+          etapa?: string
           fc?: string
+          fechaContratoCfe?: string | null
+          figura?: string
           idKvas?: string
+          idNavArrend?: string | null
           idNave?: string
           idParque?: string
+          idPropiedad?: string | null
+          motivoBaja?: string | null
+          nivel?: string
           status?: boolean
           tipoContrato?: number
           tipoTension?: number
@@ -5292,13 +5410,16 @@ export type Database = {
           esTicket: boolean
           fc: string | null
           idParque: string
+          idAcometida: string | null
           idUser: string | null
-          kvasAlta: number
-          kvasAltaDisponibles: number
-          kvasAltaUtilizados: number | null
-          kvasMedia: number
-          kvasMediaDisponibles: number
-          kvasMediaUtilizados: number | null
+          /** Capacidad en BAJA tensión (antes `kvasMedia`). */
+          kvasBt: number
+          kvasBtDisponibles: number
+          kvasBtUtilizados: number | null
+          /** Capacidad en MEDIA tensión (antes `kvasAlta`). */
+          kvasMt: number
+          kvasMtDisponibles: number
+          kvasMtUtilizados: number | null
           naves: number | null
           nomParque: string | null
           status: boolean | null
@@ -5308,13 +5429,14 @@ export type Database = {
           esTicket?: boolean
           fc?: string | null
           idParque: string
+          idAcometida?: string | null
           idUser?: string | null
-          kvasAlta?: number
-          kvasAltaDisponibles?: number
-          kvasAltaUtilizados?: number | null
-          kvasMedia?: number
-          kvasMediaDisponibles?: number
-          kvasMediaUtilizados?: number | null
+          kvasBt?: number
+          kvasBtDisponibles?: number
+          kvasBtUtilizados?: number | null
+          kvasMt?: number
+          kvasMtDisponibles?: number
+          kvasMtUtilizados?: number | null
           naves?: number | null
           nomParque?: string | null
           status?: boolean | null
@@ -5324,18 +5446,27 @@ export type Database = {
           esTicket?: boolean
           fc?: string | null
           idParque?: string
+          idAcometida?: string | null
           idUser?: string | null
-          kvasAlta?: number
-          kvasAltaDisponibles?: number
-          kvasAltaUtilizados?: number | null
-          kvasMedia?: number
-          kvasMediaDisponibles?: number
-          kvasMediaUtilizados?: number | null
+          kvasBt?: number
+          kvasBtDisponibles?: number
+          kvasBtUtilizados?: number | null
+          kvasMt?: number
+          kvasMtDisponibles?: number
+          kvasMtUtilizados?: number | null
           naves?: number | null
           nomParque?: string | null
           status?: boolean | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "parques_idAcometida_fkey"
+            columns: ["idAcometida"]
+            isOneToOne: false
+            referencedRelation: "kvaAcometidas"
+            referencedColumns: ["idAcometida"]
+          },
+        ]
       }
       pdp: {
         Row: {

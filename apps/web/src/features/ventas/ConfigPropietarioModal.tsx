@@ -533,14 +533,14 @@ function PropiedadesTab({
                     <CampoNave label="Const.:" valor={fmtNum(p.nave?.construccion)} />
                     <CampoNave label="Precio:" valor={fmtNum(p.nave?.precio)} />
                     <CampoNave label="Fecha estimada:" valor={fmtFecha(p.nave?.fecEntrega)} />
-                    {/* KVAs asignados a la nave (tabla kvasAsignados). */}
-                    <CampoNave
-                      label="KVAs Alta:"
-                      valor={p.kvas?.alta ? fmtNum(p.kvas.alta) : '-'}
-                    />
+                    {/* KVAs asignados a la nave (tabla kvasAsignados), por nivel de tensión. */}
                     <CampoNave
                       label="KVAs Media:"
-                      valor={p.kvas?.media ? fmtNum(p.kvas.media) : '-'}
+                      valor={p.kvas?.mt ? fmtNum(p.kvas.mt) : '-'}
+                    />
+                    <CampoNave
+                      label="KVAs Baja:"
+                      valor={p.kvas?.bt ? fmtNum(p.kvas.bt) : '-'}
                     />
                   </div>
                 </div>

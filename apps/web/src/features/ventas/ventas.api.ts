@@ -137,8 +137,8 @@ export interface PropiedadRow {
     fecEntrega: string | null;
     situacion: string | null;
   } | null;
-  /** KVAs asignados a la nave, separados por tipo de tensión. */
-  kvas: { alta: number; media: number } | null;
+  /** KVAs asignados a la nave: `mt` = media tensión, `bt` = baja tensión. */
+  kvas: { mt: number; bt: number } | null;
 }
 
 export interface Inversionista {

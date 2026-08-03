@@ -23,8 +23,9 @@ export function ParqueModal({ parque, onClose, onListo }: Props) {
   const [nomParque, setNomParque] = useState(parque?.nomParque ?? '');
   const [direccion, setDireccion] = useState(parque?.direccion ?? '');
   const [naves, setNaves] = useState(String(parque?.naves ?? ''));
-  const [kvasAlta, setKvasAlta] = useState(String(parque?.kvasAlta ?? ''));
-  const [kvasMedia, setKvasMedia] = useState(String(parque?.kvasMedia ?? ''));
+  // Los dos niveles del negocio: MEDIA (mt) y BAJA (bt) tensión.
+  const [kvasMt, setKvasMt] = useState(String(parque?.kvasMt ?? ''));
+  const [kvasBt, setKvasBt] = useState(String(parque?.kvasBt ?? ''));
   const [error, setError] = useState<string | null>(null);
 
   const guardar = useMutation({
@@ -32,8 +33,8 @@ export function ParqueModal({ parque, onClose, onListo }: Props) {
       if (esEdicion) {
         await parquesApi.editar(parque.idParque, {
           direccion,
-          kvasAlta: Number(kvasAlta) || 0,
-          kvasMedia: Number(kvasMedia) || 0,
+          kvasMt: Number(kvasMt) || 0,
+          kvasBt: Number(kvasBt) || 0,
         });
         return;
       }
@@ -41,8 +42,8 @@ export function ParqueModal({ parque, onClose, onListo }: Props) {
         nomParque: nomParque.trim(),
         direccion,
         naves: Number(naves) || 0,
-        kvasAlta: Number(kvasAlta) || 0,
-        kvasMedia: Number(kvasMedia) || 0,
+        kvasMt: Number(kvasMt) || 0,
+        kvasBt: Number(kvasBt) || 0,
       });
     },
     onSuccess: onListo,
@@ -118,20 +119,22 @@ export function ParqueModal({ parque, onClose, onListo }: Props) {
             />
           </label>
           <label className="block text-xs text-gray-600">
-            KVA's Alta
+            KVA's Media tensión
             <input
               type="number"
-              value={kvasAlta}
-              onChange={(e) => setKvasAlta(e.target.value)}
+              step="0.01"
+              value={kvasMt}
+              onChange={(e) => setKvasMt(e.target.value)}
               className={inputCls}
             />
           </label>
           <label className="block text-xs text-gray-600">
-            KVA's Media
+            KVA's Baja tensión
             <input
               type="number"
-              value={kvasMedia}
-              onChange={(e) => setKvasMedia(e.target.value)}
+              step="0.01"
+              value={kvasBt}
+              onChange={(e) => setKvasBt(e.target.value)}
               className={inputCls}
             />
           </label>

@@ -5,10 +5,10 @@ version_doc: 1.2
 ultima_actualizacion: 2026-07-05
 submodulos: [Parques, Disponibilidad, Historial de la nave]
 rutas: [/parques, /parques/disponibilidad]
-claves_permiso: [700, 701, 702, 710]
-tablas: [parques, naves, v_naves, v_disponibilidad, propiedades, arrenPropiedades, arrePdp, pdp, raPdp, rgPdp, auditoria, catUsers, inversionista]
+claves_permiso: [700, 701, 702, 710, 720]
+tablas: [parques, naves, v_naves, v_disponibilidad, propiedades, arrenPropiedades, arrePdp, pdp, raPdp, rgPdp, auditoria, catUsers, inversionista, kvasAsignados]
 palabras_clave: [parque, parque industrial, nave, bodega, local, lote, manzana, mza, KVA, kva, energia, disponibilidad, terreno, construccion, GYM, coworking, cafeteria, inquilino, arrendatario, dueño, inversionista, historial de la nave, trazabilidad de la nave, "línea de tiempo de la nave", "quién desvinculó la nave", "por qué se desvinculó", "motivo de la baja", "vida de la nave", "por dónde ha pasado la nave", "no veo el botón para crear un parque", "no me deja poner la nave como vendida", "el arrendatario aparece vacío", "la cantidad de naves no coincide", "la nave aparece duplicada", "aparece un arrendatario que ya se fue", "arrendatario fantasma", "sale dos veces la misma nave", "aparece un dueño que ya no es", "propietario fantasma"]
-relacionado_con: [propietarios, arrendatarios, fideicomiso, auditoria-y-ver-como, configuraciones]
+relacionado_con: [kvas, propietarios, arrendatarios, fideicomiso, auditoria-y-ver-como, configuraciones]
 ---
 
 # Módulo: Parques
@@ -62,12 +62,13 @@ PK `idParque` (texto, generado en el servidor). Un registro por parque.
 | `nomParque` | text | Nombre del parque. |
 | `direccion` | text | Domicilio. |
 | `naves` | bigint | Cantidad de naves del parque (ver gotcha #1). |
-| `kvasAlta` | int | Capacidad eléctrica total en nivel **Alta** (KVA). |
-| `kvasMedia` | int | Capacidad eléctrica total en nivel **Media**. |
-| `kvasAltaDisponibles` | int | KVA Alta disponibles (default 0; lo ajusta la operación). |
-| `kvasMediaDisponibles` | int | KVA Media disponibles (default 0). |
-| `kvasAltaUtilizados` | int | **GENERADA** = `kvasAlta − kvasAltaDisponibles`. No se escribe. |
-| `kvasMediaUtilizados` | int | **GENERADA** = `kvasMedia − kvasMediaDisponibles`. No se escribe. |
+| `kvasMt` | numeric(12,2) | Capacidad eléctrica en **MEDIA** tensión (KVA). Antes `kvasAlta`. |
+| `kvasBt` | numeric(12,2) | Capacidad eléctrica en **BAJA** tensión. Antes `kvasMedia`. |
+| `kvasMtDisponibles` | numeric(12,2) | KVA de media sin asignar. **Puede ser NEGATIVO** (sobregiro real). Lo recalcula la BD. |
+| `kvasBtDisponibles` | numeric(12,2) | KVA de baja sin asignar. Mismo criterio. |
+| `kvasMtUtilizados` | numeric(12,2) | **GENERADA** = `kvasMt − kvasMtDisponibles`. No se escribe. |
+| `kvasBtUtilizados` | numeric(12,2) | **GENERADA** = `kvasBt − kvasBtDisponibles`. No se escribe. |
+| `idAcometida` | uuid | Acometida de la que cuelga el parque (ver [kvas.md](kvas.md)). |
 | `status` | bool | Activo (true). |
 | `esTicket` | bool | Marca registros que son "contenedor de tickets", no parques reales. |
 | `idUser`, `fc` | text/ts | Auditoría básica de creación. |
@@ -168,10 +169,14 @@ de tiempo. Ambas operaciones son **baja lógica** (`status=false`): NO borran el
    la vista `v_propiedades` con su columna `arrendador`.)
 3. **`Vendida` es especial:** intentar ponerla desde el editor de naves se rechaza. La venta se
    registra en **Propietarios**.
-4. **`kvasUtilizados` es columna generada:** `kvasAltaUtilizados`/`kvasMediaUtilizados` = total −
-   disponibles. No se pueden escribir directamente.
-5. **KVA's por nave: aún no desarrollado.** En las tarjetas de nave puede aparecer una sección de
-   KVA's sin datos; esa funcionalidad está pendiente (no es un error de datos).
+4. **`kvasUtilizados` es columna generada:** `kvasMtUtilizados`/`kvasBtUtilizados` = total −
+   disponibles. No se pueden escribir directamente. ⚠️ **Rename 2026-08-03**: `kvasAlta`→`kvasMt`
+   (media) y `kvasMedia`→`kvasBt` (baja); la BD llamaba "Alta/Media" a lo que el negocio llama
+   "Media/Baja". Los disponibles **pueden ser negativos** (sobregiro real, se pinta en rojo).
+5. ✅ **KVA's por nave: YA desarrollado (v2.60.0).** Vive en su propio módulo,
+   **[kvas.md](kvas.md)** (`/parques/kvas`, claves 720/721/722): asignación por nave con nivel
+   (media/baja), figura (vendido/rentado) y etapa del trámite, más la **devolución documentada** que
+   destraba la liberación de la nave.
 6. **`esTicket = true`** excluye parques/naves que en realidad son contenedores de tickets; no son
    parques reales y se filtran.
 7. **🐛 (CORREGIDO 2026-07-04, v2.55.1) `v_naves` mostraba arrendatarios ya desvinculados y duplicaba

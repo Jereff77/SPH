@@ -11,6 +11,7 @@ import { ReportesService } from './reportes.service.js';
 import { MontseService } from './montse.service.js';
 import { VentasRealtimeService } from './ventas-realtime.service.js';
 import { SseAuthGuard } from '../cxp/sse-auth.guard.js';
+import { ParquesModule } from '../parques/parques.module.js';
 
 /**
  * Módulo Ventas (Inversionistas/Propietarios). Etapa 1: Dashboard (clave 600) y
@@ -18,6 +19,9 @@ import { SseAuthGuard } from '../cxp/sse-auth.guard.js';
  * el SSE del Dashboard reutiliza `SseAuthGuard` del módulo CxP.
  */
 @Module({
+  // ParquesModule aporta KvasService: el candado que impide desvincular una
+  // nave con KVA vendidos sin devolución acreditada.
+  imports: [ParquesModule],
   controllers: [VentasController, VentasStreamController, MontseController],
   providers: [
     DashboardService,

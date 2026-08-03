@@ -12,6 +12,7 @@ import { IncrementosNotificadorService } from './incrementos-notificador.service
 import { ResponsablesService } from './responsables.service.js';
 import { SseAuthGuard } from '../cxp/sse-auth.guard.js';
 import { InvitacionesModule } from '../invitaciones/invitaciones.module.js';
+import { ParquesModule } from '../parques/parques.module.js';
 
 /**
  * Módulo Arrendatarios. Planes de Renta (clave 20): selector arrendatario/
@@ -25,7 +26,9 @@ import { InvitacionesModule } from '../invitaciones/invitaciones.module.js';
  * resolverse antes que los params dinámicos del controller general.
  */
 @Module({
-  imports: [InvitacionesModule],
+  // ParquesModule aporta KvasService: el candado que impide liberar una nave
+  // con KVA vendidos sin devolución acreditada.
+  imports: [InvitacionesModule, ParquesModule],
   controllers: [
     IncrementosController,
     ResponsablesController,

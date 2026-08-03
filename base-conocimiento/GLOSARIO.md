@@ -46,9 +46,18 @@ palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parq
 - **PDP (Plan de Pagos):** calendario de pagos. Hay PDP de compra (inversionista) y de **renta**
   (`arrePdp`, para arrendamientos). Campos como `tienePdp`, `pdpActivo` indican si una propiedad/nave
   ya tiene plan y si está activo.
-- **KVA:** unidad de capacidad eléctrica de un parque, en dos niveles: **Alta** y **Media**. En
-  `parques`: `kvasAlta/Media` (total), `*Disponibles` (libre) y `*Utilizados` (**columna generada** =
-  total − disponibles). Las KVA's **por nave** aún no se desarrollan.
+- **KVA:** unidad de capacidad eléctrica, en dos niveles **independientes**: **Media (MT)** y
+  **Baja (BT)**. En `parques`: `kvasMt`/`kvasBt` (total), `*Disponibles` (libre, **puede ser
+  negativo** = sobregiro real) y `*Utilizados` (**columna generada** = total − disponibles).
+  ⚠️ **Hasta v2.59.0 las columnas se llamaban `kvasAlta`/`kvasMedia`**: la BD nombraba "Alta/Media"
+  lo que el negocio llama "Media/Baja" (el nombre corría un escalón). Renombradas en **v2.60.0**.
+  El detalle **por nave** (vendidos/rentados, etapa del trámite, devoluciones) vive en
+  `modulos/kvas.md`.
+- **Acometida:** la fuente eléctrica contratada con CFE (`kvaAcometidas`), con su tensión en kV y su
+  folio. **Alimenta a uno o varios parques** — Spartek I y II comparten una de 34.5 kV.
+- **Devolución de KVA:** los KVA **vendidos** se van con la nave y solo regresan al parque cuando se
+  acredita con documento (`kvaDevoluciones`). Mientras falte, **la nave no se puede liberar**. Los
+  **rentados** regresan solos al cerrar el vínculo.
 - **INPC:** Índice Nacional de Precios al Consumidor (tabla `inpc`). Se usa para actualizar rentas y
   como indicador en el landing. Lo gestiona Configuraciones → Parámetros. En la **corrida de renta** el
   INPC se captura por partida/concepto (`arrePdpDetalle.INPC` + `ptsINPC`) y al editarlo manualmente el

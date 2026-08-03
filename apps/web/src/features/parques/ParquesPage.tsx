@@ -187,20 +187,16 @@ export function ParquesPage() {
       {/* Panel derecho: KVA's del parque + tarjetas de naves */}
       <section className="flex min-w-0 flex-1 flex-col gap-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <TarjetaKva
-            titulo="KVA's Totales"
-            alta={kvas?.kvasAlta ?? 0}
-            media={kvas?.kvasMedia ?? 0}
-          />
+          <TarjetaKva titulo="KVA's Totales" mt={kvas?.kvasMt ?? 0} bt={kvas?.kvasBt ?? 0} />
           <TarjetaKva
             titulo="KVA's Disponibles"
-            alta={kvas?.kvasAltaDisponibles ?? 0}
-            media={kvas?.kvasMediaDisponibles ?? 0}
+            mt={kvas?.kvasMtDisponibles ?? 0}
+            bt={kvas?.kvasBtDisponibles ?? 0}
           />
           <TarjetaKva
             titulo="KVA's Utilizados"
-            alta={kvas?.kvasAltaUtilizados ?? 0}
-            media={kvas?.kvasMediaUtilizados ?? 0}
+            mt={kvas?.kvasMtUtilizados ?? 0}
+            bt={kvas?.kvasBtUtilizados ?? 0}
           />
         </div>
 
@@ -457,26 +453,25 @@ function Campo({ label, value }: { label: string; value: string }) {
   );
 }
 
-function TarjetaKva({
-  titulo,
-  alta,
-  media,
-}: {
-  titulo: string;
-  alta: number;
-  media: number;
-}) {
+/**
+ * Tarjeta de capacidad eléctrica. Los dos niveles del negocio son MEDIA y BAJA
+ * tensión (`mt` / `bt`). Un valor NEGATIVO es un sobregiro real —se pinta en
+ * rojo en vez de ocultarse tras un 0.
+ */
+function TarjetaKva({ titulo, mt, bt }: { titulo: string; mt: number; bt: number }) {
+  const color = (v: number) =>
+    v < 0 ? 'text-red-600' : 'text-[#1f2a4d]';
   return (
     <article className="rounded-xl border bg-white p-4 shadow-sm">
       <p className="text-sm font-medium text-gray-500">{titulo}</p>
       <div className="mt-3 flex justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-gray-400">Alta</p>
-          <p className="text-xl font-bold text-[#1f2a4d]">{fmt(alta)}</p>
+          <p className="text-xs uppercase tracking-wide text-gray-400">Media</p>
+          <p className={`text-xl font-bold ${color(mt)}`}>{fmt(mt)}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs uppercase tracking-wide text-gray-400">Media</p>
-          <p className="text-xl font-bold text-[#1f2a4d]">{fmt(media)}</p>
+          <p className="text-xs uppercase tracking-wide text-gray-400">Baja</p>
+          <p className={`text-xl font-bold ${color(bt)}`}>{fmt(bt)}</p>
         </div>
       </div>
     </article>

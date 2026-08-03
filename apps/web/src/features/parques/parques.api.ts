@@ -4,18 +4,21 @@ export interface ParqueListado {
   idParque: string;
   nomParque: string | null;
   direccion: string | null;
-  kvasAlta: number;
-  kvasMedia: number;
+  /** Capacidad en MEDIA tensión (antes `kvasAlta`). */
+  kvasMt: number;
+  /** Capacidad en BAJA tensión (antes `kvasMedia`). */
+  kvasBt: number;
   naves: number; // conteo real de naves del parque
 }
 
+/** Los *Disponibles* pueden venir NEGATIVOS: es un sobregiro real, no un error. */
 export interface ResumenKvas {
-  kvasAlta: number;
-  kvasMedia: number;
-  kvasAltaDisponibles: number;
-  kvasMediaDisponibles: number;
-  kvasAltaUtilizados: number;
-  kvasMediaUtilizados: number;
+  kvasMt: number;
+  kvasBt: number;
+  kvasMtDisponibles: number;
+  kvasBtDisponibles: number;
+  kvasMtUtilizados: number;
+  kvasBtUtilizados: number;
 }
 
 export interface NaveItem {
@@ -59,14 +62,14 @@ export interface CrearParqueDto {
   nomParque: string;
   direccion: string;
   naves: number;
-  kvasAlta: number;
-  kvasMedia: number;
+  kvasMt: number;
+  kvasBt: number;
 }
 
 export interface EditarParqueDto {
   direccion: string;
-  kvasAlta: number;
-  kvasMedia: number;
+  kvasMt: number;
+  kvasBt: number;
 }
 
 export interface EditarNaveDto {

@@ -16,14 +16,18 @@ export const crearParqueSchema = z.object({
   direccion: z.string().trim().max(300).optional().default(''),
   // Cantidad real de naves a generar (en v2 se corrige el bug de v1 que usaba KVA's).
   naves: z.coerce.number().int().min(1).max(MAX_NAVES),
-  kvasAlta: z.coerce.number().int().min(0).default(0),
-  kvasMedia: z.coerce.number().int().min(0).default(0),
+  // Capacidad eléctrica del parque. `Mt` = MEDIA tensión, `Bt` = BAJA tensión
+  // (antes se llamaban kvasAlta/kvasMedia: el nombre corría un escalón y no
+  // coincidía con el negocio). Admiten decimales: el control real los usa
+  // (Acupark II: 732.5 BT / 2620.5 MT).
+  kvasMt: z.coerce.number().min(0).default(0),
+  kvasBt: z.coerce.number().min(0).default(0),
 });
 
 export const editarParqueSchema = z.object({
   direccion: z.string().trim().max(300).optional().default(''),
-  kvasAlta: z.coerce.number().int().min(0),
-  kvasMedia: z.coerce.number().int().min(0),
+  kvasMt: z.coerce.number().min(0),
+  kvasBt: z.coerce.number().min(0),
 });
 
 export const agregarNavesSchema = z.object({

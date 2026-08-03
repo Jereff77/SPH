@@ -8,6 +8,7 @@ import {
 import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { IncrementosService } from './incrementos.service.js';
+import { KvasService } from '../parques/kvas.service.js';
 import type {
   CancelarAnticipadoDto,
   ConceptoFinanciadoDto,
@@ -48,6 +49,8 @@ export class PlanesArreService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly incrementos: IncrementosService,
+    /** Candado de KVA al liberar la nave (ver `liberarNave`). */
+    private readonly kvas: KvasService,
   ) {}
 
   private generarId(n: number): string {
@@ -339,6 +342,10 @@ export class PlanesArreService {
     if (vigErr) throw new InternalServerErrorException(vigErr.message);
     if ((count ?? 0) > 0)
       throw new BadRequestException('La nave tiene un plan vigente; no se puede liberar.');
+
+    // Candado de KVA: si la nave tiene KVA VENDIDOS sin devolución acreditada,
+    // no se libera (regla de negocio 2026-08-03). Los rentados no bloquean.
+    await this.kvas.exigirKvasDevueltos(prop.idNave);
 
     const motivoBaja = motivo?.trim() || null;
     const db = this.supabase.comoActor(actorUid);

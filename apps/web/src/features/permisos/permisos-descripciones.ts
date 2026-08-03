@@ -109,6 +109,9 @@ export const DESCRIPCION_PERMISO: Record<number, string> = {
   701: 'Dar de alta parques.',
   702: 'Dar de alta naves dentro de un parque.',
   710: 'Ver la disponibilidad de naves: ocupadas, libres y vendidas.',
+  720: "Consultar la administración de KVA's: capacidad contratada con CFE por acometida y parque, y cómo está repartida entre las naves.",
+  721: "Asignar KVA a una nave (media o baja tensión, vendidos o rentados), editarlos y cancelar asignaciones.",
+  722: 'Registrar la devolución de KVA vendidos al parque adjuntando el documento que la acredita (es lo que desbloquea la liberación de la nave).',
 
   /* ── Correo ── */
   800: 'Entrar al buzón de correo integrado en el ERP.',

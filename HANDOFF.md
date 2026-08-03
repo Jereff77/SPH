@@ -747,6 +747,33 @@ Backend: `apps/api/src/modules/usuarios/`. Frontend: `apps/web/src/features/usua
 > Toda futura escritura a la BD sigue requiriendo autorización explícita (regla 1). El módulo Usuarios
 > escribe en `catUsers`/`crm_responsableComercial` por autorización ya concedida para ese módulo.
 
+### 5d-bis. KVA's — capacidad eléctrica (v2.60.0, autorizado y aplicado en prod)
+
+Objetos nuevos: **`kvaAcometidas`** (lo contratado con CFE; alimenta a **varios parques**) y
+**`kvaDevoluciones`** (acredita con documento el regreso de KVA vendidos; bucket **privado**
+`kvaDocs`, servido con URL firmada). Rediseño de **`kvasAsignados`**: `nivel` (`MT`/`BT`), `figura`
+(`VENTA`/`RENTA`), `etapa` (`POR_ASIGNAR`/`COMPROMETIDO`/`ASIGNADO`), `contratoCfe`, `cantDevuelta` y
+los vínculos `idPropiedad`/`idNavArrend`. Migración `2026-08-03-kvas-administracion-f1.sql` (+F1a).
+
+⛔ **Reglas que quedan como parte del contrato:**
+1. **Rename**: `parques.kvasAlta`→**`kvasMt`** (media) y `kvasMedia`→**`kvasBt`** (baja). La BD
+   nombraba "Alta/Media" lo que el negocio llama "Media/Baja". Se eligieron `Mt`/`Bt` **a propósito**:
+   reusar "Media" con otro significado habría dejado código leyendo el número equivocado **sin tronar**.
+2. **El saldo lo calcula la BD, nunca el código**: `kva_recalcular_disponibles(idParque)`, disparado
+   por trigger en `kvasAsignados` y `kvaDevoluciones`. ⛔ No escribir `kvas*Disponibles` a mano.
+3. **Un disponible NEGATIVO es válido** (sobregiro real) y **no se trunca a 0**: ocultarlo haría creer
+   que el parque quedó justo.
+4. **VENTA vs RENTA**: una venta consume `cantKvas − cantDevuelta` **aunque el vínculo esté cerrado**;
+   solo regresa al pool con devolución acreditada. Una renta regresa al cerrar el vínculo.
+5. ⛔ **No se libera/desvincula una nave con KVA vendidos sin acreditar** (`liberarNave` y
+   `desvincularNave` → 409 vía `KvasService.exigirKvasDevueltos`). **Cancelar una asignación NO
+   devuelve** los KVA: no es una puerta trasera al candado.
+6. `tipoTension`/`tipoContrato` están **DEPRECADAS** (su convención estaba invertida entre el trigger y
+   el código). Su DROP es la **migración F1b**, tras desplegar v2.60.0.
+
+Detalle completo del módulo: `base-conocimiento/modulos/kvas.md`; diseño y pendientes:
+`base-conocimiento/PLAN-administracion-kvas.md`.
+
 ---
 
 ## 5e. Módulo Changelog / Novedades (✅ HECHO) — y cómo registrar versiones

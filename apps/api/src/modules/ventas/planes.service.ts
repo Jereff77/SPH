@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { KvasService } from '../parques/kvas.service.js';
 import type {
   CrearPlanPagosDto,
   DocDto,
@@ -38,7 +39,11 @@ const TOLERANCIA_PDP = 0.05;
 export class PlanesService {
   private readonly logger = new Logger(PlanesService.name);
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    /** Candado de KVA al desvincular la nave (ver `desvincularNave`). */
+    private readonly kvas: KvasService,
+  ) {}
 
   private generarId(n: number): string {
     const bytes = randomBytes(n);
@@ -149,23 +154,26 @@ export class PlanesService {
         });
     }
 
-    // KVAs asignados por nave (tabla kvasAsignados). Se separan por tipo de
-    // tensión: tipoTension=1 → Alta, tipoTension=2 → Media (convención
-    // eléctrica estándar). Se suma cantKvas de los registros activos.
-    // TODO (por confirmar): no hay catálogo de tipoTension en BD; este mapeo
-    // (1=Alta, 2=Media) es un supuesto acordado provisionalmente. Validar con
-    // el negocio y, si aplica, contemplar un tercer valor (p. ej. 3=Baja).
-    const kvasMap = new Map<string, { alta: number; media: number }>();
+    // KVAs asignados por nave (tabla kvasAsignados), separados por nivel de
+    // tensión: `mt` = media, `bt` = baja.
+    //
+    // 🐛 Corregido 2026-08-03: antes se leía el smallint `tipoTension` con el
+    // mapeo 1=Alta/2=Media, INVERTIDO respecto al trigger de la BD (que
+    // descontaba tipoTension=2 de la capacidad de media tensión). La pantalla
+    // mostraba como "Media" lo que el parque había descontado de la otra bolsa.
+    // Ahora se lee la columna `nivel` ('MT'/'BT'), que tiene catálogo (CHECK) y
+    // es la misma fuente que usa el motor de saldo.
+    const kvasMap = new Map<string, { mt: number; bt: number }>();
     if (idsNave.length > 0) {
       const { data: kvas } = await this.supabase.admin
         .from('kvasAsignados')
-        .select('idNave, tipoTension, cantKvas')
+        .select('idNave, nivel, cantKvas')
         .in('idNave', idsNave)
         .eq('status', true);
       for (const k of kvas ?? []) {
-        const acc = kvasMap.get(k.idNave) ?? { alta: 0, media: 0 };
-        if (k.tipoTension === 1) acc.alta += k.cantKvas ?? 0;
-        else if (k.tipoTension === 2) acc.media += k.cantKvas ?? 0;
+        const acc = kvasMap.get(k.idNave) ?? { mt: 0, bt: 0 };
+        if (k.nivel === 'MT') acc.mt += k.cantKvas ?? 0;
+        else if (k.nivel === 'BT') acc.bt += k.cantKvas ?? 0;
         kvasMap.set(k.idNave, acc);
       }
     }
@@ -184,7 +192,7 @@ export class PlanesService {
     return data.map((p) => ({
       ...p,
       nave: p.idNave ? (navesMap.get(p.idNave) ?? null) : null,
-      kvas: p.idNave ? (kvasMap.get(p.idNave) ?? { alta: 0, media: 0 }) : null,
+      kvas: p.idNave ? (kvasMap.get(p.idNave) ?? { mt: 0, bt: 0 }) : null,
       nomParque: p.idParque ? (parquesMap.get(p.idParque) ?? null) : null,
     }));
   }
@@ -611,6 +619,10 @@ export class PlanesService {
       throw new BadRequestException(
         'No se puede desvincular: la nave tiene una Renta Administrada activa.',
       );
+
+    // Candado de KVA: los KVA VENDIDOS deben regresar al parque y acreditarse
+    // con documento antes de soltar la nave (regla de negocio 2026-08-03).
+    await this.kvas.exigirKvasDevueltos(prop.idNave);
 
     const motivoBaja = motivo?.trim() || null;
     const actor = this.supabase.comoActor(actorUid);

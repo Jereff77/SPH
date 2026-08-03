@@ -13,6 +13,7 @@ import { CambiarContrasenaPage } from '@/features/auth/CambiarContrasenaPage';
 import { ChangelogPage } from '@/features/changelog/ChangelogPage';
 import { ParquesPage } from '@/features/parques/ParquesPage';
 import { DisponibilidadPage } from '@/features/parques/DisponibilidadPage';
+import KvasPage from '@/features/parques/KvasPage';
 import { ProveedoresPage } from '@/features/cxp/ProveedoresPage';
 import { BancosPage } from '@/features/cxp/BancosPage';
 import { SolicitudesPage } from '@/features/cxp/SolicitudesPage';
@@ -150,6 +151,7 @@ export const router = createBrowserRouter([
           { path: '/fideicomiso/reportes', element: <KardexPage /> },
           { path: '/parques', element: <ParquesPage /> },
           { path: '/parques/disponibilidad', element: <DisponibilidadPage /> },
+          { path: '/parques/kvas', element: <KvasPage /> },
           { path: '/cxp/pagar', element: <PagarSolicitudesPage /> },
           { path: '/cxp/aprobar', element: <AprobarSolicitudesPage /> },
           { path: '/cxp/solicitudes', element: <SolicitudesPage /> },

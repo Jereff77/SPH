@@ -65,6 +65,22 @@ el control real vive en los guards. La RLS de la BD es herencia de v1.
 | P2-6 | 🟡 | Hotfix activo: trigger `cxp_validar_fecha_cfdi` desactivado (ya conocido) | ✅ |
 | P2-7 | 🟡 | `error.message` crudo (convención 4b) — mitigado por el filtro global de 5xx | ✅ |
 | P2-8 | 🟡 | `auth_leaked_password_protection` OFF; RBAC por-módulo no por-fila; limpieza de obsoletos | ✅/📌 |
+| P2-9 | 🟡 | KVA's: el recálculo de saldo es `FOR EACH ROW` (carga masiva = O(n²)) | 📌 |
+| P2-10 | 🟢 | KVA's: `porParque` ordena por `fc DESC` sin índice que lo cubra | 📌 |
+
+### P2-9 — Recálculo de KVA por fila (revisión de escalabilidad, 2026-08-03) 📌
+`trg_kvasasignados_recalcular` es **FOR EACH ROW**: cada insert recalcula el parque completo. En uso
+normal (una asignación a la vez) es correcto y barato, pero en la **carga inicial desde el Excel**
+(Fase 5 del `PLAN-administracion-kvas.md`, ~250 filas por parque) se vuelve cuadrático.
+**Fix cuando toque esa fase:** insertar el lote con el trigger deshabilitado (o `ALTER TABLE ...
+DISABLE TRIGGER`) y llamar UNA vez a `kva_recalcular_disponibles(idParque)` al final. Severidad
+MEDIA, diferida: no bloquea la operación diaria.
+
+### P2-10 — Índice de `kvasAsignados` no cubre el orden del listado 📌
+`KvasService.porParque` filtra por `idParque` y ordena por `fc DESC`; el índice existente es
+`(idParque, nivel)`. Con el volumen esperado (cientos de filas por parque) el sort en memoria es
+irrelevante. **Fix si crece:** `CREATE INDEX ix_kvasasignados_parque_fc ON "kvasAsignados"
+("idParque", fc DESC)`. Severidad BAJA.
 
 ---
 

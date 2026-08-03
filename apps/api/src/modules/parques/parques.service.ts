@@ -26,18 +26,26 @@ export interface ParqueListado {
   idParque: string;
   nomParque: string | null;
   direccion: string | null;
-  kvasAlta: number;
-  kvasMedia: number;
+  /** Capacidad en MEDIA tensión (antes `kvasAlta`). */
+  kvasMt: number;
+  /** Capacidad en BAJA tensión (antes `kvasMedia`). */
+  kvasBt: number;
   naves: number; // conteo REAL de naves activas del parque
 }
 
+/**
+ * Capacidad eléctrica de un parque. `Mt` = media tensión, `Bt` = baja tensión.
+ * Los *Disponibles* pueden ser NEGATIVOS: un sobregiro es real (el control
+ * operativo ya trae -283 en Spartek) y ocultarlo detrás de un 0 haría creer
+ * que el parque quedó justo.
+ */
 export interface ResumenKvas {
-  kvasAlta: number;
-  kvasMedia: number;
-  kvasAltaDisponibles: number;
-  kvasMediaDisponibles: number;
-  kvasAltaUtilizados: number;
-  kvasMediaUtilizados: number;
+  kvasMt: number;
+  kvasBt: number;
+  kvasMtDisponibles: number;
+  kvasBtDisponibles: number;
+  kvasMtUtilizados: number;
+  kvasBtUtilizados: number;
 }
 
 /**
@@ -101,7 +109,7 @@ export class ParquesService {
   async listarParques(): Promise<ParqueListado[]> {
     const { data: parques, error } = await this.supabase.admin
       .from('parques')
-      .select('idParque, nomParque, direccion, kvasAlta, kvasMedia')
+      .select('idParque, nomParque, direccion, kvasMt, kvasBt')
       .eq('status', true)
       .eq('esTicket', false)
       .order('nomParque', { ascending: true });
@@ -125,8 +133,8 @@ export class ParquesService {
       idParque: p.idParque,
       nomParque: p.nomParque,
       direccion: p.direccion,
-      kvasAlta: p.kvasAlta,
-      kvasMedia: p.kvasMedia,
+      kvasMt: p.kvasMt,
+      kvasBt: p.kvasBt,
       naves: conteo.get(p.idParque) ?? 0,
     }));
   }
@@ -136,19 +144,19 @@ export class ParquesService {
     const { data, error } = await this.supabase.admin
       .from('parques')
       .select(
-        'kvasAlta, kvasMedia, kvasAltaDisponibles, kvasMediaDisponibles, kvasAltaUtilizados, kvasMediaUtilizados',
+        'kvasMt, kvasBt, kvasMtDisponibles, kvasBtDisponibles, kvasMtUtilizados, kvasBtUtilizados',
       )
       .eq('idParque', idParque)
       .maybeSingle();
     if (error) throw new InternalServerErrorException(error.message);
     if (!data) throw new NotFoundException('Parque no encontrado.');
     return {
-      kvasAlta: data.kvasAlta,
-      kvasMedia: data.kvasMedia,
-      kvasAltaDisponibles: data.kvasAltaDisponibles,
-      kvasMediaDisponibles: data.kvasMediaDisponibles,
-      kvasAltaUtilizados: data.kvasAltaUtilizados ?? 0,
-      kvasMediaUtilizados: data.kvasMediaUtilizados ?? 0,
+      kvasMt: data.kvasMt,
+      kvasBt: data.kvasBt,
+      kvasMtDisponibles: data.kvasMtDisponibles,
+      kvasBtDisponibles: data.kvasBtDisponibles,
+      kvasMtUtilizados: data.kvasMtUtilizados ?? 0,
+      kvasBtUtilizados: data.kvasBtUtilizados ?? 0,
     };
   }
 
@@ -470,9 +478,9 @@ export class ParquesService {
       idUser: uid,
       nomParque: dto.nomParque,
       direccion: dto.direccion,
-      naves: dto.naves, // cantidad REAL (corrige el bug de v1 que guardaba KVA's Alta)
-      kvasAlta: dto.kvasAlta,
-      kvasMedia: dto.kvasMedia,
+      naves: dto.naves, // cantidad REAL (corrige el bug de v1 que guardaba KVA's)
+      kvasMt: dto.kvasMt,
+      kvasBt: dto.kvasBt,
     };
     const { error: errParque } = await db.from('parques').insert(parque);
     if (errParque) {
@@ -504,8 +512,8 @@ export class ParquesService {
     const cambios: TablesUpdate<'parques'> = {
       idUser: uid,
       direccion: dto.direccion,
-      kvasAlta: dto.kvasAlta,
-      kvasMedia: dto.kvasMedia,
+      kvasMt: dto.kvasMt,
+      kvasBt: dto.kvasBt,
     };
     const { error } = await this.supabase
       .comoActor(uid)
