@@ -57,6 +57,10 @@ const mesValor = (f: PivoteFila, m: string) => Number((f as unknown as Record<st
 
 type CampoTexto = 'tipo' | 'concepto' | 'desc';
 
+/** null = orden del catálogo (ordenTipo/ordenConcepto del backend). */
+type DirOrden = 'asc' | 'desc' | null;
+const ciclaOrden = (d: DirOrden): DirOrden => (d === null ? 'asc' : d === 'asc' ? 'desc' : null);
+
 /* ────────────────────────── página ────────────────────────── */
 
 /**
@@ -143,7 +147,11 @@ export function ContabilidadPage() {
     });
   }, [detalle, numFilter, textFilters]);
 
-  /* Agrupado por tipo (en orden de aparición), numerado. */
+  /* ── orden alfabético opcional (Tipo reordena grupos; Concepto, dentro de cada grupo) ── */
+  const [ordenTipo, setOrdenTipo] = useState<DirOrden>(null);
+  const [ordenConcepto, setOrdenConcepto] = useState<DirOrden>(null);
+
+  /* Agrupado por tipo (en orden de aparición = catálogo), numerado. */
   const grupos = useMemo(() => {
     const orden: string[] = [];
     const map = new Map<string, PivoteFila[]>();
@@ -151,8 +159,19 @@ export function ContabilidadPage() {
       if (!map.has(f.tipo)) { map.set(f.tipo, []); orden.push(f.tipo); }
       map.get(f.tipo)!.push(f);
     });
-    return orden.map((t) => ({ tipo: t, filas: map.get(t)! }));
-  }, [filtrado]);
+    if (ordenTipo) {
+      orden.sort((a, b) => (ordenTipo === 'asc' ? 1 : -1) * a.localeCompare(b, 'es'));
+    }
+    return orden.map((t) => {
+      let filas = map.get(t)!;
+      if (ordenConcepto) {
+        filas = [...filas].sort(
+          (a, b) => (ordenConcepto === 'asc' ? 1 : -1) * a.concepto.localeCompare(b.concepto, 'es'),
+        );
+      }
+      return { tipo: t, filas };
+    });
+  }, [filtrado, ordenTipo, ordenConcepto]);
 
   /* ── edición inline ── */
   const [edit, setEdit] = useState<{ key: string; mes: string; valor: string } | null>(null);
@@ -247,9 +266,11 @@ export function ContabilidadPage() {
               <tr>
                 <th className="c0" />
                 <ThTexto label="Tipo" campo="tipo" filas={detalle} get={(f) => f.tipo}
-                  filtros={textFilters} setFiltros={setTextFilters} />
+                  filtros={textFilters} setFiltros={setTextFilters}
+                  orden={ordenTipo} onOrden={() => setOrdenTipo(ciclaOrden)} />
                 <ThTexto label="Concepto" campo="concepto" filas={detalle} get={(f) => f.concepto}
-                  filtros={textFilters} setFiltros={setTextFilters} />
+                  filtros={textFilters} setFiltros={setTextFilters}
+                  orden={ordenConcepto} onOrden={() => setOrdenConcepto(ciclaOrden)} />
                 <ThTexto label="Descripción" campo="desc" filas={detalle} get={(f) => f.descripcion || ''}
                   filtros={textFilters} setFiltros={setTextFilters} colClass="c3" />
                 {MESES.map((m) => (
@@ -405,13 +426,16 @@ function FilterPopover({ children }: { children: ReactNode }) {
 }
 
 function ThTexto({
-  label, campo, filas, get, filtros, setFiltros, colClass,
+  label, campo, filas, get, filtros, setFiltros, colClass, orden, onOrden,
 }: {
   label: string; campo: CampoTexto; filas: PivoteFila[];
   get: (f: PivoteFila) => string;
   filtros: Partial<Record<CampoTexto, Set<string>>>;
   setFiltros: Dispatch<SetStateAction<Partial<Record<CampoTexto, Set<string>>>>>;
   colClass?: string;
+  /** Orden alfabético de la columna (ciclo catálogo → A-Z → Z-A); opcional. */
+  orden?: DirOrden;
+  onOrden?: () => void;
 }) {
   const [abierto, setAbierto] = useState(false);
   const valores = useMemo(
@@ -427,6 +451,19 @@ function ThTexto({
     <th className={cls} style={{ position: 'sticky', zIndex: 4 }}>
       <div className="th-wrap left" style={{ position: 'relative' }}>
         {label}
+        {onOrden && (
+          <button
+            className={`filter-btn${orden ? ' active' : ''}`}
+            title={
+              orden === 'asc' ? 'Ordenado A→Z — clic para Z→A'
+                : orden === 'desc' ? 'Ordenado Z→A — clic para volver al orden del catálogo'
+                : 'Ordenar alfabéticamente'
+            }
+            onClick={onOrden}
+          >
+            {orden === 'asc' ? 'A▲' : orden === 'desc' ? 'Z▼' : 'A↕'}
+          </button>
+        )}
         <button className={`filter-btn${activos && activos.size ? ' active' : ''}`} onClick={() => setAbierto((v) => !v)}>▼</button>
         {abierto && (
           <FilterPopover>
