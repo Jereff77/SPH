@@ -5,6 +5,8 @@ import {
   type PropuestaTicket,
   type SesionSoporte,
 } from './soporte.api';
+import { capturarPantalla } from './screen-capture';
+import { ultimosErroresApi } from '@/lib/api';
 
 // La conversación en curso se recuerda entre recargas (el historial completo vive
 // server-side; aquí solo guardamos cuál es la sesión activa).
@@ -58,28 +60,88 @@ export function useSoporte() {
     recordarSesion(null);
   }, [recordarSesion]);
 
-  const enviar = useCallback(
-    async (texto: string, rutaActual?: string) => {
-      const t = texto.trim();
-      if (!t || ocupado) return;
-      setOcupado(true);
-      setPuedeEscalar(false);
-      setMensajes((prev) => [...prev, { tipo: 'user', texto: t, fc: new Date().toISOString() }]);
-      try {
-        const data = await soporteApi.enviar(t, sessionId ?? undefined, rutaActual);
+  /**
+   * Ejecuta un turno del chat. Si el modelo pide ver la pantalla (`pideCaptura`)
+   * y este turno lo permitía, captura y se REENVÍA solo con
+   * `permitirCaptura: false` (anti-bucle: una captura por cadena).
+   */
+  const ejecutarTurno = useCallback(
+    async (
+      textoInicial: string,
+      rutaActual: string | undefined,
+      capturaInicial: string | undefined,
+      permitirCapturaInicial: boolean,
+      sesionInicial: string | null,
+    ): Promise<void> => {
+      let texto = textoInicial;
+      let captura = capturaInicial;
+      let permitirCaptura = permitirCapturaInicial;
+      let sesion = sesionInicial;
+      for (;;) {
+        setMensajes((prev) => [
+          ...prev,
+          {
+            tipo: 'user',
+            texto: captura ? `📸 ${texto}` : texto,
+            fc: new Date().toISOString(),
+            imagen: captura,
+          },
+        ]);
+        const data = await soporteApi.enviar(texto, {
+          sessionId: sesion ?? undefined,
+          rutaActual,
+          captura,
+          permitirCaptura,
+          erroresRecientes: ultimosErroresApi(),
+        });
         setSessionId(data.sessionId);
         recordarSesion(data.sessionId);
         setModulosUlt(data.modulos ?? []);
         setPuedeEscalar(!!data.escalable);
-        setMensajes((prev) => [
-          ...prev,
-          {
-            tipo: 'ai',
-            texto: data.respuesta || 'Sin respuesta del servidor.',
-            fc: new Date().toISOString(),
-            escalable: !!data.escalable,
-          },
-        ]);
+        if (data.respuesta) {
+          setMensajes((prev) => [
+            ...prev,
+            {
+              tipo: 'ai',
+              texto: data.respuesta,
+              fc: new Date().toISOString(),
+              escalable: !!data.escalable,
+            },
+          ]);
+        }
+        if (!data.pideCaptura || !permitirCaptura) return;
+        // La respuesta ya incluye el aviso "Déjame ver tu pantalla… 👀" (backend).
+        try {
+          const shot = await capturarPantalla();
+          texto = 'Esta es mi pantalla ahora mismo.';
+          captura = shot.dataUrl;
+          permitirCaptura = false;
+          sesion = data.sessionId;
+        } catch {
+          setMensajes((prev) => [
+            ...prev,
+            {
+              tipo: 'ai',
+              texto:
+                'No pude capturar tu pantalla automáticamente. Prueba el botón 📷 para adjuntarla tú mismo.',
+              fc: new Date().toISOString(),
+            },
+          ]);
+          return;
+        }
+      }
+    },
+    [recordarSesion],
+  );
+
+  const enviar = useCallback(
+    async (texto: string, rutaActual?: string, captura?: string) => {
+      const t = texto.trim();
+      if ((!t && !captura) || ocupado) return;
+      setOcupado(true);
+      setPuedeEscalar(false);
+      try {
+        await ejecutarTurno(t || 'Esta es mi pantalla.', rutaActual, captura, !captura, sessionId);
       } catch (e) {
         console.error('Error en soporte:', e);
         setMensajes((prev) => [
@@ -94,7 +156,7 @@ export function useSoporte() {
         setOcupado(false);
       }
     },
-    [ocupado, sessionId, recordarSesion],
+    [ocupado, sessionId, ejecutarTurno],
   );
 
   // --- Conversaciones anteriores -------------------------------------------

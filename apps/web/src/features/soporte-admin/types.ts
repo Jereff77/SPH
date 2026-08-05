@@ -26,12 +26,14 @@ export interface MensajeAdmin {
   /** Razonamiento del agente: SQL generado y traza de herramientas (auditoría). */
   debugSql: string | null;
   debugMeta: { traza?: TrazaPaso[] } | null;
+  /** URL firmada temporal de la captura de pantalla adjunta (si el turno llevó). */
+  capturaUrl: string | null;
 }
 
 /** Un paso de la traza del agente: su razonamiento o una herramienta ejecutada. */
 export interface TrazaPaso {
   iter: number;
-  tipo?: 'pensamiento' | 'herramienta';
+  tipo?: 'pensamiento' | 'herramienta' | 'lectura_pantalla' | 'tope' | 'razonamiento_final';
   /** Razonamiento del modelo (cuando tipo = 'pensamiento'). */
   texto?: string;
   /** Herramienta ejecutada (cuando tipo = 'herramienta'). */
@@ -101,4 +103,13 @@ export interface TicketAdmin {
   fum: string | null;
   atendidoPor: string | null;
   atendidoPorNombre: string | null;
+}
+
+/** Configuración + capacidades del agente (GET /soporte/admin/agente). */
+export interface ConfigAgente {
+  modelo: string;
+  modeloDefault: string;
+  prompt: string;
+  herramientas: { nombre: string; descripcion: string }[];
+  capacidades: { nombre: string; descripcion: string }[];
 }

@@ -40,6 +40,12 @@ palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parq
   dueño. Una nave vendida tiene una propiedad.
 - **Parque** y **Nave:** ver `modulos/parques.md`. Una nave es la unidad rentable/vendible dentro de un
   parque. Su etiqueta visible (`numNaveNAME`) es personalizable (p. ej. "GYM", "Coworking").
+  ⚠️⚠️ **Gotcha crítico — `numNave` ≠ `numNaveNAME`:** `numNave` es un **consecutivo interno** del
+  parque; `numNaveNAME` (texto) es el **número oficial que ve el usuario** en pantalla y en contratos.
+  En varios parques difieren (verificado en prod: la nave visible "112" de **Spartek II** es
+  `numNave=51`; la de **Acupark III** es `numNave=36`). Cuando un usuario menciona "la nave N",
+  buscarla SIEMPRE por `numNaveNAME = 'N'` + parque, NUNCA por `numNave` — se diagnosticaría sobre
+  la nave equivocada (incidente real del Agente de Soporte, 2026-08-05).
 
 ## Conceptos financieros / operativos
 

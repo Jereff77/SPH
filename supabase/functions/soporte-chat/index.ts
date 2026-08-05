@@ -106,6 +106,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
         // ⚠️ Sin `temperature` (ni otros sampling params): los modelos nuevos
         // (Sonnet 5 / familia Opus 4.7+) los RECHAZAN con 400 → era la causa del 502.
         // El modelo usa su default, suficiente para soporte. Alineado con `ia-chat`.
+        // `max_tokens` acotado: sin él, OpenRouter RESERVA el máximo del modelo
+        // (65k en Sonnet 5) contra el saldo y devuelve 402 con crédito bajo,
+        // aunque la respuesta real cueste centavos. 4096 sobra para soporte.
+        max_tokens: 4096,
         ...(tools ? { tools, tool_choice: 'auto' } : {}),
       }),
     });

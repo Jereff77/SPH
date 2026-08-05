@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useSoporte } from './useSoporte';
+import { capturarPantalla, type CapturaSoporte } from './screen-capture';
 import type { MensajeSoporte, SesionSoporte } from './soporte.api';
 
 const hora = (iso: string) =>
@@ -39,11 +40,48 @@ const MD = {
 };
 
 function Burbuja({ m }: { m: MensajeSoporte }) {
+  const [ampliada, setAmpliada] = useState(false);
   if (m.tipo === 'user') {
     return (
       <div className="flex flex-row-reverse gap-2 self-end">
         <div className="max-w-[85%] rounded-b-xl rounded-tl-xl bg-blue-600 px-3 py-2 text-sm leading-relaxed text-white">
           {m.texto}
+          {m.imagen && (
+            <>
+              <button
+                type="button"
+                onClick={() => setAmpliada(true)}
+                title="Ver captura completa"
+                className="mt-2 block overflow-hidden rounded-lg border border-white/30"
+              >
+                <img
+                  src={m.imagen}
+                  alt="Captura de pantalla enviada"
+                  className="h-20 w-full object-cover object-left-top"
+                />
+              </button>
+              {ampliada && (
+                <div
+                  className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4"
+                  onClick={() => setAmpliada(false)}
+                >
+                  <img
+                    src={m.imagen}
+                    alt="Captura de pantalla enviada"
+                    className="max-h-full max-w-full rounded-lg shadow-2xl"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAmpliada(false)}
+                    aria-label="Cerrar"
+                    className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-sm font-medium text-slate-800 hover:bg-white"
+                  >
+                    ✕ Cerrar
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     );
@@ -120,11 +158,21 @@ function FormEscalar({
 }
 
 /**
- * Widget flotante del Agente de IA de Soporte. Disponible en TODA la app
- * (montado en el AppShell). Conoce la pantalla actual (`useLocation`) para dar
- * ayuda contextual y puede escalar a un ticket cuando no resuelve.
+ * Agente de IA de Soporte: burbuja 💬 (disparador) + panel lateral FIJO a la
+ * derecha que EMPUJA el contenido (el AppShell aplica `md:mr-96` cuando está
+ * abierto y colapsa el sidebar; el estado abierto/cerrado vive allá). Conoce la
+ * pantalla actual (`useLocation`) para dar ayuda contextual y puede escalar a
+ * un ticket cuando no resuelve.
  */
-export function SoporteWidget() {
+export function SoporteWidget({
+  abierto,
+  onAbrir,
+  onCerrar,
+}: {
+  abierto: boolean;
+  onAbrir: () => void;
+  onCerrar: () => void;
+}) {
   const { pathname } = useLocation();
   const {
     mensajes,
@@ -140,8 +188,10 @@ export function SoporteWidget() {
     renombrarSesion,
     eliminarSesion,
   } = useSoporte();
-  const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState('');
+  // Captura de pantalla adjunta manualmente (botón 📷), pendiente de enviar.
+  const [captura, setCaptura] = useState<CapturaSoporte | null>(null);
+  const [capturando, setCapturando] = useState(false);
   const [escalando, setEscalando] = useState(false);
   const [proponiendo, setProponiendo] = useState(false);
   const [propuesta, setPropuesta] = useState<{ asunto: string; resumen: string } | null>(null);
@@ -190,9 +240,23 @@ export function SoporteWidget() {
   };
 
   const mandar = () => {
-    if (texto.trim() && !ocupado) {
-      enviar(texto.trim(), pathname);
+    if ((texto.trim() || captura) && !ocupado) {
+      enviar(texto.trim(), pathname, captura?.dataUrl);
       setTexto('');
+      setCaptura(null);
+    }
+  };
+
+  /** Captura la pantalla (botón 📷) y la deja adjunta para enviarla con el mensaje. */
+  const adjuntarCaptura = async () => {
+    if (ocupado || capturando || captura) return;
+    setCapturando(true);
+    try {
+      setCaptura(await capturarPantalla());
+    } catch (e) {
+      console.error('No se pudo capturar la pantalla:', e);
+    } finally {
+      setCapturando(false);
     }
   };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -221,20 +285,27 @@ export function SoporteWidget() {
 
   return (
     <>
-      {/* Botón flotante */}
+      {/* Botón flotante (disparador del panel) */}
       {!abierto && (
         <button
-          onClick={() => setAbierto(true)}
+          onClick={onAbrir}
           aria-label="Abrir asistente de ayuda"
-          className="fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[#1f2a4d] text-2xl text-white shadow-lg transition-transform hover:scale-105"
+          className="fixed bottom-5 right-5 z-[70] flex h-14 w-14 items-center justify-center rounded-full bg-[#1f2a4d] text-2xl text-white shadow-lg transition-transform hover:scale-105"
         >
           💬
         </button>
       )}
 
-      {/* Panel de chat */}
-      {abierto && (
-        <div className="fixed bottom-5 right-5 z-50 flex h-[min(70vh,560px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      {/* Panel lateral fijo derecho: empuja el contenido (no lo tapa). Siempre
+          montado para animar la entrada/salida con translate. z-[70]: por ENCIMA
+          de los modales (z-50/z-[60]) para poder escribirle al agente con un
+          modal abierto (p. ej. adjuntar la captura de una ventana de config). */}
+      <div
+        className={`fixed inset-y-0 right-0 z-[70] flex w-full flex-col overflow-hidden border-l border-slate-200 bg-white shadow-xl transition-transform duration-200 md:w-96 ${
+          abierto ? 'translate-x-0' : 'pointer-events-none translate-x-full'
+        }`}
+        aria-hidden={!abierto}
+      >
           {/* Encabezado */}
           <div className="flex items-center justify-between bg-[#1f2a4d] px-4 py-3 text-white">
             <div className="flex items-center gap-2">
@@ -265,7 +336,7 @@ export function SoporteWidget() {
                 ✚
               </button>
               <button
-                onClick={() => setAbierto(false)}
+                onClick={onCerrar}
                 title="Cerrar"
                 className="rounded p-1.5 text-white/80 hover:bg-white/10"
               >
@@ -390,6 +461,26 @@ export function SoporteWidget() {
           {/* Input (oculto en el historial) */}
           {!verHistorial && (
           <div className="border-t bg-white px-3 pb-3 pt-2">
+            {/* Captura adjunta pendiente de enviar */}
+            {captura && (
+              <div className="mb-2 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1.5">
+                <img
+                  src={captura.dataUrl}
+                  alt="Captura de tu pantalla"
+                  className="h-12 w-20 rounded border border-slate-200 object-cover object-left-top"
+                />
+                <span className="flex-1 text-xs text-slate-500">
+                  📸 Captura de tu pantalla adjunta
+                </span>
+                <button
+                  onClick={() => setCaptura(null)}
+                  title="Quitar captura"
+                  className="rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             <div className="flex items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-blue-400 focus-within:bg-white">
               <textarea
                 rows={1}
@@ -401,8 +492,16 @@ export function SoporteWidget() {
                 className="max-h-[100px] min-h-[20px] flex-1 resize-none border-none bg-transparent text-sm text-slate-800 placeholder-slate-400 outline-none disabled:opacity-50"
               />
               <button
+                onClick={() => void adjuntarCaptura()}
+                disabled={ocupado || capturando || !!captura}
+                title="Adjuntar captura de mi pantalla"
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-base text-[#1f2a4d] hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {capturando ? '⏳' : '📷'}
+              </button>
+              <button
                 onClick={mandar}
-                disabled={ocupado || !texto.trim()}
+                disabled={ocupado || (!texto.trim() && !captura)}
                 title="Enviar"
                 className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
@@ -415,7 +514,6 @@ export function SoporteWidget() {
           </div>
           )}
         </div>
-      )}
     </>
   );
 }

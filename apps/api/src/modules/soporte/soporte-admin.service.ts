@@ -5,7 +5,14 @@ import {
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
-import type { AtenderTicketDto } from './soporte.schemas.js';
+import { ConsultasService } from './consultas.service.js';
+import {
+  DEFAULT_MODELO,
+  DEFAULT_PROMPT,
+  SoporteService,
+  TOOL_VER_PANTALLA,
+} from './soporte.service.js';
+import type { AtenderTicketDto, ConfigAgenteDto } from './soporte.schemas.js';
 
 /** Datos de una sesión de chat para el listado de auditoría. */
 export interface SesionAdmin {
@@ -35,6 +42,8 @@ export interface MensajeAdmin {
   /** Razonamiento del agente (auditoría): SQL generado y traza de herramientas. */
   debugSql: string | null;
   debugMeta: unknown;
+  /** URL firmada temporal de la captura de pantalla adjunta (si el turno llevó). */
+  capturaUrl: string | null;
 }
 
 /** Conversación completa (cabecera + mensajes) para revisión. */
@@ -110,7 +119,11 @@ export interface RecordatorioEnviadoDetalle extends RecordatorioEnviado {
  */
 @Injectable()
 export class SoporteAdminService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly consultas: ConsultasService,
+    private readonly soporte: SoporteService,
+  ) {}
 
   private get db(): SupabaseClient {
     return this.supabase.admin as unknown as SupabaseClient;
@@ -218,27 +231,29 @@ export class SoporteAdminService {
     const { data, error } = await this.db
       .from('v2_soporte_mensajes')
       .select(
-        'uuid, pregunta, respuesta, escalable, modulos_detectados, ruta_origen, tokens_entrada, tokens_salida, fc, debug_sql, debug_meta',
+        'uuid, pregunta, respuesta, escalable, modulos_detectados, ruta_origen, tokens_entrada, tokens_salida, fc, debug_sql, debug_meta, capturaPath',
       )
       .eq('session_id', sessionId)
       .order('fc', { ascending: true });
     if (error) throw new InternalServerErrorException(error.message);
 
-    const mensajes: MensajeAdmin[] = (
-      (data ?? []) as {
-        uuid: string;
-        pregunta: string;
-        respuesta: string;
-        escalable: boolean;
-        modulos_detectados: string[] | null;
-        ruta_origen: string | null;
-        tokens_entrada: number | null;
-        tokens_salida: number | null;
-        fc: string;
-        debug_sql: string | null;
-        debug_meta: unknown;
-      }[]
-    ).map((m) => ({
+    const filas = (data ?? []) as {
+      uuid: string;
+      pregunta: string;
+      respuesta: string;
+      escalable: boolean;
+      modulos_detectados: string[] | null;
+      ruta_origen: string | null;
+      tokens_entrada: number | null;
+      tokens_salida: number | null;
+      fc: string;
+      debug_sql: string | null;
+      debug_meta: unknown;
+      capturaPath: string | null;
+    }[];
+    const firmadas = await this.soporte.firmarCapturas(filas.map((f) => f.capturaPath));
+
+    const mensajes: MensajeAdmin[] = filas.map((m) => ({
       uuid: m.uuid,
       pregunta: m.pregunta,
       respuesta: m.respuesta,
@@ -250,6 +265,7 @@ export class SoporteAdminService {
       fc: m.fc,
       debugSql: m.debug_sql ?? null,
       debugMeta: m.debug_meta ?? null,
+      capturaUrl: (m.capturaPath && firmadas.get(m.capturaPath)) || null,
     }));
 
     return {
@@ -458,4 +474,106 @@ export class SoporteAdminService {
     }
     return mapa;
   }
+
+  // --- Configuración del agente (pestaña "Agente de Soporte") ----------------
+
+  /**
+   * Configuración y capacidades del agente para la pestaña de administración.
+   * Las herramientas se derivan del CÓDIGO real (specs que recibe el modelo),
+   * no de una lista redactada aparte — así la pantalla nunca miente.
+   */
+  async configAgente(): Promise<ConfigAgente> {
+    const { data } = await this.db
+      .from('SPHConfiguraciones')
+      .select('parametro, valor')
+      .in('parametro', ['SOPORTE_IA_MODELO', 'SOPORTE_IA_PROMPT'])
+      .eq('status', true);
+    const fila = (p: string) => data?.find((d) => d.parametro === p)?.valor ?? null;
+
+    // Specs reales con perfil de soporte (universo completo de módulos de datos).
+    const specs = [
+      ...this.consultas.toolSpecs({ esSoporte: true, claves: [] }),
+      TOOL_VER_PANTALLA,
+    ];
+
+    return {
+      modelo: fila('SOPORTE_IA_MODELO') ?? DEFAULT_MODELO,
+      modeloDefault: DEFAULT_MODELO,
+      prompt: fila('SOPORTE_IA_PROMPT') ?? DEFAULT_PROMPT,
+      herramientas: specs.map((s) => ({
+        nombre: s.function.name,
+        descripcion: s.function.description,
+      })),
+      capacidades: [
+        {
+          nombre: 'Perfil del usuario en tiempo real',
+          descripcion:
+            'Antes de responder, lee nombre, correo, rol (soporte o estándar) y la lista de permisos del usuario que pregunta, con el rol de solo lectura v2_soporte_ro, y los inyecta al prompt.',
+        },
+        {
+          nombre: 'Base de conocimiento (router por palabras clave)',
+          descripcion:
+            'Selecciona los documentos de base-conocimiento/modulos/*.md que mejor puntúan para la pregunta y la pantalla actual (1-3 por turno). El agente solo sabe lo que está escrito en la KB.',
+        },
+        {
+          nombre: 'Directorio de contactos y glosario',
+          descripcion:
+            'Siempre en contexto: a quién canalizar cada permiso/área y los términos transversales del dominio.',
+        },
+        {
+          nombre: 'Errores recientes del navegador',
+          descripcion:
+            'Los últimos 3 errores de respuesta del API que el usuario vio en pantalla viajan como contexto del turno (caso «me sale un error» sin transcribir nada).',
+        },
+        {
+          nombre: 'Visión de pantalla',
+          descripcion:
+            'Puede pedir una captura (request_screenshot) o recibirla del botón 📷. La imagen va inline al modelo y NO se guarda; en la conversación solo queda el marcador 📸.',
+        },
+        {
+          nombre: 'Escalación a ticket',
+          descripcion:
+            'Cuando no puede resolver, redacta asunto y resumen del ticket; se crea únicamente si el usuario lo confirma (escritura determinista del backend, auditada).',
+        },
+        {
+          nombre: 'Solo lectura garantizada',
+          descripcion:
+            'El modelo no tiene ninguna herramienta de escritura: las consultas corren con el rol v2_agente_ro (solo SELECT, acotado a los módulos cuya clave tiene el usuario).',
+        },
+      ],
+    };
+  }
+
+  /** Actualiza modelo y/o prompt del agente (escritura auditada con comoActor). */
+  async actualizarConfigAgente(uid: string, dto: ConfigAgenteDto): Promise<{ ok: true }> {
+    const cambios: [string, string][] = [];
+    if (dto.modelo !== undefined) cambios.push(['SOPORTE_IA_MODELO', dto.modelo]);
+    if (dto.prompt !== undefined) cambios.push(['SOPORTE_IA_PROMPT', dto.prompt]);
+
+    for (const [parametro, valor] of cambios) {
+      const { data, error } = await this.dbActor(uid)
+        .from('SPHConfiguraciones')
+        .update({ valor })
+        .eq('parametro', parametro)
+        .select('idConfig');
+      if (error) throw new InternalServerErrorException('No se pudo guardar la configuración.');
+      if (!data || data.length === 0) {
+        const { error: errIns } = await this.dbActor(uid)
+          .from('SPHConfiguraciones')
+          .insert({ parametro, valor, status: true });
+        if (errIns)
+          throw new InternalServerErrorException('No se pudo guardar la configuración.');
+      }
+    }
+    return { ok: true };
+  }
+}
+
+/** Configuración + capacidades del agente (respuesta de GET /soporte/admin/agente). */
+export interface ConfigAgente {
+  modelo: string;
+  modeloDefault: string;
+  prompt: string;
+  herramientas: { nombre: string; descripcion: string }[];
+  capacidades: { nombre: string; descripcion: string }[];
 }

@@ -11,7 +11,7 @@ import type {
   TicketAdmin,
 } from './types';
 
-type Tab = 'conversaciones' | 'tickets' | 'recordatorios';
+type Tab = 'conversaciones' | 'tickets' | 'recordatorios' | 'agente';
 
 const moneda = (n: number, divisa = 'MXN') =>
   (n ?? 0).toLocaleString('es-MX', {
@@ -53,15 +53,153 @@ export function SoporteAdminPage() {
         <BotonTab activo={tab === 'recordatorios'} onClick={() => setTab('recordatorios')}>
           Recordatorios enviados
         </BotonTab>
+        <BotonTab activo={tab === 'agente'} onClick={() => setTab('agente')}>
+          Agente de Soporte
+        </BotonTab>
       </div>
 
       {tab === 'conversaciones' ? (
         <TabConversaciones />
       ) : tab === 'tickets' ? (
         <TabTickets />
-      ) : (
+      ) : tab === 'recordatorios' ? (
         <TabRecordatorios />
+      ) : (
+        <TabAgente />
       )}
+    </div>
+  );
+}
+
+// ===========================================================================
+// Pestaña 4: Agente de Soporte (modelo, prompt y capacidades)
+// ===========================================================================
+
+function TabAgente() {
+  const qc = useQueryClient();
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['soporte-admin', 'agente'],
+    queryFn: () => soporteAdminApi.agente(),
+  });
+
+  const [modelo, setModelo] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  const guardar = useMutation({
+    mutationFn: (dto: { modelo?: string; prompt?: string }) =>
+      soporteAdminApi.actualizarAgente(dto),
+    onSuccess: () => {
+      setAviso('✅ Guardado. Aplica de inmediato (el backend lee la configuración en cada turno).');
+      void qc.invalidateQueries({ queryKey: ['soporte-admin', 'agente'] });
+    },
+    onError: (e) => setAviso(`❌ ${e instanceof Error ? e.message : 'No se pudo guardar.'}`),
+  });
+
+  if (isLoading) return <p className="text-sm text-gray-500">Cargando…</p>;
+  if (isError || !data)
+    return <p className="text-sm text-red-600">No se pudo cargar la configuración del agente.</p>;
+
+  const modeloActual = modelo ?? data.modelo;
+  const promptActual = prompt ?? data.prompt;
+  const hayCambios = modeloActual !== data.modelo || promptActual !== data.prompt;
+
+  return (
+    <div className="space-y-6">
+      {/* Modelo */}
+      <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-gray-900">Modelo de IA</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Slug de OpenRouter (autor/modelo). ⚠️ Debe soportar <strong>herramientas</strong> (consulta
+          de datos) y <strong>visión</strong> (captura de pantalla), o el agente pierde esas
+          capacidades. Se guarda en la base de datos y aplica sin redesplegar.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            value={modeloActual}
+            onChange={(e) => setModelo(e.target.value)}
+            spellCheck={false}
+            className="w-full max-w-md rounded-md border border-gray-300 px-3 py-1.5 font-mono text-sm outline-none focus:border-[#1f2a4d] focus:ring-1 focus:ring-[#1f2a4d]"
+          />
+          <span className="text-xs text-gray-400">default: {data.modeloDefault}</span>
+        </div>
+      </section>
+
+      {/* Prompt */}
+      <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-gray-900">Prompt base del agente</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Personalidad y reglas generales. Es la PRIMERA parte del prompt: el backend le añade en
+          cada turno el método de diagnóstico, el perfil y permisos del usuario, el directorio, el
+          glosario, los errores recientes del navegador y la documentación relevante de la KB.
+        </p>
+        <textarea
+          value={promptActual}
+          onChange={(e) => setPrompt(e.target.value)}
+          rows={7}
+          spellCheck={false}
+          className="mt-3 w-full rounded-md border border-gray-300 px-3 py-2 text-sm leading-relaxed outline-none focus:border-[#1f2a4d] focus:ring-1 focus:ring-[#1f2a4d]"
+        />
+      </section>
+
+      {/* Guardar */}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          disabled={!hayCambios || guardar.isPending}
+          onClick={() => {
+            setAviso(null);
+            guardar.mutate({
+              ...(modeloActual !== data.modelo ? { modelo: modeloActual.trim() } : {}),
+              ...(promptActual !== data.prompt ? { prompt: promptActual.trim() } : {}),
+            });
+            setModelo(null);
+            setPrompt(null);
+          }}
+          className="rounded-md bg-[#1f2a4d] px-4 py-2 text-sm font-medium text-white hover:bg-[#2a3763] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {guardar.isPending ? 'Guardando…' : 'Guardar cambios'}
+        </button>
+        {aviso && <span className="text-xs text-gray-600">{aviso}</span>}
+      </div>
+
+      {/* Herramientas */}
+      <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-gray-900">
+          Herramientas del modelo ({data.herramientas.length})
+        </h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Las funciones que el modelo puede invocar, tal como se le declaran en cada turno (derivadas
+          del código real, no de una lista aparte).
+        </p>
+        <ul className="mt-3 space-y-2">
+          {data.herramientas.map((h) => (
+            <li key={h.nombre} className="rounded-md border border-gray-100 bg-gray-50 p-3">
+              <code className="text-xs font-semibold text-[#1f2a4d]">{h.nombre}</code>
+              <p className="mt-1 text-xs leading-relaxed text-gray-600">{h.descripcion}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Capacidades */}
+      <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-gray-900">
+          Habilidades del agente ({data.capacidades.length})
+        </h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Lo que el sistema hace por el agente alrededor del modelo (contexto que se le inyecta y
+          acciones deterministas del backend).
+        </p>
+        <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+          {data.capacidades.map((c) => (
+            <li key={c.nombre} className="rounded-md border border-gray-100 bg-gray-50 p-3">
+              <p className="text-xs font-semibold text-gray-800">{c.nombre}</p>
+              <p className="mt-1 text-xs leading-relaxed text-gray-600">{c.descripcion}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }
@@ -314,19 +452,60 @@ function ModalConversacion({
                     )}
                   </div>
                 </div>
-                {/* Razonamiento del agente (auditoría): herramientas + SQL generado */}
+                {/* Captura de pantalla adjunta al turno (bucket privado, URL firmada) */}
+                {m.capturaUrl && (
+                  <a
+                    href={m.capturaUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Ver captura completa"
+                    className="mx-auto block w-[85%] overflow-hidden rounded-lg border border-gray-200"
+                  >
+                    <img
+                      src={m.capturaUrl}
+                      alt="Captura de pantalla del usuario"
+                      className="max-h-40 w-full object-cover object-left-top"
+                    />
+                  </a>
+                )}
+                {/* Razonamiento del agente (auditoría): pasos del método + herramientas + SQL */}
                 {(m.debugSql || (m.debugMeta?.traza && m.debugMeta.traza.length > 0)) && (
                   <details className="mx-auto w-[85%] rounded-lg border border-gray-200 bg-gray-50 text-[11px] text-gray-600">
                     <summary className="cursor-pointer px-2 py-1 font-medium text-gray-500">
-                      🔎 Razonamiento del agente (herramientas / SQL)
+                      🔎 Razonamiento del agente (pasos del método / herramientas / SQL)
                     </summary>
                     <div className="space-y-2 px-2 py-2">
                       {m.debugMeta?.traza && m.debugMeta.traza.length > 0 && (
                         <ol className="space-y-1">
                           {m.debugMeta.traza.map((p, i) =>
-                            p.tipo === 'pensamiento' ? (
+                            p.tipo === 'lectura_pantalla' ? (
+                              <li key={i} className="rounded bg-sky-50 p-1.5 text-sky-800">
+                                📸 <span className="font-semibold">Lectura de pantalla:</span>{' '}
+                                {p.texto}
+                              </li>
+                            ) : p.tipo === 'tope' ? (
+                              <li key={i} className="rounded bg-amber-50 p-1.5 text-amber-800">
+                                ⛔ Límite de consultas alcanzado — respuesta forzada con lo
+                                averiguado.
+                              </li>
+                            ) : p.tipo === 'razonamiento_final' ? (
+                              <li key={i} className="whitespace-pre-wrap rounded bg-indigo-50 p-1.5 text-indigo-800">
+                                🧭 <span className="font-semibold">Razonamiento final (no visible para el usuario):</span>{' '}
+                                {p.texto}
+                              </li>
+                            ) : p.tipo === 'pensamiento' ? (
                               <li key={i} className="italic text-indigo-700">
-                                💭 {p.texto}
+                                {/^paso\s*\d/i.test(p.texto ?? '') ? (
+                                  <>
+                                    🧭{' '}
+                                    <span className="font-semibold not-italic">
+                                      {(p.texto ?? '').split(':')[0]}:
+                                    </span>{' '}
+                                    {(p.texto ?? '').split(':').slice(1).join(':').trim()}
+                                  </>
+                                ) : (
+                                  <>💭 {p.texto}</>
+                                )}
                               </li>
                             ) : (
                               <li key={i} className="pl-2">

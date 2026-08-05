@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '@/features/auth/useAuth';
 import { nombreUsuario } from '@/features/auth/format';
@@ -21,6 +21,27 @@ export function AppShell() {
     () => localStorage.getItem(STORAGE.sidebarColapsado) === '1',
   );
   const [drawerAbierto, setDrawerAbierto] = useState(false);
+
+  // Panel del Agente de Soporte (columna fija a la derecha que EMPUJA el contenido).
+  // Al abrirlo se colapsa el sidebar recordando su estado previo (solo en memoria,
+  // sin tocar la preferencia guardada); al cerrarlo se restaura.
+  const [soporteAbierto, setSoporteAbierto] = useState(false);
+  const colapsadoPrevio = useRef<boolean | null>(null);
+  const abrirSoporte = () => {
+    if (!esMovil && colapsadoPrevio.current === null) {
+      colapsadoPrevio.current = colapsado;
+      setColapsado(true);
+    }
+    setSoporteAbierto(true);
+  };
+  const cerrarSoporte = () => {
+    setSoporteAbierto(false);
+    if (colapsadoPrevio.current !== null) {
+      setColapsado(colapsadoPrevio.current);
+      colapsadoPrevio.current = null;
+    }
+  };
+  const panelSoporte = soporteAbierto && !verComoActivo;
 
   // Al pasar a escritorio, cerrar el drawer móvil.
   useEffect(() => {
@@ -66,7 +87,7 @@ export function AppShell() {
       <div
         className={`flex min-h-screen flex-col transition-all duration-200 ${
           colapsado ? 'md:ml-[72px]' : 'md:ml-64'
-        }`}
+        } ${panelSoporte ? 'md:mr-96' : ''}`}
       >
         {/* Header */}
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-white px-3 md:px-4">
@@ -120,9 +141,12 @@ export function AppShell() {
         </main>
       </div>
 
-      {/* Agente de IA de Soporte: widget flotante disponible en toda la app.
-          Se oculta en modo "Ver como" (solo lectura de soporte). */}
-      {!verComoActivo && <SoporteWidget />}
+      {/* Agente de IA de Soporte: burbuja + panel lateral fijo derecho (empuja el
+          contenido, no lo tapa). Vive FUERA de <main>: la captura de pantalla del
+          agente nunca se fotografía a sí misma. Se oculta en modo "Ver como". */}
+      {!verComoActivo && (
+        <SoporteWidget abierto={panelSoporte} onAbrir={abrirSoporte} onCerrar={cerrarSoporte} />
+      )}
     </div>
   );
 }

@@ -50,6 +50,34 @@ export function setOnSessionExpired(cb: (() => void) | null): void {
   onSessionExpired = cb;
 }
 
+/** Error reciente de API (contexto para el Agente de Soporte: "me sale un error"). */
+export interface ErrorApiReciente {
+  metodo: string;
+  ruta: string;
+  status: number;
+  mensaje: string;
+  fc: string;
+}
+
+const ERRORES_MAX = 3;
+const erroresRecientes: ErrorApiReciente[] = [];
+
+function registrarErrorApi(metodo: string, ruta: string, status: number, mensaje: string): void {
+  // Los errores del propio agente no aportan (y meterían ruido en su contexto).
+  if (ruta.startsWith('/soporte')) return;
+  erroresRecientes.push({ metodo, ruta, status, mensaje, fc: new Date().toISOString() });
+  if (erroresRecientes.length > ERRORES_MAX) erroresRecientes.shift();
+}
+
+/**
+ * Últimos errores de respuesta del API vistos en este navegador (máx. 3). El
+ * Agente de Soporte los adjunta como contexto del turno: son mensajes que el
+ * usuario ya vio en pantalla (los produce nuestro propio backend, ya saneados).
+ */
+export function ultimosErroresApi(): ErrorApiReciente[] {
+  return [...erroresRecientes];
+}
+
 export class ApiRequestError extends Error {
   constructor(
     public readonly status: number,
@@ -141,11 +169,9 @@ async function request<T>(
     } catch {
       /* respuesta sin cuerpo JSON */
     }
-    throw new ApiRequestError(
-      res.status,
-      parsed?.message ?? `Error ${res.status}`,
-      parsed,
-    );
+    const mensaje = parsed?.message ?? `Error ${res.status}`;
+    registrarErrorApi(method, path, res.status, mensaje);
+    throw new ApiRequestError(res.status, mensaje, parsed);
   }
 
   if (res.status === 204) return undefined as T;

@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import type {
+  ConfigAgente,
   ConversacionAdmin,
   EstadoTicket,
   RecordatorioEnviado,
@@ -22,6 +23,11 @@ export const soporteAdminApi = {
     ),
   atender: (ticketId: string, estado: EstadoTicket) =>
     api.patch<{ ok: true }>(`/soporte/admin/tickets/${ticketId}`, { estado }),
+
+  // --- Agente de Soporte (configuración) ---
+  agente: () => api.get<ConfigAgente>('/soporte/admin/agente'),
+  actualizarAgente: (dto: { modelo?: string; prompt?: string }) =>
+    api.patch<{ ok: true }>('/soporte/admin/agente', dto),
 
   // --- Recordatorios de aprobación CxP (correos enviados) ---
   recordatorios: (q?: string) =>

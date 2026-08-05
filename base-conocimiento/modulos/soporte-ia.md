@@ -1,15 +1,15 @@
 ---
 modulo: Asistente / Agente de IA de Soporte
 estado: desarrollado
-version_doc: 1.1
-ultima_actualizacion: 2026-07-03
-submodulos: [Widget de chat, Diagnóstico de permisos, Escalación a ticket, Auditoría de conversaciones (solo soporte), Bandeja de tickets (solo soporte)]
-rutas: [(transversal — widget flotante en toda la app), /configuraciones/soporte]
+version_doc: 1.2
+ultima_actualizacion: 2026-08-05
+submodulos: [Panel lateral de chat, Visión de pantalla (capturas), Diagnóstico de permisos, Escalación a ticket, Auditoría de conversaciones (solo soporte), Bandeja de tickets (solo soporte), Pestaña Agente de Soporte (config del modelo, solo soporte)]
+rutas: [(transversal — burbuja + panel lateral en toda la app), /configuraciones/soporte]
 claves_permiso: []
 acceso_auditoria: solo soporte (catUsers.isSupport = true)
 tablas: [v2_soporte_sesiones, v2_soporte_mensajes, v2_soporte_tickets, SPHConfiguraciones, segModulosUsuarios, segModulos, catUsers]
-palabras_clave: [asistente, ayuda, soporte, agente, IA, inteligencia artificial, chat, chatbot, cómo hago, cómo se hace, no me deja, no puedo, no aparece, no veo, error, ticket, escalar, OpenRouter, widget, burbuja, dudas, tutorial, guía, "widget de chat", "burbuja de ayuda", "crear ticket", "escalar a soporte", "quién revisó mi ticket", "auditoría de conversaciones", "text-to-SQL", "consultar_datos", "razonamiento del agente"]
-relacionado_con: [configuraciones, correo, auditoria-y-ver-como]
+palabras_clave: [asistente, ayuda, soporte, agente, IA, inteligencia artificial, chat, chatbot, cómo hago, cómo se hace, no me deja, no puedo, no aparece, no veo, error, ticket, escalar, OpenRouter, widget, burbuja, panel lateral, dudas, tutorial, guía, "widget de chat", "burbuja de ayuda", "crear ticket", "escalar a soporte", "quién revisó mi ticket", "auditoría de conversaciones", "text-to-SQL", "consultar_datos", "razonamiento del agente", "captura de pantalla", "ver mi pantalla", "request_screenshot", "adjuntar pantalla", "cambiar el modelo del agente", "prompt del agente"]
+relacionado_con: [configuraciones, correo, auditoria-y-ver-como, parques]
 ---
 
 # Módulo: Asistente / Agente de IA de Soporte
@@ -20,8 +20,13 @@ relacionado_con: [configuraciones, correo, auditoria-y-ver-como]
   ticket** de soporte. **No** consulta datos del negocio (eso lo hace **Montse AI** en
   `/ventas/reportes`); este agente explica **el sistema**.
 - **Acceso:** **todos los usuarios autenticados** (sin clave de permiso, como Novedades). Se
-  presenta como un **widget flotante** (burbuja 💬, esquina inferior derecha) disponible en
-  **todas** las pantallas. Se oculta en modo "Ver como".
+  presenta como una **burbuja 💬** (esquina inferior derecha) que abre un **PANEL LATERAL FIJO a la
+  derecha** (desde 2026-08-05, v2.62.0; patrón portado de Montse/Kaizen2): el panel **empuja** el
+  contenido (`md:mr-96` en el AppShell) en vez de taparlo, **colapsa el sidebar** de navegación al
+  abrirse (recordando su estado) y lo restaura al cerrar. El panel vive en `z-[70]`, **por encima de
+  los modales** (`z-50`/`z-[60]`) — se le puede escribir con una ventana de configuración abierta.
+  El panel está **fuera de `<main>`**, por lo que la captura de pantalla (ver §3b) nunca se
+  fotografía a sí misma. Se oculta en modo "Ver como".
 - **Proveedor de IA:** **OpenRouter**, vía la edge function `soporte-chat` (el secreto
   `OPENROUTER_API_KEY` vive solo en la edge).
 
@@ -66,6 +71,35 @@ relacionado_con: [configuraciones, correo, auditoria-y-ver-como]
   lo confirma**. La única herramienta de datos que el modelo puede invocar (§10) es de **solo
   lectura** y se ejecuta por un **switch cerrado** (un nombre inventado por el modelo no ejecuta
   nada).
+
+## 3b. Visión de pantalla (v2.62.0 — el agente VE lo que el usuario tiene enfrente)
+- **Dos vías:** el usuario adjunta su pantalla con el botón **📷** del composer, o **el modelo la
+  pide solo** con la herramienta `request_screenshot` (el backend responde `pideCaptura: true`, el
+  widget captura con `html-to-image` sobre `<main>` —excluye passwords y nodos
+  `data-soporte-exclude-capture="true"`—, reduce a ≤1024px JPEG y **se reenvía solo** con
+  `permitirCaptura: false`, anti-bucle). El aviso «Déjame ver tu pantalla… 👀» y el mensaje «📸 Esta
+  es mi pantalla ahora mismo» hacen el flujo siempre visible — nunca hay captura silenciosa.
+- **Lectura de pantalla (paso previo):** con captura, la PRIMERA llamada al modelo es sin
+  herramientas y lo obliga a **transcribir** lo relevante (módulo, pestaña/modal, registros con
+  números exactos, filtros, errores). La transcripción queda escrita en la conversación (sobrevive
+  el tool-loop — sin ella lo visto se perdía entre rondas) y en la traza (`lectura_pantalla`). La
+  imagen viaja **una sola vez** (ahorro). ⚠️ Tras la lectura, la conversación se cierra con un
+  mensaje `user` interno: los modelos Claude rechazan terminar en `assistant` (prefill).
+- **Persistencia:** la captura se sube al bucket **privado `soporteCapturas`**
+  (`v2_soporte_mensajes."capturaPath"`) y se sirve con **URL firmada** (2 h) en el chat (al
+  recargar) y en la auditoría. El base64 nunca toca la tabla; en el texto queda el marcador
+  `📸 [captura adjunta]`. Migración `migraciones/2026-08-05-soporte-capturas-bucket-y-columna.sql`.
+- **Separación respuesta/razonamiento (determinista):** el turno final del modelo se divide con el
+  marcador **`[[RESPUESTA]]`** — lo anterior (pasos del método, datos crudos) va a la traza
+  (`razonamiento_final`, visible solo en Configuraciones → Soporte); el usuario solo ve lo
+  posterior, en lenguaje llano. Sin marcador, se muestra todo (fallback seguro). Complementa el
+  saneo `limpiarCanalesRazonamiento` (quita `<|channel|>thought`, `<think>`, etc. de modelos chicos).
+- **Contexto extra del turno:** los últimos 3 **errores de API** vistos en el navegador
+  (`lib/api.ts` → `ultimosErroresApi()`) viajan con cada mensaje y se inyectan al prompt.
+- **Requisitos:** modelo con **tools + visión** (Sonnet 5 ✅, gpt-4o ✅, Gemma 4 31B ✅, Haiku 4.5 ✅);
+  body-parser del API a **2 MB** (`main.ts` — el default de 100 KB rechazaba la captura); edge
+  `soporte-chat` **v5** con `max_tokens: 4096` (sin él OpenRouter reserva el máximo del modelo
+  contra el saldo → 402 con crédito bajo).
 
 ## 4. Diagnóstico de permisos
 El agente conoce las **claves de permiso** de cada pantalla (del frontmatter de la KB) y los
@@ -132,6 +166,20 @@ Tiene **dos pestañas**:
 > `v2_soporte_tickets` (p. ej. `nota_atencion text`, `atendido_por uuid`, `fec_atencion timestamptz`);
 > eso es un cambio de esquema y, por la regla 1, debe **autorizarse y aplicarse explícitamente** antes
 > de implementarlo. Mientras tanto, `fum`/`fumUser` + la bitácora de auditoría cubren el «quién/cuándo».
+
+## 6c. Pestaña «Agente de Soporte» (Configuraciones → Soporte, SOLO soporte — v2.62.0)
+Cuarta pestaña de la pantalla de Soporte, para gobernar al agente **sin desplegar**:
+- **Modelo de IA**: slug de OpenRouter editable (fila `SOPORTE_IA_MODELO`); aplica al siguiente
+  turno. ⚠️ Debe soportar **tools + visión**. **Prompt base** editable (`SOPORTE_IA_PROMPT`).
+- **Herramientas del modelo**: derivadas del CÓDIGO real (`ConsultasService.toolSpecs` +
+  `request_screenshot`) — la pantalla nunca miente. **Habilidades**: lo que el sistema hace
+  alrededor del modelo (perfil en tiempo real, KB, directorio, errores del navegador, visión,
+  escalación, solo-lectura garantizada).
+- Backend: `GET/PATCH /soporte/admin/agente` (`SoporteGuard`; el PATCH valida con Zod y escribe con
+  `comoActor` — auditado). Además, la **auditoría de conversaciones** muestra la **captura** del
+  turno (URL firmada) y la traza enriquecida: 📸 lectura de pantalla, 🧭 pasos «Paso N —» y
+  razonamiento final, ⚙️ herramientas/SQL, ⛔ tope; y cada mensaje registra
+  `ver_pantalla_disponible`/`pidio_captura`/`trae_captura` para depurar la visión.
 
 ## 7. Objetos en BD (nuevos de v2)
 - Rol **`v2_soporte_ro`** (solo lectura).
@@ -220,11 +268,21 @@ los tiene, o que canalice a alguien que ya puede corregirlo él mismo.
 
 ### Operativo / pendientes
 - La edge `soporte-chat` se despliega aparte (`supabase functions deploy soporte-chat`), NO con el push.
-- ⚠️ **Deuda/pendiente del rediseño (Fase 4, `PLAN-agente-soporte-razonador.md`):** quitar `temperature`
-  del cuerpo que la edge envía a OpenRouter (misma raíz del 502 histórico con haiku; alinear con
-  `ia-chat`) y fijar `SOPORTE_IA_MODELO` a Sonnet 5 (fallback 4.6) en BD, luego desplegar la edge.
+  **Desplegada v5 (2026-08-05):** sin `temperature` (fix del 502 histórico con haiku — CERRADO) y con
+  `max_tokens: 4096` (sin él, OpenRouter reserva el máximo del modelo contra el saldo → 402 con
+  crédito bajo). La Fase 4 del `PLAN-agente-soporte-razonador.md` quedó cubierta: el modelo se cambia
+  desde la pestaña «Agente de Soporte» (§6c) sin desplegar.
+- 📌 **Elección de modelo (evidencia 2026-08-05, misma pregunta, mismos datos):** Sonnet 5 ejecutó el
+  método completo a la primera; Gemma 4 31B y Haiku 4.5 lo lograron tras endurecer prompt/andamiaje
+  (con fugas cosméticas ya saneadas en backend). Con la KB completa (gotcha `numNaveNAME`) la brecha
+  se achica: la decisión es principalmente de costo. Recomendación vigente: **Sonnet 5** en
+  producción; Gemma como opción económica.
 - Otras deudas: afinar el parser `tablasFueraDeUniverso` (el aislamiento inter-módulo del text-to-SQL
   es "mejor esfuerzo"; la barrera dura es la lista blanca de grants del rol `v2_agente_ro`).
+- **Deuda BAJA diferida (revisión de escalabilidad 2026-08-05):** (1) `invocarEdge` (backend→edge) y
+  edge→OpenRouter sin timeout explícito (`AbortController`) — acotado hoy por el tope de 6 rondas +
+  wall-clock de la edge; (2) el bucket `soporteCapturas` no tiene política de retención (~100–300 KB
+  por captura) — definir limpieza de capturas de sesiones eliminadas o mayores a N meses.
 
 ## 8. Fase 2 (futura)
 Migrar el router de la KB a **búsqueda semántica con `pgvector`** (tabla `v2_kb_embeddings`)

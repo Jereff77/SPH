@@ -16,10 +16,13 @@ import type { AuthUser } from '../../common/auth/auth.types.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import {
   atenderTicketSchema,
+  configAgenteSchema,
   type AtenderTicketDto,
+  type ConfigAgenteDto,
 } from './soporte.schemas.js';
 import {
   SoporteAdminService,
+  type ConfigAgente,
   type ConversacionAdmin,
   type RecordatorioEnviado,
   type RecordatorioEnviadoDetalle,
@@ -71,6 +74,21 @@ export class SoporteAdminController {
     @Body(new ZodValidationPipe(atenderTicketSchema)) dto: AtenderTicketDto,
   ): Promise<{ ok: true }> {
     return this.admin.atenderTicket(actor.uid, id, dto);
+  }
+
+  // --- Agente de Soporte (configuración del modelo/prompt + capacidades) ---
+
+  @Get('agente')
+  agente(): Promise<ConfigAgente> {
+    return this.admin.configAgente();
+  }
+
+  @Patch('agente')
+  actualizarAgente(
+    @CurrentUser() actor: AuthUser,
+    @Body(new ZodValidationPipe(configAgenteSchema)) dto: ConfigAgenteDto,
+  ): Promise<{ ok: true }> {
+    return this.admin.actualizarConfigAgente(actor.uid, dto);
   }
 
   // --- Recordatorios de aprobación CxP (correos enviados) ---

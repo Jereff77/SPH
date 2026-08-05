@@ -1,4 +1,4 @@
-import { api } from '@/lib/api';
+import { api, type ErrorApiReciente } from '@/lib/api';
 
 export interface SesionSoporte {
   uuid: string;
@@ -11,6 +11,8 @@ export interface MensajeSoporte {
   texto: string;
   fc: string;
   escalable?: boolean;
+  /** Captura de pantalla adjunta al mensaje (data URL o URL firmada), si la hubo. */
+  imagen?: string;
 }
 
 export interface RespuestaSoporte {
@@ -18,6 +20,20 @@ export interface RespuestaSoporte {
   respuesta: string;
   escalable: boolean;
   modulos: string[];
+  /** El modelo pidió VER la pantalla (tool `request_screenshot`): el widget
+   *  captura y reenvía solo, con `permitirCaptura: false` (anti-bucle). */
+  pideCaptura?: boolean;
+}
+
+export interface EnviarOpciones {
+  sessionId?: string;
+  rutaActual?: string;
+  /** Captura de pantalla adjunta (data URL JPEG). Va inline al modelo; no se persiste. */
+  captura?: string;
+  /** Habilita que el modelo pueda PEDIR una captura. false en el reenvío automático. */
+  permitirCaptura?: boolean;
+  /** Últimos errores de API vistos en el navegador (contexto del turno, máx. 3). */
+  erroresRecientes?: ErrorApiReciente[];
 }
 
 export interface EscalarPayload {
@@ -42,8 +58,8 @@ export const soporteApi = {
   sesiones: () => api.get<SesionSoporte[]>('/soporte/sesiones'),
   nuevaSesion: () => api.post<{ sessionId: string }>('/soporte/sesiones', {}),
   mensajes: (id: string) => api.get<MensajeSoporte[]>(`/soporte/sesiones/${id}/mensajes`),
-  enviar: (texto: string, sessionId?: string, rutaActual?: string) =>
-    api.post<RespuestaSoporte>('/soporte/mensaje', { texto, sessionId, rutaActual }),
+  enviar: (texto: string, opciones: EnviarOpciones = {}) =>
+    api.post<RespuestaSoporte>('/soporte/mensaje', { texto, ...opciones }),
   renombrar: (id: string, titulo: string) =>
     api.patch<{ ok: true }>(`/soporte/sesiones/${id}`, { titulo }),
   eliminar: (id: string) => api.delete<{ ok: true }>(`/soporte/sesiones/${id}`),
