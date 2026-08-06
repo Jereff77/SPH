@@ -230,7 +230,11 @@ irrelevante. **Fix si crece:** `CREATE INDEX ix_kvasasignados_parque_fc ON "kvas
   2025-07-17; 0 planes elegibles a borrado tienen dispersión — la guarda de pagos los cubre todos hoy).
   **Arreglo:** añadir chequeo a la RPC o crear la FK.
 - **[DATO] 18 propiedades en prod con `pdpActivo=true` e `idPdp=null`** (estado atascado heredado: no se
-  pueden desactivar ni desvincular desde la UI). Saneo de datos pendiente de decisión de Jereff.
+  pueden desactivar ni desvincular desde la UI — la herramienta «Eliminar plan» de v2.63.0 NO las alcanza:
+  es el caso inverso, bandera activa SIN plan que eliminar). **📌 Decisión de Jereff (2026-08-05): NO se
+  sanea desde nuestro lado — son datos del cliente.** Si el cliente topa con una de esas naves, se atiende
+  como ticket: el agente de soporte diagnostica y la corrección de datos se hace solo con autorización del
+  cliente. Ninguna sesión futura debe proponer este saneo de oficio.
 - **P2-6 · Hotfix activo:** trigger `cxp_validar_fecha_cfdi` desactivado (ya conocido; bloqueado hasta definir
   la regla PPD). **Arreglo:** plan `PLAN-correccion-trigger-cxp-fecha-cfdi.md`.
 - **P2-7 · `error.message` crudo** en muchos servicios (convención 4b) — mitigado por el filtro global de 5xx.
