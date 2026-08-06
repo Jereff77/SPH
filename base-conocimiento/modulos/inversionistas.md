@@ -1,13 +1,13 @@
 ---
 modulo: Inversionistas / Propietarios (Ventas)
 estado: parcial              # Gestión de Cobranza + Dashboard gráfico + Planes + Escrituras en v2
-version_doc: 2.4
-ultima_actualizacion: 2026-07-05
+version_doc: 2.5
+ultima_actualizacion: 2026-08-05
 submodulos: [Gestión de Cobranza, Dashboard gráfico, Reportes, Planes, Configuración, Escrituras]
 rutas: [/ventas, /ventas/dashboard, /ventas/reportes, /ventas/planes, /ventas/escrituras]
 claves_permiso: [600, 610, 611, 620, 630]
 tablas: [inversionista, inversionista_docs, propiedades, naves, kvasAsignados, pdp, pdpDetalle, pagos, rgPdp, rgPdpDetalle, raPdp, raPdpDetalle, comentarios, actividad, parques, v_rentasCombinadas, iaSesiones, iaConversaciones]
-palabras_clave: [inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, avance, renta garantizada, renta administrada, configuración, documentos, escrituración, dashboard, gráfico, atrasos, vencido, días de atraso, KPI, gestión de cobranza, reportes, estado de cuenta, vencidos, saldo vencido, exportar, CSV, PDF, JSON, Montse AI, asistente, IA, chat, OpenRouter, comentarios, razón social, inversionista no aparece, no aparece en planes, no aparece en el selector, sin clasificar, "trasladar saldo", "devolución", "escrituración pendiente", "nave no aparece disponible", "plan huérfano", "pdp huérfano", "pdp fantasma", "el plan no tiene parcialidades", "con plan pero vacío", "no me aparece el plan", "plan sin corrida", "total del plan en cero", "no puedo desvincular la nave", "no aparece el cliente en el selector", "no me sale el inversionista en aportaciones", "el cliente existe pero no lo encuentro para asignarlo", "cliente en papelera"]
+palabras_clave: [inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, avance, renta garantizada, renta administrada, configuración, documentos, escrituración, dashboard, gráfico, atrasos, vencido, días de atraso, KPI, gestión de cobranza, reportes, estado de cuenta, vencidos, saldo vencido, exportar, CSV, PDF, JSON, Montse AI, asistente, IA, chat, OpenRouter, comentarios, razón social, inversionista no aparece, no aparece en planes, no aparece en el selector, sin clasificar, "trasladar saldo", "devolución", "escrituración pendiente", "nave no aparece disponible", "plan huérfano", "pdp huérfano", "pdp fantasma", "el plan no tiene parcialidades", "con plan pero vacío", "no me aparece el plan", "plan sin corrida", "total del plan en cero", "no puedo desvincular la nave", "no aparece el cliente en el selector", "no me sale el inversionista en aportaciones", "el cliente existe pero no lo encuentro para asignarlo", "cliente en papelera", "eliminar plan", "eliminar el plan de pagos", "borrar el plan", "eliminar plan completo", "no puedo eliminar la última parcialidad", "no me deja eliminar la partida", "quitar el plan para desvincular"]
 relacionado_con: [parques, arrendatarios, cxp, clientes, fideicomiso]
 ---
 
@@ -268,6 +268,21 @@ aplica a Dashboard/Reportes/saldos-vencidos, **NO** a este selector operativo de
      (reutiliza `PATCH planes/tipo-pago/:id`). **Agregar** parcialidad (`POST .../partida`, nace en monto 0,
      fecha = mes siguiente) y **Eliminar** (`DELETE .../partida/:id`, solo si **no tiene pagos**). Todo audita
      en `actividad` vía `comoActor`.
+   - **⛔ Candado de última partida (v2.63.0):** NO se puede eliminar la **última parcialidad viva** de un
+     plan — el 🗑 se deshabilita en el front y el backend rechaza (`eliminarPartida` cuenta las vivas del
+     `idPdp`). **Origen (caso real):** usuarios borraban todas las partidas creyendo que así eliminaban el
+     plan, dejando un plan "cascarón" ($0.00, 0 partidas) que bloqueaba desvincular la nave. Para quitar el
+     plan completo existe la acción explícita de abajo.
+   - **🗑 Eliminar plan COMPLETO (v2.63.0):** botón **«Eliminar plan»** junto a «Activar», visible **solo con
+     el plan desactivado** (clave 610, con confirmación). `DELETE planes/plan/:idPropiedad` →
+     `PlanesService.eliminarPlanPagos` → **RPC transaccional `eliminar_plan_pagos`** (`SECURITY INVOKER`,
+     `EXECUTE` solo `service_role`, `FOR UPDATE` sobre la propiedad): valida plan **inactivo** y que **ningún
+     pago** (vivo o cancelado) referencie el plan o sus partidas; luego libera la propiedad
+     (`idPdp=null, tienenPdp=false, pdpActivo=false`) y borra `pdp` (el CASCADE elimina `pdpDetalle`), todo en
+     una transacción — la FK `NO ACTION` de `pagos` revienta el DELETE ante cualquier carrera. La propiedad
+     queda libre para **desvincular la nave o crear un PDP nuevo**. Auditoría completa: `trg_auditoria` guarda
+     cada fila borrada ENTERA con el uid del actor + entrada en `actividad`. Errores por código:
+     `SIN_PLAN`/`PLAN_ACTIVO`/`CON_PAGOS`. Migración `migraciones/2026-08-05-eliminar-plan-pagos-rpc.sql`.
 
 > En esta etapa el módulo cubre **crear + configurar el Plan de Pagos** (incluida la edición de parcialidades y
 > el activar/desactivar). La creación de Renta Garantizada (RPCs `rgpdp_insertar_registro`/
@@ -383,7 +398,9 @@ parque (`parques.nomParque`) y nave (`naves.numNaveNAME`) **por separado**, inve
     **`PATCH planes/plan/:idPropiedad/montos`** (`{terreno,obra}` → recalcula `pdp.monto`),
     **`POST planes/plan/:idPropiedad/partida`** (agrega parcialidad monto 0),
     **`PATCH planes/partida/:idPdpDet/monto`**, **`PATCH planes/partida/:idPdpDet/fecha`**,
-    **`DELETE planes/partida/:idPdpDet`** (rechaza si tiene pagos).
+    **`DELETE planes/partida/:idPdpDet`** (rechaza si tiene pagos **o si es la última partida viva del plan**,
+    v2.63.0), **`DELETE planes/plan/:idPropiedad`** (elimina el plan COMPLETO: solo desactivado y con CERO
+    pagos; libera la propiedad — RPC transaccional `eliminar_plan_pagos`, v2.63.0).
   - **Trasladar saldo (clave 611, candado propio):** **`PATCH planes/trasladar-saldo`**
     (`{idPdpDetOrigen, idPdpDetDestino, monto}`) → `PlanesService.trasladarSaldo` → RPC transaccional
     `trasladar_saldo_pdp`. NO requiere plan inactivo (conserva el total). Ver §3c.
@@ -416,8 +433,9 @@ parque (`parques.nomParque`) y nave (`naves.numNaveNAME`) **por separado**, inve
 ## 8. Pendiente / fuera del MVP
 - (**Dashboard gráfico 620** y **Escrituras 630** ya implementados — ver §2c y §3b. **Configuración del PDP**
   —crear, activar/desactivar, editar parcialidades/montos, agregar/eliminar— **ya implementada** en v2.39.0,
-  ver §3.) Creación de **Renta Garantizada** y **Renta Administrada**. **Cancelación** de planes existentes.
-  Pasar las pestañas de rentas a cálculo propio (hoy usan `v_rentasCombinadas`).
+  ver §3.) Creación de **Renta Garantizada** y **Renta Administrada**. **Cancelación** de planes existentes
+  — la **eliminación de planes SIN pagos ya existe** (v2.63.0, ver §3); lo pendiente es la cancelación/baja de
+  planes **con historial de pagos**. Pasar las pestañas de rentas a cálculo propio (hoy usan `v_rentasCombinadas`).
 - **Higiene de datos (pendiente, requiere autorización):** ~18 propiedades con `idPdp` pero `tienenPdp=false`
   (herencia de v1). El código ya no depende de la bandera, pero conviene sanear:
   `update propiedades set "tienenPdp"=true where status=true and "idPdp" is not null and "tienenPdp"=false;`
@@ -486,7 +504,13 @@ parcialidades) `→ pagos`. *(Renta, análogo: `arrenPropiedades.idArrePdp → a
 - **Datos colgados** (corrida > 0 con maestro 0, p. ej. parcialidades sin cabecera): **NO borrar** — hay datos
   reales que perderían su plan; **escalar** para reconstruir el maestro.
 
-**Solución (requiere clave 300/610 y autorización; es reversible):** poner `propiedades.idPdp = NULL` +
-`tienenPdp=false`, `pdpActivo=false`. ⚠️ Si el cliente es **real** (no prueba/papelera), **confirmar primero**
-si esa nave **debía** tener plan (se borró por error → reconstruir) o **nunca** lo tuvo (solo quedó el puntero
-basura → limpiar). El agente NO ejecuta la corrección: **diagnostica y remite** al responsable.
+**Solución (desde v2.63.0, SIN intervención técnica):** el propio usuario con clave **610** lo resuelve en
+la UI: **Ventas → Planes → ⚙ Configuración → Plan de Pagos → seleccionar la propiedad → «Desactivar» (si
+está activo) → «Eliminar plan»**. El sistema valida solo que ninguna parcialidad tenga pagos (si los hay,
+rechaza y el historial se conserva) y libera la propiedad para desvincular la nave o crear un plan nuevo.
+Todo queda auditado (quién, cuándo y qué se borró). ⚠️ Si el plan **sí tiene pagos**, la eliminación se
+rechaza por diseño — ahí el diagnóstico sigue siendo del agente: **escalar** al responsable (no hay vía de
+UI para borrar planes con historial financiero, a propósito). Si el cliente es **real**, confirmar primero
+si esa nave **debía** tener plan (se borró por error → reconstruir) o nunca lo tuvo (→ eliminarlo por la UI).
+**Prevención (v2.63.0):** este estado ya no puede crearse vaciando partidas — la última parcialidad no se
+puede eliminar (candado front + backend).

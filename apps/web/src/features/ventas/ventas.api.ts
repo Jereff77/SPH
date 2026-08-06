@@ -419,6 +419,12 @@ export const ventasApi = {
   eliminarPartida: (idPdpDet: string) =>
     api.delete<{ ok: true }>(`/ventas/planes/partida/${idPdpDet}`),
   /**
+   * Elimina el plan de pagos COMPLETO (solo plan desactivado y sin ningún pago,
+   * ni vivo ni cancelado). Libera la propiedad para desvincular o crear otro plan.
+   */
+  eliminarPlan: (idPropiedad: string) =>
+    api.delete<{ ok: true }>(`/ventas/planes/plan/${idPropiedad}`),
+  /**
    * Traslada saldo de una parcialidad a otra **futura** del mismo plan (candado:
    * clave **611**). Conserva el total del plan, por lo que NO requiere
    * desactivarlo. Registra el movimiento en ambas parcialidades (origen y destino).

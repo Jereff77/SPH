@@ -9370,6 +9370,10 @@ export type Database = {
         Args: { p_origen: string; p_destino: string; p_monto: number }
         Returns: { nuevo_origen: number; nuevo_destino: number }[]
       }
+      eliminar_plan_pagos: {
+        Args: { p_id_propiedad: string }
+        Returns: undefined
+      }
       actualizar_anios_planes_nuevos: { Args: never; Returns: undefined }
       actualizar_ciclo_plan_pago: { Args: never; Returns: undefined }
       actualizar_inpc_por_ciclo: {

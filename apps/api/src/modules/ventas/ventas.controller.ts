@@ -454,6 +454,16 @@ export class VentasController {
     return this.planes.eliminarPartida(idPdpDet, actor.uid);
   }
 
+  /** Elimina el plan completo (solo desactivado y sin pagos); libera la propiedad. */
+  @Delete('planes/plan/:idPropiedad')
+  @RequierePermiso(610)
+  async eliminarPlanPagos(
+    @CurrentUser() actor: AuthUser,
+    @Param('idPropiedad') idPropiedad: string,
+  ) {
+    return this.planes.eliminarPlanPagos(idPropiedad, actor.uid);
+  }
+
   // ----- Trasladar saldo entre parcialidades (candado: clave 611) -----
   /**
    * Traslada saldo de una parcialidad a otra **futura** del mismo plan. Acción

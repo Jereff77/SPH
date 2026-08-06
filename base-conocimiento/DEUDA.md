@@ -201,6 +201,36 @@ irrelevante. **Fix si crece:** `CREATE INDEX ix_kvasasignados_parque_fc ON "kvas
   funciones heredadas); `.env.example` raíz desfasado; 2 migraciones pendientes de aplicar. **Arreglo:**
   versionar `pg_dump --schema-only`; corregir `.env.example`; aplicar migraciones pendientes.
 - **P2-5 · `app.listen(port)` sin `'0.0.0.0'`** (`main.ts`) — riesgo latente de 502. **Arreglo:** añadir el host.
+
+---
+
+# Deuda diferida por sesión (post-auditoría)
+
+## 2026-08-05 · Eliminar Plan de Pagos (validador adversarial, MEDIA/BAJA diferidas conscientemente)
+
+> Contexto: feature «candado de última partida + Eliminar plan» (Ventas·Planes). El validador dio
+> **APTO CON OBSERVACIONES, sin hallazgos ALTA**. Se corrigieron en la misma sesión: REVOKE de la RPC
+> `eliminar_plan_pagos` (quedó como `trasladar_saldo_pdp`: solo `service_role`) y la carrera de
+> `setActivoPlan` (UPDATE condicionado a `idPdp NOT NULL` + verificación de filas afectadas). Lo diferido:
+
+- **[MEDIA] Comentarios huérfanos al borrar partidas/planes.** `comentarios.idPdpDet` no tiene FK; al
+  eliminar un plan el CASCADE borra las partidas y sus comentarios quedan colgando (ya había **1244
+  huérfanos** por `eliminarPartida`, deuda preexistente). **Por qué se difiere:** la trazabilidad dura
+  vive en `auditoria` (el trigger guarda la fila COMPLETA de cada partida borrada); los comentarios
+  huérfanos son inertes (nadie los consulta sin su `idPdpDet`). **Arreglo propuesto:** en la RPC,
+  marcar `status=false` los comentarios del plan antes del DELETE, o crear FK con ON DELETE.
+- **[BAJA] Carrera del candado de última partida** (`eliminarPartida`): dos DELETE concurrentes con 2
+  partidas vivas pueden dejar 0. Mitigado: «Eliminar plan» ya da salida al estado; requiere 2 operadores
+  simultáneos en el mismo plan. **Arreglo:** RPC con `FOR UPDATE` sobre el `pdp` antes de contar.
+- **[BAJA] `partidaEditable` valida el plan vía `det.idPropiedad`** en vez de `det.idPdp`; hay **17
+  partidas** en prod cuya propiedad apunta a otro plan (datos heredados) — la guarda "plan inactivo" se
+  evalúa sobre el plan equivocado. Preexistente; la RPC nueva NO lo padece (valida por `propiedades.idPdp`).
+  **Arreglo:** resolver la propiedad por `propiedades.idPdp = det.idPdp`.
+- **[BAJA] `fidePdpDispersion.idPdp` sin FK y no validada por la RPC** (tabla legado, sin escrituras desde
+  2025-07-17; 0 planes elegibles a borrado tienen dispersión — la guarda de pagos los cubre todos hoy).
+  **Arreglo:** añadir chequeo a la RPC o crear la FK.
+- **[DATO] 18 propiedades en prod con `pdpActivo=true` e `idPdp=null`** (estado atascado heredado: no se
+  pueden desactivar ni desvincular desde la UI). Saneo de datos pendiente de decisión de Jereff.
 - **P2-6 · Hotfix activo:** trigger `cxp_validar_fecha_cfdi` desactivado (ya conocido; bloqueado hasta definir
   la regla PPD). **Arreglo:** plan `PLAN-correccion-trigger-cxp-fecha-cfdi.md`.
 - **P2-7 · `error.message` crudo** en muchos servicios (convención 4b) — mitigado por el filtro global de 5xx.

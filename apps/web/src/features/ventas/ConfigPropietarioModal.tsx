@@ -650,6 +650,12 @@ function PlanPagosTab({ id, onCambio }: { id: string; onCambio: () => void }) {
                 totalPlan={totalPlan}
                 sumaPartidas={sumaPartidas}
                 onCambio={onCambio}
+                onEliminado={() => {
+                  // Sin el reset, `creado=true` seguiría forzando la vista "con plan"
+                  // si el plan se creó y eliminó en la misma apertura del modal.
+                  setCreado(false);
+                  onCambio();
+                }}
               />
             ) : (
               <GeneralesVentaForm
@@ -834,6 +840,7 @@ function PlanCabeceraAccionesVenta({
   totalPlan,
   sumaPartidas,
   onCambio,
+  onEliminado,
 }: {
   prop: PropiedadRow;
   idInversionista: string;
@@ -842,6 +849,7 @@ function PlanCabeceraAccionesVenta({
   totalPlan: number;
   sumaPartidas: number;
   onCambio: () => void;
+  onEliminado: () => void;
 }) {
   const queryClient = useQueryClient();
   const [accion, setAccion] = useState(false);
@@ -873,6 +881,28 @@ function PlanCabeceraAccionesVenta({
       onCambio();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cambiar el estado del plan.');
+    } finally {
+      setAccion(false);
+    }
+  }
+
+  async function eliminarPlan() {
+    if (
+      !window.confirm(
+        'Vas a eliminar el plan de pagos COMPLETO (todas sus parcialidades). ' +
+          'Solo procede si ninguna parcialidad tiene pagos. La propiedad quedará libre ' +
+          'para desvincular la nave o crear un plan nuevo. ¿Continuar?',
+      )
+    )
+      return;
+    setAccion(true);
+    setError(null);
+    try {
+      await ventasApi.eliminarPlan(prop.idPropiedad);
+      await refrescar();
+      onEliminado();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar el plan de pagos.');
     } finally {
       setAccion(false);
     }
@@ -939,15 +969,28 @@ function PlanCabeceraAccionesVenta({
               {accion ? 'Guardando…' : 'Desactivar (permite editar)'}
             </button>
           ) : (
-            <button
-              type="button"
-              disabled={accion || descuadre}
-              onClick={toggle}
-              title={descuadre ? 'La suma de las partidas debe cuadrar con el total del plan' : undefined}
-              className="rounded-lg border border-green-600 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:opacity-50"
-            >
-              {accion ? 'Guardando…' : 'Activar'}
-            </button>
+            <>
+              <button
+                type="button"
+                disabled={accion || descuadre}
+                onClick={toggle}
+                title={descuadre ? 'La suma de las partidas debe cuadrar con el total del plan' : undefined}
+                className="rounded-lg border border-green-600 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:opacity-50"
+              >
+                {accion ? 'Guardando…' : 'Activar'}
+              </button>
+              {/* Eliminar el plan completo: solo con el plan desactivado; el backend
+                  además exige que ningún pago (ni cancelado) referencie el plan. */}
+              <button
+                type="button"
+                disabled={accion}
+                onClick={() => void eliminarPlan()}
+                title="Elimina el plan y sus parcialidades (solo si ninguna tiene pagos). La propiedad queda libre."
+                className="rounded-lg border border-red-500 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                {accion ? 'Guardando…' : 'Eliminar plan'}
+              </button>
+            </>
           )}
         </div>
 
@@ -1378,14 +1421,21 @@ function PreviewCorridaVenta({
                           )}
                         </td>
 
-                        {/* Opciones: eliminar parcialidad */}
+                        {/* Opciones: eliminar parcialidad. Con una sola partida se
+                            deshabilita: el plan debe conservar al menos una (el
+                            backend también lo rechaza); para quitar el plan completo
+                            está «Eliminar plan». */}
                         {editable && (
                           <td className="px-2 py-1 text-center">
                             <button
                               type="button"
-                              disabled={ocupado}
+                              disabled={ocupado || data.length <= 1}
                               onClick={() => void eliminar(d.idPdpDet)}
-                              title="Eliminar parcialidad"
+                              title={
+                                data.length <= 1
+                                  ? 'El plan debe conservar al menos una parcialidad. Para quitar el plan completo usa «Eliminar plan».'
+                                  : 'Eliminar parcialidad'
+                              }
                               aria-label="Eliminar parcialidad"
                               className="rounded p-0.5 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
                             >

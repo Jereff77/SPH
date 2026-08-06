@@ -832,11 +832,21 @@ export class PlanesService {
     }
 
     const db = this.supabase.comoActor(actorUid);
-    const { error: upPropErr } = await db
+    // `.not('idPdp', 'is', null)` + conteo de filas: cierra la carrera con
+    // `eliminar_plan_pagos` (si el plan se elimina entre la validación y este
+    // UPDATE, el WHERE re-evaluado ya no matchea y se evita dejar la propiedad
+    // atascada con pdpActivo=true e idPdp=null — estado sin salida en la UI).
+    const { data: upRows, error: upPropErr } = await db
       .from('propiedades')
       .update({ pdpActivo: activo })
-      .eq('idPropiedad', idPropiedad);
+      .eq('idPropiedad', idPropiedad)
+      .not('idPdp', 'is', null)
+      .select('idPropiedad');
     if (upPropErr) throw new InternalServerErrorException(upPropErr.message);
+    if (!upRows || upRows.length === 0)
+      throw new BadRequestException(
+        'La propiedad ya no tiene un plan de pagos (pudo eliminarse en este momento). Refresca la pantalla.',
+      );
 
     // Bitácora de actividad (secundaria; no interrumpe el cambio si falla).
     await db.from('actividad').insert({
@@ -1047,9 +1057,29 @@ export class PlanesService {
   /**
    * Elimina una parcialidad (solo plan inactivo y sin pagos registrados, como v1).
    * Decrementa `pdp.cantpagos`.
+   *
+   * Candado 2026-08-05: SIEMPRE debe quedar al menos una parcialidad. Nace de un
+   * patrón de uso real: usuarios que borran todas las partidas creyendo que así
+   * eliminan el plan, dejando un plan "cascarón" ($0.00, 0 partidas) que bloquea
+   * desvincular la nave o crear un PDP nuevo. Para deshacerse del plan completo
+   * existe la acción explícita «Eliminar plan» (`eliminarPlanPagos`).
    */
   async eliminarPartida(idPdpDet: string, actorUid: string): Promise<{ ok: true }> {
     const det = await this.partidaEditable(idPdpDet);
+
+    if (det.idPdp) {
+      const { count: vivas, error: vivasErr } = await this.supabase.admin
+        .from('pdpDetalle')
+        .select('idPdpDet', { count: 'exact', head: true })
+        .eq('idPdp', det.idPdp)
+        .eq('status', true);
+      if (vivasErr) throw new InternalServerErrorException(vivasErr.message);
+      if ((vivas ?? 0) <= 1)
+        throw new BadRequestException(
+          'No se puede eliminar la última parcialidad: el plan debe conservar al menos una. ' +
+            'Si quieres deshacerte del plan completo, usa «Eliminar plan» (con el plan desactivado).',
+        );
+    }
 
     const { count, error: pagErr } = await this.supabase.admin
       .from('pagos')
@@ -1076,6 +1106,50 @@ export class PlanesService {
     }
 
     await this.registrarActividadPlan(actorUid, `Se elimina parcialidad | idPdpDet${idPdpDet}`);
+    return { ok: true };
+  }
+
+  /**
+   * Elimina el Plan de Pagos COMPLETO de una propiedad (2026-08-05). Solo procede si
+   * el plan está **desactivado** y **ningún pago** (vivo o cancelado) referencia el
+   * plan ni sus partidas — un pago cancelado es histórico que se conserva y además la
+   * FK de `pagos` (NO ACTION) bloquearía el borrado. Libera la propiedad
+   * (`idPdp=null`, banderas abajo) para poder desvincular la nave o crear un PDP nuevo.
+   *
+   * La operación corre en la RPC **transaccional** `eliminar_plan_pagos`: bloquea la
+   * propiedad (`FOR UPDATE`), revalida las guardas con la fila bloqueada y aplica
+   * UPDATE propiedades + DELETE pdp (el CASCADE de `pdpDetalle.idPdp` borra las
+   * partidas) en una sola transacción — imposible quedar a medias. Se invoca con
+   * `comoActor` para que `trg_auditoria` (que cubre DELETE en `pdp`/`pdpDetalle`/
+   * `propiedades`) registre al actor real del JWT.
+   */
+  async eliminarPlanPagos(idPropiedad: string, actorUid: string): Promise<{ ok: true }> {
+    // Prevalidación con mensajes claros (la RPC revalida de forma autoritativa).
+    const prop = await this.asegurarPlanInactivo(idPropiedad);
+
+    const db = this.supabase.comoActor(actorUid);
+    const { error } = await db.rpc('eliminar_plan_pagos', {
+      p_id_propiedad: idPropiedad,
+    });
+    if (error) {
+      const MAP_ERR: Record<string, string> = {
+        PROPIEDAD_NO_ENCONTRADA: 'Propiedad no encontrada.',
+        SIN_PLAN: 'La propiedad no tiene un plan de pagos.',
+        PLAN_ACTIVO: 'El plan está activo. Desactívalo antes de eliminarlo.',
+        CON_PAGOS:
+          'No se puede eliminar: el plan tiene pagos registrados (incluidos cancelados). ' +
+          'Ese historial financiero se conserva.',
+      };
+      const code = Object.keys(MAP_ERR).find((k) => error.message.includes(k));
+      if (code) throw new BadRequestException(MAP_ERR[code]);
+      this.logger.error(`eliminarPlanPagos: error en RPC eliminar_plan_pagos: ${error.message}`);
+      throw new InternalServerErrorException('No se pudo eliminar el plan de pagos.');
+    }
+
+    await this.registrarActividadPlan(
+      actorUid,
+      `Se elimina el plan de pagos completo (sin pagos registrados) | idPdp${prop.idPdp} | idPropiedad ${idPropiedad}. La propiedad queda libre para desvincular o crear un nuevo plan.`,
+    );
     return { ok: true };
   }
 
