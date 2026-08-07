@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { fallaBd } from '../../common/utils/db-error.js';
 import { rutaSegura, type ArchivoValidado } from '../../common/utils/archivo-seguro.js';
@@ -12,6 +13,7 @@ import type {
   AcometidaDto,
   CrearAsignacionDto,
   DevolucionDto,
+  DocumentoNaveDto,
   EditarAsignacionDto,
 } from './kvas.schemas.js';
 
@@ -20,6 +22,22 @@ const BUCKET_KVA = 'kvaDocs';
 /** Vigencia de la URL firmada del documento (1 hora). */
 const FIRMA_SEGUNDOS = 3600;
 
+/** Quién ocupa la nave: el inquilino manda; si no hay, el dueño. */
+export type OcupanteTipo = 'ARRENDATARIO' | 'INVERSIONISTA';
+
+/** Documento del expediente de KVA de una nave. */
+export interface DocumentoNave {
+  idDoc: string;
+  idNave: string;
+  titulo: string;
+  descripcion: string | null;
+  /** URL FIRMADA temporal (el bucket es privado). */
+  urldoc: string | null;
+  status: boolean;
+  motivoBaja: string | null;
+  fc: string;
+}
+
 export interface AsignacionKva {
   idKvas: string;
   idParque: string;
@@ -27,6 +45,12 @@ export interface AsignacionKva {
   /** Etiqueta visible de la nave (`numNaveNAME`), resuelta aparte. */
   nave: string | null;
   numNave: number | null;
+  /** Empresa arrendataria o, si no está arrendada, razón social del dueño. */
+  ocupante: string | null;
+  ocupanteTipo: OcupanteTipo | null;
+  /** Documentos vivos del expediente de la nave (contador + tooltip). */
+  docsTotal: number;
+  docsTitulos: string[];
   nivel: string;
   figura: string;
   etapa: string;
@@ -40,6 +64,31 @@ export interface AsignacionKva {
   fc: string;
 }
 
+/**
+ * Desglose de UNA bolsa (media o baja) de un parque, con la misma lectura que
+ * el control operativo en Excel: cuánto se repartió, en qué etapa del trámite
+ * con CFE va y bajo qué figura (vendido / rentado).
+ */
+export interface DesgloseNivelKva {
+  /** Capacidad del parque en esta bolsa. */
+  total: number;
+  /** Repartido a naves, por etapa del trámite. */
+  asignado: number;
+  comprometido: number;
+  porAsignar: number;
+  /** Repartido a naves, por figura. */
+  venta: number;
+  renta: number;
+  /** Ya regresado al parque con documento (solo aplica a VENTA). */
+  devuelto: number;
+  /** Lo que hoy consume del parque (`kva_consumo` en BD). */
+  consumido: number;
+  /** Puede ser NEGATIVO: sobregiro real. */
+  disponible: number;
+  /** Naves con al menos una asignación viva en esta bolsa. */
+  naves: number;
+}
+
 export interface ResumenParqueKva {
   idParque: string;
   nomParque: string | null;
@@ -50,6 +99,9 @@ export interface ResumenParqueKva {
   kvasBtDisponibles: number;
   kvasMtUtilizados: number;
   kvasBtUtilizados: number;
+  /** Desglose estilo control operativo. MT = media, BT = baja. */
+  mt: DesgloseNivelKva;
+  bt: DesgloseNivelKva;
 }
 
 export interface Acometida {
@@ -65,6 +117,22 @@ export interface Acometida {
   repartidoBt: number;
   parques: ResumenParqueKva[];
 }
+
+type NivelBolsa = 'MT' | 'BT';
+type BolsasKva = Record<NivelBolsa, DesgloseNivelKva>;
+
+const desgloseVacio = (): DesgloseNivelKva => ({
+  total: 0,
+  asignado: 0,
+  comprometido: 0,
+  porAsignar: 0,
+  venta: 0,
+  renta: 0,
+  devuelto: 0,
+  consumido: 0,
+  disponible: 0,
+  naves: 0,
+});
 
 /**
  * Administración de KVA's (capacidad eléctrica).
@@ -91,9 +159,15 @@ export class KvasService {
 
   // ===================== Resumen =====================
 
-  /** Acometidas con sus parques, y los parques sin acometida asignada. */
+  /**
+   * Acometidas con sus parques, y los parques sin acometida asignada.
+   *
+   * Devuelve **todos** los parques activos, incluidos los que aún no tienen
+   * capacidad ni asignaciones capturadas: en el tablero deben verse en ceros,
+   * no desaparecer (así se ve qué falta por capturar).
+   */
   async resumen(): Promise<{ acometidas: Acometida[]; sinAcometida: ResumenParqueKva[] }> {
-    const [{ data: acom, error: errA }, { data: parques, error: errP }] =
+    const [{ data: acom, error: errA }, { data: parques, error: errP }, { data: asig, error: errS }] =
       await Promise.all([
         this.supabase.admin
           .from('kvaAcometidas')
@@ -110,13 +184,23 @@ export class KvasService {
           .eq('esTicket', false)
           .order('nomParque')
           .range(0, 999),
+        // Se agrega en memoria (no en SQL) porque el universo es acotado: una
+        // fila por nave × bolsa. Si algún día crece, pasar a RPC (ver DEUDA.md).
+        this.supabase.admin
+          .from('kvasAsignados')
+          .select('idParque, idNave, nivel, figura, etapa, cantKvas, cantDevuelta, status')
+          .range(0, 9999),
       ]);
     if (errA) fallaBd(this.logger, 'kvas.resumen.acometidas', errA);
     if (errP) fallaBd(this.logger, 'kvas.resumen.parques', errP);
+    if (errS) fallaBd(this.logger, 'kvas.resumen.asignaciones', errS);
+
+    const desgloses = this.desglosarPorParque(asig ?? []);
 
     const porAcometida = new Map<string, ResumenParqueKva[]>();
     const sinAcometida: ResumenParqueKva[] = [];
     for (const p of parques ?? []) {
+      const d = desgloses.get(p.idParque);
       const fila: ResumenParqueKva = {
         idParque: p.idParque,
         nomParque: p.nomParque,
@@ -127,6 +211,16 @@ export class KvasService {
         kvasBtDisponibles: Number(p.kvasBtDisponibles ?? 0),
         kvasMtUtilizados: Number(p.kvasMtUtilizados ?? 0),
         kvasBtUtilizados: Number(p.kvasBtUtilizados ?? 0),
+        mt: {
+          ...(d?.MT ?? desgloseVacio()),
+          total: Number(p.kvasMt ?? 0),
+          disponible: Number(p.kvasMtDisponibles ?? 0),
+        },
+        bt: {
+          ...(d?.BT ?? desgloseVacio()),
+          total: Number(p.kvasBt ?? 0),
+          disponible: Number(p.kvasBtDisponibles ?? 0),
+        },
       };
       if (!p.idAcometida) sinAcometida.push(fila);
       else porAcometida.set(p.idAcometida, [...(porAcometida.get(p.idAcometida) ?? []), fila]);
@@ -149,6 +243,68 @@ export class KvasService {
     });
 
     return { acometidas, sinAcometida };
+  }
+
+  /**
+   * Agrupa las asignaciones por parque y bolsa.
+   *
+   * ⚠️ El CONSUMO replica `kva_consumo` de la BD: una VENTA sigue consumiendo
+   * aunque la asignación esté cancelada (solo la devolución acreditada la
+   * regresa al pool); una RENTA deja de consumir al cancelarse. Los desgloses
+   * por etapa/figura, en cambio, solo cuentan asignaciones VIVAS.
+   */
+  private desglosarPorParque(
+    filas: {
+      idParque: string;
+      idNave: string;
+      nivel: string;
+      figura: string;
+      etapa: string;
+      cantKvas: number;
+      cantDevuelta: number;
+      status: boolean;
+    }[],
+  ): Map<string, BolsasKva> {
+    const mapa = new Map<string, BolsasKva>();
+    const naves = new Map<string, Set<string>>();
+
+    for (const f of filas) {
+      const nivel: NivelBolsa = f.nivel === 'MT' ? 'MT' : 'BT';
+      let bolsas = mapa.get(f.idParque);
+      if (!bolsas) {
+        bolsas = { MT: desgloseVacio(), BT: desgloseVacio() };
+        mapa.set(f.idParque, bolsas);
+      }
+      const d = bolsas[nivel];
+      const cant = Number(f.cantKvas ?? 0);
+      const devuelta = Number(f.cantDevuelta ?? 0);
+
+      d.consumido +=
+        f.figura === 'VENTA' ? Math.max(cant - devuelta, 0) : f.status ? cant : 0;
+      if (f.figura === 'VENTA') d.devuelto += devuelta;
+
+      if (f.status) {
+        if (f.figura === 'VENTA') d.venta += cant;
+        else d.renta += cant;
+        if (f.etapa === 'ASIGNADO') d.asignado += cant;
+        else if (f.etapa === 'COMPROMETIDO') d.comprometido += cant;
+        else d.porAsignar += cant;
+
+        const clave = `${f.idParque}|${nivel}`;
+        let set = naves.get(clave);
+        if (!set) {
+          set = new Set<string>();
+          naves.set(clave, set);
+        }
+        set.add(f.idNave);
+      }
+    }
+
+    for (const [idParque, bolsas] of mapa) {
+      bolsas.MT.naves = naves.get(`${idParque}|MT`)?.size ?? 0;
+      bolsas.BT.naves = naves.get(`${idParque}|BT`)?.size ?? 0;
+    }
+    return mapa;
   }
 
   // ===================== Asignaciones =====================
@@ -177,7 +333,7 @@ export class KvasService {
     return this.enriquecerConNaves(data ?? []);
   }
 
-  /** Añade la etiqueta y el número de la nave a cada asignación. */
+  /** Añade la etiqueta, el número y el ocupante de la nave a cada asignación. */
   private async enriquecerConNaves(
     filas: {
       idKvas: string;
@@ -205,6 +361,11 @@ export class KvasService {
       for (const n of data ?? [])
         naves.set(n.idNave, { nombre: n.numNaveNAME, num: n.numNave });
     }
+    const [ocupantes, docs] = await Promise.all([
+      this.ocupantesDeNaves(ids),
+      this.conteoDocumentosPorNave(ids),
+    ]);
+
     return filas.map((f) => ({
       ...f,
       cantKvas: Number(f.cantKvas ?? 0),
@@ -212,7 +373,73 @@ export class KvasService {
       pendiente: Number(f.cantKvas ?? 0) - Number(f.cantDevuelta ?? 0),
       nave: naves.get(f.idNave)?.nombre ?? null,
       numNave: naves.get(f.idNave)?.num ?? null,
+      ocupante: ocupantes.get(f.idNave)?.nombre ?? null,
+      ocupanteTipo: ocupantes.get(f.idNave)?.tipo ?? null,
+      docsTotal: docs.get(f.idNave)?.total ?? 0,
+      docsTitulos: docs.get(f.idNave)?.titulos ?? [],
     }));
+  }
+
+  /**
+   * Quién está detrás de cada nave: la empresa que la tiene ARRENDADA y, si no
+   * está arrendada, el INVERSIONISTA dueño.
+   *
+   * ⚠️ Gotcha del esquema: `arrenPropiedades.idArrendador` apunta a la MISMA
+   * tabla `inversionista` (es un catálogo único de terceros con banderas
+   * `inversionista` / `arrendatario` / `usuarioFinal`), no a una tabla aparte.
+   */
+  private async ocupantesDeNaves(
+    idsNave: string[],
+  ): Promise<Map<string, { nombre: string; tipo: OcupanteTipo }>> {
+    const salida = new Map<string, { nombre: string; tipo: OcupanteTipo }>();
+    if (idsNave.length === 0) return salida;
+
+    const [{ data: arren, error: errA }, { data: props, error: errP }] = await Promise.all([
+      this.supabase.admin
+        .from('arrenPropiedades')
+        .select('idNave, idArrendador')
+        .in('idNave', idsNave)
+        .eq('status', true)
+        .range(0, 4999),
+      this.supabase.admin
+        .from('propiedades')
+        .select('idNave, idInversionista')
+        .in('idNave', idsNave)
+        .eq('status', true)
+        .range(0, 4999),
+    ]);
+    if (errA) fallaBd(this.logger, 'kvas.ocupantes.arrendatarios', errA);
+    if (errP) fallaBd(this.logger, 'kvas.ocupantes.propiedades', errP);
+
+    const porNave = new Map<string, { id: string; tipo: OcupanteTipo }>();
+    // El inversionista es el respaldo: primero se siembra y el arrendatario lo pisa.
+    for (const p of props ?? [])
+      if (p.idNave && p.idInversionista)
+        porNave.set(p.idNave, { id: p.idInversionista, tipo: 'INVERSIONISTA' });
+    for (const a of arren ?? [])
+      if (a.idNave && a.idArrendador)
+        porNave.set(a.idNave, { id: a.idArrendador, tipo: 'ARRENDATARIO' });
+
+    const idsTercero = [...new Set([...porNave.values()].map((v) => v.id))];
+    if (idsTercero.length === 0) return salida;
+
+    const { data: terceros, error: errT } = await this.supabase.admin
+      .from('inversionista')
+      .select('idInversionista, razonsocial, NomComercial, nombre')
+      .in('idInversionista', idsTercero)
+      .range(0, 4999);
+    if (errT) fallaBd(this.logger, 'kvas.ocupantes.terceros', errT);
+
+    const nombres = new Map<string, string>();
+    for (const t of terceros ?? []) {
+      const nombre = t.razonsocial?.trim() || t.NomComercial?.trim() || t.nombre?.trim();
+      if (nombre) nombres.set(t.idInversionista, nombre);
+    }
+    for (const [idNave, v] of porNave) {
+      const nombre = nombres.get(v.id);
+      if (nombre) salida.set(idNave, { nombre, tipo: v.tipo });
+    }
+    return salida;
   }
 
   /**
@@ -368,6 +595,150 @@ export class KvasService {
         urldoc: await this.firmar(d.urldoc),
       })),
     );
+  }
+
+  // ============ Expediente de documentos de la NAVE ============
+
+  /**
+   * Documentos de KVA de una nave (contrato, carta de compra de KVA…).
+   *
+   * Se cuelgan de la NAVE y no de una asignación concreta porque un mismo
+   * contrato suele cubrir la baja y la media a la vez.
+   */
+  async documentosDeNave(idNave: string, incluirBajas = false): Promise<DocumentoNave[]> {
+    let q = this.supabase.admin
+      .from('kvaNaveDocs')
+      .select('idDoc, idNave, titulo, descripcion, urldoc, status, motivoBaja, fc')
+      .eq('idNave', idNave)
+      .order('fc', { ascending: false })
+      .range(0, 499);
+    if (!incluirBajas) q = q.eq('status', true);
+
+    const { data, error } = await q;
+    if (error) fallaBd(this.logger, 'kvas.documentosDeNave', error);
+
+    // Las URLs se firman EN LOTE (una sola llamada a Storage), no una por
+    // documento: firmar dentro del map es un N+1 de red disfrazado.
+    const firmadas = await this.firmarVarias((data ?? []).map((d) => d.urldoc));
+
+    return (data ?? []).map((d) => ({
+      idDoc: d.idDoc,
+      idNave: d.idNave,
+      titulo: d.titulo,
+      descripcion: d.descripcion,
+      urldoc: firmadas.get(d.urldoc) ?? null,
+      status: d.status,
+      motivoBaja: d.motivoBaja,
+      fc: d.fc,
+    }));
+  }
+
+  /**
+   * Cuántos documentos vivos tiene cada nave y sus títulos, para el contador y
+   * el tooltip del tablero. Una sola consulta para todas las naves: nada de N+1.
+   */
+  async conteoDocumentosPorNave(
+    idsNave: string[],
+  ): Promise<Map<string, { total: number; titulos: string[] }>> {
+    const salida = new Map<string, { total: number; titulos: string[] }>();
+    if (idsNave.length === 0) return salida;
+
+    const { data, error } = await this.supabase.admin
+      .from('kvaNaveDocs')
+      .select('idNave, titulo')
+      .in('idNave', idsNave)
+      .eq('status', true)
+      .order('fc', { ascending: false })
+      .range(0, 4999);
+    if (error) fallaBd(this.logger, 'kvas.conteoDocumentos', error);
+
+    for (const d of data ?? []) {
+      const acc = salida.get(d.idNave) ?? { total: 0, titulos: [] };
+      acc.total += 1;
+      // El tooltip solo muestra los primeros; el resto se ve al abrir.
+      if (acc.titulos.length < 5) acc.titulos.push(d.titulo);
+      salida.set(d.idNave, acc);
+    }
+    return salida;
+  }
+
+  /** Sube un documento al expediente de la nave. */
+  async subirDocumentoNave(
+    idNave: string,
+    dto: DocumentoNaveDto,
+    archivo: ArchivoValidado,
+    actorUid: string,
+  ): Promise<{ idDoc: string }> {
+    // Valida que la nave exista y toma su parque de la BD (no del cliente).
+    const idParque = await this.parqueDeNave(idNave);
+
+    const ruta = rutaSegura(['naves', idNave, randomUUID()], archivo.ext);
+    const { error: errUp } = await this.supabase.admin.storage
+      .from(BUCKET_KVA)
+      .upload(ruta, archivo.buffer, {
+        contentType: archivo.contentType,
+        upsert: false,
+      });
+    if (errUp)
+      fallaBd(this.logger, 'kvas.docNave.upload', errUp, 'No se pudo subir el documento.');
+
+    const { data, error } = await this.supabase
+      .comoActor(actorUid)
+      .from('kvaNaveDocs')
+      .insert({
+        idNave,
+        idParque,
+        titulo: dto.titulo,
+        descripcion: dto.descripcion ?? null,
+        urldoc: ruta, // se guarda la RUTA; la URL se firma al leer
+        uidr: actorUid,
+      })
+      .select('idDoc')
+      .single();
+    if (error) {
+      // El archivo ya se subió: se limpia para no dejar huérfanos en el bucket.
+      await this.supabase.admin.storage.from(BUCKET_KVA).remove([ruta]);
+      fallaBd(this.logger, 'kvas.docNave.insert', error);
+    }
+    return { idDoc: data!.idDoc };
+  }
+
+  /**
+   * Baja LÓGICA del documento, con motivo. No se borra el archivo: el
+   * expediente debe poder auditarse después.
+   */
+  async bajaDocumentoNave(idDoc: string, motivo: string, actorUid: string): Promise<void> {
+    const { data: existe, error: errG } = await this.supabase.admin
+      .from('kvaNaveDocs')
+      .select('idDoc, status')
+      .eq('idDoc', idDoc)
+      .maybeSingle();
+    if (errG) fallaBd(this.logger, 'kvas.docNave.obtener', errG);
+    if (!existe) throw new NotFoundException('El documento no existe.');
+    if (!existe.status) throw new ConflictException('El documento ya está dado de baja.');
+
+    const { error } = await this.supabase
+      .comoActor(actorUid)
+      .from('kvaNaveDocs')
+      .update({ status: false, motivoBaja: motivo })
+      .eq('idDoc', idDoc);
+    if (error) fallaBd(this.logger, 'kvas.docNave.baja', error);
+  }
+
+  /**
+   * Firma VARIAS rutas de una sola llamada a Storage. Devuelve ruta → URL
+   * firmada (las que fallen quedan fuera del mapa y el llamador pone `null`).
+   */
+  private async firmarVarias(rutas: (string | null)[]): Promise<Map<string, string>> {
+    const salida = new Map<string, string>();
+    const limpias = [...new Set(rutas.filter((r): r is string => !!r))];
+    if (limpias.length === 0) return salida;
+
+    const { data } = await this.supabase.admin.storage
+      .from(BUCKET_KVA)
+      .createSignedUrls(limpias, FIRMA_SEGUNDOS);
+    for (const f of data ?? []) if (f.path && f.signedUrl) salida.set(f.path, f.signedUrl);
+    return salida;
   }
 
   /** URL temporal del documento. El bucket es privado: nunca se expone directo. */

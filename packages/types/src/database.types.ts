@@ -4390,6 +4390,53 @@ export type Database = {
           },
         ]
       }
+      kvaNaveDocs: {
+        Row: {
+          descripcion: string | null
+          fc: string
+          idDoc: string
+          idNave: string
+          idParque: string | null
+          motivoBaja: string | null
+          status: boolean
+          titulo: string
+          uidr: string | null
+          urldoc: string
+        }
+        Insert: {
+          descripcion?: string | null
+          fc?: string
+          idDoc?: string
+          idNave: string
+          idParque?: string | null
+          motivoBaja?: string | null
+          status?: boolean
+          titulo: string
+          uidr?: string | null
+          urldoc: string
+        }
+        Update: {
+          descripcion?: string | null
+          fc?: string
+          idDoc?: string
+          idNave?: string
+          idParque?: string | null
+          motivoBaja?: string | null
+          status?: boolean
+          titulo?: string
+          uidr?: string | null
+          urldoc?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kvaNaveDocs_idNave_fkey"
+            columns: ["idNave"]
+            isOneToOne: false
+            referencedRelation: "naves"
+            referencedColumns: ["idNave"]
+          },
+        ]
+      }
       kvasAsignados: {
         Row: {
           cantDevuelta: number

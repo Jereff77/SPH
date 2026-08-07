@@ -21,12 +21,21 @@ export const ETIQUETA_ETAPA: Record<EtapaKva, string> = {
   ASIGNADO: 'Asignado (con CFE)',
 };
 
+/** Quién ocupa la nave: el inquilino manda; si no hay, el dueño. */
+export type OcupanteTipo = 'ARRENDATARIO' | 'INVERSIONISTA';
+
 export interface AsignacionKva {
   idKvas: string;
   idParque: string;
   idNave: string;
   nave: string | null;
   numNave: number | null;
+  /** Empresa arrendataria o, si no está arrendada, razón social del dueño. */
+  ocupante: string | null;
+  ocupanteTipo: OcupanteTipo | null;
+  /** Documentos vivos del expediente de la nave (contador + tooltip). */
+  docsTotal: number;
+  docsTitulos: string[];
   nivel: NivelKva;
   figura: FiguraKva;
   etapa: EtapaKva;
@@ -40,6 +49,21 @@ export interface AsignacionKva {
   fc: string;
 }
 
+/** Desglose de una bolsa (media o baja), con la lectura del control operativo. */
+export interface DesgloseNivelKva {
+  total: number;
+  asignado: number;
+  comprometido: number;
+  porAsignar: number;
+  venta: number;
+  renta: number;
+  devuelto: number;
+  consumido: number;
+  /** Puede ser NEGATIVO: sobregiro real. */
+  disponible: number;
+  naves: number;
+}
+
 export interface ResumenParqueKva {
   idParque: string;
   nomParque: string | null;
@@ -51,6 +75,9 @@ export interface ResumenParqueKva {
   kvasBtDisponibles: number;
   kvasMtUtilizados: number;
   kvasBtUtilizados: number;
+  /** MT = media tensión · BT = baja tensión. */
+  mt: DesgloseNivelKva;
+  bt: DesgloseNivelKva;
 }
 
 export interface Acometida {
@@ -104,6 +131,19 @@ export interface AcometidaDto {
   notas?: string | null;
 }
 
+/** Documento del expediente de KVA de una nave. */
+export interface DocumentoNave {
+  idDoc: string;
+  idNave: string;
+  titulo: string;
+  descripcion: string | null;
+  /** URL firmada temporal (el bucket es privado). */
+  urldoc: string | null;
+  status: boolean;
+  motivoBaja: string | null;
+  fc: string;
+}
+
 export const kvasApi = {
   resumen: () => api.get<ResumenKvas>('/kvas/resumen'),
   porParque: (idParque: string) =>
@@ -132,6 +172,20 @@ export const kvasApi = {
       `/kvas/asignacion/${encodeURIComponent(idKvas)}/devolucion`,
       datos,
     ),
+
+  /** Expediente de documentos de la nave (contratos, cartas de compra de KVA). */
+  documentosDeNave: (idNave: string) =>
+    api.get<DocumentoNave[]>(`/kvas/nave/${encodeURIComponent(idNave)}/documentos`),
+  subirDocumento: (idNave: string, datos: FormData) =>
+    api.postForm<{ idDoc: string }>(
+      `/kvas/nave/${encodeURIComponent(idNave)}/documentos`,
+      datos,
+    ),
+  /** Baja LÓGICA con motivo (POST y no DELETE: el motivo viaja en el body). */
+  bajaDocumento: (idDoc: string, motivo: string) =>
+    api.post<{ ok: true }>(`/kvas/documento/${encodeURIComponent(idDoc)}/baja`, {
+      motivo,
+    }),
 
   crearAcometida: (dto: AcometidaDto) =>
     api.post<{ idAcometida: string }>('/kvas/acometida', dto),

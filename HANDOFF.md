@@ -5,7 +5,37 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-07-29 (**v2.59.0** — **Permisos · Columna «Descripción» en la tabla**):
+> Última actualización: 2026-08-04 (**v2.64.0** — **Parques · KVA's: tablero como el control operativo y
+> expediente de documentos por nave**):
+> **🐛 Lo primero, porque costó un día:** el API **no arrancaba** desde v2.60.0.
+> `FideicomisoModule` reprovee `PlanesService`, que ahora inyecta `KvasService`, pero no importaba
+> `ParquesModule` → `Nest can't resolve dependencies of the PlanesService`. Al ser un fallo de inyección
+> en **runtime**, `tsc` y `nest build` pasaban en VERDE: EasyPanel construía la imagen, el contenedor
+> moría al iniciar y seguía sirviendo v2.59.0. Síntoma: pantalla de KVA's vacía, `GET /api/kvas/resumen`
+> → **404** con `/api/health` → 200. **Regla nueva (§5d-bis.7): al inyectar un servicio, importar su
+> módulo en TODOS los que reprovean al consumidor, y hacer un `pnpm dev` de arranque REAL antes de
+> cerrar.** El cierre de v2.60.0 anotó «no se hizo smoke test porque no hay `.env`» — sí lo había
+> (`apps/api/.env.local`, archivo oculto); esa omisión es lo que dejó pasar el bug.
+> **El tablero** `/parques/kvas` se rehízo con la lectura del Excel operativo: un bloque por parque con
+> columnas **Baja | Media** y las filas capacidad → venta/renta → etapa → **disponibles** (rojo si es
+> negativo), más los totales de todos los parques arriba. Se listan **todos los parques activos**,
+> también los que están en ceros («Sin información capturada»), porque ver qué falta por capturar es
+> parte de la función. `/kvas/resumen` ahora devuelve el **desglose por etapa y figura** (`mt`/`bt`),
+> no solo los totales. Junto a cada nave se muestra **la empresa que la ocupa**: arrendatario vivo o,
+> si no hay, el inversionista dueño con «(propietario)» — ⚠️ `arrenPropiedades.idArrendador` apunta a
+> la tabla **`inversionista`**, catálogo único de terceros. **Expediente por nave** (`kvaNaveDocs`,
+> permiso **723**): clic en el número de nave abre contratos/cartas de compra; **hover** los lista sin
+> abrir nada. Bucket privado `kvaDocs` (`naves/<idNave>/`), URL firmada 1 h, **magic bytes**, 15 MB,
+> **baja lógica con motivo**. Migración `2026-08-04-kvas-documentos-por-nave-f2.sql` — **solo CREATE**,
+> verificado tras aplicarla que `kvasAsignados` (163) y los 12 parques quedaron intactos.
+> **Datos cargados** desde el Excel: capacidades de Spartek I/II/III + **160 asignaciones** a naves
+> (media **1 145 exacta**; baja 1 060 vs 1 065 — falta la **nave 85**, que no existe en el ERP).
+> Spartek I quedó en **−112** de baja: sobregiro real, pendiente de repartir con el negocio.
+> Verificado: typecheck 4/4, build 3/3, arranque real del API con las 14 rutas `/api/kvas/*` mapeadas.
+> Escalabilidad (skill `revision-escalabilidad`): **APTO** — BD y Caché revisadas, 0 ALTA; se corrigió en
+> el momento la firma de URLs en lote (`firmarVarias`) y se difirieron **P2-11** (agregación en JS) y
+> **P2-12** (`devolucionesDe` firma una por una) a `DEUDA.md`. Autor: Toribio/Opus 5.
+> Previa 2026-07-29 (**v2.59.0** — **Permisos · Columna «Descripción» en la tabla**):
 > la tabla de Configuraciones → Permisos muestra ahora, junto a cada permiso, **para qué sirve** en lenguaje
 > de negocio. Antes ese texto solo existía dentro del Excel de la matriz (v2.58.0): quien asignaba accesos
 > tenía que deducir qué habilita un permiso desde el nombre del catálogo (`Planes de Renta / Configuracion`),
@@ -770,6 +800,27 @@ los vínculos `idPropiedad`/`idNavArrend`. Migración `2026-08-03-kvas-administr
    devuelve** los KVA: no es una puerta trasera al candado.
 6. `tipoTension`/`tipoContrato` están **DEPRECADAS** (su convención estaba invertida entre el trigger y
    el código). Su DROP es la **migración F1b**, tras desplegar v2.60.0.
+7. ⛔ **`FideicomisoModule` DEBE importar `ParquesModule`.** Reprovee `PlanesService`, que inyecta
+   `KvasService` para el candado. Sin ese import **Nest no arranca** — y como es un fallo de inyección
+   en *runtime*, `tsc` y `nest build` pasan en VERDE: el contenedor muere al iniciar y EasyPanel queda
+   sirviendo la versión anterior. Regla general: **al inyectar un servicio nuevo, importar su módulo en
+   TODOS los módulos que reprovean al consumidor**, y hacer un `pnpm dev` de arranque real antes de
+   cerrar (el typecheck no lo detecta). Costó un día de diagnóstico en v2.60.0.
+
+**Ampliación v2.64.0** — tablero + expediente:
+8. **El tablero replica el control operativo en Excel**: un bloque por parque con columnas
+   **Baja | Media** y las filas del Excel (capacidad → venta/renta → etapa → **disponibles**). Se
+   listan **todos los parques activos**, también los que están en ceros: ver qué falta por capturar es
+   parte de la función del tablero, no ruido.
+9. **Ocupante de la nave**: manda el **arrendatario** (`arrenPropiedades` viva); si no hay, el
+   **inversionista dueño** (`propiedades` viva), etiquetado «(propietario)».
+   ⚠️ `arrenPropiedades.idArrendador` apunta a la tabla **`inversionista`** (catálogo único de terceros
+   con banderas `inversionista`/`arrendatario`/`usuarioFinal`), no a una tabla de arrendatarios.
+10. **`kvaNaveDocs`** — expediente de documentos **por NAVE** (no por asignación: un contrato suele
+    cubrir baja y media). Título/descripción **libres**, sin catálogo de tipos. Bucket privado `kvaDocs`
+    con prefijo `naves/<idNave>/`, URL **firmada** (1 h), validación por **magic bytes**, 15 MB.
+    **Baja lógica con motivo** — el archivo se conserva para auditoría. Permiso **723** para escribir;
+    **720** basta para consultar. Migración `2026-08-04-kvas-documentos-por-nave-f2.sql`.
 
 Detalle completo del módulo: `base-conocimiento/modulos/kvas.md`; diseño y pendientes:
 `base-conocimiento/PLAN-administracion-kvas.md`.

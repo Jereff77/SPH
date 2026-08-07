@@ -14,14 +14,18 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { KvasService } from './kvas.service.js';
 import {
   acometidaSchema,
+  bajaDocumentoSchema,
   cancelarAsignacionSchema,
   crearAsignacionSchema,
   devolucionSchema,
+  documentoNaveSchema,
   editarAsignacionSchema,
   type AcometidaDto,
+  type BajaDocumentoDto,
   type CancelarAsignacionDto,
   type CrearAsignacionDto,
   type DevolucionDto,
+  type DocumentoNaveDto,
   type EditarAsignacionDto,
 } from './kvas.schemas.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
@@ -34,7 +38,8 @@ import { LIMITE_ARCHIVO, validarArchivo } from '../../common/utils/archivo-segur
 
 /**
  * Administración de KVA's. Claves: 720 ver · 721 asignar · 722 registrar
- * devolución. El RBAC es server-side (el front solo oculta botones).
+ * devolución · 723 documentos de la nave. El RBAC es server-side (el front solo
+ * oculta botones).
  */
 @Controller('kvas')
 @UseGuards(JwtAuthGuard, PermisoGuard)
@@ -125,6 +130,43 @@ export class KvasController {
       validarArchivo(archivo),
       actor.uid,
     );
+  }
+
+  // ---------- Expediente de documentos de la nave (723) ----------
+
+  /** Documentos de KVA de la nave. Ver = 720 (el mismo que el tablero). */
+  @Get('nave/:idNave/documentos')
+  documentosDeNave(@Param('idNave') idNave: string) {
+    return this.svc.documentosDeNave(idNave);
+  }
+
+  /**
+   * Sube un documento al expediente de la nave.
+   * Multipart: `archivo` = el PDF/imagen · `titulo`/`descripcion` = texto.
+   */
+  @Post('nave/:idNave/documentos')
+  @RequierePermiso(723)
+  @UseInterceptors(FileInterceptor('archivo', { limits: { fileSize: LIMITE_ARCHIVO } }))
+  async subirDocumento(
+    @CurrentUser() actor: AuthUser,
+    @Param('idNave') idNave: string,
+    @Body(new ZodValidationPipe(documentoNaveSchema)) dto: DocumentoNaveDto,
+    @UploadedFile() archivo?: Express.Multer.File,
+  ) {
+    if (!archivo) throw new BadRequestException('Adjunta el archivo del documento.');
+    return this.svc.subirDocumentoNave(idNave, dto, validarArchivo(archivo), actor.uid);
+  }
+
+  /** Baja LÓGICA con motivo. POST (no DELETE) porque el motivo va en el body. */
+  @Post('documento/:idDoc/baja')
+  @RequierePermiso(723)
+  async bajaDocumento(
+    @CurrentUser() actor: AuthUser,
+    @Param('idDoc') idDoc: string,
+    @Body(new ZodValidationPipe(bajaDocumentoSchema)) dto: BajaDocumentoDto,
+  ) {
+    await this.svc.bajaDocumentoNave(idDoc, dto.motivo, actor.uid);
+    return { ok: true };
   }
 
   // ---------- Acometidas ----------

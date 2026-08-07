@@ -67,6 +67,8 @@ el control real vive en los guards. La RLS de la BD es herencia de v1.
 | P2-8 | 🟡 | `auth_leaked_password_protection` OFF; RBAC por-módulo no por-fila; limpieza de obsoletos | ✅/📌 |
 | P2-9 | 🟡 | KVA's: el recálculo de saldo es `FOR EACH ROW` (carga masiva = O(n²)) | 📌 |
 | P2-10 | 🟢 | KVA's: `porParque` ordena por `fc DESC` sin índice que lo cubra | 📌 |
+| P2-11 | 🟡 | KVA's: `resumen()` agrega TODAS las asignaciones en JS, no en SQL | 📌 |
+| P2-12 | 🟢 | KVA's: `devolucionesDe` firma las URLs una por una (N+1 de red) | 📌 |
 
 ### P2-9 — Recálculo de KVA por fila (revisión de escalabilidad, 2026-08-03) 📌
 `trg_kvasasignados_recalcular` es **FOR EACH ROW**: cada insert recalcula el parque completo. En uso
@@ -81,6 +83,21 @@ MEDIA, diferida: no bloquea la operación diaria.
 `(idParque, nivel)`. Con el volumen esperado (cientos de filas por parque) el sort en memoria es
 irrelevante. **Fix si crece:** `CREATE INDEX ix_kvasasignados_parque_fc ON "kvasAsignados"
 ("idParque", fc DESC)`. Severidad BAJA.
+
+### P2-11 — `resumen()` agrega en JS, no en SQL (revisión de escalabilidad, 2026-08-04) 📌
+`KvasService.resumen` trae **todas** las filas de `kvasAsignados` (`.range(0, 9999)`) y calcula el
+desglose por etapa/figura en memoria (`desglosarPorParque`). Hoy son **163 filas** y el techo real es
+una fila por nave × bolsa (unos cientos), así que es correcto y simple. **Se vuelve deuda** si el
+módulo empieza a acumular histórico: el tablero crecería linealmente con TODAS las asignaciones de
+TODOS los parques, no con las que muestra.
+**Fix cuando toque:** un RPC `kva_resumen_por_parque()` con `GROUP BY idParque, nivel, etapa, figura`
+que devuelva ya agregado. Severidad MEDIA, diferida — no bloquea nada hoy.
+
+### P2-12 — `devolucionesDe` firma las URLs una por una 📌
+Firma dentro de un `Promise.all(map(async …))`: una llamada a Storage **por documento**. En
+`documentosDeNave` ya se corrigió con `firmarVarias()` (`createSignedUrls` en lote, 2026-08-04); falta
+migrar `devolucionesDe` al mismo helper. Con 1-3 devoluciones por asignación el impacto es
+despreciable, por eso no se tocó junto con el resto. Severidad BAJA.
 
 ---
 

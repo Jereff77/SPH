@@ -78,6 +78,20 @@ export const devolucionSchema = z.object({
   observaciones: z.string().trim().max(400).optional().nullable(),
 });
 
+/**
+ * Documento del expediente de KVA de una nave (contrato, carta de compra de
+ * KVA…). Sin catálogo de tipos por decisión de Jereff: título y descripción
+ * libres, igual que el resto de los `*_docs` del ERP.
+ */
+export const documentoNaveSchema = z.object({
+  titulo: z.string().trim().min(1, 'El título es obligatorio.').max(150),
+  descripcion: z.string().trim().max(600).optional().nullable(),
+});
+
+export const bajaDocumentoSchema = z.object({
+  motivo: z.string().trim().min(1, 'El motivo es obligatorio.').max(400),
+});
+
 export const acometidaSchema = z.object({
   nombre: z.string().trim().min(1, 'El nombre es obligatorio.').max(150),
   tensionKv: z.coerce.number().min(0).max(1000).optional().nullable(),
@@ -91,4 +105,6 @@ export type CrearAsignacionDto = z.infer<typeof crearAsignacionSchema>;
 export type EditarAsignacionDto = z.infer<typeof editarAsignacionSchema>;
 export type CancelarAsignacionDto = z.infer<typeof cancelarAsignacionSchema>;
 export type DevolucionDto = z.infer<typeof devolucionSchema>;
+export type DocumentoNaveDto = z.infer<typeof documentoNaveSchema>;
+export type BajaDocumentoDto = z.infer<typeof bajaDocumentoSchema>;
 export type AcometidaDto = z.infer<typeof acometidaSchema>;

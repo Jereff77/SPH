@@ -112,6 +112,7 @@ export const DESCRIPCION_PERMISO: Record<number, string> = {
   720: "Consultar la administración de KVA's: capacidad contratada con CFE por acometida y parque, y cómo está repartida entre las naves.",
   721: "Asignar KVA a una nave (media o baja tensión, vendidos o rentados), editarlos y cancelar asignaciones.",
   722: 'Registrar la devolución de KVA vendidos al parque adjuntando el documento que la acredita (es lo que desbloquea la liberación de la nave).',
+  723: 'Subir y dar de baja documentos en el expediente de KVA de una nave (contratos, cartas de compra de KVA). Consultarlos solo requiere el permiso 720.',
 
   /* ── Correo ── */
   800: 'Entrar al buzón de correo integrado en el ERP.',
