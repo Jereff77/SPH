@@ -4451,6 +4451,7 @@ export type Database = {
           idNave: string
           idParque: string
           idPropiedad: string | null
+          motivoAjuste: string | null
           motivoBaja: string | null
           nivel: string
           status: boolean
@@ -4473,6 +4474,7 @@ export type Database = {
           idNave: string
           idParque: string
           idPropiedad?: string | null
+          motivoAjuste?: string | null
           motivoBaja?: string | null
           nivel: string
           status?: boolean
@@ -4493,6 +4495,7 @@ export type Database = {
           idNave?: string
           idParque?: string
           idPropiedad?: string | null
+          motivoAjuste?: string | null
           motivoBaja?: string | null
           nivel?: string
           status?: boolean

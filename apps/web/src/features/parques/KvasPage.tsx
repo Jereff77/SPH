@@ -1,16 +1,20 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/Badge';
 import { ApiRequestError } from '@/lib/api';
+import { parquesApi } from './parques.api';
 import {
   ETIQUETA_ETAPA,
   kvasApi,
   type Acometida,
   type AsignacionKva,
   type DesgloseNivelKva,
+  type EtapaKva,
+  type FiguraKva,
+  type OcupanteTipo,
   type ResumenParqueKva,
 } from './kvas.api';
-import { DocumentosNaveModal } from './DocumentosNaveModal';
+import { NaveKvaModal } from './NaveKvaModal';
 
 const fmt = (n: number) => n.toLocaleString('es-MX', { maximumFractionDigits: 2 });
 
@@ -315,98 +319,208 @@ function FilaCarga({
   );
 }
 
-/** Texto del tooltip al pasar el cursor sobre el número de nave. */
-function tooltipDocs(a: AsignacionKva): string {
-  if (a.docsTotal === 0) return 'Sin documentos. Clic para agregar.';
-  const lista = a.docsTitulos.map((t) => `• ${t}`).join('\n');
-  const resto = a.docsTotal - a.docsTitulos.length;
-  return `${a.docsTotal} documento${a.docsTotal === 1 ? '' : 's'}:\n${lista}${
-    resto > 0 ? `\n…y ${resto} más` : ''
-  }\n\nClic para abrirlos.`;
+
+
+/** Una nave del parque con sus KVA ya resumidos por bolsa. */
+interface FilaNave {
+  idNave: string;
+  etiqueta: string;
+  numNave: number;
+  ocupante: string | null;
+  ocupanteTipo: OcupanteTipo | null;
+  bt: number;
+  mt: number;
+  /** Figura/etapa si todas sus asignaciones coinciden; `null` si están mezcladas. */
+  figura: FiguraKva | null;
+  etapa: EtapaKva | null;
+  docsTotal: number;
+  docsTitulos: string[];
 }
 
-/** Detalle nave × bolsa del parque (solo lectura, salvo los documentos). */
-function NavesDelParque({ idParque }: { idParque: string }) {
-  const [docsDe, setDocsDe] = useState<AsignacionKva | null>(null);
+/** Texto del tooltip al pasar el cursor sobre el número de nave. */
+function tooltip(f: FilaNave): string {
+  const docs =
+    f.docsTotal === 0
+      ? 'Sin documentos.'
+      : `${f.docsTotal} documento${f.docsTotal === 1 ? '' : 's'}:\n${f.docsTitulos
+          .map((t) => `• ${t}`)
+          .join('\n')}${
+          f.docsTotal > f.docsTitulos.length
+            ? `\n…y ${f.docsTotal - f.docsTitulos.length} más`
+            : ''
+        }`;
+  return `${docs}\n\nClic para ver sus KVA y documentos.`;
+}
 
-  const { data, isLoading, error } = useQuery({
+/**
+ * Detalle del parque: **todas** sus naves, tengan KVA o no.
+ *
+ * Listar también las vacías es a propósito — es como se lee el control
+ * operativo (una columna por nave, aunque esté en blanco) y es la única vía
+ * para asignarle KVA a una nave que todavía no tiene nada.
+ */
+function NavesDelParque({ idParque }: { idParque: string }) {
+  const [abierta, setAbierta] = useState<FilaNave | null>(null);
+  const qc = useQueryClient();
+
+  const asignaciones = useQuery({
     queryKey: ['kvas', 'parque', idParque],
     queryFn: () => kvasApi.porParque(idParque),
   });
+  const naves = useQuery({
+    queryKey: ['parques', idParque, 'naves'],
+    queryFn: () => parquesApi.naves(idParque),
+  });
 
-  // Por número de nave: el orden natural del control operativo. El backend las
-  // entrega por fecha de captura, que aquí no dice nada.
-  const vivas = (data ?? [])
-    .filter((a) => a.status)
-    .sort(
-      (x, y) =>
-        (x.numNave ?? 0) - (y.numNave ?? 0) || x.nivel.localeCompare(y.nivel),
-    );
+  const filas = useMemo<FilaNave[]>(() => {
+    const vivas = (asignaciones.data ?? []).filter((a) => a.status);
+    const porNave = new Map<string, AsignacionKva[]>();
+    for (const a of vivas) porNave.set(a.idNave, [...(porNave.get(a.idNave) ?? []), a]);
 
-  if (isLoading) return <p className="px-4 py-3 text-xs text-gray-400">Cargando naves…</p>;
-  if (error)
+    const unico = <T,>(vals: T[]): T | null =>
+      vals.length > 0 && vals.every((v) => v === vals[0]) ? vals[0]! : null;
+
+    return (naves.data ?? [])
+      .map((n) => {
+        const suyas = porNave.get(n.idNave) ?? [];
+        const primera = suyas[0];
+        return {
+          idNave: n.idNave,
+          etiqueta: n.numNaveNAME ?? String(n.numNave ?? ''),
+          numNave: n.numNave ?? 0,
+          ocupante: primera?.ocupante ?? null,
+          ocupanteTipo: primera?.ocupanteTipo ?? null,
+          bt: suyas.filter((a) => a.nivel === 'BT').reduce((s, a) => s + a.cantKvas, 0),
+          mt: suyas.filter((a) => a.nivel === 'MT').reduce((s, a) => s + a.cantKvas, 0),
+          figura: unico(suyas.map((a) => a.figura)),
+          etapa: unico(suyas.map((a) => a.etapa)),
+          docsTotal: primera?.docsTotal ?? 0,
+          docsTitulos: primera?.docsTitulos ?? [],
+        };
+      })
+      .sort((x, y) => x.numNave - y.numNave);
+  }, [asignaciones.data, naves.data]);
+
+  const totalBt = filas.reduce((s, f) => s + f.bt, 0);
+  const totalMt = filas.reduce((s, f) => s + f.mt, 0);
+
+  function refrescarTablero() {
+    void qc.invalidateQueries({ queryKey: ['kvas', 'resumen'] });
+    void qc.invalidateQueries({ queryKey: ['kvas', 'parque', idParque] });
+  }
+
+  if (asignaciones.isLoading || naves.isLoading)
+    return <p className="px-4 py-3 text-xs text-gray-400">Cargando naves…</p>;
+  if (asignaciones.error || naves.error)
     return (
       <p className="px-4 py-3 text-xs text-red-600">
         No se pudo cargar el detalle de naves.
       </p>
     );
-  if (vivas.length === 0)
-    return <p className="px-4 py-3 text-xs text-gray-400">Sin asignaciones a naves.</p>;
+  if (filas.length === 0)
+    return <p className="px-4 py-3 text-xs text-gray-400">Este parque no tiene naves.</p>;
 
   return (
-    <div className="max-h-72 overflow-auto border-t">
+    <div className="max-h-80 overflow-auto border-t">
       <table className="w-full text-xs">
         <thead className="sticky top-0 bg-gray-50 text-left uppercase tracking-wide text-gray-500">
           <tr>
             <th className="px-3 py-1.5">Nave / ocupante</th>
-            <th className="px-3 py-1.5">Bolsa</th>
-            <th className="px-3 py-1.5">Figura</th>
-            <th className="px-3 py-1.5">Etapa</th>
-            <th className="px-3 py-1.5 text-right">KVA</th>
+            <th className="w-16 px-3 py-1.5 text-right">Baja</th>
+            <th className="w-16 px-3 py-1.5 text-right">Media</th>
+            <th className="px-3 py-1.5">Situación</th>
           </tr>
         </thead>
         <tbody>
-          {vivas.map((a) => (
-            <tr key={a.idKvas} className="border-t align-top">
-              <td className="px-3 py-1.5">
-                <button
-                  onClick={() => setDocsDe(a)}
-                  title={tooltipDocs(a)}
-                  className="font-medium text-[#1f2a4d] underline decoration-dotted underline-offset-2 hover:text-[#3b82f6]"
-                >
-                  {a.nave ?? a.idNave}
-                  {a.docsTotal > 0 && (
+          {filas.map((f) => {
+            const sinKva = f.bt === 0 && f.mt === 0;
+            return (
+              <tr
+                key={f.idNave}
+                onClick={() => setAbierta(f)}
+                title={tooltip(f)}
+                className={`cursor-pointer border-t hover:bg-gray-50 ${
+                  sinKva ? 'text-gray-400' : ''
+                }`}
+              >
+                <td className="px-3 py-1.5">
+                  <span
+                    className={`font-medium ${sinKva ? 'text-gray-400' : 'text-[#1f2a4d]'}`}
+                  >
+                    {f.etiqueta}
+                  </span>
+                  {f.docsTotal > 0 && (
                     <span className="ml-1 rounded bg-[#1f2a4d]/10 px-1 text-[10px] font-semibold text-[#1f2a4d]">
-                      📎 {a.docsTotal}
+                      📎 {f.docsTotal}
                     </span>
                   )}
-                </button>
-                <span className="ml-2 text-gray-500">{a.ocupante ?? '—'}</span>
-                {a.ocupanteTipo === 'INVERSIONISTA' && (
-                  <span className="ml-1 text-[10px] uppercase tracking-wide text-gray-400">
-                    (propietario)
-                  </span>
-                )}
-              </td>
-              <td className="px-3 py-1.5">{a.nivel === 'MT' ? 'Media' : 'Baja'}</td>
-              <td className="px-3 py-1.5">
-                <Badge color={a.figura === 'VENTA' ? 'ambar' : 'azul'}>
-                  {a.figura === 'VENTA' ? 'Vendido' : 'Rentado'}
-                </Badge>
-              </td>
-              <td className="px-3 py-1.5 text-gray-600">{ETIQUETA_ETAPA[a.etapa]}</td>
-              <td className="px-3 py-1.5 text-right tabular-nums">{fmt(a.cantKvas)}</td>
-            </tr>
-          ))}
+                  {f.ocupante && (
+                    <>
+                      <span className="ml-2 text-gray-500">{f.ocupante}</span>
+                      {f.ocupanteTipo === 'INVERSIONISTA' && (
+                        <span className="ml-1 text-[10px] uppercase tracking-wide text-gray-400">
+                          (propietario)
+                        </span>
+                      )}
+                    </>
+                  )}
+                </td>
+                <td className="px-3 py-1.5 text-right tabular-nums">
+                  {f.bt > 0 ? fmt(f.bt) : '—'}
+                </td>
+                <td className="px-3 py-1.5 text-right tabular-nums">
+                  {f.mt > 0 ? fmt(f.mt) : '—'}
+                </td>
+                <td className="px-3 py-1.5">
+                  {sinKva ? (
+                    <span className="text-gray-400">Sin KVA asignados</span>
+                  ) : (
+                    <span className="flex flex-wrap items-center gap-1">
+                      <Badge color={f.figura === 'RENTA' ? 'azul' : 'ambar'}>
+                        {f.figura === 'VENTA'
+                          ? 'Vendido'
+                          : f.figura === 'RENTA'
+                            ? 'Rentado'
+                            : 'Mixto'}
+                      </Badge>
+                      <span className="text-gray-500">
+                        {f.etapa ? ETIQUETA_ETAPA[f.etapa] : 'Varias etapas'}
+                      </span>
+                    </span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
+        {/*
+          Suma de lo repartido a naves. Debe cuadrar con «Asignados contratos
+          venta» + «Rentados» del bloque de arriba; si no cuadra, hay
+          asignaciones apuntando a naves que ya no existen en el parque.
+        */}
+        <tfoot className="sticky bottom-0 border-t-2 border-[#1f2a4d] bg-gray-50 font-semibold text-gray-800">
+          <tr>
+            <td className="px-3 py-1.5">
+              Total repartido a naves
+              <span className="ml-1 font-normal text-[11px] text-gray-400">
+                ({filas.filter((f) => f.bt > 0 || f.mt > 0).length} de {filas.length} naves)
+              </span>
+            </td>
+            <td className="px-3 py-1.5 text-right tabular-nums">{fmt(totalBt)}</td>
+            <td className="px-3 py-1.5 text-right tabular-nums">{fmt(totalMt)}</td>
+            <td className="px-3 py-1.5"></td>
+          </tr>
+        </tfoot>
       </table>
 
-      {docsDe && (
-        <DocumentosNaveModal
-          idNave={docsDe.idNave}
-          nave={docsDe.nave ?? docsDe.idNave}
-          ocupante={docsDe.ocupante}
-          onClose={() => setDocsDe(null)}
+      {abierta && (
+        <NaveKvaModal
+          idParque={idParque}
+          idNave={abierta.idNave}
+          nave={abierta.etiqueta}
+          ocupante={abierta.ocupante}
+          onClose={() => setAbierta(null)}
+          onCambio={refrescarTablero}
         />
       )}
     </div>

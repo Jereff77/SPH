@@ -5,7 +5,29 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-08-04 (**v2.64.0** — **Parques · KVA's: tablero como el control operativo y
+> Última actualización: 2026-08-04 (**v2.65.0** — **Parques · KVA's: asignar y ajustar desde la nave**):
+> El tablero deja de ser solo lectura. El detalle de un parque lista ahora **TODAS sus naves**, tengan
+> KVA o no (las vacías en gris) — es como se lee el Excel y es la única vía para asignarle KVA a una
+> nave que aún no tiene nada. Clic en una nave abre su **ficha con dos pestañas**: **KVA** (asignaciones
+> con Editar · Cancelar · Devolución y `+ Asignar KVA`, con la nave ya fija) y **Documentos**. Al pie del
+> detalle, la **suma repartida** en baja y media con el conteo «N de M naves»: si no cuadra con
+> «Asignados contratos venta» + «Rentados» del bloque de arriba, hay asignaciones apuntando a naves que
+> ya no están en el parque.
+> ⛔ **Regla nueva (§5d-bis.11):** bajar la cantidad de una **VENTA** o pasarla a **RENTA** exige
+> **motivo escrito** (400 sin él). Los dos reducen lo pendiente por devolver sin que nadie acredite nada
+> — el mismo hueco que ya estaba cerrado por «cancelar», por otras dos puertas. El motivo se guarda en
+> `kvasAsignados.motivoAjuste` **a propósito**: `fn_auditoria` audita el UPDATE completo, así que el
+> porqué queda junto al cambio que lo motivó. **No pide documento** (decisión de Jereff: separar
+> "corregí la captura" de "los devolvieron" sin estorbar); si los KVA sí regresaron, va **Devolución**.
+> Migración `kvas_f3_motivo_ajuste`: `ADD COLUMN` que admite nulos — metadata-only, verificado después
+> que las 163 filas y los 2 255 KVA totales quedaron sin cambio.
+> 📌 **Se QUITÓ la etiqueta «X por regresar» de la lista**: en una venta activa el pendiente es siempre
+> el total, así que las 163 filas parecían un adeudo. **Se verificó que esa etiqueta NO existe en el
+> Excel** (búsqueda de «regres/devol/liber/pendient» en las 7 hojas: cero coincidencias) — era una
+> invención nuestra. El dato sobrevive donde sirve: devoluciones parciales y el 409 del candado.
+> Escalabilidad: **APTO**, 0 ALTA; **P2-13** (`listarNavesDeParque` sin `.range()`) y **P2-14** (el
+> ocupante se resuelve en dos lugares) a `DEUDA.md`. Autor: Toribio/Opus 5.
+> Previa 2026-08-04 (**v2.64.0** — **Parques · KVA's: tablero como el control operativo y
 > expediente de documentos por nave**):
 > **🐛 Lo primero, porque costó un día:** el API **no arrancaba** desde v2.60.0.
 > `FideicomisoModule` reprovee `PlanesService`, que ahora inyecta `KvasService`, pero no importaba
@@ -821,6 +843,18 @@ los vínculos `idPropiedad`/`idNavArrend`. Migración `2026-08-03-kvas-administr
     con prefijo `naves/<idNave>/`, URL **firmada** (1 h), validación por **magic bytes**, 15 MB.
     **Baja lógica con motivo** — el archivo se conserva para auditoría. Permiso **723** para escribir;
     **720** basta para consultar. Migración `2026-08-04-kvas-documentos-por-nave-f2.sql`.
+
+**Ampliación v2.65.0** — escritura desde la nave:
+11. ⛔ **Bajar la cantidad de una VENTA, o pasarla a RENTA, exige `motivoAjuste`** (400 sin él). Son las
+    otras dos puertas al mismo hueco que cierra el candado: ambas reducen lo pendiente por devolver sin
+    documento. El motivo va **en la fila** para que `fn_auditoria` lo registre junto al cambio.
+    **No pide comprobante** — si los KVA sí regresaron, la vía correcta es **Devolución**.
+12. **Se asigna DESDE la nave**, no desde un selector: el detalle del parque lista **todas** sus naves
+    (también las vacías) y cada una abre su ficha con pestañas **KVA** | **Documentos**.
+13. 📌 **No se muestra «lo pendiente por devolver» en los listados.** En una venta activa es siempre el
+    total y se lee como adeudo. Se verificó además que esa etiqueta **no existe en el Excel** del
+    cliente. Solo aparece en devoluciones parciales y en el 409 del candado. Jereff lo consulta con el
+    cliente antes de decidir si vuelve a algún lado.
 
 Detalle completo del módulo: `base-conocimiento/modulos/kvas.md`; diseño y pendientes:
 `base-conocimiento/PLAN-administracion-kvas.md`.

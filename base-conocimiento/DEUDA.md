@@ -69,6 +69,8 @@ el control real vive en los guards. La RLS de la BD es herencia de v1.
 | P2-10 | 🟢 | KVA's: `porParque` ordena por `fc DESC` sin índice que lo cubra | 📌 |
 | P2-11 | 🟡 | KVA's: `resumen()` agrega TODAS las asignaciones en JS, no en SQL | 📌 |
 | P2-12 | 🟢 | KVA's: `devolucionesDe` firma las URLs una por una (N+1 de red) | 📌 |
+| P2-13 | 🟢 | Parques: `listarNavesDeParque` sin `.range()` — depende del tope de PostgREST | 📌 |
+| P2-14 | 🟢 | DRY: el ocupante de la nave se resuelve en dos lugares distintos | 📌 |
 
 ### P2-9 — Recálculo de KVA por fila (revisión de escalabilidad, 2026-08-03) 📌
 `trg_kvasasignados_recalcular` es **FOR EACH ROW**: cada insert recalcula el parque completo. En uso
@@ -92,6 +94,21 @@ módulo empieza a acumular histórico: el tablero crecería linealmente con TODA
 TODOS los parques, no con las que muestra.
 **Fix cuando toque:** un RPC `kva_resumen_por_parque()` con `GROUP BY idParque, nivel, etapa, figura`
 que devuelva ya agregado. Severidad MEDIA, diferida — no bloquea nada hoy.
+
+### P2-13 — `listarNavesDeParque` sin paginación explícita (2026-08-04) 📌
+`ParquesService.listarNavesDeParque` (`GET /parques/:id/naves`) hace `.eq().order()` **sin `.range()`**:
+la única protección es el tope por defecto de PostgREST. Con el volumen real (máx. 65 naves por parque)
+no pasa nada, y el endpoint es **preexistente** — solo aumentó su uso, porque desde v2.65.0 el tablero
+de KVA's también lo consume para listar las naves sin asignación. **Fix:** añadir `.range(0, 4999)`.
+No se tocó en el momento por ser un servicio compartido con otras dos pantallas. Severidad BAJA.
+
+### P2-14 — El ocupante de la nave se resuelve en dos lugares 📌
+`ParquesService.resolverArrendadores` (para `/parques/:id/naves`) y `KvasService.ocupantesDeNaves`
+(para el tablero de KVA) hacen casi lo mismo: traducir `arrenPropiedades.idArrendador` a un nombre de
+`inversionista`. **No son idénticos** — el de KVA además cae al **inversionista dueño** cuando la nave
+no está arrendada, y devuelve el tipo de ocupante —, por eso se escribió aparte en vez de reusarlo.
+**Fix cuando se toque Parques:** extraer un helper compartido con el contrato más amplio (el de KVA) y
+que Parques lo consuma. Severidad BAJA (duplicación, no bug).
 
 ### P2-12 — `devolucionesDe` firma las URLs una por una 📌
 Firma dentro de un `Promise.all(map(async …))`: una llamada a Storage **por documento**. En

@@ -120,6 +120,11 @@ export interface AsignacionDto {
   fechaContratoCfe?: string | null;
   idPropiedad?: string | null;
   idNavArrend?: string | null;
+  /**
+   * Obligatorio al bajar la cantidad de una VENTA o pasarla a RENTA: ambos
+   * aflojan el candado de devolución. Lo exige el backend.
+   */
+  motivoAjuste?: string | null;
 }
 
 export interface AcometidaDto {

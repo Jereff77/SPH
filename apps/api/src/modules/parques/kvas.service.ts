@@ -472,7 +472,19 @@ export class KvasService {
     return { idKvas: data!.idKvas };
   }
 
-  /** Edita una asignación viva. Las canceladas no se editan (histórico). */
+  /**
+   * Edita una asignación viva. Las canceladas no se editan (histórico).
+   *
+   * ⛔ **Dos cambios aflojan el candado de devolución** y por eso exigen un
+   * motivo escrito (decisión de Jereff, 2026-08-04):
+   *   1. **Bajar la cantidad de una VENTA** — lo pendiente por devolver se
+   *      reduce sin que nadie haya acreditado nada.
+   *   2. **Pasar una VENTA a RENTA** — una renta no exige devolución, así que
+   *      el faltante desaparece de golpe.
+   * El motivo se guarda EN LA FILA a propósito: `fn_auditoria` audita el UPDATE
+   * completo, así que en la auditoría el porqué queda junto al cambio que lo
+   * motivó, no en un registro suelto.
+   */
   async editar(
     idKvas: string,
     dto: EditarAsignacionDto,
@@ -487,6 +499,19 @@ export class KvasService {
       );
     this.validarVinculo(dto.figura, dto.idPropiedad, dto.idNavArrend);
 
+    const eraVenta = actual.figura === 'VENTA';
+    const bajaCantidad = eraVenta && dto.cantKvas < Number(actual.cantKvas);
+    const dejaDeSerVenta = eraVenta && dto.figura !== 'VENTA';
+    const aflojaElCandado = bajaCantidad || dejaDeSerVenta;
+
+    const motivo = dto.motivoAjuste?.trim();
+    if (aflojaElCandado && !motivo)
+      throw new BadRequestException(
+        dejaDeSerVenta
+          ? 'Cambiar una venta a renta libera los KVA sin devolución acreditada. Escribe el motivo del ajuste.'
+          : `Bajar una venta de ${actual.cantKvas} a ${dto.cantKvas} KVA reduce lo pendiente por devolver sin documento. Escribe el motivo del ajuste, o registra una Devolución si los KVA sí regresaron al parque.`,
+      );
+
     const { error } = await this.supabase
       .comoActor(actorUid)
       .from('kvasAsignados')
@@ -499,6 +524,9 @@ export class KvasService {
         fechaContratoCfe: dto.fechaContratoCfe ?? null,
         idPropiedad: dto.idPropiedad ?? null,
         idNavArrend: dto.idNavArrend ?? null,
+        // Solo se sella cuando el cambio lo amerita; una edición inocua no
+        // arrastra el motivo de un ajuste anterior.
+        ...(aflojaElCandado ? { motivoAjuste: motivo } : {}),
       })
       .eq('idKvas', idKvas);
     if (error) fallaBd(this.logger, 'kvas.editar', error);

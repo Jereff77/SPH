@@ -65,8 +65,24 @@ Cada parque es un bloque con columnas **Baja | Media** y estas filas:
 | Devueltos al parque | suma de `cantDevuelta` (se **oculta** si es 0) |
 | **Disponibles actualmente** | `kvasBtDisponibles` / `kvasMtDisponibles` — resaltado; **rojo si es negativo** |
 
-Botón **«Ver naves»** por parque: detalle nave × bolsa, **ordenado por número de nave**. Junto al
-número aparece **la empresa que ocupa la nave** (ver §5, regla del ocupante).
+Botón **«Ver naves»** por parque: lista **TODAS las naves del parque**, tengan KVA o no, ordenadas por
+número. Las vacías salen en gris con «Sin KVA asignados» — así hay por dónde asignarles, y es como se
+lee el Excel (una columna por nave aunque esté en blanco). Junto al número, **la empresa que ocupa la
+nave** (ver §5) y el contador **📎 N** de documentos. Al pie, la **suma repartida a naves** en baja y
+media, con el conteo «N de M naves» — si esa suma no cuadra con «Asignados contratos venta» + «Rentados»
+del bloque de arriba, hay asignaciones apuntando a naves que ya no están en el parque.
+
+### Ficha de la nave (v2.65.0)
+
+Clic en cualquier fila del detalle abre la ficha de la nave, con dos pestañas:
+
+| Pestaña | Qué tiene | Permiso |
+|---|---|---|
+| **KVA** | Sus asignaciones vivas, con `Editar` · `Cancelar` · `Devolución` y `+ Asignar KVA` | 720 ver · 721 escribir · 722 devolver |
+| **Documentos** | El expediente (`kvaNaveDocs`) | 720 ver · 723 escribir |
+
+Al asignar desde aquí la nave **viene fija** (no se elige de un selector), que es como se trabaja el
+control: nave por nave.
 
 ## 4. Modelo de datos
 
@@ -85,7 +101,8 @@ número aparece **la empresa que ocupa la nave** (ver §5, regla del ocupante).
 ### `kvasAsignados`
 `idKvas` (uuid PK) · `idParque` · `idNave` · `nivel` · `figura` · `etapa` · `cantKvas` ·
 `cantDevuelta` · `contratoCfe` · `fechaContratoCfe` · `idPropiedad` / `idNavArrend` (el vínculo) ·
-`motivoBaja` · `status` (baja lógica).
+`motivoBaja` · `motivoAjuste` (v2.65.0 — por qué se bajó una venta o pasó a renta) · `status`
+(baja lógica).
 ⚠️ `tipoTension` y `tipoContrato` quedan **DEPRECADAS** (se eliminan en la migración F1b).
 
 ### `kvaDevoluciones` (nueva, 2026-08-03)
@@ -113,6 +130,14 @@ título y descripción libres, igual que el resto de los `*_docs` del ERP.
   contrato con CFE"; sin el número, el tablero mostraría trámites cerrados sin respaldo.
 - **Cancelar una asignación es baja lógica con motivo** y **no devuelve** los KVA vendidos: cancelar no
   es la puerta trasera para saltarse el candado.
+- ⛔ **Los dos cambios que aflojan el candado exigen MOTIVO escrito** (v2.65.0, decisión de Jereff):
+  **(a) bajar la cantidad de una VENTA** y **(b) pasar una VENTA a RENTA**. Ambos reducen lo pendiente
+  por devolver sin que nadie acredite nada — son el mismo hueco que ya se cerró por el lado de
+  «cancelar», por otras dos puertas. Sin motivo, el backend responde **400**. El motivo se guarda en
+  `kvasAsignados.motivoAjuste` **a propósito**: como `fn_auditoria` audita el UPDATE completo, el porqué
+  queda en el mismo registro que el cambio que lo motivó, no en una bitácora suelta.
+  📌 **No exige documento** (esa fue la decisión: distinguir "corregí la captura" de "los devolvieron"
+  sin estorbar). Si los KVA **sí** regresaron, lo correcto es **Devolución**, que sí pide comprobante.
 - **Devolución parcial permitida**, nunca por encima de lo pendiente.
 - **El parque se toma de la nave**, no del cliente: no se puede descontar capacidad de un parque ajeno.
 - El documento de la devolución es **obligatorio**: PDF/JPG/PNG/WEBP, validado por **magic bytes**
@@ -130,8 +155,9 @@ título y descripción libres, igual que el resto de los `*_docs` del ERP.
   Helper de archivos reutilizable: `apps/api/src/common/utils/archivo-seguro.ts`.
 - El candado vive en `planes-arre.service.ts` → `liberarNave` y `planes.service.ts` →
   `desvincularNave`, ambos vía `KvasService.exigirKvasDevueltos(idNave)`.
-- Frontend: `apps/web/src/features/parques/KvasPage.tsx` (tablero), `DocumentosNaveModal.tsx`
-  (expediente), `AsignacionKvaModal.tsx`, `DevolucionKvaModal.tsx`, `kvas.api.ts`.
+- Frontend: `apps/web/src/features/parques/KvasPage.tsx` (tablero), `NaveKvaModal.tsx` (ficha de la
+  nave, 2 pestañas), `DocumentosNave.tsx` (expediente), `AsignacionKvaModal.tsx`,
+  `DevolucionKvaModal.tsx`, `kvas.api.ts`.
 - ⛔ **`FideicomisoModule` debe importar `ParquesModule`.** Reprovee `PlanesService`, que inyecta
   `KvasService` para el candado; sin ese import **Nest no arranca** y el contenedor queda sirviendo la
   versión anterior con builds en verde (ver gotcha #7).
@@ -156,6 +182,9 @@ título y descripción libres, igual que el resto de los `*_docs` del ERP.
 | "Junto a la nave sale un nombre de persona y no la empresa." | La nave **no está arrendada**: se muestra el inversionista dueño con la etiqueta «(propietario)». | Si debería estar arrendada, revisar `arrenPropiedades` (¿el vínculo tiene `status=true`?). |
 | "Subí un documento y no lo veo en otra nave." | El expediente es **por nave**: cada nave tiene el suyo. | Abrir la nave correcta desde el tablero. |
 | "El enlace del documento dejó de funcionar." | Las URLs son **firmadas y caducan a la hora** (el bucket es privado). | Volver a abrir el modal: se firman de nuevo al cargar. |
+| "No me deja bajar la cantidad de KVA / me pide un motivo." | Bajar una **venta** (o pasarla a renta) reduce lo pendiente por devolver sin documento. El backend exige el motivo (400). | Si fue un error de captura: escribir el motivo, queda en la auditoría. **Si los KVA sí regresaron al parque: cerrar y usar Devolución**, que pide el comprobante. |
+| "Quiero asignar KVA a una nave que no aparece en la lista." | Ya no pasa desde v2.65.0: el detalle lista **todas** las naves del parque, también las que están en ceros. | Abrir el parque → «Ver naves» → clic en la nave → pestaña KVA → `+ Asignar KVA`. |
+| "El total del pie no cuadra con «Asignados contratos venta» de arriba." | Hay asignaciones cuyo `idNave` ya no pertenece a ese parque (nave dada de baja o movida). | Consultar `kvasAsignados` del parque y cruzar contra `naves`; corregir el vínculo. |
 
 ## 8. Gotchas / trampas conocidas
 
@@ -190,3 +219,14 @@ título y descripción libres, igual que el resto de los `*_docs` del ERP.
 10. **Spartek I quedó con −112 de baja disponible** tras la carga: es el sobregiro real del control
     operativo (el Excel lleva Spartek I y II en un solo pool). Pendiente de decidir el reparto con el
     negocio (§9 del PLAN).
+11. **📌 «Lo pendiente por devolver» NO se muestra en la lista** (v2.65.0). Se probó y se quitó: en una
+    venta activa el pendiente es SIEMPRE el total (nadie ha devuelto nada porque el inquilino sigue en
+    la nave), así que las 163 filas decían «X por regresar» y se leía como si todo el parque debiera
+    algo. **La etiqueta no existe en el Excel** — se verificó buscando «regres/devol/liber/pendient» en
+    las 7 hojas: cero coincidencias. Era una invención nuestra derivada de la regla de negocio. Ahora el
+    dato solo aparece (a) cuando ya hubo una **devolución parcial** y (b) en el 409 del candado, que es
+    cuando de verdad estorba. **Jereff lo consulta con el cliente** antes de decidir si va en algún lado.
+12. **Etiquetas literales del Excel** (para no reinventarlas): `Disponibilidad actual del parque` ·
+    `Asignados contratos venta` · `Ya Asignados (Ya hay contratos con CFE) inquilinos/usuarios finales` ·
+    `Por Asignar` · `Comprometidos con inquilinos` · `Disponibles Actualmente`. La fila
+    `Disponibilidad futura del parque (TENTATIVO)` existe en la hoja pero está **fuera del MVP**.

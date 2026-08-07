@@ -54,6 +54,12 @@ export const editarAsignacionSchema = z
       .nullable(),
     idPropiedad: z.string().trim().max(40).optional().nullable(),
     idNavArrend: z.string().trim().max(40).optional().nullable(),
+    /**
+     * Obligatorio SOLO cuando el cambio afloja el candado de devolución
+     * (bajar la cantidad de una VENTA, o pasarla a RENTA). Lo exige el
+     * servicio, que es quien conoce el estado anterior.
+     */
+    motivoAjuste: z.string().trim().max(400).optional().nullable(),
   })
   .refine((d) => d.etapa !== 'ASIGNADO' || !!d.contratoCfe, {
     message: 'Para marcar «Asignado» hay que capturar el contrato de CFE.',

@@ -17,6 +17,9 @@ interface Props {
   idParque: string;
   /** `null` = alta nueva. */
   asignacion: AsignacionKva | null;
+  /** Si el alta se abre DESDE una nave, viene fija y no se elige. */
+  idNaveFijo?: string;
+  naveEtiqueta?: string;
   onClose: () => void;
   onListo: () => void;
 }
@@ -26,10 +29,22 @@ interface Props {
  *
  * La etapa «Asignado» significa que YA hay contrato con CFE, así que el número
  * de contrato se vuelve obligatorio (misma regla que valida el backend).
+ *
+ * ⛔ Al **bajar la cantidad de una VENTA** o **pasarla a RENTA** se pide un
+ * motivo: los dos aflojan el candado de devolución de la nave. El backend lo
+ * revalida — esto es solo para no hacer viajar al usuario.
  */
-export function AsignacionKvaModal({ idParque, asignacion, onClose, onListo }: Props) {
+export function AsignacionKvaModal({
+  idParque,
+  asignacion,
+  idNaveFijo,
+  naveEtiqueta,
+  onClose,
+  onListo,
+}: Props) {
   const esEdicion = !!asignacion;
-  const [idNave, setIdNave] = useState(asignacion?.idNave ?? '');
+  const [idNave, setIdNave] = useState(asignacion?.idNave ?? idNaveFijo ?? '');
+  const [motivoAjuste, setMotivoAjuste] = useState('');
   const [nivel, setNivel] = useState<NivelKva>(asignacion?.nivel ?? 'BT');
   const [figura, setFigura] = useState<FiguraKva>(asignacion?.figura ?? 'VENTA');
   const [etapa, setEtapa] = useState<EtapaKva>(asignacion?.etapa ?? 'POR_ASIGNAR');
@@ -43,8 +58,14 @@ export function AsignacionKvaModal({ idParque, asignacion, onClose, onListo }: P
   const { data: naves } = useQuery({
     queryKey: ['parques', idParque, 'naves'],
     queryFn: () => parquesApi.naves(idParque),
-    enabled: !esEdicion,
+    enabled: !esEdicion && !idNaveFijo,
   });
+
+  // Los dos cambios que reducen lo pendiente por devolver sin documento.
+  const eraVenta = asignacion?.figura === 'VENTA';
+  const bajaCantidad = eraVenta && Number(cantKvas) < asignacion.cantKvas;
+  const dejaDeSerVenta = eraVenta && figura !== 'VENTA';
+  const exigeMotivo = !!(bajaCantidad || dejaDeSerVenta);
 
   const guardar = useMutation({
     mutationFn: async () => {
@@ -57,7 +78,10 @@ export function AsignacionKvaModal({ idParque, asignacion, onClose, onListo }: P
         fechaContratoCfe: fechaContratoCfe || null,
       };
       if (esEdicion) {
-        await kvasApi.editar(asignacion.idKvas, datos);
+        await kvasApi.editar(asignacion.idKvas, {
+          ...datos,
+          motivoAjuste: exigeMotivo ? motivoAjuste.trim() : null,
+        });
         return;
       }
       await kvasApi.crear({ ...datos, idNave });
@@ -76,6 +100,8 @@ export function AsignacionKvaModal({ idParque, asignacion, onClose, onListo }: P
       return setError('La cantidad de KVA debe ser mayor a 0.');
     if (etapa === 'ASIGNADO' && !contratoCfe.trim())
       return setError('Para marcar «Asignado» captura el contrato de CFE.');
+    if (exigeMotivo && !motivoAjuste.trim())
+      return setError('Escribe el motivo del ajuste.');
     guardar.mutate();
   }
 
@@ -90,10 +116,13 @@ export function AsignacionKvaModal({ idParque, asignacion, onClose, onListo }: P
         className="w-full max-w-md space-y-3 rounded-xl bg-white p-5 shadow-xl"
       >
         <h2 className="text-base font-semibold text-gray-800">
-          {esEdicion ? 'Editar asignación de KVA' : 'Asignar KVA a una nave'}
+          {esEdicion ? 'Editar asignación de KVA' : 'Asignar KVA'}
+          {naveEtiqueta && (
+            <span className="ml-1 font-normal text-gray-500">· nave {naveEtiqueta}</span>
+          )}
         </h2>
 
-        {!esEdicion && (
+        {!esEdicion && !idNaveFijo && (
           <label className="block text-xs text-gray-600">
             Nave
             <select
@@ -176,11 +205,34 @@ export function AsignacionKvaModal({ idParque, asignacion, onClose, onListo }: P
           </label>
         </div>
 
-        {figura === 'VENTA' && (
+        {figura === 'VENTA' && !exigeMotivo && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
             Los KVA vendidos se van con la nave: solo regresan al parque cuando se
             registra su devolución con documento.
           </p>
+        )}
+
+        {exigeMotivo && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+            <p className="text-xs font-medium text-amber-800">
+              {dejaDeSerVenta
+                ? 'Pasar esta venta a renta libera los KVA sin devolución acreditada.'
+                : `Bajar la venta de ${asignacion!.cantKvas} a ${cantKvas || 0} KVA reduce lo pendiente por devolver, sin documento.`}
+            </p>
+            <p className="mt-0.5 text-[11px] text-amber-700">
+              Si los KVA sí regresaron al parque, cierra esto y usa{' '}
+              <strong>Devolución</strong>: ahí se adjunta el comprobante.
+            </p>
+            <label className="mt-2 block text-xs text-amber-900">
+              Motivo del ajuste (queda en la auditoría)
+              <input
+                value={motivoAjuste}
+                onChange={(e) => setMotivoAjuste(e.target.value)}
+                placeholder="Se capturó de más por error"
+                className={inputCls}
+              />
+            </label>
+          </div>
         )}
 
         {error && <p className="text-xs text-red-600">{error}</p>}
