@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/Badge';
 import { ApiRequestError } from '@/lib/api';
 import { parquesApi } from './parques.api';
@@ -26,11 +26,12 @@ const FILAS: {
   destacar?: 'cabecera' | 'saldo';
 }[] = [
   { clave: 'total', etiqueta: 'Disponibilidad actual del parque', destacar: 'cabecera' },
-  { clave: 'venta', etiqueta: 'Asignados contratos venta' },
-  { clave: 'renta', etiqueta: 'Rentados a inquilinos' },
+  { clave: 'dotado', etiqueta: 'Dotado a naves', nota: 'lo que les toca por disposición' },
+  { clave: 'sinDotar', etiqueta: 'Sin dotar', nota: 'capacidad sin repartir a ninguna nave' },
   { clave: 'asignado', etiqueta: 'Ya asignados', nota: 'ya hay contrato con CFE' },
   { clave: 'comprometido', etiqueta: 'Comprometidos con inquilinos' },
-  { clave: 'porAsignar', etiqueta: 'Por asignar' },
+  { clave: 'porAsignar', etiqueta: 'Por asignar', nota: 'dotado sin dueño todavía' },
+  { clave: 'renta', etiqueta: 'Rentados a inquilinos' },
   { clave: 'devuelto', etiqueta: 'Devueltos al parque' },
   { clave: 'disponible', etiqueta: 'Disponibles actualmente', destacar: 'saldo' },
 ];
@@ -119,7 +120,7 @@ export default function KvasPage() {
                 {resumen!.sinAcometida.map((p) => (
                   <BloqueParque
                     key={p.idParque}
-                    parque={p}
+                    parques={[p]}
                     abierto={expandido === p.idParque}
                     onToggle={() =>
                       setExpandido(expandido === p.idParque ? null : p.idParque)
@@ -211,31 +212,68 @@ function GrupoAcometida({
       {acometida.parques.length === 0 ? (
         <p className="px-1 text-xs text-gray-400">Sin parques vinculados a esta acometida.</p>
       ) : (
+        /*
+          ⛔ Los parques que COMPARTEN acometida se presentan en UN SOLO bloque
+          (Spartek I & II, 2026-08-04): el negocio los opera como un solo pool y
+          verlos partidos confundía — además, el reparto por parque es artificial
+          y hacía aparecer un disponible negativo que no existe en la realidad.
+        */
         <div className="grid gap-3 xl:grid-cols-2">
-          {acometida.parques.map((p) => (
-            <BloqueParque
-              key={p.idParque}
-              parque={p}
-              abierto={expandido === p.idParque}
-              onToggle={() => onExpandir(expandido === p.idParque ? null : p.idParque)}
-            />
-          ))}
+          <BloqueParque
+            parques={acometida.parques}
+            abierto={expandido === acometida.idAcometida}
+            onToggle={() =>
+              onExpandir(expandido === acometida.idAcometida ? null : acometida.idAcometida)
+            }
+          />
         </div>
       )}
     </section>
   );
 }
 
-/** Un parque: la tabla Carga × (Baja, Media) del Excel. */
+/** Suma varias bolsas del mismo nivel en una sola (pool combinado). */
+function sumarBolsas(bolsas: DesgloseNivelKva[]): DesgloseNivelKva {
+  const s = (k: keyof DesgloseNivelKva) => bolsas.reduce((acc, b) => acc + b[k], 0);
+  return {
+    total: s('total'),
+    dotado: s('dotado'),
+    sinDotar: s('sinDotar'),
+    asignado: s('asignado'),
+    comprometido: s('comprometido'),
+    porAsignar: s('porAsignar'),
+    venta: s('venta'),
+    renta: s('renta'),
+    devuelto: s('devuelto'),
+    consumido: s('consumido'),
+    disponible: s('disponible'),
+    naves: s('naves'),
+  };
+}
+
+/**
+ * Un bloque de la tabla Carga × (Baja, Media) del Excel.
+ *
+ * Recibe UNO o VARIOS parques: cuando comparten acometida se muestran juntos,
+ * con ambos nombres en el encabezado y las cifras sumadas, porque el negocio
+ * los maneja como un solo parque.
+ */
 function BloqueParque({
-  parque,
+  parques,
   abierto,
   onToggle,
 }: {
-  parque: ResumenParqueKva;
+  parques: ResumenParqueKva[];
   abierto: boolean;
   onToggle: () => void;
 }) {
+  const bt = useMemo(() => sumarBolsas(parques.map((p) => p.bt)), [parques]);
+  const mt = useMemo(() => sumarBolsas(parques.map((p) => p.mt)), [parques]);
+
+  const titulo = parques.map((p) => p.nomParque ?? p.idParque).join(' & ');
+  const idsParque = parques.map((p) => p.idParque);
+  const parque = { bt, mt };
+
   const vacio =
     parque.bt.total === 0 &&
     parque.mt.total === 0 &&
@@ -244,20 +282,31 @@ function BloqueParque({
 
   return (
     <article className="overflow-hidden rounded-xl border bg-white shadow-sm">
-      <header className="flex items-center justify-between gap-2 border-b bg-gray-50 px-4 py-2">
+      {/*
+        Verde de marca con el nombre en BLANCO (decisión de Jereff, 2026-08-04).
+        El blanco sobre este verde queda en ~2:1 de contraste, así que se le
+        añade una sombra sutil: no cambia el color pedido y despega el texto del
+        fondo lo suficiente para que se lea.
+      */}
+      <header className="flex items-center justify-between gap-2 bg-[#8DBE2F] px-4 py-2.5">
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold text-gray-800">
-            {parque.nomParque ?? parque.idParque}
+          <h3
+            className="truncate text-xl font-bold text-white"
+            title={titulo}
+            style={{ textShadow: '0 1px 2px rgba(31,42,77,.45)' }}
+          >
+            {titulo}
           </h3>
-          <p className="text-[11px] text-gray-500">
+          <p className="text-[11px] font-medium text-white/90">
             {vacio
               ? 'Sin información capturada'
               : `${parque.bt.naves + parque.mt.naves} asignaciones a naves`}
+            {parques.length > 1 && ` · ${parques.length} parques en un solo pool`}
           </p>
         </div>
         <button
           onClick={onToggle}
-          className="shrink-0 rounded-lg border px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+          className="shrink-0 rounded-lg bg-white/90 px-2.5 py-1 text-xs font-medium text-[#1f2a4d] hover:bg-white"
         >
           {abierto ? 'Ocultar naves' : 'Ver naves'}
         </button>
@@ -278,7 +327,7 @@ function BloqueParque({
         </tbody>
       </table>
 
-      {abierto && <NavesDelParque idParque={parque.idParque} />}
+      {abierto && <NavesDelBloque idsParque={idsParque} />}
     </article>
   );
 }
@@ -299,17 +348,23 @@ function FilaCarga({
   const opcional = fila.clave === 'renta' || fila.clave === 'devuelto';
   if (opcional && vBt === 0 && vMt === 0) return null;
 
+  // «Dotado» y «Sin dotar» son el reparto de la capacidad, no movimientos:
+  // van con sangría y en gris para que no compitan con las filas de negocio.
+  const estructural = fila.clave === 'dotado' || fila.clave === 'sinDotar';
+
   const fondo =
     fila.destacar === 'cabecera'
       ? 'bg-emerald-50/60 font-medium'
       : fila.destacar === 'saldo'
         ? 'bg-amber-50 font-semibold'
-        : '';
+        : estructural
+          ? 'text-gray-500'
+          : '';
   const color = (v: number) => (v < 0 ? 'text-red-600' : 'text-gray-800');
 
   return (
     <tr className={`border-t ${fondo}`}>
-      <td className="px-3 py-1.5 text-gray-700">
+      <td className={`px-3 py-1.5 ${estructural ? 'pl-6 text-gray-500' : 'text-gray-700'}`}>
         {fila.etiqueta}
         {fila.nota && <span className="ml-1 text-[11px] text-gray-400">({fila.nota})</span>}
       </td>
@@ -324,6 +379,8 @@ function FilaCarga({
 /** Una nave del parque con sus KVA ya resumidos por bolsa. */
 interface FilaNave {
   idNave: string;
+  /** Su parque real: en un bloque combinado hay naves de más de uno. */
+  idParque: string;
   etiqueta: string;
   numNave: number;
   ocupante: string | null;
@@ -353,39 +410,56 @@ function tooltip(f: FilaNave): string {
 }
 
 /**
- * Detalle del parque: **todas** sus naves, tengan KVA o no.
+ * Detalle del bloque: **todas** las naves de sus parques, tengan KVA o no.
  *
  * Listar también las vacías es a propósito — es como se lee el control
  * operativo (una columna por nave, aunque esté en blanco) y es la única vía
  * para asignarle KVA a una nave que todavía no tiene nada.
+ *
+ * Recibe VARIOS parques cuando comparten acometida (Spartek I & II): sus naves
+ * van en una sola lista, porque el negocio las opera como un solo conjunto.
  */
-function NavesDelParque({ idParque }: { idParque: string }) {
+function NavesDelBloque({ idsParque }: { idsParque: string[] }) {
   const [abierta, setAbierta] = useState<FilaNave | null>(null);
   const qc = useQueryClient();
 
-  const asignaciones = useQuery({
-    queryKey: ['kvas', 'parque', idParque],
-    queryFn: () => kvasApi.porParque(idParque),
+  const asignaciones = useQueries({
+    queries: idsParque.map((id) => ({
+      queryKey: ['kvas', 'parque', id],
+      queryFn: () => kvasApi.porParque(id),
+    })),
   });
-  const naves = useQuery({
-    queryKey: ['parques', idParque, 'naves'],
-    queryFn: () => parquesApi.naves(idParque),
+  const naves = useQueries({
+    queries: idsParque.map((id) => ({
+      queryKey: ['parques', id, 'naves'],
+      queryFn: () => parquesApi.naves(id),
+    })),
   });
 
+  const cargando = [...asignaciones, ...naves].some((q) => q.isLoading);
+  const fallo = [...asignaciones, ...naves].some((q) => q.error);
+
+  // `useQueries` devuelve un array nuevo en cada render, así que la dependencia
+  // del memo es el sello de tiempo de los datos, no el array.
+  const selloAsignaciones = asignaciones.map((q) => q.dataUpdatedAt).join();
+  const selloNaves = naves.map((q) => q.dataUpdatedAt).join();
+
   const filas = useMemo<FilaNave[]>(() => {
-    const vivas = (asignaciones.data ?? []).filter((a) => a.status);
+    const vivas = asignaciones.flatMap((q) => q.data ?? []).filter((a) => a.status);
     const porNave = new Map<string, AsignacionKva[]>();
     for (const a of vivas) porNave.set(a.idNave, [...(porNave.get(a.idNave) ?? []), a]);
 
     const unico = <T,>(vals: T[]): T | null =>
       vals.length > 0 && vals.every((v) => v === vals[0]) ? vals[0]! : null;
 
-    return (naves.data ?? [])
+    return naves
+      .flatMap((q) => q.data ?? [])
       .map((n) => {
         const suyas = porNave.get(n.idNave) ?? [];
         const primera = suyas[0];
         return {
           idNave: n.idNave,
+          idParque: n.idParque ?? idsParque[0]!,
           etiqueta: n.numNaveNAME ?? String(n.numNave ?? ''),
           numNave: n.numNave ?? 0,
           ocupante: primera?.ocupante ?? null,
@@ -398,20 +472,41 @@ function NavesDelParque({ idParque }: { idParque: string }) {
           docsTitulos: primera?.docsTitulos ?? [],
         };
       })
-      .sort((x, y) => x.numNave - y.numNave);
-  }, [asignaciones.data, naves.data]);
+      /*
+        Se ordena por el número que SE VE (`numNaveNAME`), no por `numNave`.
+        Son distintos: `numNaveNAME` es la numeración corrida del control
+        operativo y `numNave` reinicia en 1 por parque — al juntar Spartek I & II
+        ordenar por el interno intercalaba las naves de los dos parques.
+        `numNaveNAME` es TEXTO, así que se compara su valor numérico. Las que no
+        son número (Cafetería, PTAR, Caseta…) van PRIMERO y en orden alfabético:
+        son las áreas comunes, y el control operativo también las lleva al
+        principio, antes de las naves numeradas.
+      */
+      .sort((x, y) => {
+        const nx = Number.parseInt(x.etiqueta, 10);
+        const ny = Number.parseInt(y.etiqueta, 10);
+        const xNum = Number.isFinite(nx);
+        const yNum = Number.isFinite(ny);
+        if (xNum && yNum) return nx - ny || x.etiqueta.localeCompare(y.etiqueta);
+        if (xNum) return 1;
+        if (yNum) return -1;
+        return x.etiqueta.localeCompare(y.etiqueta, 'es');
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selloAsignaciones, selloNaves]);
 
   const totalBt = filas.reduce((s, f) => s + f.bt, 0);
   const totalMt = filas.reduce((s, f) => s + f.mt, 0);
 
   function refrescarTablero() {
     void qc.invalidateQueries({ queryKey: ['kvas', 'resumen'] });
-    void qc.invalidateQueries({ queryKey: ['kvas', 'parque', idParque] });
+    for (const id of idsParque)
+      void qc.invalidateQueries({ queryKey: ['kvas', 'parque', id] });
   }
 
-  if (asignaciones.isLoading || naves.isLoading)
+  if (cargando)
     return <p className="px-4 py-3 text-xs text-gray-400">Cargando naves…</p>;
-  if (asignaciones.error || naves.error)
+  if (fallo)
     return (
       <p className="px-4 py-3 text-xs text-red-600">
         No se pudo cargar el detalle de naves.
@@ -515,10 +610,11 @@ function NavesDelParque({ idParque }: { idParque: string }) {
 
       {abierta && (
         <NaveKvaModal
-          idParque={idParque}
+          idParque={abierta.idParque}
           idNave={abierta.idNave}
           nave={abierta.etiqueta}
           ocupante={abierta.ocupante}
+          arrendada={abierta.ocupanteTipo === 'ARRENDATARIO'}
           onClose={() => setAbierta(null)}
           onCambio={refrescarTablero}
         />

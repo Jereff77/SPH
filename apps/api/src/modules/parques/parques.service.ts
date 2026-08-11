@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -8,8 +9,10 @@ import {
 import { randomBytes } from 'node:crypto';
 import type { TablesInsert, TablesUpdate } from '@erp/types';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { fallaBd } from '../../common/utils/db-error.js';
 import type {
   CrearParqueDto,
+  DotacionNaveDto,
   EditarParqueDto,
   EditarNaveDto,
   AgregarNavesDto,
@@ -17,6 +20,26 @@ import type {
 
 const ID_ALFABETO =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+/**
+ * La restricción «Σ dotación ≤ capacidad» vive en un trigger de la BD, porque
+ * hay cuatro caminos que pueden violarla y basta que uno olvide validar. Cuando
+ * salta, su mensaje ya trae los números («Sobran 5.00 KVA»), así que se devuelve
+ * como **409 de negocio** en vez de un 500 opaco.
+ *
+ * Solo se reconoce por el texto de la propia excepción: no se filtra SQL ni
+ * detalle interno al cliente.
+ */
+function traducirErrorDotacion(error: { message?: string }, fallback: string): Error {
+  const msg = error?.message ?? '';
+  if (/La dotacion de (baja|media)/i.test(msg)) {
+    // El RAISE viene sin acentos desde plpgsql; se reponen para la UI.
+    return new ConflictException(
+      msg.replace('dotacion', 'dotación').replace('capacidad', 'capacidad').trim(),
+    );
+  }
+  return new InternalServerErrorException(fallback);
+}
 
 /** Forma de un UUID (para filtrar `auditoria.uid` text antes de cruzar con `catUsers.uid` uuid). */
 const UUID_RE =
@@ -30,6 +53,9 @@ export interface ParqueListado {
   kvasMt: number;
   /** Capacidad en BAJA tensión (antes `kvasMedia`). */
   kvasBt: number;
+  /** KVA que se dan por defecto a cada nave NUEVA de este parque. */
+  dotacionMtNave: number;
+  dotacionBtNave: number;
   naves: number; // conteo REAL de naves activas del parque
 }
 
@@ -109,7 +135,9 @@ export class ParquesService {
   async listarParques(): Promise<ParqueListado[]> {
     const { data: parques, error } = await this.supabase.admin
       .from('parques')
-      .select('idParque, nomParque, direccion, kvasMt, kvasBt')
+      .select(
+        'idParque, nomParque, direccion, kvasMt, kvasBt, dotacionMtNave, dotacionBtNave',
+      )
       .eq('status', true)
       .eq('esTicket', false)
       .order('nomParque', { ascending: true });
@@ -135,6 +163,8 @@ export class ParquesService {
       direccion: p.direccion,
       kvasMt: p.kvasMt,
       kvasBt: p.kvasBt,
+      dotacionMtNave: Number(p.dotacionMtNave ?? 0),
+      dotacionBtNave: Number(p.dotacionBtNave ?? 0),
       naves: conteo.get(p.idParque) ?? 0,
     }));
   }
@@ -481,6 +511,8 @@ export class ParquesService {
       naves: dto.naves, // cantidad REAL (corrige el bug de v1 que guardaba KVA's)
       kvasMt: dto.kvasMt,
       kvasBt: dto.kvasBt,
+      dotacionMtNave: dto.dotacionMtNave,
+      dotacionBtNave: dto.dotacionBtNave,
     };
     const { error: errParque } = await db.from('parques').insert(parque);
     if (errParque) {
@@ -489,18 +521,83 @@ export class ParquesService {
     }
 
     // Generación por lote (un solo insert; PostgREST lo ejecuta atómicamente).
-    const lote = this.construirLoteNaves(idParque, uid, 0, dto.naves);
+    // ⚠️ Un solo insert también es lo que hace barata la validación de dotación:
+    // el trigger es FOR EACH STATEMENT, así que valida una vez, no una por nave.
+    const lote = this.construirLoteNaves(idParque, uid, 0, dto.naves, {
+      mt: dto.dotacionMtNave,
+      bt: dto.dotacionBtNave,
+    });
     const { error: errNaves } = await db.from('naves').insert(lote);
     if (errNaves) {
       // Compensación: deshacer el parque para no dejarlo sin naves.
       await db.from('parques').delete().eq('idParque', idParque);
       this.logger.error(`Error generando naves: ${errNaves.message}`);
-      throw new InternalServerErrorException(
+      // La BD rechaza si `naves × dotación > capacidad`: es un error de negocio,
+      // no una falla del servidor, y el mensaje ya viene con los números.
+      throw traducirErrorDotacion(
+        errNaves,
         'No se pudieron generar las naves; se canceló la creación del parque.',
       );
     }
 
     return { idParque };
+  }
+
+  /**
+   * Cambia la dotación de UNA nave: los KVA que le tocan por disposición del
+   * parque. Exige permiso 721 (KVA), no 702 (naves) — por eso va en su propio
+   * endpoint y no mezclado con el editor de naves.
+   *
+   * ⛔ Dos validaciones, cada una en su lugar:
+   *   - Aquí: no puede quedar por debajo de lo ya entregado a clientes en esa
+   *     nave (el dato lo tiene el servicio).
+   *   - En la BD: la suma del parque/pool no puede exceder la capacidad (el
+   *     trigger, que es el único punto que nadie puede esquivar).
+   */
+  async editarDotacionNave(
+    idNave: string,
+    dto: DotacionNaveDto,
+    uid: string,
+  ): Promise<void> {
+    const { data: nave, error: errNave } = await this.supabase.admin
+      .from('naves')
+      .select('idNave, numNaveNAME')
+      .eq('idNave', idNave)
+      .maybeSingle();
+    if (errNave) fallaBd(this.logger, 'parques.editarDotacionNave.nave', errNave);
+    if (!nave) throw new NotFoundException('La nave no existe.');
+
+    const { data: asig, error: errAsig } = await this.supabase.admin
+      .from('kvasAsignados')
+      .select('nivel, cantKvas, cantDevuelta, figura')
+      .eq('idNave', idNave)
+      .eq('status', true)
+      .range(0, 999);
+    if (errAsig) fallaBd(this.logger, 'parques.editarDotacionNave.asignaciones', errAsig);
+
+    const entregado = (nivel: 'MT' | 'BT') =>
+      (asig ?? [])
+        .filter((a) => a.nivel === nivel)
+        .reduce((s, a) => s + Number(a.cantKvas ?? 0) - Number(a.cantDevuelta ?? 0), 0);
+
+    for (const [nivel, nuevo, etiqueta] of [
+      ['MT', dto.dotacionMt, 'media'],
+      ['BT', dto.dotacionBt, 'baja'],
+    ] as const) {
+      const ya = entregado(nivel);
+      if (nuevo < ya)
+        throw new BadRequestException(
+          `La nave ya tiene ${ya} KVA de ${etiqueta} entregados a clientes: su dotación no puede quedar en ${nuevo}.`,
+        );
+    }
+
+    const { error } = await this.supabase
+      .comoActor(uid)
+      .from('naves')
+      .update({ dotacionMt: dto.dotacionMt, dotacionBt: dto.dotacionBt })
+      .eq('idNave', idNave);
+    if (error)
+      throw traducirErrorDotacion(error, 'No se pudo actualizar la dotación de la nave.');
   }
 
   /** Edita los datos editables del parque (domicilio + KVA's). */
@@ -514,6 +611,9 @@ export class ParquesService {
       direccion: dto.direccion,
       kvasMt: dto.kvasMt,
       kvasBt: dto.kvasBt,
+      // Solo afecta a las naves FUTURAS; no re-aplica a las existentes.
+      dotacionMtNave: dto.dotacionMtNave,
+      dotacionBtNave: dto.dotacionBtNave,
     };
     const { error } = await this.supabase
       .comoActor(uid)
@@ -522,7 +622,8 @@ export class ParquesService {
       .eq('idParque', idParque);
     if (error) {
       this.logger.error(`Error editando parque ${idParque}: ${error.message}`);
-      throw new InternalServerErrorException('No se pudo actualizar el parque.');
+      // Bajar la capacidad por debajo de lo ya dotado lo rechaza el trigger.
+      throw traducirErrorDotacion(error, 'No se pudo actualizar el parque.');
     }
   }
 
@@ -533,6 +634,7 @@ export class ParquesService {
     uid: string,
     desde: number,
     cantidad: number,
+    dotacion: { mt: number; bt: number } = { mt: 0, bt: 0 },
   ): TablesInsert<'naves'>[] {
     return Array.from({ length: cantidad }, (_unused, i) => {
       const num = desde + i + 1;
@@ -546,6 +648,8 @@ export class ParquesService {
         terreno: 0,
         construccion: 0,
         precio: 0,
+        dotacionMt: dotacion.mt,
+        dotacionBt: dotacion.bt,
       };
     });
   }
@@ -561,7 +665,7 @@ export class ParquesService {
   ): Promise<{ creadas: number }> {
     const { data: parque, error: errP } = await this.supabase.admin
       .from('parques')
-      .select('idParque, naves')
+      .select('idParque, naves, dotacionMtNave, dotacionBtNave')
       .eq('idParque', idParque)
       .maybeSingle();
     if (errP) throw new InternalServerErrorException(errP.message);
@@ -578,11 +682,15 @@ export class ParquesService {
     const desde = maxRow?.numNave ?? 0;
 
     const db = this.supabase.comoActor(uid); // escrituras auditadas con el actor
-    const lote = this.construirLoteNaves(idParque, uid, desde, dto.cantidad);
+    // Las naves nuevas nacen con la dotación por defecto del parque.
+    const lote = this.construirLoteNaves(idParque, uid, desde, dto.cantidad, {
+      mt: Number(parque.dotacionMtNave ?? 0),
+      bt: Number(parque.dotacionBtNave ?? 0),
+    });
     const { error } = await db.from('naves').insert(lote);
     if (error) {
       this.logger.error(`Error agregando naves: ${error.message}`);
-      throw new InternalServerErrorException('No se pudieron agregar las naves.');
+      throw traducirErrorDotacion(error, 'No se pudieron agregar las naves.');
     }
 
     // Mantener el contador informativo del parque al día.

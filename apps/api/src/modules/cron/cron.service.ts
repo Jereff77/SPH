@@ -8,10 +8,12 @@ import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { SyncScheduler } from '../correo/sync.scheduler.js';
 import { ComplementosScheduler } from '../cxp/complementos.scheduler.js';
 import { RecordatorioAprobacionScheduler } from '../cxp/recordatorio-aprobacion.scheduler.js';
+import { KvasCompromisosScheduler } from '../parques/kvas-compromisos.scheduler.js';
 import {
   TAREA_CORREO_SYNC,
   TAREA_CXP_COMPLEMENTOS,
   TAREA_CXP_RECORDATORIO_APROBACION,
+  TAREA_KVAS_COMPROMISOS,
 } from '../../common/cron/cron.tareas.js';
 import type {
   CronEjecucionBackend,
@@ -37,6 +39,11 @@ const META_TAREAS: Record<string, { etiqueta: string; descripcion: string }> = {
     descripcion:
       'Avisa por correo a los aprobadores con solicitudes pendientes, si la aprobación está habilitada hoy. Diario ~07:00 (MX).',
   },
+  [TAREA_KVAS_COMPROMISOS]: {
+    etiqueta: 'Compromisos de KVA por vencer',
+    descripcion:
+      'Avisa a 3 días y a 4 horas del vencimiento, y libera los apartados que caducaron devolviendo sus KVA al parque. Cada hora.',
+  },
 };
 
 /**
@@ -57,6 +64,7 @@ export class CronService {
     private readonly syncScheduler: SyncScheduler,
     private readonly complementosScheduler: ComplementosScheduler,
     private readonly recordatorioScheduler: RecordatorioAprobacionScheduler,
+    private readonly kvasCompromisosScheduler: KvasCompromisosScheduler,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -206,6 +214,10 @@ export class CronService {
       }
       case TAREA_CXP_RECORDATORIO_APROBACION: {
         const r = await this.recordatorioScheduler.ejecutar('manual', uid);
+        return { ok: true, resultado: r };
+      }
+      case TAREA_KVAS_COMPROMISOS: {
+        const r = await this.kvasCompromisosScheduler.ejecutar('manual', uid);
         return { ok: true, resultado: r };
       }
       default:

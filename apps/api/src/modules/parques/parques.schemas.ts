@@ -22,12 +22,26 @@ export const crearParqueSchema = z.object({
   // (Acupark II: 732.5 BT / 2620.5 MT).
   kvasMt: z.coerce.number().min(0).default(0),
   kvasBt: z.coerce.number().min(0).default(0),
+  // DOTACIÓN: los KVA que le tocan a CADA nave por disposición del parque.
+  // Es distinto de la capacidad: la capacidad es del parque, la dotación de la
+  // nave. La BD valida que `naves × dotación ≤ capacidad`.
+  dotacionMtNave: z.coerce.number().min(0).default(0),
+  dotacionBtNave: z.coerce.number().min(0).default(0),
 });
 
 export const editarParqueSchema = z.object({
   direccion: z.string().trim().max(300).optional().default(''),
   kvasMt: z.coerce.number().min(0),
   kvasBt: z.coerce.number().min(0),
+  // Solo cambia el default de las naves FUTURAS: no re-aplica a las existentes.
+  dotacionMtNave: z.coerce.number().min(0).default(0),
+  dotacionBtNave: z.coerce.number().min(0).default(0),
+});
+
+/** Dotación de UNA nave. Va por endpoint aparte porque exige permiso 721. */
+export const dotacionNaveSchema = z.object({
+  dotacionMt: z.coerce.number().min(0).max(1_000_000),
+  dotacionBt: z.coerce.number().min(0).max(1_000_000),
 });
 
 export const agregarNavesSchema = z.object({
@@ -53,6 +67,7 @@ export const editarNaveSchema = z.object({
     .optional(),
 });
 
+export type DotacionNaveDto = z.infer<typeof dotacionNaveSchema>;
 export type CrearParqueDto = z.infer<typeof crearParqueSchema>;
 export type EditarParqueDto = z.infer<typeof editarParqueSchema>;
 export type EditarNaveDto = z.infer<typeof editarNaveSchema>;

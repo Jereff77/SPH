@@ -4450,11 +4450,14 @@ export type Database = {
           idNavArrend: string | null
           idNave: string
           idParque: string
+          avisoFinal: string | null
+          avisoPrevio: string | null
           idPropiedad: string | null
           motivoAjuste: string | null
           motivoBaja: string | null
           nivel: string
           status: boolean
+          venceCompromiso: string | null
           /** @deprecated 2026-08-03: usar `figura`. Se elimina en la migración F1b. */
           tipoContrato: number | null
           /** @deprecated 2026-08-03: usar `nivel`. Se elimina en la migración F1b. */
@@ -4473,11 +4476,14 @@ export type Database = {
           idNavArrend?: string | null
           idNave: string
           idParque: string
+          avisoFinal?: string | null
+          avisoPrevio?: string | null
           idPropiedad?: string | null
           motivoAjuste?: string | null
           motivoBaja?: string | null
           nivel: string
           status?: boolean
+          venceCompromiso?: string | null
           tipoContrato?: number
           tipoTension?: number
           uidr: string
@@ -4494,11 +4500,14 @@ export type Database = {
           idNavArrend?: string | null
           idNave?: string
           idParque?: string
+          avisoFinal?: string | null
+          avisoPrevio?: string | null
           idPropiedad?: string | null
           motivoAjuste?: string | null
           motivoBaja?: string | null
           nivel?: string
           status?: boolean
+          venceCompromiso?: string | null
           tipoContrato?: number
           tipoTension?: number
           uidr?: string
@@ -5190,6 +5199,10 @@ export type Database = {
         Row: {
           Arrendada: boolean
           construccion: number
+          /** KVA de BAJA que le tocan por disposición del parque (reservada, no entregada). */
+          dotacionBt: number
+          /** KVA de MEDIA que le tocan por disposición del parque. */
+          dotacionMt: number
           esTicket: boolean
           fc: string | null
           fecEntrega: string | null
@@ -5210,6 +5223,8 @@ export type Database = {
         Insert: {
           Arrendada?: boolean
           construccion?: number
+          dotacionBt?: number
+          dotacionMt?: number
           esTicket?: boolean
           fc?: string | null
           fecEntrega?: string | null
@@ -5230,6 +5245,8 @@ export type Database = {
         Update: {
           Arrendada?: boolean
           construccion?: number
+          dotacionBt?: number
+          dotacionMt?: number
           esTicket?: boolean
           fc?: string | null
           fecEntrega?: string | null
@@ -5457,6 +5474,10 @@ export type Database = {
       parques: {
         Row: {
           direccion: string | null
+          /** KVA de BAJA por defecto para cada nave NUEVA de este parque. */
+          dotacionBtNave: number
+          /** KVA de MEDIA por defecto para cada nave NUEVA de este parque. */
+          dotacionMtNave: number
           esTicket: boolean
           fc: string | null
           idParque: string
@@ -5476,6 +5497,8 @@ export type Database = {
         }
         Insert: {
           direccion?: string | null
+          dotacionBtNave?: number
+          dotacionMtNave?: number
           esTicket?: boolean
           fc?: string | null
           idParque: string
@@ -5493,6 +5516,8 @@ export type Database = {
         }
         Update: {
           direccion?: string | null
+          dotacionBtNave?: number
+          dotacionMtNave?: number
           esTicket?: boolean
           fc?: string | null
           idParque?: string

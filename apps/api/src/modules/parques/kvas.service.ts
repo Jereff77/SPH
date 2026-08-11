@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { fallaBd } from '../../common/utils/db-error.js';
 import { rutaSegura, type ArchivoValidado } from '../../common/utils/archivo-seguro.js';
+import { DIAS_COMPROMISO } from './kvas.schemas.js';
 import type {
   AcometidaDto,
   CrearAsignacionDto,
@@ -72,9 +73,14 @@ export interface AsignacionKva {
 export interface DesgloseNivelKva {
   /** Capacidad del parque en esta bolsa. */
   total: number;
+  /** Σ dotación de sus naves: lo reservado por disposición del parque. */
+  dotado: number;
+  /** Capacidad que no está dotada a ninguna nave (`total − dotado`). */
+  sinDotar: number;
   /** Repartido a naves, por etapa del trámite. */
   asignado: number;
   comprometido: number;
+  /** `dotado − asignado − comprometido`: dotación todavía sin dueño. */
   porAsignar: number;
   /** Repartido a naves, por figura. */
   venta: number;
@@ -121,8 +127,24 @@ export interface Acometida {
 type NivelBolsa = 'MT' | 'BT';
 type BolsasKva = Record<NivelBolsa, DesgloseNivelKva>;
 
+/**
+ * Momento exacto de caducidad de un COMPROMETIDO: ahora + {@link DIAS_COMPROMISO}.
+ * `null` para cualquier otra etapa — un CHECK de la BD exige justamente eso.
+ *
+ * ⚠️ Lleva HORA, no solo fecha: uno de los avisos sale **4 horas antes** del
+ * borrado, y con granularidad de día no se le puede acertar a esa ventana.
+ */
+function vencimientoDe(etapa: string): string | null {
+  if (etapa !== 'COMPROMETIDO') return null;
+  const f = new Date();
+  f.setDate(f.getDate() + DIAS_COMPROMISO);
+  return f.toISOString();
+}
+
 const desgloseVacio = (): DesgloseNivelKva => ({
   total: 0,
+  dotado: 0,
+  sinDotar: 0,
   asignado: 0,
   comprometido: 0,
   porAsignar: 0,
@@ -196,6 +218,7 @@ export class KvasService {
     if (errS) fallaBd(this.logger, 'kvas.resumen.asignaciones', errS);
 
     const desgloses = this.desglosarPorParque(asig ?? []);
+    const dotaciones = await this.dotacionPorParque();
 
     const porAcometida = new Map<string, ResumenParqueKva[]>();
     const sinAcometida: ResumenParqueKva[] = [];
@@ -211,16 +234,18 @@ export class KvasService {
         kvasBtDisponibles: Number(p.kvasBtDisponibles ?? 0),
         kvasMtUtilizados: Number(p.kvasMtUtilizados ?? 0),
         kvasBtUtilizados: Number(p.kvasBtUtilizados ?? 0),
-        mt: {
-          ...(d?.MT ?? desgloseVacio()),
-          total: Number(p.kvasMt ?? 0),
-          disponible: Number(p.kvasMtDisponibles ?? 0),
-        },
-        bt: {
-          ...(d?.BT ?? desgloseVacio()),
-          total: Number(p.kvasBt ?? 0),
-          disponible: Number(p.kvasBtDisponibles ?? 0),
-        },
+        mt: this.armarBolsa(
+          d?.MT,
+          Number(p.kvasMt ?? 0),
+          Number(p.kvasMtDisponibles ?? 0),
+          dotaciones.get(p.idParque)?.mt ?? 0,
+        ),
+        bt: this.armarBolsa(
+          d?.BT,
+          Number(p.kvasBt ?? 0),
+          Number(p.kvasBtDisponibles ?? 0),
+          dotaciones.get(p.idParque)?.bt ?? 0,
+        ),
       };
       if (!p.idAcometida) sinAcometida.push(fila);
       else porAcometida.set(p.idAcometida, [...(porAcometida.get(p.idAcometida) ?? []), fila]);
@@ -246,12 +271,63 @@ export class KvasService {
   }
 
   /**
+   * Σ dotación de las naves de cada parque. La dotación es lo reservado por
+   * disposición del parque; lo entregado vive en `kvasAsignados`.
+   */
+  private async dotacionPorParque(): Promise<Map<string, { mt: number; bt: number }>> {
+    const { data, error } = await this.supabase.admin
+      .from('naves')
+      .select('idParque, dotacionMt, dotacionBt')
+      .eq('status', true)
+      .range(0, 9999);
+    if (error) fallaBd(this.logger, 'kvas.dotacionPorParque', error);
+
+    const salida = new Map<string, { mt: number; bt: number }>();
+    for (const n of data ?? []) {
+      if (!n.idParque) continue;
+      const acc = salida.get(n.idParque) ?? { mt: 0, bt: 0 };
+      acc.mt += Number(n.dotacionMt ?? 0);
+      acc.bt += Number(n.dotacionBt ?? 0);
+      salida.set(n.idParque, acc);
+    }
+    return salida;
+  }
+
+  /**
+   * Completa una bolsa con los datos que no salen de las asignaciones:
+   * la capacidad, el saldo que calcula la BD, y lo dotado.
+   *
+   * `porAsignar` = dotado − asignado − comprometido: dotación que todavía no
+   * tiene dueño. NO es lo mismo que `disponible`, que mide contra la capacidad
+   * del parque e incluye lo que ni siquiera está dotado.
+   */
+  private armarBolsa(
+    base: DesgloseNivelKva | undefined,
+    capacidad: number,
+    disponible: number,
+    dotado: number,
+  ): DesgloseNivelKva {
+    const b = { ...(base ?? desgloseVacio()) };
+    b.total = capacidad;
+    b.disponible = disponible;
+    b.dotado = dotado;
+    b.sinDotar = capacidad - dotado;
+    b.porAsignar = dotado - b.asignado - b.comprometido;
+    return b;
+  }
+
+  /**
    * Agrupa las asignaciones por parque y bolsa.
    *
-   * ⚠️ El CONSUMO replica `kva_consumo` de la BD: una VENTA sigue consumiendo
-   * aunque la asignación esté cancelada (solo la devolución acreditada la
-   * regresa al pool); una RENTA deja de consumir al cancelarse. Los desgloses
-   * por etapa/figura, en cambio, solo cuentan asignaciones VIVAS.
+   * ⚠️ El CONSUMO replica `kva_consumo` de la BD, y debe seguir replicándolo:
+   *   - Una VENTA sigue consumiendo aunque esté cancelada (solo la devolución
+   *     acreditada la regresa al pool).
+   *   - Una RENTA deja de consumir al cancelarse.
+   * Los desgloses por etapa/figura, en cambio, solo cuentan asignaciones VIVAS.
+   *
+   * 📌 Ya no hay caso especial para `POR_ASIGNAR`: esa etapa desapareció en la
+   * migración F5c. Lo que antes vivía ahí ahora es `naves.dotacion*`, y
+   * `porAsignar` se calcula en `armarBolsa` — no se acumula aquí.
    */
   private desglosarPorParque(
     filas: {
@@ -280,7 +356,11 @@ export class KvasService {
       const devuelta = Number(f.cantDevuelta ?? 0);
 
       d.consumido +=
-        f.figura === 'VENTA' ? Math.max(cant - devuelta, 0) : f.status ? cant : 0;
+        f.figura === 'VENTA'
+          ? Math.max(cant - devuelta, 0)
+          : f.status
+            ? cant
+            : 0;
       if (f.figura === 'VENTA') d.devuelto += devuelta;
 
       if (f.status) {
@@ -288,7 +368,6 @@ export class KvasService {
         else d.renta += cant;
         if (f.etapa === 'ASIGNADO') d.asignado += cant;
         else if (f.etapa === 'COMPROMETIDO') d.comprometido += cant;
-        else d.porAsignar += cant;
 
         const clave = `${f.idParque}|${nivel}`;
         let set = naves.get(clave);
@@ -449,6 +528,7 @@ export class KvasService {
   async crear(dto: CrearAsignacionDto, actorUid: string): Promise<{ idKvas: string }> {
     const idParque = await this.parqueDeNave(dto.idNave);
     this.validarVinculo(dto.figura, dto.idPropiedad, dto.idNavArrend);
+    await this.exigirFiguraValida(dto.idNave, dto.figura);
 
     const { data, error } = await this.supabase
       .comoActor(actorUid)
@@ -464,12 +544,62 @@ export class KvasService {
         fechaContratoCfe: dto.fechaContratoCfe ?? null,
         idPropiedad: dto.idPropiedad ?? null,
         idNavArrend: dto.idNavArrend ?? null,
+        venceCompromiso: vencimientoDe(dto.etapa),
         uidr: actorUid,
       })
       .select('idKvas')
       .single();
     if (error) fallaBd(this.logger, 'kvas.crear', error);
     return { idKvas: data!.idKvas };
+  }
+
+  /**
+   * ⛔ A un arrendatario no se le VENDE (regla del negocio, 2026-08-08).
+   *
+   * Si la nave tiene arrendamiento vivo, la única figura posible es RENTA. El
+   * front ya lo fija, pero se revalida aquí: es la única capa que no se puede
+   * saltar, y una VENTA indebida además activaría el candado de devolución
+   * sobre una nave que nunca debió tenerlo.
+   *
+   * Aplica solo a altas y ediciones; lo cargado antes de la regla se respeta.
+   */
+  private async exigirFiguraValida(idNave: string, figura: string): Promise<void> {
+    if (figura !== 'VENTA') return;
+    const { data, error } = await this.supabase.admin
+      .from('arrenPropiedades')
+      .select('idNavArrend')
+      .eq('idNave', idNave)
+      .eq('status', true)
+      .limit(1);
+    if (error) fallaBd(this.logger, 'kvas.exigirFiguraValida', error);
+    if ((data ?? []).length > 0)
+      throw new BadRequestException(
+        'Esta nave está arrendada: a un arrendatario solo se le renta, no se le vende. Cambia la figura a «Rentado».',
+      );
+  }
+
+  /**
+   * Renueva un compromiso por otros {@link DIAS_COMPROMISO} días. Es la acción
+   * que pide el correo de aviso antes de que el cron lo borre.
+   */
+  async renovarCompromiso(idKvas: string, actorUid: string): Promise<{ vence: string }> {
+    const actual = await this.obtener(idKvas);
+    if (!actual.status)
+      throw new ConflictException('La asignación está cancelada.');
+    if (actual.etapa !== 'COMPROMETIDO')
+      throw new BadRequestException(
+        'Solo se renuevan los KVA comprometidos: los ya asignados con CFE no caducan.',
+      );
+
+    const vence = vencimientoDe('COMPROMETIDO')!;
+    const { error } = await this.supabase
+      .comoActor(actorUid)
+      .from('kvasAsignados')
+      // Se limpian los dos avisos: el ciclo de notificación empieza de nuevo.
+      .update({ venceCompromiso: vence, avisoPrevio: null, avisoFinal: null })
+      .eq('idKvas', idKvas);
+    if (error) fallaBd(this.logger, 'kvas.renovarCompromiso', error);
+    return { vence };
   }
 
   /**
@@ -498,6 +628,7 @@ export class KvasService {
         `No puedes dejar la asignación en ${dto.cantKvas} KVA: ya hay ${actual.cantDevuelta} devueltos y acreditados.`,
       );
     this.validarVinculo(dto.figura, dto.idPropiedad, dto.idNavArrend);
+    await this.exigirFiguraValida(actual.idNave, dto.figura);
 
     const eraVenta = actual.figura === 'VENTA';
     const bajaCantidad = eraVenta && dto.cantKvas < Number(actual.cantKvas);
@@ -524,6 +655,13 @@ export class KvasService {
         fechaContratoCfe: dto.fechaContratoCfe ?? null,
         idPropiedad: dto.idPropiedad ?? null,
         idNavArrend: dto.idNavArrend ?? null,
+        // El vencimiento sigue a la etapa: si pasa a ASIGNADO se limpia (un
+        // CHECK de la BD lo exige), y si sigue COMPROMETIDO se conserva el que
+        // tenía — editar no es renovar.
+        venceCompromiso:
+          dto.etapa === 'COMPROMETIDO'
+            ? (actual.venceCompromiso ?? vencimientoDe('COMPROMETIDO'))
+            : null,
         // Solo se sella cuando el cambio lo amerita; una edición inocua no
         // arrastra el motivo de un ajuste anterior.
         ...(aflojaElCandado ? { motivoAjuste: motivo } : {}),
@@ -891,7 +1029,9 @@ export class KvasService {
   private async obtener(idKvas: string) {
     const { data, error } = await this.supabase.admin
       .from('kvasAsignados')
-      .select('idKvas, idParque, idNave, nivel, figura, cantKvas, cantDevuelta, status')
+      .select(
+        'idKvas, idParque, idNave, nivel, figura, etapa, cantKvas, cantDevuelta, status, venceCompromiso',
+      )
       .eq('idKvas', idKvas)
       .maybeSingle();
     if (error) fallaBd(this.logger, 'kvas.obtener', error);

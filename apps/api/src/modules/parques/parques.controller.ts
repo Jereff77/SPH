@@ -11,10 +11,12 @@ import {
 import { ParquesService } from './parques.service.js';
 import {
   crearParqueSchema,
+  dotacionNaveSchema,
   editarParqueSchema,
   editarNaveSchema,
   agregarNavesSchema,
   type CrearParqueDto,
+  type DotacionNaveDto,
   type EditarParqueDto,
   type EditarNaveDto,
   type AgregarNavesDto,
@@ -104,6 +106,25 @@ export class ParquesController {
     @Body(new ZodValidationPipe(editarNaveSchema)) dto: EditarNaveDto,
   ) {
     await this.svc.editarNave(idNave, dto, actor.uid);
+    return { ok: true };
+  }
+
+  /**
+   * Dotación de la nave: los KVA que le tocan por disposición del parque.
+   *
+   * ⛔ Endpoint APARTE a propósito. Exige **721** (KVA), no el 700/702 del resto
+   * del módulo: decidir cuántos KVA reserva una nave es una atribución del área
+   * de KVA, no de quien edita el catálogo de naves. Mezclar dos permisos en un
+   * mismo endpoint según los campos del body es imposible de auditar.
+   */
+  @Patch('naves/:idNave/dotacion')
+  @RequierePermiso(721)
+  async editarDotacionNave(
+    @CurrentUser() actor: AuthUser,
+    @Param('idNave') idNave: string,
+    @Body(new ZodValidationPipe(dotacionNaveSchema)) dto: DotacionNaveDto,
+  ) {
+    await this.svc.editarDotacionNave(idNave, dto, actor.uid);
     return { ok: true };
   }
 }

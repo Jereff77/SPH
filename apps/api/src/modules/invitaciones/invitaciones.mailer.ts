@@ -36,6 +36,14 @@ export class InvitacionesMailer {
       port,
       secure: port === 465,
       auth: user ? { user, pass } : undefined,
+      // ⛔ TIMEOUTS OBLIGATORIOS. Sin ellos, un SMTP que no responde deja la
+      // petición colgada para siempre. Importa sobre todo en los schedulers:
+      // el de compromisos de KVA corre CADA HORA y se protege con un flag
+      // `corriendo` — un solo cuelgue bloquearía todas las corridas siguientes
+      // de forma permanente, no solo la de ese momento.
+      connectionTimeout: 10_000, // abrir el socket
+      greetingTimeout: 10_000, // saludo del servidor
+      socketTimeout: 20_000, // inactividad durante el envío
     });
   }
 

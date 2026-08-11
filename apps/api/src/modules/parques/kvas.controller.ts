@@ -106,6 +106,13 @@ export class KvasController {
     return { ok: true };
   }
 
+  /** Renueva un compromiso por otros 10 días, antes de que el cron lo borre. */
+  @Post('asignacion/:idKvas/renovar')
+  @RequierePermiso(721)
+  renovar(@CurrentUser() actor: AuthUser, @Param('idKvas') idKvas: string) {
+    return this.svc.renovarCompromiso(idKvas, actor.uid);
+  }
+
   // ---------- Devolución (722) ----------
 
   @Post('asignacion/:idKvas/devolucion')

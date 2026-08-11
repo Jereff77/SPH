@@ -1,9 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/Badge';
 import { useAuth } from '@/features/auth/useAuth';
 import { ApiRequestError } from '@/lib/api';
-import { ETIQUETA_ETAPA, kvasApi, type AsignacionKva } from './kvas.api';
+import { parquesApi } from './parques.api';
+import {
+  diasParaVencer,
+  ETIQUETA_ETAPA,
+  kvasApi,
+  type AsignacionKva,
+} from './kvas.api';
 import { AsignacionKvaModal } from './AsignacionKvaModal';
 import { DevolucionKvaModal } from './DevolucionKvaModal';
 import { DocumentosNave } from './DocumentosNave';
@@ -15,6 +21,8 @@ interface Props {
   idNave: string;
   nave: string;
   ocupante: string | null;
+  /** `true` si el ocupante es arrendatario: entonces solo se le renta. */
+  arrendada?: boolean;
   onClose: () => void;
   /** Para refrescar el tablero cuando cambia algo. */
   onCambio: () => void;
@@ -30,6 +38,7 @@ export function NaveKvaModal({
   idNave,
   nave,
   ocupante,
+  arrendada = false,
   onClose,
   onCambio,
 }: Props) {
@@ -62,6 +71,7 @@ export function NaveKvaModal({
             idParque={idParque}
             idNave={idNave}
             nave={nave}
+            arrendada={arrendada}
             onCambio={onCambio}
             onClose={onClose}
           />
@@ -69,6 +79,147 @@ export function NaveKvaModal({
           <DocumentosNave idNave={idNave} onCambio={onCambio} onClose={onClose} />
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Días que le quedan a un compromiso antes de que el cron lo borre.
+ * A 3 días o menos se destaca — y no se codifica solo con color: lleva icono
+ * y texto, para que se lea igual sin distinguir tonos.
+ */
+function Vencimiento({ vence }: { vence: string | null }) {
+  const dias = diasParaVencer(vence);
+  if (dias === null) return null;
+  const urge = dias <= 3;
+  const texto =
+    dias < 0
+      ? `venció hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'}`
+      : dias === 0
+        ? 'vence hoy'
+        : `vence en ${dias} día${dias === 1 ? '' : 's'}`;
+  return (
+    <span className={`ml-2 ${urge ? 'font-medium text-amber-600' : 'text-gray-500'}`}>
+      · {urge ? '⏳ ' : ''}
+      {texto}
+    </span>
+  );
+}
+
+/**
+ * Dotación de la nave: los KVA que le tocan por disposición del parque.
+ * Encabeza la pestaña porque es el marco dentro del cual se asigna.
+ * Editarla exige permiso **721**, y va contra su propio endpoint.
+ */
+function DotacionDeLaNave({
+  idNave,
+  onCambio,
+  onError,
+}: {
+  idNave: string;
+  onCambio: () => void;
+  onError: (m: string) => void;
+}) {
+  const { tienePermiso } = useAuth();
+  const puedeEditar = tienePermiso(721);
+  const qc = useQueryClient();
+  const [editando, setEditando] = useState(false);
+  const [mt, setMt] = useState('0');
+  const [bt, setBt] = useState('0');
+
+  const { data: nave } = useQuery({
+    queryKey: ['parques', 'nave', idNave],
+    queryFn: () => parquesApi.nave(idNave),
+  });
+
+  useEffect(() => {
+    if (nave) {
+      setMt(String(nave.dotacionMt ?? 0));
+      setBt(String(nave.dotacionBt ?? 0));
+    }
+  }, [nave]);
+
+  const guardar = useMutation({
+    mutationFn: () =>
+      parquesApi.editarDotacionNave(idNave, {
+        dotacionMt: Number(mt) || 0,
+        dotacionBt: Number(bt) || 0,
+      }),
+    onSuccess: async () => {
+      setEditando(false);
+      await qc.invalidateQueries({ queryKey: ['parques', 'nave', idNave] });
+      await qc.invalidateQueries({ queryKey: ['parques'] });
+      onCambio();
+    },
+    // El mensaje del backend ya trae los números («Sobran 5 KVA»).
+    onError: (e) =>
+      onError(
+        e instanceof ApiRequestError ? e.message : 'No se pudo guardar la dotación.',
+      ),
+  });
+
+  if (!nave) return null;
+
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-gray-50 px-3 py-2">
+      <span className="text-xs font-medium text-gray-600">Dotación</span>
+      {editando ? (
+        <>
+          <label className="flex items-center gap-1 text-xs text-gray-600">
+            Baja
+            <input
+              type="number"
+              step="0.01"
+              value={bt}
+              onChange={(e) => setBt(e.target.value)}
+              className="w-20 rounded border px-1.5 py-0.5 text-sm tabular-nums"
+            />
+          </label>
+          <label className="flex items-center gap-1 text-xs text-gray-600">
+            Media
+            <input
+              type="number"
+              step="0.01"
+              value={mt}
+              onChange={(e) => setMt(e.target.value)}
+              className="w-20 rounded border px-1.5 py-0.5 text-sm tabular-nums"
+            />
+          </label>
+          <div className="ml-auto flex gap-2 text-xs">
+            <button
+              onClick={() => setEditando(false)}
+              className="rounded border px-2 py-0.5 text-gray-600 hover:bg-white"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => guardar.mutate()}
+              disabled={guardar.isPending}
+              className="rounded bg-[#1f2a4d] px-2 py-0.5 text-white hover:bg-[#172039] disabled:opacity-50"
+            >
+              {guardar.isPending ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <span className="text-sm tabular-nums text-gray-800">
+            Baja <strong>{fmt(nave.dotacionBt ?? 0)}</strong>
+          </span>
+          <span className="text-sm tabular-nums text-gray-800">
+            Media <strong>{fmt(nave.dotacionMt ?? 0)}</strong>
+          </span>
+          {puedeEditar && (
+            <button
+              onClick={() => setEditando(true)}
+              title="Cambiar la dotación de esta nave"
+              className="ml-auto rounded border px-2 py-0.5 text-xs text-gray-600 hover:bg-white"
+            >
+              Editar
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -101,12 +252,14 @@ function KvasDeLaNave({
   idParque,
   idNave,
   nave,
+  arrendada,
   onCambio,
   onClose,
 }: {
   idParque: string;
   idNave: string;
   nave: string;
+  arrendada: boolean;
   onCambio: () => void;
   onClose: () => void;
 }) {
@@ -140,6 +293,13 @@ function KvasDeLaNave({
       setError(e instanceof ApiRequestError ? e.message : 'No se pudo cancelar.'),
   });
 
+  const renovar = useMutation({
+    mutationFn: (idKvas: string) => kvasApi.renovar(idKvas),
+    onSuccess: () => void refrescar(),
+    onError: (e) =>
+      setError(e instanceof ApiRequestError ? e.message : 'No se pudo renovar.'),
+  });
+
   const vivas = (data ?? []).filter((a) => a.status);
 
   return (
@@ -150,6 +310,8 @@ function KvasDeLaNave({
             {error}
           </p>
         )}
+
+        <DotacionDeLaNave idNave={idNave} onCambio={refrescar} onError={setError} />
 
         {isLoading ? (
           <p className="text-sm text-gray-400">Cargando…</p>
@@ -177,6 +339,16 @@ function KvasDeLaNave({
                     </span>
                   </div>
                   <div className="flex gap-2 text-xs">
+                    {puedeAsignar && a.etapa === 'COMPROMETIDO' && (
+                      <button
+                        onClick={() => renovar.mutate(a.idKvas)}
+                        disabled={renovar.isPending}
+                        title="Reinicia los 10 días de vigencia del apartado"
+                        className="rounded border border-[#1f2a4d]/30 px-2 py-0.5 text-[#1f2a4d] hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Renovar
+                      </button>
+                    )}
                     {puedeDevolver && a.figura === 'VENTA' && a.pendiente > 0 && (
                       <button
                         onClick={() => setDevolviendo(a)}
@@ -216,6 +388,7 @@ function KvasDeLaNave({
                       · {fmt(a.cantDevuelta)} de {fmt(a.cantKvas)} ya devueltos al parque
                     </span>
                   )}
+                  <Vencimiento vence={a.venceCompromiso} />
                 </p>
               </li>
             ))}
@@ -246,6 +419,7 @@ function KvasDeLaNave({
           asignacion={asignando === 'nueva' ? null : asignando}
           idNaveFijo={idNave}
           naveEtiqueta={nave}
+          arrendada={arrendada}
           onClose={() => setAsignando(null)}
           onListo={() => {
             setAsignando(null);

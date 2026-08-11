@@ -8,7 +8,15 @@ import { api } from '@/lib/api';
  */
 export type NivelKva = 'MT' | 'BT';
 export type FiguraKva = 'VENTA' | 'RENTA';
-export type EtapaKva = 'POR_ASIGNAR' | 'COMPROMETIDO' | 'ASIGNADO';
+/**
+ * Solo hechos reales. `POR_ASIGNAR` se eliminó en la migración F5c: lo que la
+ * nave tiene reservado por disposición del parque es su DOTACIÓN, no una
+ * asignación, y «por asignar» pasó a calcularse.
+ */
+export type EtapaKva = 'COMPROMETIDO' | 'ASIGNADO';
+
+/** Días que dura un compromiso antes de caducar. Renovable. */
+export const DIAS_COMPROMISO = 10;
 
 export const ETIQUETA_NIVEL: Record<NivelKva, string> = {
   MT: 'Media tensión',
@@ -16,10 +24,18 @@ export const ETIQUETA_NIVEL: Record<NivelKva, string> = {
 };
 
 export const ETIQUETA_ETAPA: Record<EtapaKva, string> = {
-  POR_ASIGNAR: 'Por asignar',
   COMPROMETIDO: 'Comprometido',
   ASIGNADO: 'Asignado (con CFE)',
 };
+
+/** Días que faltan para que caduque un compromiso. `null` si no aplica. */
+export function diasParaVencer(vence: string | null): number | null {
+  if (!vence) return null;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const f = new Date(`${vence}T00:00:00`);
+  return Math.round((f.getTime() - hoy.getTime()) / 86_400_000);
+}
 
 /** Quién ocupa la nave: el inquilino manda; si no hay, el dueño. */
 export type OcupanteTipo = 'ARRENDATARIO' | 'INVERSIONISTA';
@@ -45,15 +61,23 @@ export interface AsignacionKva {
   pendiente: number;
   contratoCfe: string | null;
   fechaContratoCfe: string | null;
+  /** Solo en COMPROMETIDO: fecha en que caduca si no se renueva. */
+  venceCompromiso: string | null;
   status: boolean;
   fc: string;
 }
 
 /** Desglose de una bolsa (media o baja), con la lectura del control operativo. */
 export interface DesgloseNivelKva {
+  /** Capacidad del parque. */
   total: number;
+  /** Σ dotación de sus naves: lo reservado por disposición del parque. */
+  dotado: number;
+  /** Capacidad que no está dotada a ninguna nave (`total − dotado`). */
+  sinDotar: number;
   asignado: number;
   comprometido: number;
+  /** `dotado − asignado − comprometido`: dotación todavía sin dueño. */
   porAsignar: number;
   venta: number;
   renta: number;
@@ -164,6 +188,13 @@ export const kvasApi = {
     api.post<{ idKvas: string }>('/kvas/asignacion', dto),
   editar: (idKvas: string, dto: Omit<AsignacionDto, 'idNave'>) =>
     api.patch<{ ok: true }>(`/kvas/asignacion/${encodeURIComponent(idKvas)}`, dto),
+  /** Renueva un compromiso por otros 10 días, antes de que el cron lo borre. */
+  renovar: (idKvas: string) =>
+    api.post<{ vence: string }>(
+      `/kvas/asignacion/${encodeURIComponent(idKvas)}/renovar`,
+      {},
+    ),
+
   /** Baja LÓGICA con motivo (POST y no DELETE: el motivo viaja en el body). */
   cancelar: (idKvas: string, motivo: string) =>
     api.post<{ ok: true }>(

@@ -4,7 +4,7 @@ estado: desarrollado
 rutas: [/parques/kvas]
 claves_permiso: [720, 721, 722, 723]
 tablas: [kvaAcometidas, kvasAsignados, kvaDevoluciones, kvaNaveDocs, parques, naves, arrenPropiedades, propiedades]
-palabras_clave: [kva, kvas, energia, electricidad, luz, tension, media tension, baja tension, acometida, cfe, capacidad electrica, carga, contrato de cfe, numero de servicio, devolucion de kvas, liberar kvas, sobregiro, expediente de la nave, documentos de la nave, carta de compra de kva, contrato de kva, "cuantos kva tiene el parque", "no me deja liberar la nave", "faltan kva por regresar", "los kva no cuadran", "aparece en rojo", "kva disponibles negativos", "como asigno kva", "vendidos o rentados", "ya hay contrato con cfe", "quien tiene los kva", "quien renta la nave", "de quien es la nave", "donde subo el contrato", "no puedo subir documentos", "no veo los documentos de la nave", "el parque sale en ceros", "sin informacion capturada"]
+palabras_clave: [kva, kvas, energia, electricidad, luz, tension, media tension, baja tension, acometida, cfe, capacidad electrica, carga, contrato de cfe, numero de servicio, devolucion de kvas, liberar kvas, sobregiro, expediente de la nave, documentos de la nave, carta de compra de kva, contrato de kva, dotacion, dotacion de la nave, kvas por nave, sin dotar, apartar kvas, comprometidos, caduco el apartado, renovar apartado, "cuantos kva tiene el parque", "no me deja liberar la nave", "faltan kva por regresar", "los kva no cuadran", "aparece en rojo", "kva disponibles negativos", "como asigno kva", "vendidos o rentados", "ya hay contrato con cfe", "quien tiene los kva", "quien renta la nave", "de quien es la nave", "donde subo el contrato", "no puedo subir documentos", "no veo los documentos de la nave", "el parque sale en ceros", "sin informacion capturada", "se borro mi apartado", "por que desaparecio el comprometido", "no me deja cambiar la dotacion", "sobran kva", "no me deja vender kva"]
 relacionado_con: [parques, inversionistas, arrendatarios]
 ---
 
@@ -23,13 +23,37 @@ entre las naves de cada parque. Responde tres preguntas del negocio:
 
 Antes de este módulo el control vivía **fuera del sistema**, en un Excel de 7 hojas.
 
-## 2. Conceptos (los tres ejes)
+## 2. Conceptos
+
+### Las tres cantidades (v2.66.0 — no confundirlas)
+
+| Concepto | Qué es | Dónde vive |
+|---|---|---|
+| **Capacidad** | Lo que el parque tiene contratado con CFE | `parques.kvasMt` / `kvasBt` |
+| **Dotación** | Lo que le toca a cada nave **por disposición**, tenga cliente o no. Capacidad *reservada por diseño*, no entregada | `naves.dotacionMt` / `dotacionBt` |
+| **Asignación** | Lo que un cliente **realmente** tiene o apartó | `kvasAsignados` |
+
+⛔ **Σ dotación ≤ capacidad.** Menor sí, mayor no. Si dos parques comparten acometida, se
+evalúa sobre el **pool**, no parque por parque (Spartek I & II son el mismo lugar físico).
+
+### Los tres ejes de una asignación
 
 | Eje | Valores | Qué significa |
 |---|---|---|
 | **Nivel** | `MT` (media) · `BT` (baja) | Los dos niveles de tensión. Son **bolsas independientes**: cada una se negocia por separado con CFE y **no hay trasvase** entre ellas. |
-| **Figura** | `VENTA` · `RENTA` | VENTA: el KVA se va con la nave y **solo regresa con devolución acreditada**. RENTA: regresa solo al cerrar el vínculo. |
-| **Etapa** | `POR_ASIGNAR` · `COMPROMETIDO` · `ASIGNADO` | El trámite: reservado del paquete de la nave → apalabrado con el inquilino → **ya hay contrato con CFE** a nombre del usuario final. |
+| **Figura** | `VENTA` · `RENTA` | VENTA: el KVA se va con la nave y **solo regresa con devolución acreditada**. RENTA: regresa al cerrar el vínculo. ⛔ A un **arrendatario solo se le RENTA**. |
+| **Etapa** | `COMPROMETIDO` · `ASIGNADO` | Apartado para una negociación (**caduca a 10 días**) → **ya hay contrato con CFE** a nombre del usuario final. |
+
+📌 `POR_ASIGNAR` **ya no existe** (migración F5c, v2.66.0): eso era el paquete de la nave, y
+ahora es su **dotación**. «Por asignar» pasó a ser un cálculo.
+
+### Las fórmulas
+
+```
+Por asignar  = dotado − asignado − comprometido      ← dotación sin dueño
+Disponibles  = capacidad − asignado − comprometido   ← lo que el parque puede ofrecer
+Sin dotar    = capacidad − dotado                    ← ni siquiera repartido a una nave
+```
 
 **Acometida:** la fuente física contratada con CFE (con su tensión en kV y su folio). **Alimenta a uno
 o varios parques** — caso real: Spartek I y II comparten una acometida de 34.5 kV.
@@ -130,6 +154,18 @@ título y descripción libres, igual que el resto de los `*_docs` del ERP.
   contrato con CFE"; sin el número, el tablero mostraría trámites cerrados sin respaldo.
 - **Cancelar una asignación es baja lógica con motivo** y **no devuelve** los KVA vendidos: cancelar no
   es la puerta trasera para saltarse el candado.
+- ⛔ **Σ dotación ≤ capacidad** (v2.66.0). Se valida en **cuatro momentos**: crear parque ·
+  editar dotación de nave · bajar la capacidad · agregar naves. Vive en un **trigger de la BD**
+  (`kva_validar_dotacion`), no solo en el servicio: hay cuatro caminos y basta que uno olvide
+  validar. El trigger toma **advisory lock antes de leer**, para que dos ediciones simultáneas
+  no lo burlen. Ámbito: el **pool de la acometida** si el parque comparte una.
+- ⛔ **La dotación de una nave no puede bajar de lo ya entregado** a clientes en esa nave.
+- ⛔ **A un arrendatario solo se le RENTA** (v2.66.0). Si la nave tiene `arrenPropiedades` viva,
+  la figura `VENTA` se rechaza con 400. Aplica a altas y ediciones; lo cargado antes se respeta.
+- **Los COMPROMETIDOS caducan a los 10 días** desde que se apartan, y son renovables. El cron
+  horario `kvas-compromisos` avisa a **3 días**, a **4 horas**, y al liberarlos. Al vencer
+  **BORRA** la fila (decisión de Jereff: «para que la suma nos dé correcto»); el rastro queda en
+  `auditoria`, que registra el DELETE con la fila completa.
 - ⛔ **Los dos cambios que aflojan el candado exigen MOTIVO escrito** (v2.65.0, decisión de Jereff):
   **(a) bajar la cantidad de una VENTA** y **(b) pasar una VENTA a RENTA**. Ambos reducen lo pendiente
   por devolver sin que nadie acredite nada — son el mismo hueco que ya se cerró por el lado de
@@ -185,6 +221,11 @@ título y descripción libres, igual que el resto de los `*_docs` del ERP.
 | "No me deja bajar la cantidad de KVA / me pide un motivo." | Bajar una **venta** (o pasarla a renta) reduce lo pendiente por devolver sin documento. El backend exige el motivo (400). | Si fue un error de captura: escribir el motivo, queda en la auditoría. **Si los KVA sí regresaron al parque: cerrar y usar Devolución**, que pide el comprobante. |
 | "Quiero asignar KVA a una nave que no aparece en la lista." | Ya no pasa desde v2.65.0: el detalle lista **todas** las naves del parque, también las que están en ceros. | Abrir el parque → «Ver naves» → clic en la nave → pestaña KVA → `+ Asignar KVA`. |
 | "El total del pie no cuadra con «Asignados contratos venta» de arriba." | Hay asignaciones cuyo `idNave` ya no pertenece a ese parque (nave dada de baja o movida). | Consultar `kvasAsignados` del parque y cruzar contra `naves`; corregir el vínculo. |
+| "Desapareció un KVA comprometido / se borró mi apartado." | **Es por diseño**: los COMPROMETIDOS caducan a los 10 días y el cron los borra devolviendo los KVA al parque. Se avisó por correo 3 veces (a 3 días, a 4 horas y al liberar). | Volver a apartarlos. Para ver quién lo apartó y cuándo se borró: `auditoria` con `entidad='kvasAsignados'` y `accion='DELETE'`. |
+| "No me deja cambiar la dotación / dice que sobran KVA." | La suma de dotaciones excedería la capacidad del parque (o del **pool**, si comparte acometida). | El mensaje trae el número exacto. Subir la capacidad del parque, o bajar la dotación de otra nave. |
+| "No me deja poner la dotación por debajo de X." | Esa nave ya tiene X KVA entregados a clientes: la dotación no puede quedar por debajo de lo comprometido. | Cancelar o reducir primero las asignaciones de esa nave. |
+| "No me deja vender KVA en esta nave." | La nave está **arrendada**: a un arrendatario solo se le renta. | Usar figura «Rentado». Si la nave ya no está arrendada, revisar que `arrenPropiedades` esté en `status=false`. |
+| "«Por asignar» no me cuadra con lo que yo capturé." | Ya **no se captura**: se calcula como `dotado − asignado − comprometido`. Si no da lo esperado, lo que hay que revisar es la **dotación** de las naves. | Parques → KVA's → Ver naves → abrir la nave → editar Dotación. |
 
 ## 8. Gotchas / trampas conocidas
 

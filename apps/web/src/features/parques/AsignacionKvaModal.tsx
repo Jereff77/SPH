@@ -20,6 +20,11 @@ interface Props {
   /** Si el alta se abre DESDE una nave, viene fija y no se elige. */
   idNaveFijo?: string;
   naveEtiqueta?: string;
+  /**
+   * `true` si la nave tiene arrendamiento vivo. A un arrendatario solo se le
+   * RENTA: el selector de figura se bloquea. El backend lo revalida.
+   */
+  arrendada?: boolean;
   onClose: () => void;
   onListo: () => void;
 }
@@ -39,6 +44,7 @@ export function AsignacionKvaModal({
   asignacion,
   idNaveFijo,
   naveEtiqueta,
+  arrendada = false,
   onClose,
   onListo,
 }: Props) {
@@ -46,8 +52,11 @@ export function AsignacionKvaModal({
   const [idNave, setIdNave] = useState(asignacion?.idNave ?? idNaveFijo ?? '');
   const [motivoAjuste, setMotivoAjuste] = useState('');
   const [nivel, setNivel] = useState<NivelKva>(asignacion?.nivel ?? 'BT');
-  const [figura, setFigura] = useState<FiguraKva>(asignacion?.figura ?? 'VENTA');
-  const [etapa, setEtapa] = useState<EtapaKva>(asignacion?.etapa ?? 'POR_ASIGNAR');
+  // A un arrendatario no se le vende: si la nave está arrendada, nace en RENTA.
+  const [figura, setFigura] = useState<FiguraKva>(
+    asignacion?.figura ?? (arrendada ? 'RENTA' : 'VENTA'),
+  );
+  const [etapa, setEtapa] = useState<EtapaKva>(asignacion?.etapa ?? 'COMPROMETIDO');
   const [cantKvas, setCantKvas] = useState(String(asignacion?.cantKvas ?? ''));
   const [contratoCfe, setContratoCfe] = useState(asignacion?.contratoCfe ?? '');
   const [fechaContratoCfe, setFechaContratoCfe] = useState(
@@ -157,9 +166,17 @@ export function AsignacionKvaModal({
             <select
               value={figura}
               onChange={(e) => setFigura(e.target.value as FiguraKva)}
+              disabled={arrendada}
+              title={
+                arrendada
+                  ? 'Esta nave está arrendada: a un arrendatario solo se le renta.'
+                  : undefined
+              }
               className={inputCls}
             >
-              <option value="VENTA">Vendido</option>
+              <option value="VENTA" disabled={arrendada}>
+                Vendido
+              </option>
               <option value="RENTA">Rentado</option>
             </select>
           </label>
@@ -170,8 +187,7 @@ export function AsignacionKvaModal({
               onChange={(e) => setEtapa(e.target.value as EtapaKva)}
               className={inputCls}
             >
-              <option value="POR_ASIGNAR">Por asignar</option>
-              <option value="COMPROMETIDO">Comprometido</option>
+              <option value="COMPROMETIDO">Comprometido (caduca en 10 días)</option>
               <option value="ASIGNADO">Asignado (con CFE)</option>
             </select>
           </label>
@@ -204,6 +220,13 @@ export function AsignacionKvaModal({
             />
           </label>
         </div>
+
+        {arrendada && (
+          <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
+            Esta nave está arrendada: a un arrendatario solo se le <strong>renta</strong>,
+            no se le vende.
+          </p>
+        )}
 
         {figura === 'VENTA' && !exigeMotivo && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">

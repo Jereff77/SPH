@@ -12,7 +12,15 @@ import { z } from 'zod';
  */
 export const NIVELES = ['MT', 'BT'] as const;
 export const FIGURAS = ['VENTA', 'RENTA'] as const;
-export const ETAPAS = ['POR_ASIGNAR', 'COMPROMETIDO', 'ASIGNADO'] as const;
+/**
+ * Solo HECHOS reales. `POR_ASIGNAR` se eliminó en la migración F5c: lo que la
+ * nave tiene reservado por disposición del parque es `naves.dotacion*`, no una
+ * asignación. «Por asignar» pasó a ser un cálculo (dotado − asignado − comprometido).
+ */
+export const ETAPAS = ['COMPROMETIDO', 'ASIGNADO'] as const;
+
+/** Días que dura un COMPROMETIDO antes de caducar. Renovable. */
+export const DIAS_COMPROMISO = 10;
 
 /** Cantidad de KVA: admite decimales (el control real usa .5). */
 const cantidadKva = z.coerce.number().min(0).max(1_000_000);
@@ -22,7 +30,7 @@ export const crearAsignacionSchema = z
     idNave: z.string().trim().min(1, 'La nave es obligatoria.').max(40),
     nivel: z.enum(NIVELES),
     figura: z.enum(FIGURAS),
-    etapa: z.enum(ETAPAS).default('POR_ASIGNAR'),
+    etapa: z.enum(ETAPAS).default('COMPROMETIDO'),
     cantKvas: cantidadKva.refine((v) => v > 0, 'La cantidad debe ser mayor a 0.'),
     contratoCfe: z.string().trim().max(80).optional().nullable(),
     fechaContratoCfe: z

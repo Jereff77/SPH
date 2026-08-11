@@ -1,0 +1,317 @@
+// =====================================================================
+//  Módulo KVA's — capacidad eléctrica  ·  ERP SPH Bienes Raíces v2
+//  Extraído del catálogo REAL de Postgres el 2026-08-04 (no de memoria).
+//
+//  Cómo verlo:
+//    · VS Code + extensión "DBML Previewer"  (100% local, recomendado)
+//    · o pegar en https://dbdiagram.io  ⚠️ solo con autorización: es el
+//      esquema real de la plataforma.
+//
+//  ⛔ Este archivo NO se edita a mano: se regenera desde la BD.
+//     Las descripciones viven en la BD como COMMENT ON — toda migración
+//     futura que toque estas tablas debe traer los suyos.
+// =====================================================================
+
+Project kvas_sph {
+  database_type: 'PostgreSQL'
+  Note: '''
+    Administración de KVA's del ERP SPH.
+
+    Tres ejes que definen cada asignación:
+      nivel  → MT (media) · BT (baja). Bolsas INDEPENDIENTES, sin trasvase.
+      figura → VENTA (se va con la nave) · RENTA (regresa al cerrar el vínculo).
+      etapa  → POR_ASIGNAR · COMPROMETIDO · ASIGNADO (ya hay contrato con CFE).
+
+    Regla de saldo (control operativo del cliente, v2.65.0):
+      Disponibles = Capacidad − (Asignado + Comprometido)
+      POR_ASIGNAR NO descuenta: está apartado en el paquete de la nave,
+      pero sin dueño, así que el parque lo sigue considerando suyo.
+  '''
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  TABLAS PROPIAS DEL MÓDULO (nuevas en v2)
+// ─────────────────────────────────────────────────────────────────────
+
+Table kvaAcometidas {
+  idAcometida uuid [pk, default: `gen_random_uuid()`]
+  nombre      text [not null]
+  tensionKv   "numeric(6,2)"
+  capacidadMt "numeric(12,2)" [not null, default: 0]
+  capacidadBt "numeric(12,2)" [not null, default: 0]
+  folioCfe    text
+  notas       text
+  status      boolean [not null, default: true]
+  uidr        uuid
+  fc          timestamptz [not null, default: `now()`]
+
+  Note: 'Acometida eléctrica: la fuente física contratada con CFE (capacidad en media y baja tensión). Alimenta a UNO O VARIOS parques — Spartek I y II comparten una de 34.5 kV, folio DP09000001290/2025.'
+}
+
+Table kvasAsignados {
+  idKvas           uuid [pk, default: `gen_random_uuid()`]
+  idNave           text [not null]
+  idParque         text [not null, note: 'Se toma de la nave en el backend, nunca del cliente: así no se descuenta capacidad de un parque ajeno.']
+  nivel            text [not null, note: 'MT = media · BT = baja. CHECK en BD.']
+  figura           text [not null, note: 'VENTA · RENTA. CHECK en BD.']
+  etapa            text [not null, default: 'POR_ASIGNAR', note: 'POR_ASIGNAR · COMPROMETIDO · ASIGNADO. CHECK en BD.']
+  cantKvas         "numeric(12,2)" [not null, default: 0]
+  cantDevuelta     "numeric(12,2)" [not null, default: 0, note: 'Lo mantiene el trigger de kvaDevoluciones. NO se escribe a mano.']
+  contratoCfe      text [note: 'Número de servicio de CFE. Obligatorio para la etapa ASIGNADO.']
+  fechaContratoCfe date
+  venceCompromiso  timestamptz [note: 'Solo en COMPROMETIDO: momento exacto en que caduca (10 días, renovable). El cron horario lo BORRA al vencer.']
+  avisoPrevio      timestamptz [note: 'Cuándo salió el correo de «vence en 3 días». Se limpia al renovar.']
+  avisoFinal       timestamptz [note: 'Cuándo salió el correo de «en 4 horas se elimina». Se limpia al renovar.']
+  idPropiedad      text [note: 'Vínculo con la venta (propiedades), si aplica.']
+  idNavArrend      text [note: 'Vínculo con el arrendamiento (arrenPropiedades), si aplica.']
+  status           boolean [not null, default: true, note: 'Baja lógica.']
+  motivoBaja       text
+  motivoAjuste     text [note: 'Por qué se bajó la cantidad de una VENTA o pasó a RENTA. Obligatorio en esos dos casos: aflojan el candado de devolución sin documento.']
+  uidr             uuid [not null]
+  fc               timestamp [not null, default: `now()`]
+
+  // DEPRECADAS — se eliminan en la migración F1b
+  tipoTension  smallint [note: '⛔ DEPRECADA (2026-08-03) → usar nivel.']
+  tipoContrato smallint [note: '⛔ DEPRECADA (2026-08-03) → usar figura.']
+
+  indexes {
+    (idNave) [name: 'ix_kvasasignados_nave']
+    (idParque, nivel) [name: 'ix_kvasasignados_parque']
+    (venceCompromiso) [name: 'ix_kvasasignados_compromisos', note: 'PARCIAL: solo COMPROMETIDO vivos. Para el cron horario.']
+  }
+  Note: 'Lo que un cliente REALMENTE tiene o apartó. Solo hechos: etapa COMPROMETIDO o ASIGNADO. Lo que la nave tiene reservado por disposición del parque NO vive aquí: es naves.dotacion*.'
+}
+
+Table kvaDevoluciones {
+  idDevolucion    uuid [pk, default: `gen_random_uuid()`]
+  idKvas          uuid [not null]
+  cantidad        "numeric(12,2)" [not null, note: 'CHECK > 0. Admite devoluciones parciales.']
+  fechaDevolucion date [not null, default: `CURRENT_DATE`]
+  documento       text [not null, note: 'Folio del documento probatorio.']
+  urldoc          text [not null, note: 'Ruta en el bucket PRIVADO kvaDocs. El backend firma la URL al leer.']
+  observaciones   text
+  uidValida       uuid
+  status          boolean [not null, default: true]
+  uidr            uuid
+  fc              timestamptz [not null, default: `now()`]
+
+  indexes {
+    (idKvas) [name: 'ix_kvadevoluciones_kvas']
+  }
+  Note: 'Acredita con documento que unos KVA VENDIDOS regresaron al parque. Mientras no exista, la nave NO se puede liberar.'
+}
+
+Table kvaNaveDocs {
+  idDoc       uuid [pk, default: `gen_random_uuid()`]
+  idNave      text [not null, note: 'Los documentos se cuelgan de la NAVE, no de una asignación: un mismo contrato suele cubrir baja y media.']
+  idParque    text [note: 'Copia del parque al subir, para filtrar sin join. La nave manda.']
+  titulo      text [not null]
+  descripcion text
+  urldoc      text [not null, note: 'Ruta en el bucket PRIVADO kvaDocs, prefijo naves/<idNave>/. Nunca una URL pública.']
+  status      boolean [not null, default: true, note: 'false = dado de baja. Se conserva la fila y el archivo para la trazabilidad.']
+  motivoBaja  text
+  uidr        uuid
+  fc          timestamptz [not null, default: `now()`]
+
+  indexes {
+    (idNave, fc) [name: 'ix_kvanavedocs_nave_fc', note: 'fc DESC — cubre filtro y orden del listado.']
+  }
+  Note: 'Expediente de documentos de KVA de una nave (contratos, cartas de compra, actas de devolución).'
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  TABLAS EXISTENTES QUE EL MÓDULO TOCA O CONSULTA
+// ─────────────────────────────────────────────────────────────────────
+
+Table parques {
+  idParque   text [pk]
+  nomParque  text
+  direccion  text
+  naves      bigint [note: 'Contador informativo heredado de v1; el conteo real se calcula.']
+  esTicket   boolean [not null, default: false]
+  status     boolean [default: true]
+  idUser     text
+  fc         timestamp [default: `now()`]
+
+  // --- Capacidad eléctrica (lo que el módulo escribe/lee) ---
+  idAcometida          uuid [note: 'De qué acometida cuelga. Varios parques pueden compartir una — y entonces la restricción de dotación se evalúa sobre el POOL.']
+  dotacionMtNave       "numeric(12,2)" [not null, default: 0, note: 'Semilla: KVA de media para cada nave NUEVA. La dotación real vive en la nave.']
+  dotacionBtNave       "numeric(12,2)" [not null, default: 0, note: '⚠️ Default 0, no 5: el 5 es el valor precargado del formulario. Un 5 en la columna lo habrían heredado los parques con capacidad 0 y les habría roto el alta de naves.']
+  kvasMt               "numeric(12,2)" [not null, default: 0, note: 'Capacidad en MEDIA tensión.']
+  kvasBt               "numeric(12,2)" [not null, default: 0, note: 'Capacidad en BAJA tensión.']
+  kvasMtDisponibles    "numeric(12,2)" [not null, default: 0, note: '⛔ Lo calcula la BD (kva_recalcular_disponibles). Puede ser NEGATIVO: sobregiro real.']
+  kvasBtDisponibles    "numeric(12,2)" [not null, default: 0, note: '⛔ Lo calcula la BD. Puede ser NEGATIVO.']
+  kvasMtUtilizados     "numeric(12,2)" [note: 'GENERATED = kvasMt − kvasMtDisponibles']
+  kvasBtUtilizados     "numeric(12,2)" [note: 'GENERATED = kvasBt − kvasBtDisponibles']
+
+  // --- Espejos de compatibilidad (temporales) ---
+  kvasAlta             "numeric(12,2)" [note: '⚠️ GENERATED = kvasMt. Espejo para el API viejo. QUITAR.']
+  kvasMedia            "numeric(12,2)" [note: '⚠️ GENERATED = kvasBt. Espejo. QUITAR.']
+  kvasAltaDisponibles  "numeric(12,2)" [note: '⚠️ GENERATED. Espejo. QUITAR.']
+  kvasMediaDisponibles "numeric(12,2)" [note: '⚠️ GENERATED. Espejo. QUITAR.']
+  kvasAltaUtilizados   "numeric(12,2)" [note: '⚠️ GENERATED. Espejo. QUITAR.']
+  kvasMediaUtilizados  "numeric(12,2)" [note: '⚠️ GENERATED. Espejo. QUITAR.']
+
+  Note: 'Parque industrial. El rename de 2026-08-03 pasó kvasAlta→kvasMt y kvasMedia→kvasBt: la BD llamaba "Alta/Media" a lo que el negocio llama "Media/Baja". Los 6 espejos son compatibilidad temporal.'
+}
+
+Table naves {
+  idNave      text [pk]
+  idParque    text [not null]
+  numNave     bigint [note: 'Consecutivo INTERNO del parque; reinicia en 1 por parque.']
+  numNaveNAME text [note: '⚠️ La etiqueta que VE el usuario. Es TEXTO y puede no ser número (Cafeteria, GYM, COWORKING). En Spartek es la numeración corrida: la nave "61" es la numNave 1 de Spartek II.']
+  dotacionMt  "numeric(12,2)" [not null, default: 0, note: 'KVA de MEDIA que le tocan por disposición del parque. Reservado por diseño, NO entregado.']
+  dotacionBt  "numeric(12,2)" [not null, default: 0, note: 'KVA de BAJA que le tocan por disposición. Σ dotación ≤ capacidad del parque (trigger).']
+  situacion   text [note: 'Disponible · Apartado · Bloqueado · Vendida']
+  mza         bigint
+  lote        bigint
+  terreno     "numeric"
+  construccion "numeric"
+  precio      "numeric"
+  Arrendada   boolean
+  esTicket    boolean
+  status      boolean [default: true]
+
+  Note: 'Nave industrial. Tabla COMPARTIDA con v1 (Flutter): crear filas aquí las hace visibles en todo el ERP.'
+}
+
+Table arrenPropiedades {
+  idNavArrend  text [pk]
+  idNave       text
+  idParque     text
+  idArrendador text [note: '⚠️ Apunta a inversionista.idInversionista, NO a una tabla de arrendatarios.']
+  status       boolean
+  Note: 'Vínculo de arrendamiento. De aquí sale la empresa que ocupa la nave en el tablero de KVA.'
+}
+
+Table propiedades {
+  idPropiedad     text [pk]
+  idNave          text
+  idParque        text
+  idInversionista text
+  status          boolean
+  Note: 'Vínculo de venta. De aquí sale el inversionista dueño cuando la nave no está arrendada.'
+}
+
+Table inversionista {
+  idInversionista text [pk]
+  razonsocial     text
+  NomComercial    text
+  nombre          text
+  inversionista   boolean
+  arrendatario    boolean
+  usuarioFinal    boolean
+  status          boolean
+  Note: '⚠️ Catálogo ÚNICO de terceros: el mismo registro puede ser inversionista, arrendatario y/o usuario final según sus banderas. No hay tabla de arrendatarios aparte.'
+}
+
+Table segModulos {
+  idsegModulos uuid [pk, default: `gen_random_uuid()`]
+  modulo       Modulos [not null]
+  seccion      text [not null]
+  area         text
+  clave        smallint [not null, unique]
+  fc           timestamptz [not null, default: `now()`]
+  Note: 'Catálogo de permisos. Del módulo: 720 ver · 721 asignar · 722 devolución · 723 documentos.'
+}
+
+Table auditoria {
+  id                bigint [pk]
+  uid               text [note: 'Actor tomado del JWT verificado, nunca del cliente.']
+  origen            smallint [note: '1 = v1 Flutter · 2 = backend v2 · 3 = cambio directo en BD']
+  entidad           text
+  id_entidad        text
+  accion            text [note: 'INSERT · UPDATE · DELETE']
+  cambios           jsonb [note: 'Diff campo a campo: {antes, despues}']
+  registro_anterior jsonb
+  registro_nuevo    jsonb
+  Note: 'Bitácora de trazabilidad. Las 4 tablas del módulo la alimentan por trigger trg_auditoria.'
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  RELACIONES (FKs reales del catálogo)
+// ─────────────────────────────────────────────────────────────────────
+
+Ref: parques.idAcometida > kvaAcometidas.idAcometida
+Ref: naves.idParque > parques.idParque              // ON DELETE CASCADE
+Ref: kvasAsignados.idNave > naves.idNave
+Ref: kvasAsignados.idParque > parques.idParque      // ON DELETE RESTRICT
+Ref: kvaDevoluciones.idKvas > kvasAsignados.idKvas  // ON DELETE RESTRICT
+Ref: kvaNaveDocs.idNave > naves.idNave
+Ref: arrenPropiedades.idNave > naves.idNave
+Ref: arrenPropiedades.idParque > parques.idParque
+Ref: arrenPropiedades.idArrendador > inversionista.idInversionista
+Ref: propiedades.idInversionista > inversionista.idInversionista
+
+// Vínculos SIN FK declarada (se validan en el backend, no en la BD):
+//   kvasAsignados.idPropiedad  ~> propiedades.idPropiedad
+//   kvasAsignados.idNavArrend  ~> arrenPropiedades.idNavArrend
+
+TableGroup kvas_modulo [color: #8DBE2F] {
+  kvaAcometidas
+  kvasAsignados
+  kvaDevoluciones
+  kvaNaveDocs
+}
+
+TableGroup parques_naves [color: #1f2a4d] {
+  parques
+  naves
+}
+
+TableGroup ocupantes [color: #3f5b87] {
+  arrenPropiedades
+  propiedades
+  inversionista
+}
+
+TableGroup transversal [color: #78829a] {
+  segModulos
+  auditoria
+}
+
+// =====================================================================
+//  LO QUE EL DIAGRAMA NO MUESTRA (y hay que saber)
+//
+//  FUNCIONES
+//    kva_consumo(figura, status, cant, devuelta) → numeric
+//        Cuánto consume una asignación. (Volvió a 4 args en F5c: el parche de
+//        POR_ASIGNAR sobra desde que esa etapa no existe.)
+//    kva_recalcular_disponibles(idParque) → void
+//        Recalcula el saldo del parque DESDE LA FUENTE (no por deltas).
+//    kva_pendientes_por_devolver(idNave) → TABLE(nivel, pendiente)
+//        Alimenta el candado de liberación de nave.
+//    kva_validar_dotacion(idParque) → void
+//        Σ dotación ≤ capacidad. Ámbito: el POOL de la acometida si comparte.
+//        Toma pg_advisory_xact_lock ANTES de leer (si no, dos ediciones
+//        concurrentes la burlan: es un check-then-act).
+//
+//  TRIGGERS
+//    kvasAsignados   → trg_kvasasignados_recalcular · trg_auditoria
+//    kvaDevoluciones → trg_kvadevoluciones_aplicar · trg_auditoria
+//    kvaNaveDocs     → trg_auditoria
+//    kvaAcometidas   → trg_auditoria
+//    naves           → trg_naves_valida_dotacion_ins / _upd
+//    parques         → trg_parques_valida_dotacion
+//        ⚠️ De SENTENCIA con TRANSITION TABLES (no FOR EACH ROW: un alta de 169
+//        naves sería cuadrática). Postgres NO admite transition tables con más
+//        de un evento ni con lista de columnas, por eso hay un trigger por
+//        evento y el filtro «¿cambió la dotación?» se hace comparando
+//        NEW TABLE vs OLD TABLE dentro de la función.
+//
+//  CRON (backend, NestJS @Cron)
+//    kvas-compromisos — CADA HORA (minuto 5). Avisa a 3 días y a 4 horas del
+//        vencimiento, y BORRA los compromisos caducados devolviendo sus KVA al
+//        parque. Horario y no diario porque con granularidad de día no se le
+//        puede acertar a la ventana de 4 horas.
+//
+//  RLS: las 4 tablas del módulo la tienen ACTIVA con una política
+//       permisiva para `authenticated` (qual = true). El control real es
+//       el RBAC server-side; la política evita que la tabla quede abierta
+//       si alguien la consultara con la llave anon.
+//
+//  STORAGE: bucket PRIVADO `kvaDocs`
+//    devoluciones → <yyyy-MM>/<idParque>/<idKvas>.<ext>
+//    expediente   → <yyyy-MM>/naves/<idNave>/<uuid>.<ext>
+//    Se sirve con URL firmada a 1 hora. Validación por magic bytes.
+// =====================================================================

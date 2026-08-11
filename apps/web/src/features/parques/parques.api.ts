@@ -8,6 +8,9 @@ export interface ParqueListado {
   kvasMt: number;
   /** Capacidad en BAJA tensión (antes `kvasMedia`). */
   kvasBt: number;
+  /** KVA que se dan por defecto a cada nave NUEVA de este parque. */
+  dotacionMtNave: number;
+  dotacionBtNave: number;
   naves: number; // conteo real de naves del parque
 }
 
@@ -26,6 +29,9 @@ export interface NaveItem {
   idParque: string | null;
   numNave: number | null;
   numNaveNAME: string | null;
+  /** KVA que le tocan por disposición del parque (reservados, no entregados). */
+  dotacionMt: number;
+  dotacionBt: number;
   situacion: string | null;
   mza: number;
   lote: number;
@@ -64,12 +70,24 @@ export interface CrearParqueDto {
   naves: number;
   kvasMt: number;
   kvasBt: number;
+  /** KVA que le tocan a CADA nave por disposición del parque. */
+  dotacionMtNave: number;
+  dotacionBtNave: number;
+}
+
+/** Dotación de UNA nave. Endpoint aparte porque exige permiso 721. */
+export interface DotacionNaveDto {
+  dotacionMt: number;
+  dotacionBt: number;
 }
 
 export interface EditarParqueDto {
   direccion: string;
   kvasMt: number;
   kvasBt: number;
+  /** Solo afecta a las naves FUTURAS; no re-aplica a las existentes. */
+  dotacionMtNave: number;
+  dotacionBtNave: number;
 }
 
 export interface EditarNaveDto {
@@ -111,6 +129,9 @@ export const parquesApi = {
     api.patch<{ ok: true }>(`/parques/${idParque}`, dto),
   editarNave: (idNave: string, dto: EditarNaveDto) =>
     api.patch<{ ok: true }>(`/parques/naves/${idNave}`, dto),
+  /** Dotación de la nave. Endpoint aparte: exige permiso 721, no 702. */
+  editarDotacionNave: (idNave: string, dto: DotacionNaveDto) =>
+    api.patch<{ ok: true }>(`/parques/naves/${idNave}/dotacion`, dto),
   agregarNaves: (idParque: string, cantidad: number) =>
     api.post<{ creadas: number }>(`/parques/${idParque}/naves`, { cantidad }),
   disponibilidad: (idParque: string) =>

@@ -5,7 +5,30 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-08-04 (**v2.65.0** — **Parques · KVA's: asignar y ajustar desde la nave**):
+> Última actualización: 2026-08-08 (**v2.66.0** — **Parques · KVA's: dotación por nave y
+> compromisos que caducan**):
+> Cambio de MODELO, no un ajuste. El «paquete» que una nave tiene reservado dejó de ser una
+> asignación y pasó a ser un **atributo de la nave**: `naves.dotacionMt` / `dotacionBt`. La etapa
+> **`POR_ASIGNAR` desapareció** (migración F5c borró sus 85 filas tras convertirlas en dotación) y
+> «por asignar» pasó a calcularse. Nació de la conciliación contra el Excel del cliente: el
+> descuadre no era de cálculo sino de modelo — *«son los KVA que por disposición se estipuló que
+> tendría cada nave»* (Jereff).
+> **Reglas nuevas del contrato** (§5d-bis.14-17): ⛔ **Σ dotación ≤ capacidad**, evaluada sobre el
+> **pool de la acometida** si el parque comparte una, con **trigger en BD** y **advisory lock antes
+> de leer** (sin el lock es un check-then-act que dos ediciones simultáneas burlan). ⛔ **A un
+> arrendatario solo se le RENTA**. **Los COMPROMETIDOS caducan a los 10 días**, renovables, con
+> cron **horario** que avisa a 3 días, a 4 horas y al liberar — y al vencer **BORRA** la fila
+> («para que la suma dé correcto»), quedando el rastro en `auditoria`.
+> **El paquete de diseño completo está en `base-conocimiento/dotacion-kvas/`** (8 documentos). Su
+> gate adversarial encontró **dos bloqueantes en el propio diseño** —un trigger que no compilaba y
+> una restricción sin lock— y un tercero al aplicarlo: las **transition tables de Postgres no
+> admiten varios eventos ni lista de columnas**, así que hay un trigger por evento y el filtro se
+> hace comparando NEW/OLD TABLE. La migración destructiva **abortó dos veces por su propia
+> verificación** antes de entrar bien.
+> Escalabilidad: **1 hallazgo ALTA corregido** — el SMTP no tenía timeout, y el cron horario con
+> flag `corriendo` habría quedado bloqueado para siempre ante un servidor colgado. P2-15/P2-16 a
+> `DEUDA.md`. Autor: Toribio/Opus 5.
+> Previa 2026-08-04 (**v2.65.0** — **Parques · KVA's: asignar y ajustar desde la nave**):
 > El tablero deja de ser solo lectura. El detalle de un parque lista ahora **TODAS sus naves**, tengan
 > KVA o no (las vacías en gris) — es como se lee el Excel y es la única vía para asignarle KVA a una
 > nave que aún no tiene nada. Clic en una nave abre su **ficha con dos pestañas**: **KVA** (asignaciones
@@ -856,8 +879,28 @@ los vínculos `idPropiedad`/`idNavArrend`. Migración `2026-08-03-kvas-administr
     cliente. Solo aparece en devoluciones parciales y en el 409 del candado. Jereff lo consulta con el
     cliente antes de decidir si vuelve a algún lado.
 
-Detalle completo del módulo: `base-conocimiento/modulos/kvas.md`; diseño y pendientes:
-`base-conocimiento/PLAN-administracion-kvas.md`.
+**Ampliación v2.66.0** — el modelo de dotación (paquete completo en `base-conocimiento/dotacion-kvas/`):
+14. ⛔ **Tres cantidades distintas, no confundirlas.** **Capacidad** = lo del parque
+    (`parques.kvas*`). **Dotación** = lo que le toca a cada nave por disposición
+    (`naves.dotacion*`), reservado por diseño y **no** entregado. **Asignación** = lo que un
+    cliente realmente tiene o apartó (`kvasAsignados`).
+    `Por asignar = dotado − asignado − comprometido` · `Disponibles = capacidad − asignado − comprometido`.
+15. ⛔ **Σ dotación ≤ capacidad**, en los **cuatro** caminos que pueden violarla (crear parque,
+    editar dotación, bajar capacidad, agregar naves). Vive en **trigger**, no solo en el servicio.
+    Ámbito: el **pool** de la acometida cuando hay parques hermanos. Toma **advisory lock antes de
+    leer**: sin él, dos ediciones concurrentes de naves distintas del mismo parque pasan ambas y
+    juntas exceden la capacidad.
+16. ⛔ **A un arrendatario no se le vende.** `arrenPropiedades` viva ⇒ figura `RENTA` obligatoria.
+17. **Los COMPROMETIDOS caducan a los 10 días** y son renovables. Cron **horario**
+    (`kvas-compromisos`): avisa a **3 días**, a **4 horas** y al **liberar**; al vencer **borra**
+    la fila. Es horario y no diario porque con granularidad de día no se acierta a las 4 horas.
+    ⚠️ El `venceCompromiso` es `timestamptz`, no `date`, por esa misma razón.
+18. 📌 **Trampa de Postgres que costó dos intentos:** las **transition tables** no admiten
+    triggers con **más de un evento** ni con **lista de columnas**. Un trigger por evento, sin
+    `UPDATE OF`, y el filtro «¿de verdad cambió?» comparando `NEW TABLE` vs `OLD TABLE`.
+
+Detalle completo del módulo: `base-conocimiento/modulos/kvas.md`; esquema: `base-conocimiento/bd/kvas.dbml`;
+diseño de la dotación: `base-conocimiento/dotacion-kvas/`; pendientes: `base-conocimiento/PLAN-administracion-kvas.md`.
 
 ---
 

@@ -71,6 +71,8 @@ el control real vive en los guards. La RLS de la BD es herencia de v1.
 | P2-12 | 🟢 | KVA's: `devolucionesDe` firma las URLs una por una (N+1 de red) | 📌 |
 | P2-13 | 🟢 | Parques: `listarNavesDeParque` sin `.range()` — depende del tope de PostgREST | 📌 |
 | P2-14 | 🟢 | DRY: el ocupante de la nave se resuelve en dos lugares distintos | 📌 |
+| P2-15 | 🟡 | KVA's: `dotacionPorParque` trae TODAS las naves en cada resumen | 📌 |
+| P2-16 | 🟢 | Cron de compromisos: el flag `corriendo` es por proceso (no sirve con 2+ réplicas) | 📌 |
 
 ### P2-9 — Recálculo de KVA por fila (revisión de escalabilidad, 2026-08-03) 📌
 `trg_kvasasignados_recalcular` es **FOR EACH ROW**: cada insert recalcula el parque completo. En uso
@@ -109,6 +111,22 @@ No se tocó en el momento por ser un servicio compartido con otras dos pantallas
 no está arrendada, y devuelve el tipo de ocupante —, por eso se escribió aparte en vez de reusarlo.
 **Fix cuando se toque Parques:** extraer un helper compartido con el contrato más amplio (el de KVA) y
 que Parques lo consuma. Severidad BAJA (duplicación, no bug).
+
+### P2-15 — `dotacionPorParque` trae todas las naves en cada resumen (2026-08-08) 📌
+`KvasService.dotacionPorParque` lee **las 634 naves** con `.range(0, 9999)` cada vez que se
+abre el tablero, para sumar su dotación por parque. Hoy es una consulta de 634 filas ligeras y
+no se nota, pero `naves` crece con cada parque nuevo y el tablero se abre seguido.
+**Fix cuando incomode:** vista materializada o RPC con `GROUP BY "idParque"`, que devuelve 12
+filas en vez de 634. Severidad MEDIA, diferida. *(Hermano de P2-11: los dos se resuelven con el
+mismo RPC de resumen.)*
+
+### P2-16 — El cron de compromisos se protege con un flag en memoria 📌
+`KvasCompromisosScheduler` usa `this.corriendo` para no solaparse. Es correcto con **una**
+réplica del API — que es el despliegue actual — pero con dos o más cada proceso tendría su
+propio flag y ambos podrían procesar los mismos compromisos a la vez. El daño sería acotado
+(correos duplicados; el `DELETE` es idempotente), pero existe.
+**Fix si se escala a 2+ réplicas:** claim en BD con `pg_try_advisory_lock` sobre el nombre de
+la tarea. Severidad BAJA hoy, **sube a ALTA el día que se replique el API**.
 
 ### P2-12 — `devolucionesDe` firma las URLs una por una 📌
 Firma dentro de un `Promise.all(map(async …))`: una llamada a Storage **por documento**. En
