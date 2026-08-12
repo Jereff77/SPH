@@ -28,6 +28,19 @@ export const ETIQUETA_ETAPA: Record<EtapaKva, string> = {
   ASIGNADO: 'Asignado (con CFE)',
 };
 
+/**
+ * ¿La nave es un área común del parque (Caseta, Alumbrado, PTAR, GYM…)?
+ *
+ * Se distingue por la etiqueta: las naves comerciales llevan número, las áreas
+ * comunes llevan nombre. En ellas **no se muestra la figura** (vendido/rentado):
+ * su KVA lo cargamos nosotros al conciliar el Excel, que dice cuántos consumen
+ * pero no bajo qué figura — así que esa etiqueta sería un dato inventado, y se
+ * lee como si dijera algo del estado de la nave. 📌 Pendiente con el negocio:
+ * darles una figura propia («consumo del parque») en vez de solo ocultarla.
+ */
+export const esAreaComun = (etiqueta: string | null): boolean =>
+  !!etiqueta && !/^\d+$/.test(etiqueta.trim());
+
 /** Días que faltan para que caduque un compromiso. `null` si no aplica. */
 export function diasParaVencer(vence: string | null): number | null {
   if (!vence) return null;

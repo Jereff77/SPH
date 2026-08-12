@@ -4,6 +4,7 @@ import { Badge } from '@/components/Badge';
 import { ApiRequestError } from '@/lib/api';
 import { parquesApi } from './parques.api';
 import {
+  esAreaComun,
   ETIQUETA_ETAPA,
   kvasApi,
   type Acometida,
@@ -571,13 +572,16 @@ function NavesDelBloque({ idsParque }: { idsParque: string[] }) {
                     <span className="text-gray-400">Sin KVA asignados</span>
                   ) : (
                     <span className="flex flex-wrap items-center gap-1">
-                      <Badge color={f.figura === 'RENTA' ? 'azul' : 'ambar'}>
-                        {f.figura === 'VENTA'
-                          ? 'Vendido'
-                          : f.figura === 'RENTA'
-                            ? 'Rentado'
-                            : 'Mixto'}
-                      </Badge>
+                      {/* En áreas comunes no se pinta la figura: ver `esAreaComun`. */}
+                      {!esAreaComun(f.etiqueta) && (
+                        <Badge color={f.figura === 'RENTA' ? 'azul' : 'ambar'}>
+                          {f.figura === 'VENTA'
+                            ? 'Vendido'
+                            : f.figura === 'RENTA'
+                              ? 'Rentado'
+                              : 'Mixto'}
+                        </Badge>
+                      )}
                       <span className="text-gray-500">
                         {f.etapa ? ETIQUETA_ETAPA[f.etapa] : 'Varias etapas'}
                       </span>

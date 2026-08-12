@@ -5,7 +5,26 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-08-11 (**v2.66.1** — **🚨 FIX DE DESPLIEGUE: el API llevaba 7
+> Última actualización: 2026-08-12 (**v2.67.0** — **KVA's: tope contra el disponible y amenidades
+> sin figura**):
+> (1) ⛔ **No se puede asignar más KVA de los disponibles**, evaluado sobre el **POOL de la
+> acometida** — *«en el caso de Spartek I no existe como tal el sobregiro, ya que al ser la misma
+> acometida y estar físicamente los 2 parques juntos, es posible pasar los asignados de un parque al
+> otro»* (Jereff). Con esa lectura Spartek I **no** está sobregirado (el pool tiene 452 de baja), así
+> que la validación pudo ser estricta sin trabar nada. El trigger corre **después** del recálculo de
+> saldo: se llama `ztrg_kvas_valida_disponible_*` porque Postgres ordena los triggers de un mismo
+> evento **alfabéticamente**, y necesita el saldo ya actualizado para leerlo.
+> 📌 **No contradice** el «permítelo, no lo trunques» de 2026-08-04: aquello era para que un
+> sobregiro EXISTENTE se viera en rojo, y sigue viéndose. Lo que se impide es crear uno nuevo.
+> (2) Las **áreas comunes ocultan la figura** Vendido/Rentado: el Excel dice cuántos KVA consumen
+> pero no bajo qué figura, así que la que tienen se cargó por criterio nuestro y en pantalla se leía
+> como el estado de la nave. Se detectan por la etiqueta (`esAreaComun`). 📌 Pendiente: darles una
+> figura propia («consumo del parque») en vez de solo ocultarla.
+> (3) Se corrigieron las **amenidades duplicadas**: L1..L4 eran GYM, Cafetería, Coworking y PTAR.
+> Se movieron sus KVA a las naves reales, L4 se renombró a PTAR y se borraron L1-L3. Los totales no
+> se movieron (dotación 935, asignado 565, disponible 452).
+> ⚠️ **Commit hecho, PUSH NO** — por indicación de Jereff. Autor: Toribio/Opus 5.
+> Previa 2026-08-11 (**v2.66.1** — **🚨 FIX DE DESPLIEGUE: el API llevaba 7
 > versiones sin arrancar en producción**):
 > Desde el **29 de julio** el contenedor del API servía **v2.59.0**, aunque EasyPanel marcara
 > **todos los deploys en VERDE**. Verde = la imagen se construyó; el contenedor moría al arrancar y

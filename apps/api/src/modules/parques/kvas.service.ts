@@ -141,6 +141,18 @@ function vencimientoDe(etapa: string): string | null {
   return f.toISOString();
 }
 
+/**
+ * La BD impide asignar más KVA de los disponibles (`kva_validar_disponible`),
+ * evaluado sobre el POOL de la acometida. Su mensaje ya trae el faltante, así
+ * que se devuelve como **409 de negocio** en vez de un 500 opaco.
+ */
+function traducirErrorDisponible(error: { message?: string }): Error | null {
+  const msg = error?.message ?? '';
+  if (/No hay KVA de (baja|media) suficientes/i.test(msg))
+    return new ConflictException(msg.replace('asignacion', 'asignación').trim());
+  return null;
+}
+
 const desgloseVacio = (): DesgloseNivelKva => ({
   total: 0,
   dotado: 0,
@@ -549,7 +561,11 @@ export class KvasService {
       })
       .select('idKvas')
       .single();
-    if (error) fallaBd(this.logger, 'kvas.crear', error);
+    if (error) {
+      const sinCupo = traducirErrorDisponible(error);
+      if (sinCupo) throw sinCupo;
+      fallaBd(this.logger, 'kvas.crear', error);
+    }
     return { idKvas: data!.idKvas };
   }
 
@@ -667,7 +683,11 @@ export class KvasService {
         ...(aflojaElCandado ? { motivoAjuste: motivo } : {}),
       })
       .eq('idKvas', idKvas);
-    if (error) fallaBd(this.logger, 'kvas.editar', error);
+    if (error) {
+      const sinCupo = traducirErrorDisponible(error);
+      if (sinCupo) throw sinCupo;
+      fallaBd(this.logger, 'kvas.editar', error);
+    }
   }
 
   /**

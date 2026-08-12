@@ -160,6 +160,22 @@ título y descripción libres, igual que el resto de los `*_docs` del ERP.
   validar. El trigger toma **advisory lock antes de leer**, para que dos ediciones simultáneas
   no lo burlen. Ámbito: el **pool de la acometida** si el parque comparte una.
 - ⛔ **La dotación de una nave no puede bajar de lo ya entregado** a clientes en esa nave.
+- ⛔ **No se puede asignar más KVA de los disponibles** (v2.67.0). Se valida sobre el **POOL de
+  la acometida**, no sobre el parque suelto: *«en el caso de Spartek I no existe como tal el
+  sobregiro, ya que al ser la misma acometida y estar físicamente los 2 parques juntos, es posible
+  pasar los asignados de un parque al otro»* (Jereff, 2026-08-12). El trigger
+  `ztrg_kvas_valida_disponible_*` corre **después** del recálculo de saldo (el prefijo `z` lo
+  ordena al final) y hace rollback si el disponible del pool queda negativo.
+  📌 **No contradice** la decisión de 2026-08-04 («permítelo, no lo trunques»): aquello era para
+  que un sobregiro **existente** se VIERA en rojo en vez de ocultarse tras un 0 — y sigue siendo
+  así. Lo que se impide ahora es **crear uno nuevo**.
+- **Las áreas comunes no muestran figura** (v2.67.0). Caseta, Alumbrado, PTAR, GYM, Cafetería y
+  Coworking ocultan el badge Vendido/Rentado: el Excel dice cuántos KVA consumen pero **no bajo qué
+  figura**, así que la que tienen en BD se cargó por criterio nuestro y en pantalla se leía como el
+  estado de la nave. Se distinguen por la etiqueta (`esAreaComun`: las comerciales llevan número).
+  📌 **Pendiente con el negocio**: darles una figura propia («consumo del parque») en vez de solo
+  ocultarla — el dato de abajo sigue diciendo «Vendido» en el GYM, que además está **arrendado**
+  a Industrializadora Cacahuananche desde el 2026-06-10.
 - ⛔ **A un arrendatario solo se le RENTA** (v2.66.0). Si la nave tiene `arrenPropiedades` viva,
   la figura `VENTA` se rechaza con 400. Aplica a altas y ediciones; lo cargado antes se respeta.
 - **Los COMPROMETIDOS caducan a los 10 días** desde que se apartan, y son renovables. El cron
@@ -225,6 +241,8 @@ título y descripción libres, igual que el resto de los `*_docs` del ERP.
 | "No me deja cambiar la dotación / dice que sobran KVA." | La suma de dotaciones excedería la capacidad del parque (o del **pool**, si comparte acometida). | El mensaje trae el número exacto. Subir la capacidad del parque, o bajar la dotación de otra nave. |
 | "No me deja poner la dotación por debajo de X." | Esa nave ya tiene X KVA entregados a clientes: la dotación no puede quedar por debajo de lo comprometido. | Cancelar o reducir primero las asignaciones de esa nave. |
 | "No me deja vender KVA en esta nave." | La nave está **arrendada**: a un arrendatario solo se le renta. | Usar figura «Rentado». Si la nave ya no está arrendada, revisar que `arrenPropiedades` esté en `status=false`. |
+| "Dice que no hay KVA suficientes / faltan N." | La asignación dejaría el disponible del **pool** en negativo. | El mensaje trae el faltante exacto. Liberar KVA de otra nave (cancelar o devolver), o subir la capacidad del parque. Ojo: la cuenta es sobre el conjunto de parques con la misma acometida. |
+| "Las amenidades no dicen si están vendidas o rentadas." | **Es a propósito** (v2.67.0): esa figura no viene del control operativo, la cargamos nosotros, y en pantalla se confundía con el estado de la nave. | Si el negocio define una figura real para el consumo del parque, se implementa y vuelve a mostrarse. |
 | "«Por asignar» no me cuadra con lo que yo capturé." | Ya **no se captura**: se calcula como `dotado − asignado − comprometido`. Si no da lo esperado, lo que hay que revisar es la **dotación** de las naves. | Parques → KVA's → Ver naves → abrir la nave → editar Dotación. |
 
 ## 8. Gotchas / trampas conocidas

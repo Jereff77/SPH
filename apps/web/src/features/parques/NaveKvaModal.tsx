@@ -6,6 +6,7 @@ import { ApiRequestError } from '@/lib/api';
 import { parquesApi } from './parques.api';
 import {
   diasParaVencer,
+  esAreaComun,
   ETIQUETA_ETAPA,
   kvasApi,
   type AsignacionKva,
@@ -331,9 +332,12 @@ function KvasDeLaNave({
                     <span className="text-gray-500">
                       {a.nivel === 'MT' ? 'Media' : 'Baja'}
                     </span>
-                    <Badge color={a.figura === 'VENTA' ? 'ambar' : 'azul'}>
-                      {a.figura === 'VENTA' ? 'Vendido' : 'Rentado'}
-                    </Badge>
+                    {/* En áreas comunes no se pinta la figura: ver `esAreaComun`. */}
+                    {!esAreaComun(nave) && (
+                      <Badge color={a.figura === 'VENTA' ? 'ambar' : 'azul'}>
+                        {a.figura === 'VENTA' ? 'Vendido' : 'Rentado'}
+                      </Badge>
+                    )}
                     <span className="text-xs text-gray-500">
                       {ETIQUETA_ETAPA[a.etapa]}
                     </span>
