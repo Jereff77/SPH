@@ -96,7 +96,14 @@ export const condicionesSchema = z.object({
     .number()
     .min(1, 'El rendimiento debe estar entre 1 y 12.')
     .max(12, 'El rendimiento debe estar entre 1 y 12.'),
-  prom9: z.coerce.boolean().optional().default(false),
+  // Promoción del 9%. SIN `.default()` a propósito: `undefined` significa "no
+  // cambiar" (un default reintroduciría el valor en peticiones que omiten el
+  // campo —p. ej. un bundle viejo— y dispararía el candado de inmutabilidad al
+  // editar cualquier otro dato de la condición).
+  prom9: z.coerce.boolean().optional(),
+  // ⛔ `promoAnios` NO se acepta por la API: la duración de 2 años solo se
+  // otorga por ajuste manual autorizado en BD (decisión de negocio 2026-08-11).
+  // El alta siempre nace en 1 año (DEFAULT de la columna).
   comentarios: z.string().trim().optional(),
 });
 export type CondicionesDto = z.infer<typeof condicionesSchema>;

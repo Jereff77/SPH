@@ -1,13 +1,13 @@
 ---
 modulo: Fideicomiso
 estado: parcial
-version_doc: 1.5
-ultima_actualizacion: 2026-08-05
+version_doc: 1.6
+ultima_actualizacion: 2026-08-11
 rutas_v2: [/fideicomiso/dashboard, /fideicomiso/aportaciones, /fideicomiso/adhesiones, /fideicomiso/contabilidad, /fideicomiso/dispersiones, /fideicomiso/reportes]
 rutas_v1: [i06_fideicomiso]
 claves_permiso: [500, 510, 511, 520, 530, 540]
 tablas: [fidePdpDispersion, fideicomiso, fideCondiciones, fide_periodos_dispersion, fideContabilidad, fideContaConceptos, fideContaHistorial, fideSaldosBanco, v_fideicomiso, v_propiedadesfide, v_pagos]
-palabras_clave: [fideicomiso, dispersión, dispersiones, aportación, aportaciones, adhesión, adhesiones, rendimiento, kardex, ticket, contabilidad, pivote, concepto contable, inversión, rendimiento promedio, retención ISR, comisión SPH, "se duplicó en dispersiones", "aparece repetido", "renglón duplicado", "no se puede editar la celda", "se duplica y no se puede modificar", "número de adhesión", "rfc invertido", "nombre invertido", "aportación no aparece", "no aparece el inversionista en aportaciones", "no me sale el cliente en aportaciones", "no aparece el cliente en el selector", "el cliente existe pero no lo encuentro para asignarlo", "cliente en papelera", "ordenar alfabéticamente", "ordenar por tipo", "ordenar por concepto", "cómo ordeno la tabla de contabilidad"]
+palabras_clave: [fideicomiso, dispersión, dispersiones, aportación, aportaciones, adhesión, adhesiones, rendimiento, kardex, ticket, contabilidad, pivote, concepto contable, inversión, rendimiento promedio, retención ISR, comisión SPH, "promoción", "promoción del 9%", "promoción a 2 años", "cuánto dura la promoción", "cuándo termina mi promoción", "por qué me bajó el rendimiento", "fin de promoción", "ya no me pagan el 9%", "promoAnios", "se duplicó en dispersiones", "aparece repetido", "renglón duplicado", "no se puede editar la celda", "se duplica y no se puede modificar", "número de adhesión", "rfc invertido", "nombre invertido", "aportación no aparece", "no aparece el inversionista en aportaciones", "no me sale el cliente en aportaciones", "no aparece el cliente en el selector", "el cliente existe pero no lo encuentro para asignarlo", "cliente en papelera", "ordenar alfabéticamente", "ordenar por tipo", "ordenar por concepto", "cómo ordeno la tabla de contabilidad"]
 relacionado_con: [inversionistas, clientes, parques]
 ---
 
@@ -43,6 +43,29 @@ Hay **un solo fideicomiso** activo: *Fideicomiso Innovación SPH* (`idFide = jsR
   suman **solo de las filas pagadas**.
 - **Rendimiento promedio:** promedio de `rend` sobre **todas** las filas del inversionista.
 - **Fórmula de cálculo mostrada:** `((monto × rend%) / 365) × días` (interés simple proporcional).
+- **⭐ Promoción del 9% — duración configurable 1 ó 2 años (v2.68.0, 2026-08-11):** un fideicomitente con
+  promoción cobra el **9% íntegro** del fideicomiso (`fideicomiso.rendimiento` = 9) durante su periodo
+  promocional, y en ese lapso la **comisión SPH es $0**; al vencer pasa a su **tasa contratada**
+  (`fideCondiciones.rendimiento`, hoy 7.1–8.7%) y SPH cobra el diferencial. El **fin de la promoción** se
+  calcula como **`MIN(pagos.fecha) de la propiedad + N años`** — ojo: el primer pago es **por propiedad**,
+  no por persona, así que un fideicomitente con 2 tickets tiene 2 fechas de fin distintas.
+  - **`fideCondiciones."Prom9%"`** (boolean) = tiene o no promoción · **`fideCondiciones."promoAnios"`**
+    (smallint NOT NULL DEFAULT 1, CHECK 1–2) = cuántos años dura. Antes la duración estaba **hardcodeada**
+    (`INTERVAL '1 year'`) dentro de `plan_dispersiones_dinamico`; ahora sale de la columna.
+  - ⛔ **INMUTABLE una vez asignada:** ni se quita ni cambia de duración desde el sistema. El candado real
+    es el trigger **`trg_fidecondiciones_promo_inmutable`** (BEFORE UPDATE OR DELETE), no el backend —
+    `service_role` salta la RLS pero **no** los triggers. Editar los *demás* campos de la condición sigue
+    permitido. Escape para ajustes autorizados: `SET LOCAL app.promo_override = 'on'` en la transacción.
+  - ⛔ **Los 2 años NO se otorgan desde la UI:** el `condicionesSchema` **ni siquiera acepta** `promoAnios`
+    y el alta nace siempre en 1 año (DEFAULT). Se conceden por **ajuste manual autorizado** — procedimiento
+    completo (listar TODAS las condiciones del fideicomitente, medir el delta antes de aplicar, y aplicar
+    con actor atribuible) en `migraciones/2026-08-11-fideicomiso-promocion-2-anios.sql`.
+  - ⚠️ **El cálculo es dinámico:** Dispersiones recalcula al vuelo, no lee un histórico. Extender la promo
+    de alguien que **ya cursó parte de su 2º año** re-precia al 9% periodos que quizá ya se pagaron a su
+    tasa contratada. Por eso el procedimiento exige medir el delta **antes** de aplicar.
+  - 🔒 Aprovechando el cambio: `plan_dispersiones_dinamico` quedó con `search_path` fijo y **sin EXECUTE
+    para `anon`/`PUBLIC`** (devolvía el padrón con RFC y montos, y la anon key viaja en el bundle de v1);
+    y `fideCondiciones` perdió el DML de `authenticated` (v2 escribe siempre con `service_role`).
 - **Dispersiones:** las calculan las **mismas RPC que v1** (SIN sufijo, vigentes):
   `plan_dispersiones_dinamico`, `resumen_dispersion_dinamico`, `resumen_fideicomiso_completo`.
   ⚠️ **Corrección v2.27.1:** se dejaron de usar las variantes `_corregido`.
@@ -176,6 +199,21 @@ Evaluar si se agrega como atajo.
   Adhesiones (condiciones) y Plan de Pagos.
 - Gotcha: en `v_fideicomiso`, el campo `idfide` es en realidad el `idfideCond` (id de la condición), no el
   id del fideicomiso maestro.
+
+- **Preguntas de PROMOCIÓN ("¿cuánto dura mi promoción?", "¿cuándo termina?", "¿por qué me bajó el
+  rendimiento?", "ya no me pagan el 9%")** → Regla verificada (v2.68.0): el fideicomitente con promoción
+  cobra el **9% íntegro** (sin comisión SPH) hasta **`MIN(pagos.fecha) de esa propiedad + N años`**, donde
+  N = `fideCondiciones."promoAnios"` (1 por defecto, 2 solo si se autorizó). Al vencer pasa a su tasa
+  contratada (`fideCondiciones.rendimiento`) y SPH cobra el diferencial — **eso explica la baja del
+  rendimiento, no es un error**. El periodo en que cae el corte aparece como `PERIODO_MIXTO` (parte al 9%,
+  parte a la tasa contratada). Diagnóstico (`consultar_datos`):
+  `SELECT fc."noAdhesion", fc."Prom9%", fc."promoAnios", fc.rendimiento, MIN(p.fecha) AS primer_pago,
+   MIN(p.fecha) + make_interval(years => fc."promoAnios") AS fin_promocion
+   FROM "fideCondiciones" fc JOIN pagos p USING("idPropiedad") GROUP BY 1,2,3,4;`
+  Dónde se ve en pantalla: **engrane ⚙️ de Aportaciones → pestaña Adhesiones** (solo lectura) y en
+  Dispersión con el filtro «Solo con fin de promoción en este periodo».
+  ⛔ **La promoción NO se puede modificar desde el sistema** una vez asignada (ni el soporte ni un usuario
+  con clave 510): cambiarla requiere autorización y se aplica directamente en BD.
 
 - **Síntoma: "no aparece el inversionista en Aportaciones" / "no me sale el cliente en el selector de
   Aportaciones"** (el combo de inversionista en `/fideicomiso/aportaciones` sale vacío o no incluye a un

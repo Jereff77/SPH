@@ -12,6 +12,10 @@
 - `GLOSARIO.md` — entidades y términos transversales (inversionista, PDP, KVA, situación, INPC…).
 - `OBSOLESCENCIA-BD.md` — qué objetos de la BD (RPCs, vistas, tablas…) se podrán eliminar al apagar v1
   (registro vivo). Útil para el agente si un usuario pregunta por una función/vista vieja.
+- `PLAN-fideicomiso-promocion-2-anios.md` — ✅ implementado (v2.68.0, 2026-08-11): la promoción del 9%
+  del fideicomiso pasó de durar 1 año fijo a **1 ó 2 años por condición de adhesión** (`promoAnios`),
+  inmutable una vez asignada y otorgable solo por ajuste autorizado. Incluye el gate adversarial y el
+  procedimiento para conceder los 2 años. Migraciones: `2026-08-11-fideicomiso-promocion-2-anios.sql`.
 - `PLAN-incrementos-inpc-automaticos.md` — 📌 diseño aprobado (2026-07-02, pendiente de implementar):
   incremento automático de rentas al capturar el INPC (vista previa, bitácora reversible
   `arre_incrementos`, responsables de parque + correo). Sustituirá al kit viejo de funciones INPC.

@@ -391,6 +391,7 @@ function CondicionesTab({ idPropiedad }: { idPropiedad: string }) {
     apartado: cond?.Apartado ?? 0,
     rendimiento: cond?.rendimiento ?? 0,
     prom9: cond?.['Prom9%'] ?? false,
+    promoAnios: cond?.promoAnios ?? 1,
     comentarios: cond?.comentarios ?? '',
   };
   const f = form ?? base;
@@ -426,10 +427,55 @@ function CondicionesTab({ idPropiedad }: { idPropiedad: string }) {
       </label>
       <Campo label="Apartado" tipo="number" v={String(f.apartado)} on={(v) => set('apartado', Number(v))} />
       <Campo label="Rendimiento (1–12)" tipo="number" v={String(f.rendimiento)} on={(v) => set('rendimiento', Number(v))} />
-      <label className="flex items-center gap-2 text-xs text-gray-600 sm:col-span-2">
-        <input type="checkbox" checked={!!f.prom9} onChange={(e) => set('prom9', e.target.checked)} />
-        Promoción del 9% el primer año
-      </label>
+      {/* Promoción del 9%: selector de duración. Una vez asignada es INMUTABLE desde el
+          sistema (los cambios especiales se hacen por ajuste autorizado en BD). */}
+      <fieldset className="sm:col-span-2 rounded-lg border border-gray-200 p-3">
+        <legend className="px-1 text-xs font-medium text-gray-600">Promoción del 9%</legend>
+        {(() => {
+          const promoAsignada = !!cond?.['Prom9%'];
+          const valor = !f.prom9 ? 'no' : (f.promoAnios ?? 1) >= 2 ? '2' : '1';
+          // «2 años» NUNCA es seleccionable: solo se otorga por ajuste autorizado
+          // (el backend ni siquiera acepta el campo). Se muestra para poder VER
+          // a quién ya se le concedió.
+          const opciones = [
+            ['no', 'Sin promoción', false],
+            ['1', '9% el primer año', false],
+            ['2', '9% los primeros 2 años', true],
+          ] as const;
+          return (
+            <>
+              <div className="flex flex-wrap gap-4">
+                {opciones.map(([v, etiqueta, soloLectura]) => {
+                  const bloqueado = promoAsignada || soloLectura;
+                  return (
+                    <label
+                      key={v}
+                      className={`flex items-center gap-2 text-xs ${
+                        bloqueado && valor !== v ? 'text-gray-300' : 'text-gray-700'
+                      } ${bloqueado ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      <input
+                        type="radio"
+                        name="promocion9"
+                        value={v}
+                        checked={valor === v}
+                        disabled={bloqueado}
+                        onChange={() => setForm({ ...f, prom9: v !== 'no' })}
+                      />
+                      {etiqueta}
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-[11px] leading-snug text-gray-500">
+                {promoAsignada
+                  ? '🔒 La promoción ya está asignada y no se puede modificar desde el sistema.'
+                  : 'La promoción a 2 años no se otorga desde aquí: requiere autorización y se aplica directamente en la base de datos.'}
+              </p>
+            </>
+          );
+        })()}
+      </fieldset>
       <label className="text-xs text-gray-600 sm:col-span-2">Anotaciones
         <textarea value={f.comentarios ?? ''} onChange={(e) => set('comentarios', e.target.value)} rows={3}
           className="mt-1 block w-full rounded border px-2 py-1.5 text-sm" />

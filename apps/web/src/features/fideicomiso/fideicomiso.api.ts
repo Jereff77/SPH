@@ -471,6 +471,8 @@ export interface CfgCondiciones {
   rendimiento: number | null;
   comentarios: string | null;
   'Prom9%': boolean | null;
+  /** Duración de la promoción del 9% en años (1 ó 2). Solo lectura: los 2 años se otorgan por ajuste autorizado en BD. */
+  promoAnios?: number | null;
 }
 
 export interface CfgPartida {
@@ -520,6 +522,8 @@ export interface CondicionesInput {
   apartado: number;
   rendimiento: number;
   prom9?: boolean;
+  /** Solo estado de la UI para pintar el selector; el backend NO acepta este campo (Zod lo descarta). */
+  promoAnios?: number;
   comentarios?: string;
 }
 

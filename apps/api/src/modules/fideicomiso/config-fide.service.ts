@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { fallaBd } from '../../common/utils/db-error.js';
 import type {
   CondicionesDto,
   CrearPdpDto,
@@ -107,10 +108,10 @@ export class ConfigFideService {
   async condiciones(idPropiedad: string) {
     const { data, error } = await this.supabase.admin
       .from('fideCondiciones')
-      .select('idfideCond, idFide, idPropiedad, noAdhesion, PM, Medio, Apartado, rendimiento, comentarios, "Prom9%"')
+      .select('idfideCond, idFide, idPropiedad, noAdhesion, PM, Medio, Apartado, rendimiento, comentarios, "Prom9%", promoAnios')
       .eq('idPropiedad', idPropiedad)
       .limit(1);
-    if (error) throw new InternalServerErrorException(error.message);
+    if (error) fallaBd(this.logger, 'fideicomiso.config.condiciones', error);
     return data?.[0] ?? null;
   }
 
@@ -127,6 +128,26 @@ export class ConfigFideService {
     await this.validarAdhesionUnica(noAdhesion, dto.idPropiedad, idFide, dto.idfideCond);
 
     if (dto.idfideCond) {
+      // ⛔ La promoción del 9% es INMUTABLE una vez asignada: no se quita ni se
+      // cambia su duración desde el sistema (los ajustes especiales se hacen por
+      // update manual autorizado en BD). El candado REAL vive en el trigger
+      // `trg_fidecondiciones_promo_inmutable`; esto solo adelanta un mensaje
+      // legible en vez de dejar salir el error del motor.
+      const { data: actual, error: eActual } = await this.supabase.admin
+        .from('fideCondiciones')
+        .select('"Prom9%"')
+        .eq('idfideCond', dto.idfideCond)
+        .maybeSingle();
+      if (eActual) fallaBd(this.logger, 'fideicomiso.config.condicionActual', eActual);
+      const promoAsignada = actual?.['Prom9%'] === true;
+      if (promoAsignada && dto.prom9 === false) {
+        throw new BadRequestException(
+          'La promoción ya está asignada a esta adhesión y no puede modificarse desde el sistema.',
+        );
+      }
+
+      // `promoAnios` NUNCA se escribe desde la API (solo ajuste autorizado en BD),
+      // y `Prom9%` solo viaja si el cliente lo mandó (undefined = no cambiar).
       const { error } = await db
         .from('fideCondiciones')
         .update({
@@ -135,12 +156,12 @@ export class ConfigFideService {
           Apartado: dto.apartado,
           PM: dto.pm,
           comentarios: dto.comentarios ?? '',
-          'Prom9%': dto.prom9,
           rendimiento: dto.rendimiento,
+          ...(dto.prom9 !== undefined && !promoAsignada ? { 'Prom9%': dto.prom9 } : {}),
         })
         .eq('idfideCond', dto.idfideCond)
         .eq('idPropiedad', dto.idPropiedad);
-      if (error) throw new InternalServerErrorException(error.message);
+      if (error) fallaBd(this.logger, 'fideicomiso.config.guardarCondiciones.update', error);
     } else {
       const { error } = await db.from('fideCondiciones').insert({
         idfideCond: this.generarId(15),
@@ -153,9 +174,10 @@ export class ConfigFideService {
         comentarios: dto.comentarios ?? '',
         uid: actorUid,
         idFide,
-        'Prom9%': dto.prom9,
+        // El alta nace SIEMPRE en 1 año: `promoAnios` toma el DEFAULT de la columna.
+        'Prom9%': dto.prom9 ?? false,
       });
-      if (error) throw new InternalServerErrorException(error.message);
+      if (error) fallaBd(this.logger, 'fideicomiso.config.guardarCondiciones.insert', error);
     }
     return { ok: true };
   }
@@ -180,7 +202,7 @@ export class ConfigFideService {
       .select('idInversionista')
       .eq('idPropiedad', idPropiedad)
       .maybeSingle();
-    if (pErr) throw new InternalServerErrorException(pErr.message);
+    if (pErr) fallaBd(this.logger, 'fideicomiso.config.validarAdhesion.propiedad', pErr);
     const idInvActual = propActual?.idInversionista ?? null;
     if (!idInvActual) return; // sin inversionista no hay con quién comparar
 
@@ -190,7 +212,7 @@ export class ConfigFideService {
       .select('idfideCond, idPropiedad')
       .eq('idFide', idFide)
       .eq('noAdhesion', noAdhesion);
-    if (cErr) throw new InternalServerErrorException(cErr.message);
+    if (cErr) fallaBd(this.logger, 'fideicomiso.config.validarAdhesion.condiciones', cErr);
 
     const otras = (existentes ?? []).filter(
       (e) => e.idfideCond !== idfideCondActual && e.idPropiedad !== idPropiedad,
@@ -288,7 +310,9 @@ export class ConfigFideService {
     const { error } = await this.supabase
       .comoActor(actorUid)
       .rpc('propiedades_eliminar_propiedad', { p_id_propiedad: idPropiedad });
-    if (error) throw new InternalServerErrorException(error.message);
+    // Esta es la ruta por la que saldría el mensaje del trigger de inmutabilidad
+    // (la FK a "fideCondiciones" es ON DELETE CASCADE): nunca al cliente en crudo.
+    if (error) fallaBd(this.logger, 'fideicomiso.config.eliminarPropiedad', error);
     return { ok: true };
   }
 

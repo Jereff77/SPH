@@ -258,6 +258,44 @@ despreciable, por eso no se tocó junto con el resto. Severidad BAJA.
 
 # Deuda diferida por sesión (post-auditoría)
 
+## 2026-08-11 · Fideicomiso · Promoción a 2 años (validador adversarial) — ⛔ 1 ALTA ABIERTA
+
+> Contexto: v2.68.0. El cambio en sí quedó **LIMPIO** (huella de dinero idéntica, inmutabilidad sólida
+> en INSERT/UPDATE/DELETE, imposible otorgar 2 años por la API). El ALTA es una brecha **preexistente**
+> que esta migración destapó al cerrar una de sus puertas.
+
+- **⛔ [ALTA · PENDIENTE DE DECISIÓN DE JEREFF] El padrón del fideicomiso (nombre + RFC + montos) sigue
+  expuesto a `anon` por 8 RPC hermanas.** En v2.68.0 se revocó `EXECUTE` a `anon`/`PUBLIC` sobre
+  `plan_dispersiones_dinamico`, pero sus clones siguen abiertos — y uno de ellos,
+  `plan_dispersiones_dinamico_corregido`, es **casi idéntico**: basta llamar al gemelo para esquivar el
+  REVOKE. **Verificado en vivo** por el validador con `SET LOCAL ROLE anon` (transacción abortada):
+  `resumen_fideicomiso_completo` devolvió **97 filas** con nombre, RFC y rendimientos; la endurecida
+  respondió `42501`. La anon key es **pública por diseño** (viaja en el bundle de v1).
+  - Funciones con `EXECUTE` para `anon`/`PUBLIC`: `resumen_fideicomiso_completo`,
+    `resumen_fideicomiso_completo_corregido`, `resumen_dispersion_dinamico`,
+    `resumen_dispersion_dinamico_corregido`, `plan_dispersiones_dinamico_corregido`,
+    `fideicomiso_rendimientos_promocion`, `fideicomiso_rendimientos_resumen_consulta`,
+    `fidepdpdispersion_recalcular_por_condicion`.
+  - **Arreglo (1 migración):** `REVOKE EXECUTE ON FUNCTION … FROM PUBLIC, anon` sobre las 8. v2 las
+    invoca con `service_role` (verificado en `supabase.service.ts`), así que **no rompe la aplicación**.
+    Verificar después repitiendo la prueba con `SET LOCAL ROLE anon`.
+  - **Por qué no se aplicó en la sesión:** Jereff autorizó el REVOKE de *la* RPC del cambio; extenderlo
+    a 8 objetos compartidos es alcance nuevo sobre BD de producción → su decisión (Regla de PARADA).
+  - Emparenta con **P0-1 / P0-4** de la auditoría (misma familia de brechas).
+- **[BAJA] Tres calculadoras de promoción con `INTERVAL '1 year'` hardcodeado**
+  (`fideicomiso_rendimientos_promocion`, `plan_dispersiones_dinamico_corregido`,
+  `fidepdpdispersion_recalcular_por_condicion`). Ninguna la llama v2 hoy, pero si algún día se
+  re-apunta a una, diría 1 año donde el plan dice 2. Además
+  `fidepdpdispersion_recalcular_por_condicion` está **rota** (CTE `rendimientos_detallados` inexistente
+  y filtra por `fideCondiciones.status`, columna que no existe). Candidatas a `DROP` →
+  `OBSOLESCENCIA-BD.md`.
+- **[BAJA] `config-fide.service.ts` conserva ~21 `error.message` crudos** (regla 4b). Se migraron a
+  `fallaBd` los del flujo de la promoción (`condiciones`, `guardarCondiciones`, `validarAdhesionUnica`)
+  y `eliminarPropiedad` (la ruta por la que saldría el texto del trigger). El resto queda como barrido
+  mecánico pendiente.
+- **[BAJA] `TRUNCATE` no dispara el trigger de inmutabilidad** (los `FOR EACH ROW` no corren en
+  TRUNCATE). Hoy falla por una FK que referencia la tabla, no por el candado; ningún código trunca.
+
 ## 2026-08-05 · Eliminar Plan de Pagos (validador adversarial, MEDIA/BAJA diferidas conscientemente)
 
 > Contexto: feature «candado de última partida + Eliminar plan» (Ventas·Planes). El validador dio

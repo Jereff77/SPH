@@ -3387,6 +3387,7 @@ export type Database = {
           noAdhesion: string
           PM: string | null
           "Prom9%": boolean
+          promoAnios: number
           rendimiento: number | null
           uid: string | null
         }
@@ -3401,6 +3402,7 @@ export type Database = {
           noAdhesion: string
           PM?: string | null
           "Prom9%"?: boolean
+          promoAnios?: number
           rendimiento?: number | null
           uid?: string | null
         }
@@ -3415,6 +3417,7 @@ export type Database = {
           noAdhesion?: string
           PM?: string | null
           "Prom9%"?: boolean
+          promoAnios?: number
           rendimiento?: number | null
           uid?: string | null
         }
