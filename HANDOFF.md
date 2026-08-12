@@ -5,7 +5,31 @@
 > está organizado, los patrones a seguir y los próximos pasos concretos. Leer este documento **antes de
 > tocar nada**.
 >
-> Última actualización: 2026-08-08 (**v2.66.0** — **Parques · KVA's: dotación por nave y
+> Última actualización: 2026-08-11 (**v2.66.1** — **🚨 FIX DE DESPLIEGUE: el API llevaba 7
+> versiones sin arrancar en producción**):
+> Desde el **29 de julio** el contenedor del API servía **v2.59.0**, aunque EasyPanel marcara
+> **todos los deploys en VERDE**. Verde = la imagen se construyó; el contenedor moría al arrancar y
+> EasyPanel mantenía el anterior. **Dos bugs distintos encadenados, con el mismo síntoma:**
+>   1. **v2.60.0–v2.61.0** — `FideicomisoModule` reprovee `PlanesService` sin importar
+>      `ParquesModule` (fallo de **inyección** en runtime). Arreglado en v2.64.0.
+>   2. **v2.62.0–v2.66.0** — `main.ts` hace `import { json, urlencoded } from 'express'` (valor, no
+>      tipo) y **`express` no estaba declarado** en `apps/api/package.json`. En desarrollo funciona
+>      porque pnpm lo tiene como transitiva de `@nestjs/platform-express`; **`pnpm deploy --prod`
+>      solo instala lo declarado** → `Cannot find module 'express'` en bucle. Arreglado aquí.
+>
+> ⛔ **REGLA NUEVA DE VERIFICACIÓN (§6-bis).** `tsc`, `nest build`, `pnpm dev` y el deploy verde de
+> EasyPanel **NO detectan ninguno de los dos**. La única prueba válida antes de dar por buena una
+> sesión que toque el backend es **ejecutar el bundle real de producción**:
+> ```bash
+> pnpm deploy --filter=@erp/api --prod --legacy d:\tmp\prodapi   # mismo comando del Dockerfile
+> pnpm --filter @erp/api build && cp -r apps/api/dist d:\tmp\prodapi\dist
+> cd d:\tmp\prodapi && node dist/main.js        # igual que el CMD del contenedor
+> ```
+> Debe decir **`successfully started`**. En Windows el destino tiene que ir en la **misma unidad**
+> que el repo (con otra unidad, `pnpm deploy` revienta al crear los symlinks).
+> 📌 **Y toda dependencia importada como VALOR va declarada en el `package.json` de su app**, aunque
+> en el monorepo se resuelva por transitividad.
+> Previa 2026-08-08 (**v2.66.0** — **Parques · KVA's: dotación por nave y
 > compromisos que caducan**):
 > Cambio de MODELO, no un ajuste. El «paquete» que una nave tiene reservado dejó de ser una
 > asignación y pasó a ser un **atributo de la nave**: `naves.dotacionMt` / `dotacionBt`. La etapa
