@@ -66,6 +66,16 @@ Hay **un solo fideicomiso** activo: *Fideicomiso Innovación SPH* (`idFide = jsR
   - 🔒 Aprovechando el cambio: `plan_dispersiones_dinamico` quedó con `search_path` fijo y **sin EXECUTE
     para `anon`/`PUBLIC`** (devolvía el padrón con RFC y montos, y la anon key viaja en el bundle de v1);
     y `fideCondiciones` perdió el DML de `authenticated` (v2 escribe siempre con `service_role`).
+  - **Quiénes tienen 2 años hoy** (únicos con `promoAnios=2`, aplicados el 2026-08-26 por ajuste
+    autorizado): **Víctor Hugo Hernández** — adhesión 48, ticket de $5,000,000, fin **21/05/2027**,
+    baja a **8.3%**; y **Javier Montero Donatto** — adhesión 36, $4,500,000, fin **09/01/2027**,
+    conserva **9%** (decisión de negocio: esa es su tasa contratada, así se capturó).
+  - ⚠️ **Gotcha de negocio — «tasa contratada = 9» NO es una promoción:** 22 condiciones tienen
+    `rendimiento=9` **sin** el flag `Prom9%`. Esas cobran el 9% **de por vida** y la comisión SPH es $0
+    para siempre (porque `sph = monto × (9 − rendimiento)`), que es **más** que una promoción de 2 años.
+    Si alguien pregunta «¿cuándo se le acaba la promoción?» a uno de esos, la respuesta es **nunca: no
+    tiene promoción, tiene tasa 9**. Detectarlas:
+    `SELECT * FROM "fideCondiciones" WHERE rendimiento = 9 AND NOT COALESCE("Prom9%", false);`
 - **Dispersiones:** las calculan las **mismas RPC que v1** (SIN sufijo, vigentes):
   `plan_dispersiones_dinamico`, `resumen_dispersion_dinamico`, `resumen_fideicomiso_completo`.
   ⚠️ **Corrección v2.27.1:** se dejaron de usar las variantes `_corregido`.

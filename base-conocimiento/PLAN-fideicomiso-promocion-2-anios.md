@@ -11,9 +11,17 @@
 > adhesiones **idéntica antes y después** — `filas=4078`, `huella=ca1ee0226340150dbc3b082ce7922578`.
 > Las 114 condiciones quedaron en `promoAnios=1`; las 48 con promoción siguen exactamente igual.
 >
-> **Pendiente operativo:** Jereff indicará los **2 fideicomitentes** que pasan a 2 años; se aplican
-> con el procedimiento del §3.5 (listar TODAS sus condiciones → medir delta → aplicar con actor
-> atribuible). Nada se ha aplicado todavía.
+> **✅ Ajuste de datos APLICADO (2026-08-26)** con el procedimiento del §3.5, actor atribuible y delta
+> medido antes de ejecutar — los 2 fideicomitentes que indicó Jereff:
+> · **Víctor Hugo Hernández**, adhesión 48, ticket de $5,000,000 (`rH2gNEj4M0wEQQA`): promoción a
+>   2 años y **baja a 8.3%** (su tasa capturada) el **21/05/2027**. Cero impacto retroactivo: los
+>   periodos 6to–13ro quedan idénticos; el corte cae en el 14to (abr–jun 2027).
+> · **Javier Montero Donatto**, adhesión 36, $4,500,000 (`UUOFIMUemssyOH0`): promoción a 2 años
+>   (**09/01/2027**) **conservando su 9%** — decisión de Jereff: «así lo capturaron; si hay un error
+>   solo corrigen el rendimiento contratado». Verificado sin cambio en el dinero.
+> ⚠️ **Hallazgo de negocio (abierto):** ninguno tenía el flag de promoción; ambos estaban con
+> **tasa contratada = 9**, que paga 9% **de por vida** con comisión SPH $0 — y hay **22 condiciones
+> así** en el sistema. Conviene que el negocio las revise.
 
 ## 1. Contexto y decisiones de negocio
 
