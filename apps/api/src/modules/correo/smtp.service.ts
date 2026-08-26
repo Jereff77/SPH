@@ -3,6 +3,19 @@ import nodemailer from 'nodemailer';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { Credenciales } from './cuentas.service.js';
 
+/**
+ * Topes de tiempo del SMTP. ⛔ Sin ellos, un servidor que no responde deja la
+ * promesa colgada para siempre: en un envío puntual es una petición atorada, pero
+ * en un cron que recorre destinatarios en serie (avisos de REP) es el job
+ * completo bloqueado, y el siguiente disparo lo encuentra "corriendo". Mismos
+ * valores que `InvitacionesMailer`, donde ya se corrigió este mismo problema.
+ */
+const TIEMPOS_SMTP = {
+  connectionTimeout: 10_000, // abrir el socket
+  greetingTimeout: 10_000, // saludo del servidor
+  socketTimeout: 20_000, // inactividad durante el envío
+} as const;
+
 export interface CorreoOriginal {
   fromEmail: string | null;
   toEmail: string | null;
@@ -39,25 +52,71 @@ export class SmtpService {
     subject: string,
     html: string,
   ): Promise<boolean> {
+    const r = await this.enviarNotificacionDetalle(cred, para, subject, html);
+    return r.ok;
+  }
+
+  /**
+   * Igual que `enviarNotificacion`, pero devuelve el resultado REAL del servidor
+   * SMTP en vez de un booleano.
+   *
+   * ⛔ Por qué existe: `sendMail` resuelve sin lanzar cuando el servidor acepta a
+   * unos destinatarios y **rechaza a otros**. La versión booleana devuelve `true`
+   * en ese caso, así que un aviso que nunca llegó se contabiliza como enviado
+   * (fue justo lo que impidió diagnosticar los avisos de REP). Aquí se exponen
+   * `aceptados` / `rechazados` para poder registrarlo tal cual ocurrió.
+   *
+   * `replyTo` es opcional: al escribirle a un tercero (p. ej. un proveedor),
+   * conviene que su respuesta llegue a un buzón atendido.
+   */
+  async enviarNotificacionDetalle(
+    cred: Credenciales,
+    para: string[],
+    subject: string,
+    html: string,
+    replyTo?: string,
+  ): Promise<{
+    ok: boolean;
+    aceptados: string[];
+    rechazados: string[];
+    error: string | null;
+  }> {
     const destinatarios = [...new Set(para.filter(Boolean))];
-    if (destinatarios.length === 0) return false;
+    if (destinatarios.length === 0)
+      return { ok: false, aceptados: [], rechazados: [], error: 'Sin destinatarios.' };
     const transporter = nodemailer.createTransport({
       host: cred.smtpHost,
       port: cred.smtpPort,
       secure: cred.smtpPort === 465,
       auth: { user: cred.usuario, pass: cred.password },
+      ...TIEMPOS_SMTP,
     });
     try {
-      await transporter.sendMail({
+      const info = await transporter.sendMail({
         from: cred.email,
         to: destinatarios.join(', '),
         subject,
         html,
+        ...(replyTo ? { replyTo } : {}),
       });
-      return true;
+      const texto = (x: unknown): string =>
+        typeof x === 'string' ? x : ((x as { address?: string })?.address ?? String(x));
+      const aceptados = (info.accepted ?? []).map(texto);
+      const rechazados = (info.rejected ?? []).map(texto);
+      if (rechazados.length > 0)
+        this.logger.warn(
+          `SMTP ${cred.email}: el servidor rechazó ${rechazados.join(', ')}`,
+        );
+      return {
+        ok: aceptados.length > 0 && rechazados.length === 0,
+        aceptados,
+        rechazados,
+        error: rechazados.length > 0 ? 'El servidor rechazó al destinatario.' : null,
+      };
     } catch (e) {
-      this.logger.error(`SMTP notificación ${cred.email}: ${(e as Error).message}`);
-      return false;
+      const error = (e as Error).message;
+      this.logger.error(`SMTP notificación ${cred.email}: ${error}`);
+      return { ok: false, aceptados: [], rechazados: destinatarios, error };
     }
   }
 
@@ -97,6 +156,7 @@ export class SmtpService {
       port: cred.smtpPort,
       secure: cred.smtpPort === 465,
       auth: { user: cred.usuario, pass: cred.password },
+      ...TIEMPOS_SMTP,
     });
 
     let info;

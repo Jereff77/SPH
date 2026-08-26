@@ -1,13 +1,13 @@
 ---
 modulo: CxP (Cuentas por Pagar)
 estado: parcial              # Proveedores, Bancos, Solicitudes (alta+listado), Pendientes y Pagar en v2; resto por fases
-version_doc: 0.9
-ultima_actualizacion: 2026-07-07
+version_doc: 1.0
+ultima_actualizacion: 2026-08-26
 submodulos: [Proveedores, Bancos, Solicitudes, "Pagar solicitudes", Aprobación, Pago/Conciliación, Reportes, "Claves SAT"]
-rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes, /cxp/pagar, /cxp/ppd, /cxp/aprobar, /cxp/reportes]
+rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes, /cxp/pagar, /cxp/ppd, /cxp/aprobar, /cxp/reportes, /]
 claves_permiso: [400, 401, 402, 410, 420, 430, 431, 440, 441, 450, 460, 470]
-tablas: [cxp, cxp_ppd, catProveedores, catBancos, catClavesProdServ, cxpComentarios, cxp_fechas_habilitadas, movbancarios, PresCategorias, v_resumenPresupuesto, SPHConfiguraciones]
-palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, lectura de comprobante, documentos privados, URL firmada, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, carga masiva, layout, plantilla, importación, Excel, retención, IVA, ISR, tiempo real, SSE, badge, círculo, contador, número de pendientes, pendientes por aprobar, aviso en el menú, notificación en el menú, solicitudes por aprobar, PPD, parcialidades, "complemento de pago", REP, dispensar, "saldo disponible", "factura diferida", "no me deja autorizar", "cfdi rechazado", "error interno del servidor", "solicitud duplicada", "pago mal conciliado", "no me deja subir la factura", "no me deja subir esta factura", "error al subir factura en la tarde", "cfdi no habilitado", "zona horaria", "hora de méxico", "fecha no habilitada"]
+tablas: [cxp, cxp_ppd, catProveedores, catBancos, catClavesProdServ, cxpComentarios, cxp_fechas_habilitadas, movbancarios, PresCategorias, v_resumenPresupuesto, SPHConfiguraciones, mail_avisos_rep, correo_cuentas]
+palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, lectura de comprobante, documentos privados, URL firmada, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, carga masiva, layout, plantilla, importación, Excel, retención, IVA, ISR, tiempo real, SSE, badge, círculo, contador, número de pendientes, pendientes por aprobar, aviso en el menú, notificación en el menú, solicitudes por aprobar, PPD, parcialidades, "complemento de pago", REP, dispensar, "saldo disponible", "factura diferida", "no me deja autorizar", "cfdi rechazado", "error interno del servidor", "solicitud duplicada", "pago mal conciliado", "no me deja subir la factura", "no me deja subir esta factura", "error al subir factura en la tarde", "cfdi no habilitado", "zona horaria", "hora de méxico", "fecha no habilitada", aviso, recordatorio, "correo automático", "me llegan muchos correos", "muchos correos del mismo", "me están atosigando", "correo repetido", "no me llegó el correo", "no le llegó el aviso", "avisar al proveedor", "correo al proveedor", "proveedor sin correo", "cuándo se manda el aviso", "por qué me bloquearon", "pendientes en el inicio", "pantalla de inicio", landing, "días para el bloqueo"]
 relacionado_con: [configuraciones, inversionistas, fideicomiso]
 ---
 
@@ -262,6 +262,13 @@ parametrizadas desde el backend.
 | "Error interno del servidor al aplicar pago por captura/comprobante." | **Resuelto en v2.22.1.** El INSERT a `movbancarios` enviaba columnas GENERADAS (`numAnio`/`numMes`). | Actualizar a v2.22.1+ (el backend ya no las envía). Si reaparece, revisar que ningún INSERT a `movbancarios` incluya columnas generadas. |
 | "**Error interno del servidor al registrar una factura PPD**." | El folio (UUID) del CFDI **ya existe en `cxp`** (factura capturada antes como solicitud normal/PUE o como otra parcialidad) → viola `cxp_folio_key UNIQUE(folio)`. Ver gotcha 10. | **Resuelto en v2.41.1:** el backend ahora avisa que la factura ya está registrada. La factura es un **duplicado**: verificar si ya se pagó. Si debe vivir en PPD, sanear como el caso 2026-06-23 (ligar la fila existente a un maestro `cxp_ppd`). |
 | "**Error interno del servidor al subir una factura o al autorizar, pero solo por la tarde/noche**." | Bug de zona horaria: el trigger de fechas medía el día en **UTC** en vez de hora de México; después de las 18:00 (México) veía el **día siguiente** (cerrado) y bloqueaba. Ver gotcha 11. | **Resuelto 2026-07-07** (trigger alineado a `America/Mexico_City`). Si reaparece: confirmar que `cxp_trigger_validar_fecha` use hora de México y que hoy exista habilitado en Parámetros → Fechas CxP. |
+
+| "**Me llegan muchísimos correos del mismo tema**" / "me están atosigando con los complementos". | Comportamiento **anterior a v2.69.0**: el aviso salía **uno por parcialidad** (un gerente recibió 19 en un día y 81 en la ventana). | **Resuelto en v2.69.0:** ahora es **un solo correo consolidado por persona y máximo uno al día**. Si vuelve a pasar, revisar `mail_avisos_rep`: debe haber **una sola fila** por `(fecha_mx, tipo, destinatario)` — el índice único lo impide. |
+| "**No me llegó el aviso**" / "¿le llegó a Fulano?". | Ya no hay que adivinar. | Consultar `mail_avisos_rep` filtrando por `destinatario` y `fecha_mx`: `estado='enviado'` (el SMTP lo aceptó), `'fallido'` (rechazado, con el motivo en `error`), `'omitido_sin_correo'`, o **sin fila** = ese día no tocaba enviar (ver el calendario). Si dice `enviado` y la persona no lo ve, es **entrega/spam**, no el sistema. |
+| "**Al proveedor nunca le llega el aviso**." | El proveedor no tiene correo utilizable en `catProveedores.email`. ⚠️ Ojo con el **texto literal `"null"`** y las cadenas vacías: al 2026-08-26, **265 de 351 proveedores activos** no tienen correo usable. | Capturar el correo en la ficha del proveedor. El sistema ya lo reporta: queda `estado='omitido_sin_correo'` en `mail_avisos_rep` y sale listado en el correo del gerente. |
+| "**¿Cuándo se manda el aviso?**" / "no me avisaron antes de bloquearme". | Calendario anclado al plazo del proveedor. | Proveedor y solicitante: días **1 al 5**. Gerente: **solo el día 5**. Solicitante otra vez el **día 20** (víspera de su bloqueo). Los otros 22 días del mes **no se envía nada** — es por diseño, no una falla. |
+| "**Tengo un complemento vencido y ya no me avisan**." | El correo solo mira las parcialidades pagadas el **mes anterior**: las que se pasaron de esa ventana no vuelven a generar correo. | Están visibles **en el panel del landing** (pantalla de inicio), marcadas en 🔴 vencido. Ese panel sí incluye las vencidas de meses anteriores. |
+| "**No veo el panel de complementos en el inicio**." | El panel solo se renderiza si **ese usuario** tiene pendientes (donde es `uidr` o `autorizo`). | No es un permiso: `GET /cxp/mis-rep` filtra por el uid del JWT. Si no aparece, esa persona no tiene complementos pendientes. |
 
 **Cuándo escalar a ticket:** desaplicar/corregir pagos, inconsistencias de conciliación, solicitudes
 atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
@@ -811,11 +818,71 @@ Cada pago de una parcialidad PPD obliga al proveedor a emitir un **Complemento d
     (21), `PPD_REP_DIA_AVISO` (16). `leerRepConfig` valida rango 1–28 y cae a defaults; el código opera con los
     defaults aunque las filas no existan. ⚠️ El nivel "peor" por factura/parcialidad sale del backend como
     `repNivel` (`ninguno`/`pendiente`/`vencido_proveedor`/`vencido_usuario`); el front solo pinta (ver más abajo).
-- **Aviso diario** (`complementos.scheduler.ts`, `@Cron('0 13 * * *')` ≈07:00 MX): en la **ventana de los días
-  16 a 20** (del `diaAviso` al día previo al bloqueo del usuario), para parcialidades pagadas el **mes anterior**
-  sin REP, envía correo **solo** al **solicitante (`uidr`)** y al **gerente que autorizó (`autorizo`)** con la
-  **cuenta activa del buzón de facturas** (reutiliza `SmtpService.enviarNotificacion` + `CuentasService`;
-  `CorreoModule` exporta ambos y `CxpModule` lo importa).
+- **Avisos por correo — CONSOLIDADOS (v2.69.0, reescritura completa).** ⚠️ Lo que sigue **sustituye** el
+  comportamiento anterior (un correo por parcialidad, días 16-20, solo interno).
+  - **Por qué cambió:** el 16-ago-2026 un gerente (`autorizo`) recibió **19 correos en un día** —de solo
+    **6 proveedores**— y **81 en la ventana completa** (16→20 ago: 29/29/29/19/15 envíos totales). El
+    scheduler mandaba un correo **por cada parcialidad**. Medido en `v2_cron_ejecuciones` y reconstruido
+    con `auditoria`.
+  - **⛔ Reglas de negocio (Jereff, 2026-08-26), inviolables para este flujo:**
+    1. **Máximo UN correo al día** por persona sobre este tema.
+    2. Cada correo lleva **la lista completa** de lo pendiente de esa persona (nunca uno por factura).
+    3. El calendario se ancla al **plazo del proveedor** (`diaBloqueoProveedor`, día 6): el SAT le da
+       hasta el día 5 del mes siguiente para emitir el REP.
+  - **Calendario** (`tareasDelDia()` en `rep-fechas.ts`; todo derivado de `RepConfig`, **nada hardcodeado**):
+
+    | Destinatario | Días | Máx./mes | Contenido |
+    |---|---|---|---|
+    | **Proveedor** (externo) | 1 al 5 (`diaBloqueoProveedor−5 … −1`) | 5 | Sus folios, montos y fechas de pago |
+    | **Solicitante** (`uidr`) | 1 al 5, **+ día 20** (`diaBloqueoUsuario−1`) | 6 | Todos sus proveedores pendientes |
+    | **Gerente** (`autorizo`) | solo día 5 (víspera del corte) | **1** | Todo lo que autorizó + proveedores sin correo |
+
+    Fuera de esos días el job sale sin enviar nada (22 días del mes en silencio). Verificado simulando el
+    mes completo. **Efecto medido: el gerente pasa de 81 correos a 1.**
+  - **⛔ Máximo uno al día = índice único en BD, no un flag en memoria.** El aviso se **reserva** en
+    `mail_avisos_rep` (estado `en_curso`) **antes** de enviarse; el índice
+    `ux_mail_avisos_rep_dia (fecha_mx, tipo, destinatario)` rebota el segundo intento (23505 → se omite el
+    envío). Es lo que protege contra las **dos instancias del API** que se observaron corriendo el cron a
+    horas distintas (07:00 y 13:00 MX hasta el 15-ago-2026): un `this.corriendo` no cruza procesos.
+  - **Bitácora `mail_avisos_rep`:** cada envío y cada NO envío queda registrado (`en_curso`/`enviado`/
+    `fallido`/`omitido_sin_correo`) con asunto, HTML y el `detalle` de las parcialidades incluidas. Antes
+    solo existían los contadores de `v2_cron_ejecuciones` y era imposible responder "¿le llegó a X?".
+  - **Aviso al PROVEEDOR (nuevo).** ⛔ El correo lleva **solo información suya** (razón social, folios,
+    montos, fechas, fecha límite) — **nunca** nombres de empleados ni otros proveedores. Lleva `Reply-To`
+    a la cuenta remitente para que responda con el XML/PDF del REP.
+    - **Validación de correo (`correoUtilizable`)**: descarta vacíos, `n/a`, `-` y el **texto literal
+      `"null"`** — verificado en producción: `catProveedores.email` de *Obras Civiles e Hidráulicas*
+      contenía la cadena `"null"`, que pasa cualquier chequeo de "no vacío". 📌 **Dato al 2026-08-26: 265
+      de 351 proveedores activos (75%) no tienen correo utilizable.**
+    - Al que no se le puede avisar se registra como `omitido_sin_correo` **y se le reporta al gerente**
+      dentro de su correo ("No se pudo avisar a N proveedor(es)…"). Nunca falla en silencio.
+  - **Remitente fijo:** parámetro `SPHConfiguraciones.PPD_REP_CUENTA_REMITENTE`. Antes se tomaba
+    `cuentasActivas[0]` **sin `ORDER BY`** habiendo **2 cuentas activas** (`agente@` y
+    `soporteaclientes@portal.gruposph.mx`) → el remitente podía cambiar solo entre días. Si el parámetro
+    no coincide con una cuenta activa, cae a la **primera ordenada por `id`** (determinista).
+  - **Archivos:** `complementos.scheduler.ts` (reescrito), `rep-pendientes.service.ts` (**fuente única**
+    de las parcialidades pendientes, compartida con el panel del landing y con el **mismo predicado que
+    `BloqueoService`** a propósito), `rep-fechas.ts` (+`tareasDelDia`, `fechaCorteISO`, `diasHasta`,
+    `correoUtilizable`).
+- **Panel «Complementos de pago (REP) pendientes» en el landing (v2.69.0).** `GET /cxp/mis-rep`
+  (`mis-rep.controller.ts`, **`JwtAuthGuard` SIN `@RequierePermiso`**) + `RepPendientesPanel.tsx` montado en
+  `routes/Home.tsx`. **El filtro sale del `uid` del JWT**, nunca de un parámetro: devuelve solo donde el
+  usuario es `uidr` **o** `autorizo`, así que nadie puede pedir la lista de otro. No amplía la superficie de
+  datos (esas parcialidades ya se veían en `/cxp/ppd`). No va en `PpdController` porque esa clase exige la
+  clave **420** y el panel debe verlo también un gerente que solo autoriza.
+  - **Incluye las vencidas**, a diferencia del correo: el aviso solo mira el **mes anterior**, así que una
+    parcialidad que se pasó de la ventana **no vuelve a generar correo jamás** (al 2026-08-26 había 14 de
+    julio en ese estado). En el landing se siguen viendo, con semáforo 🟡 por vencer / 🟠 vence mañana /
+    🔴 vencido. Si el usuario no tiene pendientes, el panel **no se renderiza** y el landing queda igual.
+- **🛑 Timeouts del SMTP (v2.69.0):** `SmtpService` creaba sus transports **sin** `connectionTimeout`/
+  `greetingTimeout`/`socketTimeout` (`InvitacionesMailer` sí los tenía). Un servidor que no respondiera dejaba
+  la promesa colgada **para siempre**; con el cron recorriendo destinatarios en serie, eso es el job entero
+  bloqueado. Corregido en los **dos** transports del servicio (10s/10s/20s).
+- **🐛 Rechazo parcial invisible (corregido en v2.69.0):** `enviarNotificacion` hacía **un solo** `sendMail`
+  con varios destinatarios en `to:` y devolvía `true` si no lanzaba — pero `sendMail` **resuelve** cuando el
+  servidor acepta a unos y **rechaza a otros**. Un aviso que nunca llegó se contaba como enviado. Ahora existe
+  `enviarNotificacionDetalle` (devuelve `aceptados`/`rechazados`) y **cada persona recibe su propio envío**
+  (antes solicitante y gerente iban juntos en el mismo `to:`, viéndose entre sí).
 - **Dispensa por excepción (plan B, permiso `403` «Dispensar complemento PPD»):** salida para cuando el REP
   **nunca llegará** (p. ej. **proveedor de única vez**) y, sin ella, el usuario quedaría bloqueado de forma
   permanente. Un usuario con el permiso 403 marca **esa parcialidad** como **exenta** con un **motivo

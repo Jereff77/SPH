@@ -22,6 +22,8 @@ import { AprobacionStreamController } from './aprobacion-stream.controller.js';
 import { PpdController } from './ppd.controller.js';
 import { PpdService } from './ppd.service.js';
 import { BloqueoService } from './bloqueo.service.js';
+import { RepPendientesService } from './rep-pendientes.service.js';
+import { MisRepController } from './mis-rep.controller.js';
 import { ComplementosScheduler } from './complementos.scheduler.js';
 import { RecordatorioAprobacionScheduler } from './recordatorio-aprobacion.scheduler.js';
 import { ReportesCxpController } from './reportes.controller.js';
@@ -45,6 +47,7 @@ import { ReportesCxpService } from './reportes.service.js';
     AprobacionController,
     AprobacionStreamController,
     PpdController,
+    MisRepController,
     ReportesCxpController,
   ],
   providers: [
@@ -59,6 +62,7 @@ import { ReportesCxpService } from './reportes.service.js';
     AprobacionService,
     PpdService,
     BloqueoService,
+    RepPendientesService,
     ComplementosScheduler,
     RecordatorioAprobacionScheduler,
     ReportesCxpService,

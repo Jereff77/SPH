@@ -73,6 +73,8 @@ el control real vive en los guards. La RLS de la BD es herencia de v1.
 | P2-14 | 🟢 | DRY: el ocupante de la nave se resuelve en dos lugares distintos | 📌 |
 | P2-15 | 🟡 | KVA's: `dotacionPorParque` trae TODAS las naves en cada resumen | 📌 |
 | P2-16 | 🟢 | Cron de compromisos: el flag `corriendo` es por proceso (no sirve con 2+ réplicas) | 📌 |
+| P2-17 | 🟢 | CxP: la consulta del panel de REP del landing hace Seq Scan sobre `cxp` | 📌 |
+| P2-18 | 🟢 | Avisos de REP: un renglón `en_curso` huérfano cuesta el aviso de ese día | 📌 |
 
 ### P2-9 — Recálculo de KVA por fila (revisión de escalabilidad, 2026-08-03) 📌
 `trg_kvasasignados_recalcular` es **FOR EACH ROW**: cada insert recalcula el parque completo. En uso
@@ -127,6 +129,27 @@ propio flag y ambos podrían procesar los mismos compromisos a la vez. El daño 
 (correos duplicados; el `DELETE` es idempotente), pero existe.
 **Fix si se escala a 2+ réplicas:** claim en BD con `pg_try_advisory_lock` sobre el nombre de
 la tarea. Severidad BAJA hoy, **sube a ALTA el día que se replique el API**.
+
+### P2-17 — La consulta del panel de REP del landing hace Seq Scan sobre `cxp` (2026-08-26) 📌
+`GET /cxp/mis-rep` (panel del landing) filtra `cxp` por `(uidr = uid OR autorizo = uid)` más las
+banderas de PPD. **Medido en producción ese día:** Seq Scan, 2,074 filas, **1.3 ms**, 200 buffers —
+irrelevante hoy. Lo que lo vuelve deuda es la frecuencia: el endpoint corre **en cada entrada al
+landing** de cada usuario, y `cxp` crece con cada factura. Mitigado en parte por el `staleTime` de
+10 min de TanStack Query.
+**Fix (requiere autorización: `cxp` es tabla compartida):**
+`CREATE INDEX ix_cxp_rep_pendiente ON public.cxp (uidr, autorizo) WHERE diferido AND status AND
+"uuidComplemento" IS NULL AND NOT "complementoExento";`
+**Disparador para hacerlo:** que `cxp` pase de ~20k filas, o que el EXPLAIN supere ~20 ms.
+Severidad BAJA hoy.
+
+### P2-18 — Un renglón `en_curso` huérfano cuesta el aviso de ese día (2026-08-26) 📌
+`ComplementosScheduler` **reserva** el renglón en `mail_avisos_rep` (estado `en_curso`) antes de
+enviar: es justo lo que impide que dos instancias del cron manden el mismo correo. Si el proceso
+muere entre la reserva y el envío, ese renglón queda en `en_curso` para siempre y **ese día** no se
+reintenta; al día siguiente sí, porque cambia `fecha_mx`. Costo real: se pierde uno de los cinco
+avisos de la ventana, no el aviso completo.
+**Fix:** al arrancar el job, marcar como `fallido` los `en_curso` de hace más de N minutos y
+permitir el reintento. Severidad BAJA.
 
 ### P2-12 — `devolucionesDe` firma las URLs una por una 📌
 Firma dentro de un `Promise.all(map(async …))`: una llamada a Storage **por documento**. En
@@ -336,7 +359,6 @@ despreciable, por eso no se tocó junto con el resto. Severidad BAJA.
   Se mitigó un bypass (`FROM"tabla"` sin espacio) con normalización (2026-07-03, rediseño razonador); la
   **barrera dura** que protege lo sensible es la **allowlist del rol `v2_agente_ro`**, no el parser.
   **Arreglo futuro:** validar con un parser SQL real (AST) si se requiere aislamiento estricto por módulo.
-
 ---
 
 ## Secuencia recomendada de remediación (la aprueba el usuario)

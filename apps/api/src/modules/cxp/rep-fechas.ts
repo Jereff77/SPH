@@ -150,3 +150,74 @@ export function nivelRepPendiente(
     return 'vencido_proveedor';
   return 'pendiente';
 }
+
+/**
+ * Instante UTC (ISO) del día `diaCorte` del mes SIGUIENTE al del pago, a las
+ * 00:00 hora de México. Es la fecha en que vence ese plazo para la parcialidad.
+ */
+export function fechaCorteISO(fecPagoIso: string, diaCorte: number): string {
+  const { anio, mes } = partesMx(new Date(fecPagoIso));
+  return new Date(Date.UTC(anio, mes + 1, diaCorte) + MX_OFFSET_MS).toISOString();
+}
+
+/** Número de serie del día (en hora de México), para restar días naturales. */
+function diaSerieMx(d: Date): number {
+  const { anio, mes, dia } = partesMx(d);
+  return Math.floor(Date.UTC(anio, mes, dia) / 86_400_000);
+}
+
+/**
+ * Días naturales que faltan (en calendario de México) de `hoy` hasta `objetivo`.
+ * 0 = vence hoy · 1 = vence mañana · negativo = ya venció.
+ */
+export function diasHasta(objetivoIso: string, hoy: Date): number {
+  return diaSerieMx(new Date(objetivoIso)) - diaSerieMx(hoy);
+}
+
+/** Cuántos días antes del corte del proveedor empieza el aviso diario. */
+export const DIAS_AVISO_PROVEEDOR = 5;
+
+/** Qué avisos toca enviar hoy (todo derivado de `RepConfig`, nada hardcodeado). */
+export interface TareasDelDia {
+  /** Aviso diario al proveedor, últimos `DIAS_AVISO_PROVEEDOR` días de su plazo. */
+  proveedores: boolean;
+  /** Aviso diario al solicitante, misma ventana que el proveedor. */
+  solicitantes: boolean;
+  /** Aviso único al gerente autorizador, la víspera del corte del proveedor. */
+  gerentes: boolean;
+  /** Aviso al solicitante la víspera de que se le bloquee el sistema. */
+  solicitantesBloqueo: boolean;
+}
+
+/**
+ * Calendario de avisos (reglas de negocio, Jereff 2026-08-26):
+ *  - Proveedor y solicitante: uno diario los últimos 5 días del plazo del
+ *    proveedor (con el default día 6 ⇒ días 1 al 5).
+ *  - Gerente: uno solo, la víspera de ese corte (día 5).
+ *  - Solicitante: además, la víspera de su propio bloqueo (día 20).
+ * El inicio de la ventana se acota a 1 por si se configura un corte muy temprano.
+ */
+export function tareasDelDia(cfg: RepConfig, hoy: Date): TareasDelDia {
+  const { dia } = partesMx(hoy);
+  const vispera = cfg.diaBloqueoProveedor - 1;
+  const inicio = Math.max(1, cfg.diaBloqueoProveedor - DIAS_AVISO_PROVEEDOR);
+  const enVentana = dia >= inicio && dia <= vispera;
+  return {
+    proveedores: enVentana,
+    solicitantes: enVentana,
+    gerentes: dia === vispera,
+    solicitantesBloqueo: dia === cfg.diaBloqueoUsuario - 1,
+  };
+}
+
+/**
+ * ¿El correo del proveedor sirve para enviarle algo? Verificado en producción:
+ * hay registros con el **texto literal `"null"`** y con cadenas vacías, que pasan
+ * cualquier chequeo de "no vacío" y luego revientan o se pierden en silencio.
+ */
+export function correoUtilizable(email: string | null | undefined): boolean {
+  const v = (email ?? '').trim().toLowerCase();
+  if (v.length === 0) return false;
+  if (['null', 'undefined', 'n/a', 'na', '-', 'sin correo'].includes(v)) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+}

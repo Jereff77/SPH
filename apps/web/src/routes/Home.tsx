@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Logo } from '@/components/Logo';
 import { IconBarras } from '@/components/icons';
 import { indicadoresApi } from '@/features/indicadores/indicadores.api';
+import { RepPendientesPanel } from '@/features/cxp/RepPendientesPanel';
 
 const MESES = [
   'Enero',
@@ -29,6 +30,9 @@ const pesos = new Intl.NumberFormat('es-MX', {
  * Landing. Dos tarjetas de indicadores conectadas a sus fuentes:
  *  - Tipo de cambio: USD/MXN (Banxico, vía backend).
  *  - INPC: último registro capturado en Parámetros.
+ * Debajo, el panel de Complementos de Pago (REP) pendientes DEL usuario en sesión
+ * (solo aparece si tiene): el correo se envía en días concretos del calendario, así
+ * que quien se pierde esa ventana no volvía a enterarse hasta quedar bloqueado.
  */
 export function Home() {
   const tc = useQuery({
@@ -87,6 +91,10 @@ export function Home() {
           <IconBarras className="h-10 w-10 text-gray-300" />
         </article>
       </div>
+
+      {/* Complementos de pago (REP) pendientes del usuario en sesión.
+          No se renderiza si no tiene ninguno. */}
+      <RepPendientesPanel />
 
       {/* Logotipo centrado */}
       <div className="flex flex-1 items-center justify-center py-10">
