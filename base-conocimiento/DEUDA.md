@@ -1,6 +1,6 @@
 ---
 documento: Deuda técnica y seguridad — registro priorizado (versión versionable)
-estado: vivo
+estado: 📚 CONGELADO 2026-09-02 (histórico de solo lectura)
 tipo: diagnóstico (la remediación es una fase aparte que aprueba el usuario)
 fecha_auditoria: 2026-07-01
 autor: Toribio (Claude Opus 4.8) — skill /auditoria-deuda
@@ -8,6 +8,23 @@ palabras_clave: [deuda, seguridad, RLS, anon key, PostgREST, RPC, buckets, RBAC,
 ---
 
 # Deuda técnica y seguridad — SPH Bienes Raíces v2 (registro priorizado)
+
+> # 📚 ARCHIVO HISTÓRICO — CONGELADO el 2026-09-02
+>
+> ⛔ **NO se escribe aquí.** Los pendientes viven únicamente en **Configuraciones ▸ Pendientes**
+> (tabla `dev_pendientes`) — regla 11 del contrato (`.sessions/contexto.md` §1).
+>
+> **Para qué sirve todavía:** conserva el análisis largo de cada hallazgo (evidencia, matices,
+> por qué se difirió) que no cabe en una fila. El campo `origen` de cada fila del tablero apunta aquí.
+>
+> ⚠️ **Los estados de este archivo pueden estar vencidos.** El estado vigente es el de la fila.
+>
+> **Qué pasó al migrarlo (2026-09-02):** se barrió el CUERPO del documento, no su tabla resumen.
+> La tabla llegaba hasta P2-18, pero debajo había **12 hallazgos más sin ID** en «Deuda diferida por
+> sesión» — incluida la ALTA abierta del fideicomiso. Al reverificar contra la BD y el código, tres
+> hallazgos resultaron **peores** de lo escrito (130 políticas `USING(true)` en vez de ~80; 5 buckets
+> públicos en vez de 3; 57 funciones definer abiertas a `anon` en vez de 51) y `P2-9` estaba **usado
+> dos veces** (recálculo de KVA y parser del text-to-SQL). Entraron **62 pendientes** al tablero.
 
 > **Versión saneada y versionable** de la auditoría integral (`/auditoria-deuda`, 2026-07-01). Contiene el
 > QUÉ / POR QUÉ / evidencia a alto nivel / estado / arreglo propuesto, **sin pasos de explotación**. El

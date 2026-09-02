@@ -197,6 +197,11 @@ condiciones se lee del fideicomiso activo (no se hardcodea). **Mejora vs v1:** l
 URL real del PDF (en v1 se insertaba `urldoc=''`, un bug).
 
 ## Pendiente
+
+> 📋 **Los pendientes de este módulo viven en el TABLERO** (Configuraciones ▸ Pendientes, tabla
+> `dev_pendientes`) desde el 2026-09-02 — regla 11 de `contexto.md` §1. Lo de abajo es **histórico**:
+> su estado puede estar vencido y **no se abren pendientes nuevos aquí**. Lo que sí sigue vivo en esta
+> sección es el **✅ hecho** (qué hace el módulo hoy), que es conocimiento, no trabajo pendiente.
 `nvo_ticket` de v1 (alta rápida de ticket en un paso: cadena naves→propiedades→pdp→pdpDetalle con
 `tipoPago='Ticket'`) — la misma alta se logra hoy con Configuración (pestaña Propiedades + Plan de Pagos).
 Evaluar si se agrega como atajo.

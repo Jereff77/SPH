@@ -267,6 +267,11 @@ pregunta y a qué tiene acceso"* — evita que el agente le pida permisos a un u
 los tiene, o que canalice a alguien que ya puede corregirlo él mismo.
 
 ### Operativo / pendientes
+
+> 📋 **Los pendientes de este módulo viven en el TABLERO** (Configuraciones ▸ Pendientes, tabla
+> `dev_pendientes`) desde el 2026-09-02 — regla 11 de `contexto.md` §1. Lo de abajo es **histórico**:
+> su estado puede estar vencido y **no se abren pendientes nuevos aquí**. Lo que sí sigue vivo en esta
+> sección es el **✅ hecho** (qué hace el módulo hoy), que es conocimiento, no trabajo pendiente.
 - La edge `soporte-chat` se despliega aparte (`supabase functions deploy soporte-chat`), NO con el push.
   **Desplegada v5 (2026-08-05):** sin `temperature` (fix del 502 histórico con haiku — CERRADO) y con
   `max_tokens: 4096` (sin él, OpenRouter reserva el máximo del modelo contra el saldo → 402 con

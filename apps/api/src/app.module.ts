@@ -22,6 +22,7 @@ import { VentasModule } from './modules/ventas/ventas.module.js';
 import { ClientesModule } from './modules/clientes/clientes.module.js';
 import { ArrendatariosModule } from './modules/arrendatarios/arrendatarios.module.js';
 import { ChangelogModule } from './modules/changelog/changelog.module.js';
+import { TableroPendientesModule } from './modules/pendientes/pendientes.module.js';
 import { CronModule } from './modules/cron/cron.module.js';
 import { FideicomisoModule } from './modules/fideicomiso/fideicomiso.module.js';
 import { SoporteModule } from './modules/soporte/soporte.module.js';
@@ -66,6 +67,7 @@ import { SoporteInquilinosModule } from './modules/soporte-inquilinos/soporte-in
     ClientesModule,
     ArrendatariosModule,
     ChangelogModule,
+    TableroPendientesModule,
     CronModule,
     FideicomisoModule,
     SoporteModule,

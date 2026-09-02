@@ -131,6 +131,11 @@ cuenta activa (posible límite/SMTP de Supabase).
 
 ## 9. Estado y pendientes
 
+> 📋 **Los pendientes de este módulo viven en el TABLERO** (Configuraciones ▸ Pendientes, tabla
+> `dev_pendientes`) desde el 2026-09-02 — regla 11 de `contexto.md` §1. Lo de abajo es **histórico**:
+> su estado puede estar vencido y **no se abren pendientes nuevos aquí**. Lo que sí sigue vivo en esta
+> sección es el **✅ hecho** (qué hace el módulo hoy), que es conocimiento, no trabajo pendiente.
+
 - ✅ Login por usuario/correo, refresh por cookie, /me, bloqueo de inactivos, cambiar contraseña,
   rate limiting, JWT verificado con algoritmo/issuer/audience.
 - ✅ **Recuperar/Restablecer contraseña** (v2.27.2): flujo público completo replicando el correo nativo de

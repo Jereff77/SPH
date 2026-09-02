@@ -143,6 +143,10 @@ export const MENU: MenuGrupo[] = [
       // Soporte: auditoría de conversaciones del agente IA + tickets. SOLO soporte
       // (sin clave: igual que Cron, se gobierna por el flag isSupport del backend).
       { label: 'Soporte', to: '/configuraciones/soporte', soloSoporte: true },
+      // Pendientes: tablero de trabajo del proyecto (deuda técnica, bugs, mejoras).
+      // SOLO soporte y SIN clave a propósito: lista hallazgos de seguridad, que no
+      // son material para repartir con un permiso asignable.
+      { label: 'Pendientes', to: '/configuraciones/pendientes', soloSoporte: true },
     ],
   },
 ];

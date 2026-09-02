@@ -234,13 +234,21 @@ de tiempo. Ambas operaciones son **baja lógica** (`status=false`): NO borran el
 
 ## 10. Estado y pendientes
 
+> 📋 **Los pendientes de este módulo viven en el TABLERO** (Configuraciones ▸ Pendientes, tabla
+> `dev_pendientes`) desde el 2026-09-02 — regla 11 de `contexto.md` §1. Lo de abajo es **histórico**:
+> su estado puede estar vencido y **no se abren pendientes nuevos aquí**. Lo que sí sigue vivo en esta
+> sección es el **✅ hecho** (qué hace el módulo hoy), que es conocimiento, no trabajo pendiente.
+
 - ✅ Parques, Disponibilidad, crear/editar parque, agregar naves, editar nave, etiqueta personalizable,
   filtros y orden, permisos 700/701/702/710.
 - ✅ (2026-07-04, v2.55.1) `v_naves` corregida: ya no muestra arrendatarios desvinculados ni duplica naves.
 - ✅ (2026-07-05, v2.56.0) **Historial de la nave** (pestaña en el editor, reconstruido de `auditoria`);
   **desvincular = baja lógica** en venta y renta (ya no borra) con **motivo**; `v_naves` y `v_disponibilidad`
   filtran también `prop.status=true` (ya no muestran propiedades dadas de baja como fantasma).
-- ⏳ **KVA's por nave** (sección no desarrollada).
+- ✅ **KVA's por nave** — **entregado** en v2.64.0–v2.67.0 (ficha de la nave con pestañas KVA | Documentos,
+  asignar/editar/cancelar/devolver, dotación por nave, tope contra el disponible). Ver `modulos/kvas.md`.
+  ⚠️ *Esta línea decía «sección no desarrollada» hasta el 2026-09-02: llevaba un mes describiendo como
+  pendiente algo ya entregado. Corregido durante la migración al tablero.*
 - ⏳ Disponibilidad podría migrarse al formato de tarjetas (hoy es tabla).
 - ⏳ **Backlog:** naves-ticket dadas de baja (`propiedades.status=false`) dentro del contenedor de Tickets
   (`A3 (Tickets)`, `esTicket=true`) — las **vistas ya no las muestran** (filtro `prop.status=true`), pero las

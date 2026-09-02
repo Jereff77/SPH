@@ -93,6 +93,11 @@ cachea 5 min y refresca tras Sincronizar),
 | "No veo Correo en el menú." | Falta permiso 800. | Asignar el permiso en Configuraciones → Permisos. |
 
 ## 8. Pendiente / fuera del MVP
+
+> 📋 **Los pendientes de este módulo viven en el TABLERO** (Configuraciones ▸ Pendientes, tabla
+> `dev_pendientes`) desde el 2026-09-02 — regla 11 de `contexto.md` §1. Lo de abajo es **histórico**:
+> su estado puede estar vencido y **no se abren pendientes nuevos aquí**. Lo que sí sigue vivo en esta
+> sección es el **✅ hecho** (qué hace el módulo hoy), que es conocimiento, no trabajo pendiente.
 - Redactar correos nuevos (no solo responder), búsqueda, IMAP IDLE (tiempo real), paginación de grandes
   volúmenes, traer **más de ~40** correos históricos por carpeta en el primer sync (hoy el tope `MAX_PRIMERA`
   aplica por carpeta), bloqueo opcional de imágenes remotas (tracking pixels). El correo de **soporte** podría

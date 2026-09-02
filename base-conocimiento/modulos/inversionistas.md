@@ -290,6 +290,11 @@ aplica a Dashboard/Reportes/saldos-vencidos, **NO** a este selector operativo de
 
 ## 3c. Trasladar saldo entre parcialidades (clave 611) — candado independiente
 
+> 📋 **Los pendientes de este módulo viven en el TABLERO** (Configuraciones ▸ Pendientes, tabla
+> `dev_pendientes`) desde el 2026-09-02 — regla 11 de `contexto.md` §1. Lo de abajo es **histórico**:
+> su estado puede estar vencido y **no se abren pendientes nuevos aquí**. Lo que sí sigue vivo en esta
+> sección es el **✅ hecho** (qué hace el módulo hoy), que es conocimiento, no trabajo pendiente.
+
 > Acción para **limpiar adeudos menores** que figuran vencidos sin eliminar registros: mueve el saldo
 > pendiente (o parte) de una parcialidad a **otra parcialidad futura del MISMO plan** (típicamente la
 > última mensualidad). **Decisión de negocio (reunión 2026-06-29):** no se borran adeudos, se trasladan

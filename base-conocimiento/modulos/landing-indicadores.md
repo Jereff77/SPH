@@ -67,5 +67,10 @@ relacionado_con: [configuraciones, autenticacion]
 
 ## 7. Estado y pendientes
 
+> 📋 **Los pendientes de este módulo viven en el TABLERO** (Configuraciones ▸ Pendientes, tabla
+> `dev_pendientes`) desde el 2026-09-02 — regla 11 de `contexto.md` §1. Lo de abajo es **histórico**:
+> su estado puede estar vencido y **no se abren pendientes nuevos aquí**. Lo que sí sigue vivo en esta
+> sección es el **✅ hecho** (qué hace el módulo hoy), que es conocimiento, no trabajo pendiente.
+
 - ✅ Tipo de cambio (Banxico, vía backend) e INPC (último registro) conectados.
 - ⏳ Posibles indicadores/accesos directos adicionales en el dashboard.

@@ -99,6 +99,11 @@ tiene trigger.
 
 ## 7. Estado y pendientes
 
+> 📋 **Los pendientes de este módulo viven en el TABLERO** (Configuraciones ▸ Pendientes, tabla
+> `dev_pendientes`) desde el 2026-09-02 — regla 11 de `contexto.md` §1. Lo de abajo es **histórico**:
+> su estado puede estar vencido y **no se abren pendientes nuevos aquí**. Lo que sí sigue vivo en esta
+> sección es el **✅ hecho** (qué hace el módulo hoy), que es conocimiento, no trabajo pendiente.
+
 - ✅ Auditoría con diff antes/después en ≈107 tablas (v1+v2), histórico de `actividad` migrado, panel de
   Historial por usuario, "Ver como" de solo lectura para soporte.
 - ⏳ Pantalla de auditoría global con filtros avanzados (hoy se consulta por usuario).

@@ -50,6 +50,7 @@ futuro, en una tabla vectorial `pgvector` para búsqueda semántica).
 | Fideicomiso | ✅ desarrollado | `modulos/fideicomiso.md` | /fideicomiso/dashboard, /fideicomiso/aportaciones (+ config ⚙️), /fideicomiso/adhesiones, /fideicomiso/contabilidad, /fideicomiso/dispersiones, /fideicomiso/reportes | 500, 510, 511, 520, 530, 540 | fideicomiso, dashboard, dispersión, dispersiones, aportación, aportaciones, adhesión, adhesiones, rendimiento, kardex, reportes, ticket, contabilidad, pivote, concepto contable, inversión, rendimiento promedio, retención ISR, comisión SPH, ordenar alfabéticamente, ordenar por tipo, ordenar por concepto |
 | CRM | 🟠 parcial | `modulos/crm.md` | (Clientes ya migrado → ver `modulos/clientes.md`) | 300 | lead, prospecto, empresa, inmobiliaria, actividad comercial · (Clientes = padrón) |
 | Cron / Tareas programadas | ✅ desarrollado | `modulos/cron.md` | /configuraciones/cron | — (solo soporte, isSupport) | cron, tarea programada, tareas programadas, job, jobs, scheduler, pg_cron, ejecución, historial de tareas, automático, programado, soporte, monitoreo, ejecutar ahora |
+| Pendientes (tablero del proyecto) | ✅ desarrollado | `modulos/pendientes.md` | /configuraciones/pendientes | — (solo soporte, isSupport) | pendientes, tablero de pendientes, backlog, deuda técnica, dónde registro esto, dónde anoto la deuda, una sola fuente, bug conocido, decisión abierta, qué falta por hacer, qué sigue, prioridades, P0, bloqueado |
 | Recordatorio de aprobación CxP (correo) | ✅ desarrollado | `modulos/recordatorio-aprobacion-cxp.md` | (cron 07:00 MX) · /configuraciones/cron · /configuraciones/soporte (bitácora) | 430 (destinatario), isSupport (bitácora) | recordatorio, recordatorio de aprobación, correo a aprobadores, solicitudes por aprobar, pendientes de aprobar, aviso 7am, recordatorio diario, n8n, miércoles, recordatorios enviados, mail_recordatorios_aprobacion |
 | Asistente / Agente de IA de Soporte | ✅ desarrollado | `modulos/soporte-ia.md` | (transversal — widget flotante) · /configuraciones/soporte (auditoría, solo soporte) | — (todos; auditoría solo soporte) | asistente, ayuda, soporte, agente, IA, chat, chatbot, cómo hago, no me deja, no aparece, ticket, escalar, OpenRouter, widget, dudas, guía, auditoría, conversaciones, bandeja de tickets |
 | Directorio de Contactos y Responsables | ✅ desarrollado | `modulos/directorio-contactos.md` | (transversal — **siempre** en contexto) | — | quién, a quién contactar, responsable, asignar permiso, no tengo permiso, quién asigna, soporte, área, encargado, administrador |
@@ -80,6 +81,7 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `auditoria`, `actividad` | Auditoría · **Parques** (el "Historial de la nave" se reconstruye desde `auditoria`) |
 | `v2_changelog` | Changelog / Novedades |
 | `v2_cron_ejecuciones` | Cron / Tareas programadas |
+| `dev_pendientes` | Pendientes — tablero del proyecto (solo soporte) |
 | `mail_recordatorios_aprobacion` | **Recordatorio de aprobación CxP** (bitácora de correos enviados; solo backend) |
 | `cxp`, `cxp_ppd`, `cxpComentarios`, `catProveedores`, `catBancos`, `catClavesProdServ`, `movbancarios` | CxP (`cxp_ppd` = maestro de facturas PPD) |
 | `correo_cuentas`, `correo_mensajes`, `correo_adjuntos` | Correo (buzón de facturas) · **Soporte a Inquilinos** (reutiliza la cuenta designada) |
@@ -114,4 +116,5 @@ Para cuando el usuario o un error menciona una tabla concreta.
 | `/configuraciones/cambiar-contrasena` | Autenticación / Configuraciones |
 | `/configuraciones/novedades` | Changelog / Novedades |
 | `/configuraciones/cron` | Cron / Tareas programadas (solo soporte) |
+| `/configuraciones/pendientes` | Pendientes — tablero del proyecto (solo soporte) |
 | `/configuraciones/soporte` | Asistente de IA de Soporte — Auditoría de conversaciones + bandeja de tickets + **Recordatorios de aprobación CxP enviados** (solo soporte) |

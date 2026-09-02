@@ -280,6 +280,11 @@ errores al guardar parámetros que persisten, o datos de presupuesto que no cuad
 
 ## 11. Estado y pendientes
 
+> 📋 **Los pendientes de este módulo viven en el TABLERO** (Configuraciones ▸ Pendientes, tabla
+> `dev_pendientes`) desde el 2026-09-02 — regla 11 de `contexto.md` §1. Lo de abajo es **histórico**:
+> su estado puede estar vencido y **no se abren pendientes nuevos aquí**. Lo que sí sigue vivo en esta
+> sección es el **✅ hecho** (qué hace el módulo hoy), que es conocimiento, no trabajo pendiente.
+
 - ✅ Los 5 submenús funcionando, con tablas (encabezado fijo azul + filtros + orden) e historial por usuario.
 - ✅ **Reporte descargable de la matriz de permisos** (v2.58.0, §5.1): `GET /permisos/matriz` + Excel de
   4 hojas generado en el navegador, con la descripción de para qué sirve cada clave.

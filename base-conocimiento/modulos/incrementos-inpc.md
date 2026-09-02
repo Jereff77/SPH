@@ -112,6 +112,11 @@ de parque y a la gerente.
 - **NO existe ningún cron de INPC**: antes de este módulo TODO incremento era manual (doble clic).
 
 ## Decisiones y pendientes
+
+> 📋 **Los pendientes de este módulo viven en el TABLERO** (Configuraciones ▸ Pendientes, tabla
+> `dev_pendientes`) desde el 2026-09-02 — regla 11 de `contexto.md` §1. Lo de abajo es **histórico**:
+> su estado puede estar vencido y **no se abren pendientes nuevos aquí**. Lo que sí sigue vivo en esta
+> sección es el **✅ hecho** (qué hace el módulo hoy), que es conocimiento, no trabajo pendiente.
 - Diseño y decisiones con fechas: `PLAN-incrementos-inpc-automaticos.md` §8.
 - Validación adversarial (Opus 4.8, 2026-07-02): A1 (fuga SQLERRM), M1 (reserva huérfana), M2 (corrección
   tardía sin re-aplicar) **corregidos**; RLS/REVOKEs/auditoría/candado verificados contra BD real.

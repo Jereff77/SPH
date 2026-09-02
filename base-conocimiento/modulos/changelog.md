@@ -96,6 +96,11 @@ Cada cambio tiene un **tipo**, con su color en la pantalla:
 
 ## 7. Estado y pendientes
 
+> 📋 **Los pendientes de este módulo viven en el TABLERO** (Configuraciones ▸ Pendientes, tabla
+> `dev_pendientes`) desde el 2026-09-02 — regla 11 de `contexto.md` §1. Lo de abajo es **histórico**:
+> su estado puede estar vencido y **no se abren pendientes nuevos aquí**. Lo que sí sigue vivo en esta
+> sección es el **✅ hecho** (qué hace el módulo hoy), que es conocimiento, no trabajo pendiente.
+
 - ✅ Pantalla de Novedades (línea de tiempo + buscador), endpoint de solo lectura, versión del sidebar
   enlazada al changelog, regla de proceso documentada en el HANDOFF (regla 9 + sección 5e).
 - ✅ Tabla `v2_changelog` y función `v2_changelog_registrar` **aplicadas** en la BD; historial 2.0.0 → 2.10.0

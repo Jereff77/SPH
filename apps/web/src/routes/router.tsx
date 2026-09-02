@@ -59,6 +59,15 @@ const ResponsablesPage = lazy(() =>
 const CronPage = lazy(() =>
   import('@/features/cron/CronPage').then((m) => ({ default: m.CronPage })),
 );
+// Pendientes (Configuraciones → Pendientes, solo soporte): tablero de trabajo
+// del proyecto. Chunk propio.
+// ⚠️ Se llama «Tablero» y no «Pendientes» a secas porque CxP ya tiene su propia
+// PendientesPage (solicitudes pendientes de gestionar): son cosas distintas.
+const TableroPendientesPage = lazy(() =>
+  import('@/features/pendientes/TableroPendientesPage').then((m) => ({
+    default: m.TableroPendientesPage,
+  })),
+);
 // Soporte (Configuraciones → Soporte, solo soporte): auditoría + tickets. Chunk propio.
 const SoporteAdminPage = lazy(() =>
   import('@/features/soporte-admin/SoporteAdminPage').then((m) => ({
@@ -182,6 +191,14 @@ export const router = createBrowserRouter([
             element: (
               <Suspense fallback={cargando}>
                 <CronPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/configuraciones/pendientes',
+            element: (
+              <Suspense fallback={cargando}>
+                <TableroPendientesPage />
               </Suspense>
             ),
           },
