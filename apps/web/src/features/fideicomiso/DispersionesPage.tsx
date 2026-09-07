@@ -112,6 +112,8 @@ export function DispersionesPage() {
       monto_total_pagos: (r) => r.monto_total_pagos,
       rendimiento_bruto_total: (r) => r.rendimiento_bruto_total,
       retencion_isr_total: (r) => r.retencion_isr_total,
+      rendimiento_neto_total: (r) => r.rendimiento_neto_total,
+      rendimiento_sph_total: (r) => r.rendimiento_sph_total,
       dispersion_neta_total: (r) => r.dispersion_neta_total,
     },
     { key: 'no_adhesion', dir: 'asc' },
@@ -124,10 +126,12 @@ export function DispersionesPage() {
           a.monto += r.monto_total_pagos ?? 0;
           a.renta += r.rendimiento_bruto_total ?? 0;
           a.isr += r.retencion_isr_total ?? 0;
+          a.neto += r.rendimiento_neto_total ?? 0;
+          a.sph += r.rendimiento_sph_total ?? 0;
           a.disp += r.dispersion_neta_total ?? 0;
           return a;
         },
-        { monto: 0, renta: 0, isr: 0, disp: 0 },
+        { monto: 0, renta: 0, isr: 0, neto: 0, sph: 0, disp: 0 },
       ),
     [filtrado],
   );
@@ -165,7 +169,10 @@ export function DispersionesPage() {
 
       {/* Tabla con filtros por columna (estilo Excel) */}
       <div className="max-h-[calc(100vh-18rem)] overflow-auto rounded-xl border bg-white shadow-sm">
-        <table className="w-full min-w-[900px] text-sm">
+        {/* min-w subido de 900 a 1100: la tabla pasó de 7 a 9 columnas (se
+            agregaron Rendimiento Neto y Comisión SPH) y con 900 los importes se
+            comprimían. El contenedor ya tiene overflow-auto. */}
+        <table className="w-full min-w-[1100px] text-sm">
           <thead className={THEAD_STICKY}>
             <tr className={THEAD_TR}>
               <SortableTh
@@ -202,17 +209,19 @@ export function DispersionesPage() {
                 Adhesión
               </SortableTh>
               <SortableTh campo="monto_total_pagos" sortKey={sortKey} dir={dir} onSort={toggle} align="right">Monto Inversión</SortableTh>
-              <SortableTh campo="rendimiento_bruto_total" sortKey={sortKey} dir={dir} onSort={toggle} align="right">Renta del Trimestre</SortableTh>
+              <SortableTh campo="rendimiento_bruto_total" sortKey={sortKey} dir={dir} onSort={toggle} align="right">Rendimiento del Trimestre</SortableTh>
               <SortableTh campo="retencion_isr_total" sortKey={sortKey} dir={dir} onSort={toggle} align="right">Retención ISR</SortableTh>
+              <SortableTh campo="rendimiento_neto_total" sortKey={sortKey} dir={dir} onSort={toggle} align="right">Rendimiento Neto</SortableTh>
+              <SortableTh campo="rendimiento_sph_total" sortKey={sortKey} dir={dir} onSort={toggle} align="right">Comisión SPH</SortableTh>
               <SortableTh campo="dispersion_neta_total" sortKey={sortKey} dir={dir} onSort={toggle} align="right">Dispersión Trimestral</SortableTh>
             </tr>
           </thead>
           <tbody className="divide-y">
             {isLoading && (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">Cargando…</td></tr>
+              <tr><td colSpan={9} className="px-4 py-6 text-center text-gray-400">Cargando…</td></tr>
             )}
             {!isLoading && ordenados.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">Sin dispersiones para este periodo.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-6 text-center text-gray-400">Sin dispersiones para este periodo.</td></tr>
             )}
             {ordenados.map((r) => {
               const fisica = (r.tipo_persona ?? '').toLowerCase() === 'fisica';
@@ -232,6 +241,11 @@ export function DispersionesPage() {
                   <td className="px-4 py-2 text-right tabular-nums">{moneda(r.monto_total_pagos)}</td>
                   <td className="px-4 py-2 text-right tabular-nums">{moneda(r.rendimiento_bruto_total)}</td>
                   <td className="px-4 py-2 text-right tabular-nums">{moneda(r.retencion_isr_total)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{moneda(r.rendimiento_neto_total)}</td>
+                  {/* La comisión SPH NO se descuenta de la dispersión: es lo que gana
+                      SPH por administrar, calculado aparte. Por eso va en su propia
+                      columna y no entre el neto y la dispersión como una resta. */}
+                  <td className="px-4 py-2 text-right tabular-nums text-[#8a5a1a]">{moneda(r.rendimiento_sph_total)}</td>
                   <td className="px-4 py-2 text-right font-medium tabular-nums text-[#3f5b1a]">{moneda(r.dispersion_neta_total)}</td>
                 </tr>
               );
@@ -244,6 +258,8 @@ export function DispersionesPage() {
                 <td className="px-4 py-2 text-right tabular-nums">{moneda(tot.monto)}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{moneda(tot.renta)}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{moneda(tot.isr)}</td>
+                <td className="px-4 py-2 text-right tabular-nums">{moneda(tot.neto)}</td>
+                <td className="px-4 py-2 text-right tabular-nums">{moneda(tot.sph)}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{moneda(tot.disp)}</td>
               </tr>
             </tfoot>

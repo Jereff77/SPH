@@ -1,8 +1,8 @@
 ---
 modulo: Fideicomiso
 estado: parcial
-version_doc: 1.6
-ultima_actualizacion: 2026-08-11
+version_doc: 1.7
+ultima_actualizacion: 2026-09-07
 rutas_v2: [/fideicomiso/dashboard, /fideicomiso/aportaciones, /fideicomiso/adhesiones, /fideicomiso/contabilidad, /fideicomiso/dispersiones, /fideicomiso/reportes]
 rutas_v1: [i06_fideicomiso]
 claves_permiso: [500, 510, 511, 520, 530, 540]
@@ -33,7 +33,7 @@ Hay **un solo fideicomiso** activo: *Fideicomiso Innovación SPH* (`idFide = jsR
 | **Configuración del propietario** (engrane ⚙️ de Aportaciones) | 510 | Réplica COMPLETA de `config_propietario_fide` de v1 (`ConfigFideModal`): selector de propiedad + 5 pestañas. **Datos Generales** (edición de `inversionista`), **Documentos** (subir PDF a bucket `Documentos` + lista + eliminar, sobre `inversionista_docs`), **Propiedades/Naves** (alta de nave-ticket: parque-ticket + nave A–E + ID 1–4 → INSERT `naves`+`propiedades`; lista tipo DatTickets con valor/pagos/avance y **eliminar** vía RPC `propiedades_eliminar_propiedad`), **Adhesiones/Condiciones** (`fideCondiciones`: adhesión, PM, medio, apartado, rendimiento 1–12, Prom9%, comentarios; INSERT/UPDATE), **Plan de Pagos** (genera PDP Único/Enganche/Parcialidad [monto=valor/N, fechas mensuales]; tabla editable de partidas [fecha/monto/tipo] con **recálculo por enganche** vía RPC `pdpdetalle_reevaluar_monto_por_enganche`; totales vs `v_totales`; **Activar** [si cuadran], **Desactivar**, **Eliminar** PDP). Reutiliza `PlanesService` (datos/docs) + `ConfigFideService`. |
 | **Adhesiones** `/fideicomiso/adhesiones` | 520 | Misma vista que Dashboard (`v_fideicomiso`), accesible también con la clave 520. |
 | **Contabilidad** `/fideicomiso/contabilidad` | 520 | Réplica fiel del grid Excel de v1: tabla pivote por año (Ene..Dic + subtotales + GRAN TOTAL), **edición inline** de cada celda/mes, **toggle de IVA** por celda (punto), **notas** por celda (tooltip), fila **Saldo estado de cuenta** (banco) con conciliación vs gran total (tolerancia 0.80, ✓ cuadrado / diferencia), **filtros por columna** (texto y signo +/0/−), **alta de movimientos** (cascada + notas + IVA + monto, con reemplazo si ya existe) y **+ Catálogo** (alta de conceptos). Cada cambio se audita y registra en `fideContaHistorial`. |
-| **Dispersion** `/fideicomiso/dispersiones` | 530 | Por fideicomiso + periodo (1ra..20ma): resumen por adherente (Nombre, Personalidad, Adhesión, Monto Inversión, Renta del Trimestre, Retención ISR, Dispersión Trimestral) ordenable + totales. **Filtros**: por nombre, personalidad (Física/Moral), adhesión, Limpiar, y "Solo con fin de promoción en este periodo" (`dias_promocion>0 && dias_normal>0`). **Clic en el nombre → Desglose Detallado**: tabla con **una fila por cada ticket/pago de inversión del periodo seleccionado** (Monto Inversión, Fecha Pago, Días Efectivos [prorrateados según cuándo entró el capital al trimestre — p. ej. 81 días si el pago cayó dentro del trimestre], Rendimiento Anual %/$ [=monto×tasa], Renta del Trimestre, Retención ISR, Dispersión Trimestral) + Resumen Total que **suma** esas filas, con **export PNG** (html-to-image) y **CSV**. ⚠️ Gotcha: el RPC trae los campos invertidos — **`rfc_inversionista` = NOMBRE**, `nombre_inversionista` = RFC. |
+| **Dispersion** `/fideicomiso/dispersiones` | 530 | Por fideicomiso + periodo (1ra..20ma): resumen por adherente (Nombre, Personalidad, Adhesión, Monto Inversión, **Rendimiento del Trimestre**, Retención ISR, **Rendimiento Neto**, **Comisión SPH**, Dispersión Trimestral) ordenable + totales. ⚠️ **Rendimiento Neto y Comisión SPH se agregaron en v2.72.0** (petición del área, tablero #69); antes la columna del bruto se llamaba «Renta del Trimestre». **Filtros**: por nombre, personalidad (Física/Moral), adhesión, Limpiar, y "Solo con fin de promoción en este periodo" (`dias_promocion>0 && dias_normal>0`). **Clic en el nombre → Desglose Detallado**: tabla con **una fila por cada ticket/pago de inversión del periodo seleccionado** (Monto Inversión, Fecha Pago, Días Efectivos [prorrateados según cuándo entró el capital al trimestre — p. ej. 81 días si el pago cayó dentro del trimestre], Rendimiento Anual %/$ [=monto×tasa], Renta del Trimestre, Retención ISR, Dispersión Trimestral) + Resumen Total que **suma** esas filas, con **export PNG** (html-to-image) y **CSV**. ⚠️ Gotcha: el RPC trae los campos invertidos — **`rfc_inversionista` = NOMBRE**, `nombre_inversionista` = RFC. |
 | **Reportes** `/fideicomiso/reportes` | 540 | **Kardex** de dispersiones por inversionista **+ filtro por Propiedad** (recalcula KPIs/totales/dona server-side) **+ toggle "Mostrar"**: «Solo los que ya pasaron» (fecfin≤hoy) o «Todos los meses (con cálculos)» — muestra también los cálculos de los meses futuros (las filas futuras ya traen `calculo`/`dispersion`); los totales del pie se ajustan a lo mostrado. Tarjeta resumen: dona Pagados/Pendientes + KPIs (izq) e info Personalidad/Rendimiento (der). **Export a PDF (jsPDF) y Excel (.xlsx, ExcelJS)**, ambos con **logo + diseño** (encabezado azul, tabla, totales); `kardex-export.ts`, ambas libs cargadas de forma diferida. |
 
 ## Reglas de negocio clave (replicadas de v1)
@@ -76,6 +76,23 @@ Hay **un solo fideicomiso** activo: *Fideicomiso Innovación SPH* (`idFide = jsR
     Si alguien pregunta «¿cuándo se le acaba la promoción?» a uno de esos, la respuesta es **nunca: no
     tiene promoción, tiene tasa 9**. Detectarlas:
     `SELECT * FROM "fideCondiciones" WHERE rendimiento = 9 AND NOT COALESCE("Prom9%", false);`
+- **⛔ La COMISIÓN SPH no se le descuenta al inversionista** (verificado en producción el 2026-09-07,
+  periodo 11ma jul-sep 2026, 98 adhesiones). Es la duda que surge en cuanto se ve el reporte, así que
+  conviene tenerla clara antes de explicárselo al área:
+  - `rendimiento_bruto_total − retencion_isr_total = rendimiento_neto_total` → **cuadra exacto**
+    (diferencia $0.00 sobre $8,000,462.77 de bruto).
+  - `rendimiento_neto_total − rendimiento_sph_total = dispersion_neta_total` → **NO cuadra**. De hecho
+    **`dispersion_neta_total` ES IGUAL a `rendimiento_neto_total`** ($7,422,121.05 ambos).
+  - Es decir: la **comisión SPH ($333,279.13) es un cálculo PARALELO** —lo que gana SPH por administrar—
+    y no sale del monto que se dispersa. Las columnas del reporte **no "cierran" restando de izquierda a
+    derecha**, y eso es correcto, no un error de cálculo.
+  - ⚠️ **23 adhesiones tuvieron comisión SPH = $0** en ese periodo. El reporte muestra el cero, no omite
+    la fila. Emparenta con las condiciones de tasa contratada 9 (arriba), pero **no es el mismo conteo**:
+    aquel cuenta condiciones con `rendimiento = 9`, este cuenta adhesiones sin comisión en un periodo.
+- **📅 Periodo = trimestre calendario** (verificado 2026-09-07): `fide_periodos_dispersion` tiene periodos
+  de 91-92 días alineados a ene-mar / abr-jun / jul-sep / oct-dic, y el fideicomiso tiene
+  `cantdispersiones = 4`. Cuando el área dice «el trimestre» y el motor dice «el periodo», hablan de lo
+  mismo. El `no_dispersion` es un ordinal en texto ("9na", "11ma", "20ma"), no un número.
 - **Dispersiones:** las calculan las **mismas RPC que v1** (SIN sufijo, vigentes):
   `plan_dispersiones_dinamico`, `resumen_dispersion_dinamico`, `resumen_fideicomiso_completo`.
   ⚠️ **Corrección v2.27.1:** se dejaron de usar las variantes `_corregido`.
