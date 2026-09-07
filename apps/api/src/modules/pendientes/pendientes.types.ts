@@ -68,11 +68,27 @@ export interface Pendiente {
   creadoPor: string | null;
 }
 
-/** Contadores del encabezado. Solo cuentan lo ABIERTO: el tablero es para trabajar. */
+/**
+ * Contadores del encabezado.
+ *
+ * ⚠️ Dos naturalezas distintas, y por eso están separados:
+ * - Los de TRABAJO (`abiertos`, `p0`, `p1`, `enCurso`, `bloqueados`) los
+ *   recalcula el FRONT sobre las filas filtradas: al filtrar por módulo o
+ *   urgencia, el usuario espera ver el conteo de lo que tiene enfrente. Los que
+ *   manda el backend son el punto de partida (sin filtros aplicados).
+ * - Los HISTÓRICOS (`total`, `cerrados`) son globales y NO responden al filtro
+ *   ni al interruptor de «ver cerrados»: un total que cambia al filtrar deja de
+ *   ser un total. Se cuentan en la BD, no sobre las filas cargadas — cuando el
+ *   interruptor está apagado las cerradas ni siquiera vienen en la respuesta.
+ */
 export interface ResumenPendientes {
   abiertos: number;
   p0: number;
   p1: number;
   enCurso: number;
   bloqueados: number;
+  /** Todos los pendientes registrados, abiertos y cerrados. Global. */
+  total: number;
+  /** Terminados + descartados. Global. */
+  cerrados: number;
 }

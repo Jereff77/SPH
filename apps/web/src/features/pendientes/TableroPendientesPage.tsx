@@ -70,6 +70,47 @@ function Contador({
   );
 }
 
+/**
+ * Tarjeta de totales HISTÓRICOS: cuántos pendientes se han registrado en total y
+ * cuántos se han cerrado.
+ *
+ * ⚠️ A diferencia de los contadores de trabajo, esta NO responde a los filtros ni
+ * al interruptor de «ver cerrados»: son cifras globales que vienen contadas de la
+ * base de datos. Un total que cambiara al filtrar dejaría de ser un total. Por eso
+ * va visualmente separada y lo dice en su etiqueta.
+ */
+function TarjetaTotales({ total, cerrados }: { total: number; cerrados: number }) {
+  const avance = total > 0 ? Math.round((cerrados / total) * 100) : 0;
+  return (
+    <div className="rounded-lg border border-[#1f2a4d]/20 bg-[#1f2a4d]/[0.03] px-4 py-3">
+      <div className="flex items-baseline gap-4">
+        <div>
+          <div className="text-2xl font-semibold text-gray-900">{total}</div>
+          <div className="text-xs uppercase tracking-wide text-gray-500">
+            Tickets en total
+          </div>
+        </div>
+        <div className="text-gray-300">·</div>
+        <div>
+          <div className="text-2xl font-semibold text-green-700">{cerrados}</div>
+          <div className="text-xs uppercase tracking-wide text-gray-500">Cerrados</div>
+        </div>
+      </div>
+      <div className="mt-2">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+          <div
+            className="h-full rounded-full bg-green-600 transition-all"
+            style={{ width: `${avance}%` }}
+          />
+        </div>
+        <div className="mt-1 text-[11px] text-gray-500">
+          {avance}% cerrado · histórico completo, no cambia con los filtros
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TableroPendientesPage() {
   const { esSoporte } = useAuth();
   const qc = useQueryClient();
@@ -129,6 +170,29 @@ export function TableroPendientesPage() {
     [filas, fTipo, fUrgencia, fEstado, fModulo],
   );
 
+  /** ¿Hay algún filtro de columna restringiendo lo que se ve? */
+  const hayFiltro =
+    fTipo.size > 0 || fUrgencia.size > 0 || fEstado.size > 0 || fModulo.size > 0;
+
+  /**
+   * Contadores de trabajo calculados sobre las filas FILTRADAS.
+   *
+   * El backend manda su propio resumen (sin filtros), pero el filtrado por
+   * columna ocurre aquí, en el cliente: si al filtrar por «fideicomiso» el
+   * contador siguiera diciendo 68 abiertos, estaría contando lo que el usuario
+   * NO tiene enfrente.
+   */
+  const conteo = useMemo(() => {
+    const abiertas = filtradas.filter((f) => !ESTADOS_CERRADOS.includes(f.estado));
+    return {
+      abiertos: abiertas.length,
+      p0: abiertas.filter((f) => f.urgencia === 'p0').length,
+      p1: abiertas.filter((f) => f.urgencia === 'p1').length,
+      enCurso: abiertas.filter((f) => f.estado === 'en_curso').length,
+      bloqueados: abiertas.filter((f) => f.estado === 'bloqueado').length,
+    };
+  }, [filtradas]);
+
   const { ordenados, sortKey, dir, toggle } = useSort(filtradas, {
     id: (p: Pendiente) => p.id,
     titulo: (p: Pendiente) => p.titulo,
@@ -172,12 +236,29 @@ export function TableroPendientesPage() {
       </header>
 
       {r && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <Contador etiqueta="Abiertos" valor={r.abiertos} />
-          <Contador etiqueta="P0 crítica" valor={r.p0} destacado />
-          <Contador etiqueta="P1 alta" valor={r.p1} />
-          <Contador etiqueta="En curso" valor={r.enCurso} />
-          <Contador etiqueta="Bloqueados" valor={r.bloqueados} />
+        <div className="space-y-3">
+          {/* Contadores de TRABAJO: responden a los filtros de columna. */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <Contador
+              etiqueta={hayFiltro ? 'Abiertos (filtrado)' : 'Abiertos'}
+              valor={conteo.abiertos}
+            />
+            <Contador etiqueta="P0 crítica" valor={conteo.p0} destacado />
+            <Contador etiqueta="P1 alta" valor={conteo.p1} />
+            <Contador etiqueta="En curso" valor={conteo.enCurso} />
+            <Contador etiqueta="Bloqueados" valor={conteo.bloqueados} />
+          </div>
+
+          {hayFiltro && (
+            <p className="text-xs text-amber-700">
+              ⚠️ Hay filtros aplicados: los contadores de arriba cuentan solo las{' '}
+              <strong>{filtradas.length}</strong> filas que estás viendo (de{' '}
+              {filas.length} cargadas). La tarjeta de totales no cambia.
+            </p>
+          )}
+
+          {/* Totales HISTÓRICOS: globales, ajenos al filtro. */}
+          <TarjetaTotales total={r.total} cerrados={r.cerrados} />
         </div>
       )}
 

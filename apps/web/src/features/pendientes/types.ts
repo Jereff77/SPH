@@ -54,12 +54,21 @@ export interface Pendiente {
   creadoPor: string | null;
 }
 
+/**
+ * ⚠️ Los contadores de TRABAJO que manda el backend son el punto de partida
+ * (sin filtros); la pantalla los recalcula sobre las filas filtradas. Los
+ * HISTÓRICOS (`total`, `cerrados`) son globales y se usan tal cual: no responden
+ * al filtro ni al interruptor de «ver cerrados», porque un total que cambia al
+ * filtrar deja de ser un total.
+ */
 export interface ResumenPendientes {
   abiertos: number;
   p0: number;
   p1: number;
   enCurso: number;
   bloqueados: number;
+  total: number;
+  cerrados: number;
 }
 
 export interface ListaPendientes {

@@ -84,6 +84,7 @@ export class TableroPendientesService {
     });
 
     const abiertas = filas.filter((f) => !ESTADOS_CERRADOS.includes(f.estado));
+    const { total, cerrados } = await this.totalesGlobales();
 
     return {
       filas,
@@ -93,8 +94,40 @@ export class TableroPendientesService {
         p1: abiertas.filter((f) => f.urgencia === 'p1').length,
         enCurso: abiertas.filter((f) => f.estado === 'en_curso').length,
         bloqueados: abiertas.filter((f) => f.estado === 'bloqueado').length,
+        total,
+        cerrados,
       },
     };
+  }
+
+  /**
+   * Totales históricos del tablero: cuántos se han registrado y cuántos se han
+   * cerrado, SIEMPRE sobre la tabla completa.
+   *
+   * ⛔ No se calculan sobre `filas`: cuando el interruptor de «ver cerrados» está
+   * apagado, las cerradas no vienen en la respuesta y el conteo daría 0 — que es
+   * justo el número que no queremos mostrar como "cerrados".
+   *
+   * Se cuentan con `head: true` (solo el conteo, sin traer filas): son dos
+   * consultas baratas contra el índice, no dos lecturas de la tabla.
+   */
+  private async totalesGlobales(): Promise<{ total: number; cerrados: number }> {
+    const [tot, cer] = await Promise.all([
+      this.supabase.admin
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from(TABLA as any)
+        .select('id', { count: 'exact', head: true }),
+      this.supabase.admin
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from(TABLA as any)
+        .select('id', { count: 'exact', head: true })
+        .in('estado', ESTADOS_CERRADOS),
+    ]);
+
+    if (tot.error) fallaBd(this.logger, 'pendientes.totales', tot.error);
+    if (cer.error) fallaBd(this.logger, 'pendientes.totalesCerrados', cer.error);
+
+    return { total: tot.count ?? 0, cerrados: cer.count ?? 0 };
   }
 
   /** Alta y edición: el mismo diálogo del front, el mismo endpoint. */
