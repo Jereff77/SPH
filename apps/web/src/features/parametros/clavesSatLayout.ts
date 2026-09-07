@@ -116,6 +116,9 @@ export async function descargarLayout(): Promise<void> {
     '  • "Retiene IVA/ISR" indica SI la clave causa retención; la TASA la define el régimen del',
     '    proveedor al validar la factura (612 → ISR 10% · 606 → ISR 10% · 626/RESICO → ISR 1.25% ·',
     '    retención de IVA = 10.6667%).',
+    '  • Esas tasas son las que se le retienen a una PERSONA FÍSICA. Si el proveedor es persona',
+    '    MORAL (RFC de 12 caracteres), su factura NO lleva retención y no se le exige — el régimen',
+    '    626 (RESICO) existe para las dos personalidades, pero solo la física retiene.',
     '  • Si una clave ya existe, la importación la ACTUALIZA (descripción y retenciones) y la deja activa.',
     '  • Si repites una clave en el archivo, se conserva la última ocurrencia.',
   ];

@@ -40,13 +40,32 @@ export interface CfdiData {
 /** Tasas y reglas fiscales (de la tabla de deducciones por régimen). */
 export const IVA_TASA = 0.16;
 export const RET_IVA_TASA = 0.106667;
-/** Régimen del emisor → tasa de retención de ISR cuando aplica. */
+/**
+ * Régimen del emisor → tasa de retención de ISR cuando aplica.
+ *
+ * ⛔ Las tres tasas son las que se le retienen a una **PERSONA FÍSICA**. No
+ * basta con mirar el número de régimen para decidir si hay retención: ver
+ * `esPersonaMoral` y el comentario de `validarDeducciones`.
+ */
 export const RET_ISR_POR_REGIMEN: Record<string, number> = {
   '612': 0.1, // P. Físicas Act. Empresariales y Profesionales
-  '626': 0.0125, // Régimen Simplificado de Confianza
+  '626': 0.0125, // Régimen Simplificado de Confianza (RESICO)
   '606': 0.1, // Arrendamiento
 };
 export const REGIMENES_CON_RETENCION = Object.keys(RET_ISR_POR_REGIMEN);
+
+/**
+ * Personalidad fiscal del emisor a partir de su RFC: **12 caracteres = persona
+ * MORAL**, 13 = persona física (regla del SAT; la moral no lleva homoclave de
+ * fecha de nacimiento).
+ *
+ * ⚠️ Se decide con el RFC **del comprobante**, no con `catProveedores`: el
+ * catálogo puede tener el régimen desfasado o la personalidad sin capturar, y
+ * en una discrepancia manda el CFDI.
+ */
+export function esPersonaMoral(rfc: string): boolean {
+  return rfc.trim().length === 12;
+}
 /** Tolerancia para comparar tasas efectivas (0.5 puntos porcentuales). */
 const TOL_TASA = 0.005;
 
@@ -197,6 +216,24 @@ export function validarDeducciones(
 
   // Solo aplica a los regímenes con retención (612, 626, 606).
   if (!REGIMENES_CON_RETENCION.includes(regimen)) return errores;
+
+  // ⛔ Y solo cuando el emisor es PERSONA FÍSICA.
+  //
+  // El régimen 626 (RESICO) del catálogo del SAT aplica a personas físicas Y
+  // MORALES, pero las retenciones no: el 1.25% de ISR y el 10.6667% de IVA se le
+  // retienen a la persona física. Una persona moral emite SIN retenciones, que es
+  // lo correcto — y sin este corte se le rechazaba su factura con «La factura
+  // debería incluir retención de ISR y no la trae» (caso real reportado el
+  // 2026-09-02: proveedor persona moral en RESICO tratado como persona física).
+  //
+  // 612 y 606 son regímenes exclusivos de persona física, así que un emisor moral
+  // con esas claves trae un comprobante mal emitido; tampoco se le aplica una
+  // regla de retención que no le corresponde.
+  //
+  // 📌 Se SALE sin validar, no se valida "que no traiga retenciones": el objetivo
+  // es dejar de rechazar lo correcto, no empezar a rechazar casos nuevos en una
+  // validación fiscal que ya está en producción.
+  if (esPersonaMoral(cfdi.emisorRfc)) return errores;
 
   // 1) Toda clave del CFDI debe existir en el catálogo.
   let esperaRetIVA = false;
