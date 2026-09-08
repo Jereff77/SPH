@@ -112,6 +112,7 @@ export class ParametrosController {
   }
 
   @Patch('cuentas/:idCategoria')
+  @RequierePermiso(213)
   async editarCuenta(
     @Param('idCategoria') idCategoria: string,
     @Body(new ZodValidationPipe(cuentaEditarSchema)) dto: CuentaEditarDto,

@@ -99,7 +99,14 @@ un administrador cree la contraseña por ellos:
 > **cada pestaña tiene su propia clave**: INPC **212**, Cuentas **213**, Fechas CxP **214**, Claves SAT
 > **215**, Pizarra de Avisos **216**. El usuario **solo ve las pestañas cuyas claves tiene asignadas**; el
 > backend valida la clave de cada pestaña por endpoint (`@RequierePermiso`). Los usuarios de soporte
-> (`isSupport`) ven todas. (Claves 215/216 se crearon en `segModulos` para v2 — migración
+> (`isSupport`) ven todas.
+>
+> ⚠️ **v2.72.1 (2026-09-07) — «ya no me deja editar cuentas»:** hasta esa versión, `editarCuenta`
+> (`PATCH /parametros/cuentas/:idCategoria`) era el **único** de los 16 métodos del controlador **sin**
+> `@RequierePermiso`, así que bastaba la clave 210 del módulo. Ahora exige la **213** como el resto de
+> operaciones de Cuentas (crear, responsable, presupuestable, status, eliminar). Era escalación
+> horizontal dentro del módulo. **Si alguien reporta que dejó de poder editar cuentas, no es un bug:
+> le falta la clave 213** y se le asigna desde Configuraciones → Permisos. (Claves 215/216 se crearon en `segModulos` para v2 — migración
 > `migraciones/2026-06-10-parametros-claves-visualizacion.sql`.)
 
 ### 4.1 INPC

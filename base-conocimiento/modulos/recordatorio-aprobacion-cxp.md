@@ -80,9 +80,10 @@ no tienen ninguna solicitud pendiente. Las solicitudes **sin aprobador asignado*
   envía nada ese día, es esperado); (2) variables `SMTP_INVITACIONES_*` y `APP_WEB_URL` en el
   entorno — si `SMTP_INVITACIONES_*` no está configurado, la tarea registra la corrida y sale
   **sin enviar** (no rompe, pero tampoco notifica).
-- **"Quiero apagar el recordatorio de n8n de los miércoles"** → es un pendiente operativo
-  conocido (ver "Decisiones y pendientes"): el flujo de n8n de los miércoles **todavía no se ha
-  apagado** en producción; hasta entonces puede llegar un correo duplicado los miércoles.
+- **"Quiero apagar el recordatorio de n8n de los miércoles"** → **YA ESTÁ APAGADO** (confirmado por
+  Jereff el 2026-09-07). El único recordatorio vigente es el del sistema. Si aún así alguien reporta
+  correos duplicados de aprobación, **revisar primero n8n** antes de buscar el bug en el código: es el
+  antecedente conocido.
 
 ## Gotchas / trampas conocidas
 - 📌 **`uidGerente = '-'`** es el centinela de "sin aprobador" (patrón `NULLIF(TRIM(x),'-')`).
@@ -103,5 +104,6 @@ no tienen ninguna solicitud pendiente. Las solicitudes **sin aprobador asignado*
 > `dev_pendientes`) desde el 2026-09-02 — regla 11 de `contexto.md` §1. Lo de abajo es **histórico**:
 > su estado puede estar vencido y **no se abren pendientes nuevos aquí**. Lo que sí sigue vivo en esta
 > sección es el **✅ hecho** (qué hace el módulo hoy), que es conocimiento, no trabajo pendiente.
-- **Pendiente operativo:** tras validar en prod, **apagar el flujo de n8n** de los miércoles
+- ✅ **RESUELTO (2026-09-07):** los flujos de n8n que notificaban **ya están apagados** (confirmado por
+  Jereff). Se resolvió operativamente, sin código ni versión asociada. Antes decía: apagar el flujo de n8n de los miércoles
   para no duplicar el correo.

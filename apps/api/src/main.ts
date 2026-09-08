@@ -42,7 +42,10 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   const port = config.get('API_PORT', { infer: true });
-  await app.listen(port);
+  // ⛔ El host '0.0.0.0' es obligatorio en contenedor: sin él Node puede quedarse
+  // escuchando solo en loopback/IPv6 y el proxy de EasyPanel no lo alcanza → 502
+  // con los logs diciendo "Nest application successfully started".
+  await app.listen(port, '0.0.0.0');
   new Logger('Bootstrap').log(`API escuchando en http://localhost:${port}/api`);
 }
 

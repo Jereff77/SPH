@@ -13,6 +13,24 @@ relacionado_con: [inversionistas, clientes, parques]
 
 # Módulo: Fideicomiso
 
+> # ⛔ VENTANA DE DISPERSIÓN — no se toca el módulo mientras esté abierta
+>
+> **Regla de Jereff (2026-09-07):** cuando se acerca una **dispersión**, este módulo **se congela**.
+> No se modifican cálculos, ni RPC, ni el Kardex, ni las pantallas — **ni siquiera para arreglar algo
+> que esté mal**.
+>
+> **El porqué:** la dispersión es el momento en que se le paga de verdad a los inversionistas, y el
+> área está trabajando sobre esos números. Un cambio en esa ventana pone en riesgo un pago real, y
+> ningún arreglo preventivo compensa ese riesgo. Textual: *«el riesgo de que algo salga mal es muy
+> alto, así que no lo vamos a modificar»*.
+>
+> **Qué sí se puede hacer:** leer, medir, diagnosticar y **dejar registrado** en el tablero de
+> pendientes. Lo que no se puede es escribir.
+> **Cuándo se levanta:** cuando el área confirme que la dispersión del periodo ya se ejecutó.
+>
+> 📌 Los 4 periodos son trimestres calendario (ene-mar / abr-jun / jul-sep / oct-dic), así que la
+> ventana se repite **cada trimestre**: preguntar antes de asumir que está libre.
+
 > **Estado: DESARROLLADO en v2.** Todas las secciones del menú de v1 están migradas: Dashboard,
 > Aportaciones (con su **Configuración del propietario** completa: datos, documentos, naves, condiciones y
 > Plan de Pagos), Adhesiones, Contabilidad, Dispersión y Reportes (Kardex).
@@ -70,12 +88,21 @@ Hay **un solo fideicomiso** activo: *Fideicomiso Innovación SPH* (`idFide = jsR
     autorizado): **Víctor Hugo Hernández** — adhesión 48, ticket de $5,000,000, fin **21/05/2027**,
     baja a **8.3%**; y **Javier Montero Donatto** — adhesión 36, $4,500,000, fin **09/01/2027**,
     conserva **9%** (decisión de negocio: esa es su tasa contratada, así se capturó).
-  - ⚠️ **Gotcha de negocio — «tasa contratada = 9» NO es una promoción:** 22 condiciones tienen
-    `rendimiento=9` **sin** el flag `Prom9%`. Esas cobran el 9% **de por vida** y la comisión SPH es $0
-    para siempre (porque `sph = monto × (9 − rendimiento)`), que es **más** que una promoción de 2 años.
-    Si alguien pregunta «¿cuándo se le acaba la promoción?» a uno de esos, la respuesta es **nunca: no
-    tiene promoción, tiene tasa 9**. Detectarlas:
+  - ⚠️ **Gotcha de negocio — «tasa contratada = 9» NO es una promoción:** **20 condiciones** (= **8
+    adhesiones**, recontadas el 2026-09-07) tienen `rendimiento=9` **sin** el flag `Prom9%`. Esas cobran
+    el 9% **de por vida** y la comisión SPH es $0 para siempre (porque `sph = monto × (9 − rendimiento)`),
+    que es **más** que una promoción de 2 años. Si alguien pregunta «¿cuándo se le acaba la promoción?» a
+    uno de esos, la respuesta es **nunca: no tiene promoción, tiene tasa 9**. Detectarlas:
     `SELECT * FROM "fideCondiciones" WHERE rendimiento = 9 AND NOT COALESCE("Prom9%", false);`
+    Peso real (periodo 11ma jul-sep 2026): **$128,160,336** invertidos —el 35 % del fideicomiso—,
+    $2,907,308.44 de rendimiento en el trimestre y **$0.00 de comisión SPH**.
+    - ⛔ **📌 DECISIÓN DE JEREFF (2026-09-07): esto NO es un error ni algo a revisar — es decisión del
+      cliente.** La tasa contratada la captura el área con base en lo que pactó con el inversionista;
+      que sea 9 (y que por tanto SPH no cobre) es una decisión de negocio suya. **Ninguna sesión futura
+      debe proponer sanearlo, "avisarle" al área ni tratarlo como deuda**, igual que las 18 propiedades
+      con `pdpActivo=true` e `idPdp=null` (decisión del 2026-08-05). Si el propio cliente pregunta por
+      una tasa concreta, se atiende como ticket con su autorización.
+      *(El pendiente #16 del tablero quedó **descartado** por esta razón, no por resolverse.)*
 - **⛔ La COMISIÓN SPH no se le descuenta al inversionista** (verificado en producción el 2026-09-07,
   periodo 11ma jul-sep 2026, 98 adhesiones). Es la duda que surge en cuanto se ve el reporte, así que
   conviene tenerla clara antes de explicárselo al área:

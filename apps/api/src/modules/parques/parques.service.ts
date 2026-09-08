@@ -207,8 +207,12 @@ export class ParquesService {
       .from('v_naves')
       .select(this.NAVE_COLS)
       .eq('idParque', idParque)
-      .order('numNave', { ascending: true });
-    if (error) throw new InternalServerErrorException(error.message);
+      .order('numNave', { ascending: true })
+      // Tope explícito: sin él la única protección era el límite por defecto de
+      // PostgREST. El máximo real es de 65 naves por parque, pero este endpoint
+      // lo consumen tres pantallas (desde v2.65.0 también el tablero de KVA).
+      .range(0, 4999);
+    if (error) fallaBd(this.logger, 'parques.listarNavesDeParque', error);
     const naves = data ?? [];
 
     const nombres = await this.resolverArrendadores(

@@ -774,13 +774,15 @@ export class KvasService {
       .range(0, 499);
     if (error) fallaBd(this.logger, 'kvas.devolucionesDe', error);
 
-    return Promise.all(
-      (data ?? []).map(async (d) => ({
-        ...d,
-        cantidad: Number(d.cantidad ?? 0),
-        urldoc: await this.firmar(d.urldoc),
-      })),
-    );
+    // Firma en LOTE (una llamada a Storage para todos los documentos) en vez de
+    // una por fila. Mismo helper que ya usa `documentosDeNave`.
+    const firmadas = await this.firmarVarias((data ?? []).map((d) => d.urldoc));
+
+    return (data ?? []).map((d) => ({
+      ...d,
+      cantidad: Number(d.cantidad ?? 0),
+      urldoc: d.urldoc ? (firmadas.get(d.urldoc) ?? null) : null,
+    }));
   }
 
   // ============ Expediente de documentos de la NAVE ============
@@ -927,14 +929,9 @@ export class KvasService {
     return salida;
   }
 
-  /** URL temporal del documento. El bucket es privado: nunca se expone directo. */
-  private async firmar(ruta: string | null): Promise<string | null> {
-    if (!ruta) return null;
-    const { data } = await this.supabase.admin.storage
-      .from(BUCKET_KVA)
-      .createSignedUrl(ruta, FIRMA_SEGUNDOS);
-    return data?.signedUrl ?? null;
-  }
+  // El antiguo `firmar()` (una URL por llamada) se eliminó al migrar
+  // `devolucionesDe` a `firmarVarias`: era su último consumidor y quedaba como
+  // código muerto. Para firmar documentos de este bucket, usar `firmarVarias`.
 
   // ===================== Candado de liberación de nave =====================
 
