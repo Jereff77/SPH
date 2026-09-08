@@ -60,16 +60,24 @@ export class PermisosController {
     @Param('uid') uid: string,
     @Param('idsegModulos') idsegModulos: string,
     @Body(new ZodValidationPipe(accesoSchema)) dto: AccesoDto,
+    // El actor sale del JWT verificado, nunca del body (regla 6).
+    @CurrentUser() actor: AuthUser,
   ) {
-    await this.svc.setAcceso(uid, idsegModulos, dto.acceso);
+    await this.svc.setAcceso(uid, idsegModulos, dto.acceso, actor.uid);
     return { ok: true };
   }
 
   @Post('plantillas/aplicar')
   async aplicarPlantilla(
     @Body(new ZodValidationPipe(aplicarPlantillaSchema)) dto: AplicarPlantillaDto,
+    @CurrentUser() actor: AuthUser,
   ) {
-    await this.svc.aplicarPlantilla(dto.uid, dto.idPlantilla, dto.reemplazarTodos);
+    await this.svc.aplicarPlantilla(
+      dto.uid,
+      dto.idPlantilla,
+      dto.reemplazarTodos,
+      actor.uid,
+    );
     return { ok: true };
   }
 

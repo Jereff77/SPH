@@ -1,8 +1,8 @@
 ---
 modulo: Configuraciones
 estado: desarrollado
-version_doc: 1.5
-ultima_actualizacion: 2026-07-29
+version_doc: 1.6
+ultima_actualizacion: 2026-09-07
 submodulos: [Usuarios, Parámetros, Permisos, Sistema, Cambiar contraseña]
 rutas: [/configuraciones/usuarios, /configuraciones/parametros, /configuraciones/permisos, /configuraciones/sistema, /configuraciones/cambiar-contrasena, /registro]
 claves_permiso: [200, 203, 210, 212, 213, 214, 215, 216, 220, 221]
@@ -284,6 +284,20 @@ está el permiso pero no **qué habilita**.
 
 **Cuándo escalar a ticket:** inconsistencias de permisos (un usuario que debería poder y no puede),
 errores al guardar parámetros que persisten, o datos de presupuesto que no cuadran con CxP.
+
+## 10 bis. Trazabilidad de Permisos y Usuarios (v2.73.0)
+
+✅ **Desde v2.73.0 toda escritura de estos dos módulos queda auditada CON SU AUTOR.** Hasta esa versión
+escribían con el cliente `admin` (service_role), así que el trigger registraba el movimiento pero **no
+quién lo hizo** — justo en el módulo más sensible del sistema.
+
+Van por `comoActor(uid)`, con el actor tomado del **JWT verificado** (nunca del body):
+`setAcceso` · `aplicarPlantilla` · `crearPlantillaDesdeUsuario` · `setStatus` · `setSoporte` · `setRC`.
+
+⚠️ **El caso que más importaba era `aplicarPlantilla`**: esa RPC otorga permisos **en lote** —decenas de
+una sola vez— y era la que menos rastro dejaba.
+📌 Si alguien pregunta *«quién le dio este permiso a fulano»*, la respuesta está en `auditoria` **a partir
+de v2.73.0**; antes de esa versión el movimiento existe pero sin autor identificable.
 
 ## 11. Estado y pendientes
 

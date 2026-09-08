@@ -2,8 +2,10 @@ import {
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { fallaBd } from '../../common/utils/db-error.js';
 
 export interface UsuarioListado {
   uid: string;
@@ -27,6 +29,8 @@ const RC_ID_CENTINELA = 9999;
  */
 @Injectable()
 export class UsuariosService {
+  private readonly logger = new Logger(UsuariosService.name);
+
   constructor(private readonly supabase: SupabaseService) {}
 
   /** Lista los usuarios con su estado y marca de RC. (Solo lectura.) */
@@ -67,17 +71,21 @@ export class UsuariosService {
     }));
   }
 
-  /** Activa/desactiva un usuario. */
-  async setStatus(uid: string, status: boolean): Promise<void> {
-    const { error } = await this.supabase.admin
+  /**
+   * Activa/desactiva un usuario.
+   *
+   * ⛔ Escribe con `comoActor`, no con `admin`: dar de baja a alguien es de lo
+   * más sensible que se hace aquí y la auditoría debe registrar quién lo hizo
+   * (regla 6). El mensaje al cliente no lleva el detalle de la BD (regla 4b).
+   */
+  async setStatus(uid: string, status: boolean, actorUid: string): Promise<void> {
+    const { error } = await this.supabase
+      .comoActor(actorUid)
       .from('catUsers')
       .update({ status })
       .eq('uid', uid);
-    if (error) {
-      throw new InternalServerErrorException(
-        `No se pudo actualizar el estado: ${error.message}`,
-      );
-    }
+    if (error)
+      fallaBd(this.logger, 'usuarios.setStatus', error, 'No se pudo actualizar el estado.');
   }
 
   /**
@@ -90,19 +98,17 @@ export class UsuariosService {
     isSupport: boolean,
   ): Promise<void> {
     await this.exigirSoporte(actorUid);
-    const { error } = await this.supabase.admin
+    const { error } = await this.supabase
+      .comoActor(actorUid)
       .from('catUsers')
       .update({ isSupport })
       .eq('uid', targetUid);
-    if (error) {
-      throw new InternalServerErrorException(
-        `No se pudo actualizar soporte: ${error.message}`,
-      );
-    }
+    if (error)
+      fallaBd(this.logger, 'usuarios.setSoporte', error, 'No se pudo actualizar soporte.');
   }
 
   /** Marca/desmarca a un usuario como responsable comercial. */
-  async setRC(uid: string, esRC: boolean): Promise<void> {
+  async setRC(uid: string, esRC: boolean, actorUid: string): Promise<void> {
     if (esRC) {
       const { data: existe } = await this.supabase.admin
         .from('crm_responsableComercial')
@@ -112,24 +118,20 @@ export class UsuariosService {
       if (existe && existe.length > 0) return; // ya es RC
 
       const nuevoId = await this.siguienteIdRC();
-      const { error } = await this.supabase.admin
+      const { error } = await this.supabase
+        .comoActor(actorUid)
         .from('crm_responsableComercial')
         .insert({ uid, id: nuevoId });
-      if (error) {
-        throw new InternalServerErrorException(
-          `No se pudo marcar como RC: ${error.message}`,
-        );
-      }
+      if (error)
+        fallaBd(this.logger, 'usuarios.setRC.alta', error, 'No se pudo marcar como RC.');
     } else {
-      const { error } = await this.supabase.admin
+      const { error } = await this.supabase
+        .comoActor(actorUid)
         .from('crm_responsableComercial')
         .delete()
         .eq('uid', uid);
-      if (error) {
-        throw new InternalServerErrorException(
-          `No se pudo quitar el RC: ${error.message}`,
-        );
-      }
+      if (error)
+        fallaBd(this.logger, 'usuarios.setRC.baja', error, 'No se pudo quitar el RC.');
     }
   }
 

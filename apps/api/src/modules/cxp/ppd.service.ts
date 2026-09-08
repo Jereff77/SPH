@@ -131,7 +131,7 @@ export class PpdService {
     let query = this.supabase.admin
       .from('cxp_ppd')
       .select(
-        'idCxpPPD, folio, idProveedor, nombreProveedor, nomCFDI, concepto, total, subtotal, fecCFDI, fecInicio, fecSolicitud, idCategoria',
+        'idCxpPPD, folio, idProveedor, nombreProveedor, nomCFDI, concepto, total, subtotal, fecCFDI, fecInicio, fecSolicitud, idCategoria, uidr',
       )
       .eq('status', true);
     if (!verTodas) query = query.eq('uidr', actorUid);
@@ -151,6 +151,11 @@ export class PpdService {
       .in('idCxpPPD', ids)
       .eq('status', true);
     if (pErr) throw new InternalServerErrorException(pErr.message);
+
+    // Nombre de quien solicitó cada PPD. `uidr` ya se usaba para filtrar la
+    // visibilidad; aquí además se resuelve a nombre para mostrarlo en pantalla.
+    // Una sola consulta para toda la lista (mismo helper que el detalle).
+    const solicitantes = await this.resolverUsuarios(lista.map((m) => m.uidr));
 
     // Plazos del REP (configurables) y "hoy" para evaluar el nivel por fechas.
     const cfg = await leerRepConfig(this.supabase.admin);
@@ -205,6 +210,7 @@ export class PpdService {
       const total = m.total ?? 0;
       return {
         ...m,
+        solicitante: m.uidr ? (solicitantes.get(m.uidr) ?? null) : null,
         moneda: a.moneda,
         solicitado: round2(a.solicitado),
         pagado: round2(a.pagado),

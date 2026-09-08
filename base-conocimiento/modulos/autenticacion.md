@@ -140,5 +140,6 @@ cuenta activa (posible límite/SMTP de Supabase).
   rate limiting, JWT verificado con algoritmo/issuer/audience.
 - ✅ **Recuperar/Restablecer contraseña** (v2.27.2): flujo público completo replicando el correo nativo de
   Supabase de v1, pero server-side (frontera de confianza). Ver §5b.
-- ⏳ Acción operativa: registrar `APP_WEB_URL/restablecer` (+ localhost) en las Redirect URLs del proyecto
-  Supabase para que el enlace del correo funcione end-to-end (ver §6.5).
+- ✅ **Recuperar contraseña FUNCIONA end-to-end** (probado por Jereff en producción el 2026-09-07: pedir el
+  enlace → abrir el correo → cambiar la contraseña → entrar). La Redirect URL `APP_WEB_URL/restablecer` ya
+  está registrada en el proyecto Supabase. Esta línea decía «acción operativa pendiente» desde junio de 2026.

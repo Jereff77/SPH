@@ -23,6 +23,8 @@ export interface FacturaPpd {
   fecInicio: string;
   fecSolicitud: string | null;
   idCategoria: string;
+  /** Quién solicitó el PPD, ya resuelto a nombre y apellidos (`cxp_ppd.uidr`). */
+  solicitante: string | null;
   moneda: string;
   solicitado: number;
   pagado: number;

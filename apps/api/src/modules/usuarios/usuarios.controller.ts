@@ -35,8 +35,10 @@ export class UsuariosController {
   async status(
     @Param('uid') uid: string,
     @Body(new ZodValidationPipe(statusSchema)) dto: StatusDto,
+    // El actor sale del JWT verificado, nunca del body (regla 6).
+    @CurrentUser() actor: AuthUser,
   ): Promise<{ ok: true }> {
-    await this.usuarios.setStatus(uid, dto.status);
+    await this.usuarios.setStatus(uid, dto.status, actor.uid);
     return { ok: true };
   }
 
@@ -45,8 +47,9 @@ export class UsuariosController {
   async rc(
     @Param('uid') uid: string,
     @Body(new ZodValidationPipe(rcSchema)) dto: RcDto,
+    @CurrentUser() actor: AuthUser,
   ): Promise<{ ok: true }> {
-    await this.usuarios.setRC(uid, dto.esRC);
+    await this.usuarios.setRC(uid, dto.esRC, actor.uid);
     return { ok: true };
   }
 

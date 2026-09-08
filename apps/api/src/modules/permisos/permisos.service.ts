@@ -1,5 +1,6 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { fallaBd } from '../../common/utils/db-error.js';
 
 function nombre(u: {
   nombre: string | null;
@@ -39,6 +40,8 @@ export interface MatrizPermisos {
  */
 @Injectable()
 export class PermisosService {
+  private readonly logger = new Logger(PermisosService.name);
+
   constructor(private readonly supabase: SupabaseService) {}
 
   /** Usuarios activos para el selector. */
@@ -48,7 +51,7 @@ export class PermisosService {
       .select('uid, nombre, apellidos, nomCompleto')
       .eq('status', true)
       .order('apellidos', { ascending: true });
-    if (error) throw new InternalServerErrorException(error.message);
+    if (error) fallaBd(this.logger, 'permisos.listarUsuarios', error);
     return (data ?? []).map((u) => ({ uid: u.uid, nombre: nombre(u) }));
   }
 
@@ -130,7 +133,7 @@ export class PermisosService {
       'segmodulosusuarios_smu',
       { p_uid: uid },
     );
-    if (error) throw new InternalServerErrorException(error.message);
+    if (error) fallaBd(this.logger, 'permisos.obtenerPermisos', error);
     return (data ?? []).map((r) => ({
       idsegModulos: r.idsegModulos,
       modulo: r.modulo,
@@ -141,18 +144,26 @@ export class PermisosService {
     }));
   }
 
-  /** Activa/desactiva un permiso de un usuario. */
+  /**
+   * Activa/desactiva un permiso de un usuario.
+   *
+   * ⛔ Escribe con `comoActor(actorUid)`, no con `admin`: este es el módulo más
+   * sensible del sistema y la auditoría tiene que registrar QUIÉN cambió el
+   * permiso, no un service_role anónimo (regla 6).
+   */
   async setAcceso(
     uid: string,
     idsegModulos: string,
     acceso: boolean,
+    actorUid: string,
   ): Promise<void> {
-    const { error } = await this.supabase.admin
+    const { error } = await this.supabase
+      .comoActor(actorUid)
       .from('segModulosUsuarios')
       .update({ acceso })
       .eq('uid', uid)
       .eq('idsegModulos', idsegModulos);
-    if (error) throw new InternalServerErrorException(error.message);
+    if (error) fallaBd(this.logger, 'permisos.setAcceso', error);
   }
 
   /** Plantillas activas. */
@@ -162,17 +173,23 @@ export class PermisosService {
       .select('idPlantilla, nombrePlantilla, descripcion, categoria')
       .eq('status', true)
       .order('nombrePlantilla', { ascending: true });
-    if (error) throw new InternalServerErrorException(error.message);
+    if (error) fallaBd(this.logger, 'permisos.listarPlantillas', error);
     return data ?? [];
   }
 
-  /** Aplica una plantilla a un usuario (función de negocio). */
+  /**
+   * Aplica una plantilla a un usuario (función de negocio).
+   *
+   * ⛔ Va por `comoActor`: la RPC escribe permisos en lote — posiblemente
+   * decenas de una vez— y sin el actor la auditoría no diría quién los otorgó.
+   */
   async aplicarPlantilla(
     uid: string,
     idPlantilla: string,
     reemplazarTodos: boolean,
+    actorUid: string,
   ): Promise<void> {
-    const { error } = await this.supabase.admin.rpc(
+    const { error } = await this.supabase.comoActor(actorUid).rpc(
       'seg_aplicar_plantilla_a_usuario',
       {
         p_uid_usuario_destino: uid,
@@ -180,7 +197,7 @@ export class PermisosService {
         p_reemplazar_todos: reemplazarTodos,
       },
     );
-    if (error) throw new InternalServerErrorException(error.message);
+    if (error) fallaBd(this.logger, 'permisos.aplicarPlantilla', error);
   }
 
   /** Crea una plantilla a partir de los permisos de un usuario (función de negocio). */
@@ -192,7 +209,7 @@ export class PermisosService {
     esPublica: boolean,
     uidCreador: string,
   ): Promise<void> {
-    const { error } = await this.supabase.admin.rpc(
+    const { error } = await this.supabase.comoActor(uidCreador).rpc(
       'seg_crear_plantilla_desde_usuario',
       {
         p_nombre_plantilla: nombre,
@@ -203,6 +220,6 @@ export class PermisosService {
         p_uid_creador: uidCreador,
       },
     );
-    if (error) throw new InternalServerErrorException(error.message);
+    if (error) fallaBd(this.logger, 'permisos.crearPlantillaDesdeUsuario', error);
   }
 }

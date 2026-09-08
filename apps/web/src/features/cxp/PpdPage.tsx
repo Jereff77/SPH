@@ -61,7 +61,7 @@ export function PpdPage() {
     const lista = data ?? [];
     if (!q) return lista;
     return lista.filter((f) =>
-      [f.nombreProveedor, f.nomCFDI, f.folio, f.concepto]
+      [f.nombreProveedor, f.nomCFDI, f.folio, f.concepto, f.solicitante]
         .filter(Boolean)
         .some((s) => String(s).toLowerCase().includes(q)),
     );
@@ -70,6 +70,7 @@ export function PpdPage() {
   const accessors: Accessors<FacturaPpd> = {
     proveedor: (f) => f.nombreProveedor ?? f.nomCFDI,
     fecha: (f) => f.fecInicio,
+    solicitante: (f) => f.solicitante,
     total: (f) => f.total ?? 0,
     solicitado: (f) => f.solicitado,
     pagado: (f) => f.pagado,
@@ -132,6 +133,7 @@ export function PpdPage() {
                 {th('proveedor', 'Proveedor')}
                 <SortableTh>Folio</SortableTh>
                 {th('fecha', 'Inicio')}
+                {th('solicitante', 'Solicitó')}
                 {th('total', 'Total', 'right')}
                 {th('solicitado', 'Solicitado', 'right')}
                 {th('pagado', 'Pagado', 'right')}
@@ -144,13 +146,13 @@ export function PpdPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={11} className="px-4 py-8 text-center text-gray-400">
                     Cargando…
                   </td>
                 </tr>
               ) : ordenados.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={11} className="px-4 py-8 text-center text-gray-400">
                     No hay facturas PPD registradas.
                   </td>
                 </tr>
@@ -199,6 +201,12 @@ export function PpdPage() {
                         {f.folio}
                       </td>
                       <td className="px-4 py-2 text-gray-600">{fechaCorta(f.fecInicio)}</td>
+                      <td
+                        className="whitespace-nowrap px-4 py-2 text-gray-600"
+                        title={f.solicitante ?? 'Sin solicitante registrado'}
+                      >
+                        {f.solicitante ?? '—'}
+                      </td>
                       <td className="px-4 py-2 text-right text-gray-700">
                         {fmt(f.total ?? 0, f.moneda)}
                       </td>
