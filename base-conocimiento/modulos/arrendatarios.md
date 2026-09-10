@@ -1,14 +1,14 @@
 ---
 modulo: Arrendatarios
 estado: desarrollado
-version_doc: 1.6
-ultima_actualizacion: 2026-07-05
+version_doc: 1.7
+ultima_actualizacion: 2026-09-10
 rutas_v2: [/arrendatarios, /arrendatarios/planes, /arrendatarios/reportes]
 rutas_v1: [i02_arrendatarios]
 claves_permiso: [10, 20, 21, 22, 23, 24, 25]
 tablas: [inversionista, arrenPropiedades, arrePdp, arrePdpDetalle, arreConceptos, inversionista_docs, naves, parques, inpc, movbancarios, v_arrendadasNaves, catUsers, segModulos, auditoria]
 rpcs: [arrepdp_crear_plan_simple_rpc, arrepdp_generar_corrida_desde_plan_simple, arrepdpdetalle_aplicar_meses_gracia, arrepdpdetalle_obtener_resumen_por_plan, arrepdpdetalle_actualizar_campo_manual, arrepdpdetalle_calcular_anio_por_plan, arrepdpdetalle_recalcular_anos_contrato, actualizar_anios_planes_nuevos, actualizar_ciclo_plan_pago, actualizar_inpc_por_ciclo, arrepdp_agregar_concepto_financiado, arrepdp_eliminar_plan_con_restricciones, aplicar_pago_arrendatario, pagos_arrendatarios, contratos_por_vencer, contratos_vencidos_sin_renovacion, movbancarios_sin_aplicar, v2_arrepdp_renovar, v2_arrepdp_activar_renovaciones, v2_arrepdp_cancelar_anticipado]
-palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo, arrendatario no aparece, no aparece en arrendatarios, no aparece en el selector, nave no disponible, nave disponible para rentar, sin clasificar, plan de renta huérfano, arrePdp huérfano, el plan no tiene parcialidades, con plan pero vacío, no me aparece el plan, no puedo liberar la nave, no puedo desvincular la nave, motivo de la desvinculación, motivo de baja, motivoBaja, por qué se liberó la nave, historial de la nave, papelera, cliente en papelera no sale, no aparece un arrendatario en el selector]
+palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo, arrendatario no aparece, no aparece en arrendatarios, no aparece en el selector, nave no disponible, nave disponible para rentar, sin clasificar, plan de renta huérfano, arrePdp huérfano, el plan no tiene parcialidades, con plan pero vacío, no me aparece el plan, no puedo liberar la nave, no puedo desvincular la nave, motivo de la desvinculación, motivo de baja, motivoBaja, por qué se liberó la nave, historial de la nave, papelera, cliente en papelera no sale, no aparece un arrendatario en el selector, contrato firmado, contratoFirmado, idContratoDoc, switch contrato, ya tenemos el contrato, subir el contrato, documento del contrato, contrato no firmado]
 relacionado_con: [parques, clientes, inversionistas, cxp]
 ---
 
@@ -365,6 +365,41 @@ recalcula bien).
   después; ej. inicio 1-jun-2023, plazo 36 → fin 31-may-2026). **No se captura ni se edita**, se
   calcula sola. (Hasta jun-2026 la fórmula no restaba el día; se corrigió.)
 
+## Contrato firmado por versión de plan (v2.74.0)
+
+> 📌 **Un contrato es una VERSIÓN del plan (`arrePdp`)**: cada alta nueva y cada renovación es su
+> propio `idArrePdp`, así que cada una tiene su propio estado de "contrato firmado" y su propio
+> documento — no se comparte entre versiones del mismo arrendatario.
+
+- **Tarjeta "Contrato firmado"** en `/arrendatarios/planes`, junto a "Estado del contrato" (visible
+  con el plan/versión seleccionado). Interruptor + selector de documento, gateados por el permiso de
+  **Configuración (clave 25)** — igual que el resto de acciones administrativas del plan.
+- **Al encender el switch** hay que elegir el documento del contrato de una lista: **cualquier
+  documento ya subido** en ⚙ Configuración → Documentos del **mismo arrendatario** (no hay una
+  categoría "Contrato" separada; `inversionista_docs` no distingue tipo de documento — decisión de
+  Jereff, 2026-09-10: se mezclan con el resto de documentos del arrendatario).
+- **Al apagar el switch se limpia el documento vinculado** (decisión de Jereff): si se vuelve a
+  encender, hay que elegir el documento otra vez (no se recuerda el anterior).
+- **Columnas nuevas en `arrePdp`** (tabla compartida, autorizadas): `contratoFirmado` (boolean,
+  default `false`) e `idContratoDoc` (text, FK a `inversionista_docs.idDocumento`). Candado
+  `CHECK` en BD (`arrePdp_contrato_check`): `contratoFirmado=true` exige `idContratoDoc` no nulo, y
+  viceversa — además de la validación en el backend.
+- **Backend** (`PlanesArreService.marcarContratoFirmado`, endpoint
+  `PATCH /arrendatarios/planes/:idArrePdp/contrato`, clave 25): valida que el documento elegido
+  **pertenezca al mismo arrendatario del plan** y esté activo (`status=true`) antes de guardar —
+  nunca se puede colgar el documento de otro arrendatario. `eliminarDoc` (borrar un documento) ahora
+  **desvincula** automáticamente cualquier plan que lo tuviera como contrato firmado (si no, quedaría
+  `contratoFirmado=true` apuntando a un documento ya borrado).
+- Migraciones: `2026-09-10-arrepdp-contrato-firmado.sql` (columnas) +
+  `2026-09-10-arrepdp-contrato-firmado-check.sql` (candado). Validado por gate adversarial (Opus,
+  0 ALTA); 3 hallazgos MEDIA corregidos en la misma sesión (query de documentos gateada por permiso
+  para no generar 403 de fondo; el selector ya no "miente" cuando el documento no está disponible;
+  borrar un documento desvincula el contrato que lo usaba).
+- 📌 **v1 fue eliminado por completo** (confirmado por Jereff, 2026-09-10): el riesgo de que un
+  cliente v1 hiciera `UPDATE` directo saltándose la validación del backend v2 ya no aplica en la
+  práctica (la RLS de `arrePdp` para `authenticated` sigue siendo permisiva —heredada—, pero solo el
+  backend v2 llega a Supabase; el frontend nunca tiene una key propia).
+
 ## Reportes (clave 20)
 
 > 🔽 **Filtros multi-selección (regla 7c, v2.37.0):** en *Vencimientos* (Estado, Parque) y *Cancelaciones*
@@ -527,6 +562,15 @@ recalcula bien).
   Arrendada=false`** (y excluye parques de Tickets, `esTicket=false`). Una nave con `Arrendada=true` ya
   está vinculada a un arrendatario vigente; vuelve a `Arrendada=false` al **cancelar anticipadamente**
   o **Liberar nave** (ver "Reglas de negocio" arriba), o si nunca se ha vinculado.
+- **"¿Ya tenemos el contrato firmado de esta nave/arrendatario?"** → en **Arrendatarios → Planes de
+  Renta**, selecciona el arrendatario y la propiedad; junto a "Estado del contrato" está la tarjeta
+  **"Contrato firmado"** del **plan/versión seleccionado** (cada renovación tiene la suya). El
+  interruptor y el documento vinculado solo se ven/editan con el permiso de **Configuración (clave
+  25)**.
+- **"No puedo marcar el contrato como firmado / no aparece el documento"** → el documento debe estar
+  **ya subido** en ⚙ Configuración → Documentos **de ese mismo arrendatario** antes de poder
+  elegirlo (no se sube desde la tarjeta). Si el selector muestra "Documento no disponible" es que el
+  documento vinculado se borró después de marcarlo — hay que elegir uno nuevo.
 - "No veo el botón de Configuración / Renovar / Cancelación / Liberar" → es por **permiso**: cada botón
   exige su clave (Config=25, Renovar=23, Cancelación=22, Liberar=24). Pídele al administrador que te asigne
   la clave en **Configuraciones → Permisos** (los usuarios de soporte ven todo).

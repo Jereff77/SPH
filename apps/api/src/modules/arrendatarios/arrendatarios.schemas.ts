@@ -51,6 +51,17 @@ export const editarCampoSchema = z.object({
 });
 export type EditarCampoDto = z.infer<typeof editarCampoSchema>;
 
+/**
+ * Marcar/desmarcar el contrato firmado de ESTA versión del plan (`arrePdp`). Al
+ * encender el switch es obligatorio elegir el documento (de los ya subidos en
+ * Documentos del arrendatario); al apagarlo el backend limpia `idContratoDoc`.
+ */
+export const contratoFirmadoSchema = z.object({
+  contratoFirmado: z.boolean(),
+  idContratoDoc: z.string().trim().min(1).nullable().optional(),
+});
+export type ContratoFirmadoDto = z.infer<typeof contratoFirmadoSchema>;
+
 /** Conceptos predefinidos del KVA/adecuación (1/2) o texto libre. */
 export const conceptoFinanciadoSchema = z.object({
   concepto: z.string().trim().min(1, 'El concepto es obligatorio.').max(120),

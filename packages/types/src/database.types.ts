@@ -525,6 +525,7 @@ export type Database = {
           canceladoAnticipado: boolean
           canceladoPor: string | null
           construccionM2: number | null
+          contratoFirmado: boolean
           deposito: number | null
           fc: string
           fecCancelacion: string | null
@@ -532,6 +533,7 @@ export type Database = {
           fecInicio: string | null
           idArrendador: string
           idArrePdp: string
+          idContratoDoc: string | null
           idNavArrend: string
           INPC: number
           INPCPlus: number
@@ -553,6 +555,7 @@ export type Database = {
           canceladoAnticipado?: boolean
           canceladoPor?: string | null
           construccionM2?: number | null
+          contratoFirmado?: boolean
           deposito?: number | null
           fc?: string
           fecCancelacion?: string | null
@@ -560,6 +563,7 @@ export type Database = {
           fecInicio?: string | null
           idArrendador: string
           idArrePdp: string
+          idContratoDoc?: string | null
           idNavArrend: string
           INPC?: number
           INPCPlus?: number
@@ -581,6 +585,7 @@ export type Database = {
           canceladoAnticipado?: boolean
           canceladoPor?: string | null
           construccionM2?: number | null
+          contratoFirmado?: boolean
           deposito?: number | null
           fc?: string
           fecCancelacion?: string | null
@@ -588,6 +593,7 @@ export type Database = {
           fecInicio?: string | null
           idArrendador?: string
           idArrePdp?: string
+          idContratoDoc?: string | null
           idNavArrend?: string
           INPC?: number
           INPCPlus?: number
@@ -605,6 +611,13 @@ export type Database = {
           vigente?: boolean | null
         }
         Relationships: [
+          {
+            foreignKeyName: "arrePdp_idContratoDoc_fkey"
+            columns: ["idContratoDoc"]
+            isOneToOne: false
+            referencedRelation: "inversionista_docs"
+            referencedColumns: ["idDocumento"]
+          },
           {
             foreignKeyName: "arrePdp_idArrendador_fkey"
             columns: ["idArrendador"]

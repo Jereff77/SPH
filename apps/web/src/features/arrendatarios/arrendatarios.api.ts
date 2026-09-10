@@ -62,6 +62,8 @@ export interface PlanRenta {
   Moneda: string | null;
   vigente: boolean | null;
   arrePdpVigente: ArrePdpVigente | null;
+  contratoFirmado: boolean;
+  idContratoDoc: string | null;
 }
 
 /** Fila de la corrida resumida (RPC `arrepdpdetalle_obtener_resumen_por_plan`). */
@@ -482,6 +484,10 @@ export const arrendatariosApi = {
     ),
   editarCampo: (idArrePdp: string, dto: EditarCampoInput) =>
     api.patch<{ ok: true }>(`/arrendatarios/planes/${idArrePdp}/detalle`, dto),
+  marcarContratoFirmado: (
+    idArrePdp: string,
+    dto: { contratoFirmado: boolean; idContratoDoc: string | null },
+  ) => api.patch<{ ok: true }>(`/arrendatarios/planes/${idArrePdp}/contrato`, dto),
   agregarConcepto: (idArrePdp: string, dto: ConceptoInput) =>
     api.post<{ ok: true }>(`/arrendatarios/planes/${idArrePdp}/conceptos`, dto),
   eliminarConcepto: (idArrePdp: string, concepto: string) =>

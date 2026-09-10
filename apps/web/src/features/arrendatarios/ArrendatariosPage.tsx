@@ -9,6 +9,7 @@ import {
   fechaCorta,
   type ArrendatarioOpt,
   type ArrePdpVigente,
+  type DocArreRow,
   type PlanRenta,
   type ResumenPartida,
 } from './arrendatarios.api';
@@ -64,6 +65,16 @@ export function ArrendatariosPage() {
     queryKey: ['arre-planes', idNavArrend, idArrendador],
     queryFn: () => arrendatariosApi.planes(idNavArrend, idArrendador),
     enabled: !!idNavArrend && !!idArrendador,
+  });
+
+  // Documentos ya subidos del arrendatario (Configuración → Documentos), para
+  // elegir cuál es el contrato firmado de la versión de plan seleccionada.
+  const { data: docsArrendatario = [] } = useQuery({
+    queryKey: ['arre-docs', idArrendador],
+    queryFn: () => arrendatariosApi.docs(idArrendador),
+    // El endpoint exige la clave 25 (Configuración): sin ese permiso ni se pide,
+    // para no generar 403 de fondo cada vez que se elige un arrendatario.
+    enabled: !!idArrendador && tienePermiso(25),
   });
 
   const arreSel = useMemo(
@@ -203,8 +214,15 @@ export function ArrendatariosPage() {
         )}
 
         {planSel && (
-          <div className="ml-auto self-center">
+          <div className="ml-auto flex flex-wrap items-center gap-3 self-center">
             <EstadoContratoBox vigencia={planSel.arrePdpVigente} />
+            <ContratoFirmadoBox
+              key={planSel.idArrePdp}
+              plan={planSel}
+              docs={docsArrendatario}
+              puedeEditar={tienePermiso(25)}
+              onGuardado={() => queryClient.invalidateQueries({ queryKey: ['arre-planes'] })}
+            />
           </div>
         )}
       </div>
@@ -359,6 +377,122 @@ function EstadoContratoBox({ vigencia }: { vigencia: ArrePdpVigente | null }) {
         Estado del contrato
       </span>
       <span className="text-2xl font-extrabold uppercase tracking-wide">{estado}</span>
+    </div>
+  );
+}
+
+/**
+ * Tarjeta "Contrato firmado" del plan/versión seleccionado (un contrato por
+ * cada `arrePdp`: plan nuevo o renovación). El switch se enciende eligiendo
+ * uno de los documentos ya subidos en Configuración → Documentos del mismo
+ * arrendatario; al apagarlo se limpia el documento vinculado (hay que
+ * volver a elegirlo si se reactiva). Gateado por el permiso de Configuración (25).
+ */
+function ContratoFirmadoBox({
+  plan,
+  docs,
+  puedeEditar,
+  onGuardado,
+}: {
+  plan: PlanRenta;
+  docs: DocArreRow[];
+  puedeEditar: boolean;
+  onGuardado: () => void;
+}) {
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [eligiendo, setEligiendo] = useState(false);
+
+  const firmado = plan.contratoFirmado;
+  const mostrarSelector = puedeEditar && (firmado || eligiendo);
+  const docSeleccionado = docs.find((d) => d.idDocumento === plan.idContratoDoc) ?? null;
+  // El documento vinculado puede no estar en `docs` (sin permiso 25, o se
+  // borró): se agrega como opción sintética para que el <select> refleje el
+  // valor real en vez de caer en silencio al placeholder ("miente" el estado).
+  const opciones =
+    plan.idContratoDoc && !docSeleccionado
+      ? [...docs, { idDocumento: plan.idContratoDoc, titulo: null, descripcion: null, urldoc: null }]
+      : docs;
+
+  async function guardar(contratoFirmado: boolean, idContratoDoc: string | null) {
+    setError(null);
+    setGuardando(true);
+    try {
+      await arrendatariosApi.marcarContratoFirmado(plan.idArrePdp, {
+        contratoFirmado,
+        idContratoDoc,
+      });
+      setEligiendo(false);
+      onGuardado();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar el contrato firmado.');
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div className="flex min-w-[16rem] flex-col gap-1.5 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+          Contrato firmado
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={firmado}
+          title={firmado ? 'Contrato firmado' : 'Contrato aún no firmado'}
+          disabled={!puedeEditar || guardando}
+          onClick={() => (firmado ? void guardar(false, null) : setEligiendo(true))}
+          className={`relative h-5 w-9 shrink-0 rounded-full transition disabled:opacity-50 ${
+            firmado ? 'bg-green-500' : 'bg-gray-300'
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${
+              firmado ? 'left-4' : 'left-0.5'
+            }`}
+          />
+        </button>
+      </div>
+      {mostrarSelector ? (
+        <select
+          value={plan.idContratoDoc ?? ''}
+          disabled={guardando}
+          onChange={(e) => {
+            const idContratoDoc = e.target.value || null;
+            if (idContratoDoc) void guardar(true, idContratoDoc);
+          }}
+          className="rounded border px-2 py-1 text-xs text-gray-700"
+        >
+          <option value="">Selecciona el documento del contrato…</option>
+          {opciones.map((d) => (
+            <option key={d.idDocumento} value={d.idDocumento}>
+              {d.titulo ?? 'Documento no disponible'}
+            </option>
+          ))}
+        </select>
+      ) : (
+        // Sin permiso 25 no se cargan los documentos del arrendatario (evita
+        // el 403 de fondo): el estado del switch ya es visible, sin detalle.
+        firmado && <p className="text-xs text-gray-500">Contrato firmado.</p>
+      )}
+      {docSeleccionado?.urldoc && (
+        <a
+          href={docSeleccionado.urldoc}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[11px] font-medium text-sky-600 hover:underline"
+        >
+          📄 Ver documento
+        </a>
+      )}
+      {mostrarSelector && docs.length === 0 && (
+        <p className="text-[11px] text-amber-600">
+          Sube el contrato en ⚙ Configuración → Documentos antes de marcarlo.
+        </p>
+      )}
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
     </div>
   );
 }

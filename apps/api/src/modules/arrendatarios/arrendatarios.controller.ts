@@ -20,6 +20,7 @@ import {
   aplicarPagoSchema,
   cancelarAnticipadoSchema,
   conceptoFinanciadoSchema,
+  contratoFirmadoSchema,
   crearPlanRentaSchema,
   agregarConceptoPartidaSchema,
   desaplicarPagoSchema,
@@ -33,6 +34,7 @@ import {
   type AplicarPagoDto,
   type CancelarAnticipadoDto,
   type ConceptoFinanciadoDto,
+  type ContratoFirmadoDto,
   type CrearPlanRentaDto,
   type DesaplicarPagoDto,
   type DocArreDto,
@@ -142,6 +144,17 @@ export class ArrendatariosController {
     @Body(new ZodValidationPipe(editarCampoSchema)) dto: EditarCampoDto,
   ) {
     await this.planes.editarCampo(idArrePdp, dto, actor.uid);
+    return { ok: true };
+  }
+
+  @Patch('planes/:idArrePdp/contrato')
+  @RequierePermiso(25)
+  async marcarContratoFirmado(
+    @CurrentUser() actor: AuthUser,
+    @Param('idArrePdp') idArrePdp: string,
+    @Body(new ZodValidationPipe(contratoFirmadoSchema)) dto: ContratoFirmadoDto,
+  ) {
+    await this.planes.marcarContratoFirmado(idArrePdp, dto, actor.uid);
     return { ok: true };
   }
 

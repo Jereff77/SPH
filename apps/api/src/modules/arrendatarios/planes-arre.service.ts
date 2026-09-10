@@ -12,6 +12,7 @@ import { KvasService } from '../parques/kvas.service.js';
 import type {
   CancelarAnticipadoDto,
   ConceptoFinanciadoDto,
+  ContratoFirmadoDto,
   CrearPlanRentaDto,
   DocArreDto,
   EditarCampoDto,
@@ -116,7 +117,7 @@ export class PlanesArreService {
     const { data, error } = await this.supabase.admin
       .from('arrePdp')
       .select(
-        'idArrePdp, idNavArrend, idArrendador, fecInicio, fecFin, plazo, deposito, precioM2, construccionM2, rtaBase, INPC, INPCPlus, pm2Admin, pm2Mtto, pm2Vig, Moneda, vigente, arrePdpVigente',
+        'idArrePdp, idNavArrend, idArrendador, fecInicio, fecFin, plazo, deposito, precioM2, construccionM2, rtaBase, INPC, INPCPlus, pm2Admin, pm2Mtto, pm2Vig, Moneda, vigente, arrePdpVigente, contratoFirmado, idContratoDoc',
       )
       .eq('idNavArrend', idNavArrend)
       .eq('idArrendador', idArrendador)
@@ -228,12 +229,20 @@ export class PlanesArreService {
   }
 
   async eliminarDoc(idDocumento: string, actorUid: string): Promise<void> {
-    const { error } = await this.supabase
-      .comoActor(actorUid)
+    const actor = this.supabase.comoActor(actorUid);
+    const { error } = await actor
       .from('inversionista_docs')
       .update({ status: false })
       .eq('idDocumento', idDocumento);
     if (error) throw new InternalServerErrorException(error.message);
+
+    // Si el documento respaldaba el "contrato firmado" de algún plan, se
+    // desvincula (no puede quedar apuntando a un documento ya borrado).
+    const { error: desvinculaErr } = await actor
+      .from('arrePdp')
+      .update({ contratoFirmado: false, idContratoDoc: null })
+      .eq('idContratoDoc', idDocumento);
+    if (desvinculaErr) throw new InternalServerErrorException(desvinculaErr.message);
   }
 
   // ----------------------------- Config: Propiedades -----------------------------
@@ -503,6 +512,52 @@ export class PlanesArreService {
         actorUid,
       });
     }
+  }
+
+  /**
+   * Marca/desmarca el contrato firmado de ESTA versión del plan (`arrePdp` —
+   * un contrato por cada plan nuevo o renovación). Al encender exige un
+   * documento YA subido en Documentos del MISMO arrendatario (evita colgar el
+   * contrato de otro cliente); al apagar limpia `idContratoDoc` (decisión de
+   * negocio: reactivar exige volver a elegir el documento).
+   */
+  async marcarContratoFirmado(
+    idArrePdp: string,
+    dto: ContratoFirmadoDto,
+    actorUid: string,
+  ): Promise<void> {
+    const { data: plan, error: planErr } = await this.supabase.admin
+      .from('arrePdp')
+      .select('idArrePdp, idArrendador')
+      .eq('idArrePdp', idArrePdp)
+      .eq('status', true)
+      .maybeSingle();
+    if (planErr) throw new InternalServerErrorException(planErr.message);
+    if (!plan) throw new NotFoundException('Plan no encontrado.');
+
+    let idContratoDoc: string | null = null;
+    if (dto.contratoFirmado) {
+      if (!dto.idContratoDoc)
+        throw new BadRequestException('Selecciona el documento del contrato firmado.');
+      const { data: doc, error: docErr } = await this.supabase.admin
+        .from('inversionista_docs')
+        .select('idDocumento, idInversionista, status')
+        .eq('idDocumento', dto.idContratoDoc)
+        .maybeSingle();
+      if (docErr) throw new InternalServerErrorException(docErr.message);
+      if (!doc || doc.status !== true || doc.idInversionista !== plan.idArrendador)
+        throw new BadRequestException(
+          'El documento elegido no pertenece a este arrendatario o ya no está disponible.',
+        );
+      idContratoDoc = doc.idDocumento;
+    }
+
+    const { error } = await this.supabase
+      .comoActor(actorUid)
+      .from('arrePdp')
+      .update({ contratoFirmado: dto.contratoFirmado, idContratoDoc })
+      .eq('idArrePdp', idArrePdp);
+    if (error) throw new InternalServerErrorException(error.message);
   }
 
   /** Agrega un concepto financiado (KVA / adecuación) al plan. */
