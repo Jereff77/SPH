@@ -51,7 +51,10 @@ import { RequierePermiso } from '../../common/auth/permisos.decorator.js';
 import { CurrentUser } from '../../common/auth/current-user.decorator.js';
 import type { AuthUser } from '../../common/auth/auth.types.js';
 
-const LIMITE_ARCHIVO = 15 * 1024 * 1024; // 15 MB
+const LIMITE_ARCHIVO = 15 * 1024 * 1024; // 15 MB (estado de cuenta .xlsx)
+/** Documentos del arrendatario (contratos escaneados): tope mayor, un PDF de
+ *  contrato con anexos pesa fácilmente 40 MB (caso real, 2026-09-11). */
+const LIMITE_DOCUMENTO = 50 * 1024 * 1024; // 50 MB
 
 const EXT_POR_MIME: Record<string, string> = {
   'application/pdf': 'pdf',
@@ -258,7 +261,7 @@ export class ArrendatariosController {
 
   @Post('documentos')
   @RequierePermiso(25)
-  @UseInterceptors(FileInterceptor('archivo', { limits: { fileSize: LIMITE_ARCHIVO } }))
+  @UseInterceptors(FileInterceptor('archivo', { limits: { fileSize: LIMITE_DOCUMENTO } }))
   async subirDoc(
     @CurrentUser() actor: AuthUser,
     @Body(new ZodValidationPipe(docArreSchema)) dto: DocArreDto,

@@ -1,14 +1,14 @@
 ---
 modulo: Arrendatarios
 estado: desarrollado
-version_doc: 1.7
-ultima_actualizacion: 2026-09-10
+version_doc: 1.8
+ultima_actualizacion: 2026-09-11
 rutas_v2: [/arrendatarios, /arrendatarios/planes, /arrendatarios/reportes]
 rutas_v1: [i02_arrendatarios]
 claves_permiso: [10, 20, 21, 22, 23, 24, 25]
 tablas: [inversionista, arrenPropiedades, arrePdp, arrePdpDetalle, arreConceptos, inversionista_docs, naves, parques, inpc, movbancarios, v_arrendadasNaves, catUsers, segModulos, auditoria]
 rpcs: [arrepdp_crear_plan_simple_rpc, arrepdp_generar_corrida_desde_plan_simple, arrepdpdetalle_aplicar_meses_gracia, arrepdpdetalle_obtener_resumen_por_plan, arrepdpdetalle_actualizar_campo_manual, arrepdpdetalle_calcular_anio_por_plan, arrepdpdetalle_recalcular_anos_contrato, actualizar_anios_planes_nuevos, actualizar_ciclo_plan_pago, actualizar_inpc_por_ciclo, arrepdp_agregar_concepto_financiado, arrepdp_eliminar_plan_con_restricciones, aplicar_pago_arrendatario, pagos_arrendatarios, contratos_por_vencer, contratos_vencidos_sin_renovacion, movbancarios_sin_aplicar, v2_arrepdp_renovar, v2_arrepdp_activar_renovaciones, v2_arrepdp_cancelar_anticipado]
-palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo, arrendatario no aparece, no aparece en arrendatarios, no aparece en el selector, nave no disponible, nave disponible para rentar, sin clasificar, plan de renta huérfano, arrePdp huérfano, el plan no tiene parcialidades, con plan pero vacío, no me aparece el plan, no puedo liberar la nave, no puedo desvincular la nave, motivo de la desvinculación, motivo de baja, motivoBaja, por qué se liberó la nave, historial de la nave, papelera, cliente en papelera no sale, no aparece un arrendatario en el selector, contrato firmado, contratoFirmado, idContratoDoc, switch contrato, ya tenemos el contrato, subir el contrato, documento del contrato, contrato no firmado]
+palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo, arrendatario no aparece, no aparece en arrendatarios, no aparece en el selector, nave no disponible, nave disponible para rentar, sin clasificar, plan de renta huérfano, arrePdp huérfano, el plan no tiene parcialidades, con plan pero vacío, no me aparece el plan, no puedo liberar la nave, no puedo desvincular la nave, motivo de la desvinculación, motivo de baja, motivoBaja, por qué se liberó la nave, historial de la nave, papelera, cliente en papelera no sale, no aparece un arrendatario en el selector, contrato firmado, contratoFirmado, idContratoDoc, switch contrato, ya tenemos el contrato, subir el contrato, documento del contrato, contrato no firmado, file too large, archivo muy grande, no me deja subir el contrato, tope de tamaño, 50 MB]
 relacionado_con: [parques, clientes, inversionistas, cxp]
 ---
 
@@ -38,7 +38,10 @@ corrida mensual con ajuste por **INPC**, meses de gracia, conceptos financiados
 > Los usuarios `isSupport` ven/pueden todo. La sección **Reportes** usa la clave **20**.
 
 **Configuración (⚙)** — 4 sub-pestañas: **Datos Generales** (solo lectura; el
-alta/edición del padrón vive en **Clientes**), **Documentos** (bucket `Documentos`),
+alta/edición del padrón vive en **Clientes**), **Documentos** (bucket `Documentos`; **tope 50 MB por
+archivo** desde v2.74.1 — antes 15 MB, y un contrato escaneado de 43 MB devolvía «File too large»;
+el resto de módulos siguen en 15 MB. Si un archivo pasa de 50 MB, el siguiente tope es el global del
+proyecto Supabase —Settings ▸ Storage—, no el código),
 **Propiedades** (vincular naves), **Plan de Pagos** (réplica del PDP de v1).
 
 La tab **Plan de Pagos** tiene **layout de 2 columnas** (modal ampliado):
