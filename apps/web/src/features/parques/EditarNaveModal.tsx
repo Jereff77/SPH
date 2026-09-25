@@ -42,7 +42,9 @@ export function EditarNaveModal({ idNave, nomParque, onClose, onGuardada }: Prop
             Historial
           </TabBtn>
         </div>
-        <div className="overflow-y-auto p-5">
+        {/* Altura fija (no solo tope): así el modal no cambia de tamaño al
+            cambiar de pestaña ni con pocos eventos en Historial. */}
+        <div className="h-[min(520px,70vh)] overflow-y-auto p-5">
           {isLoading || !nave ? (
             <p className="py-8 text-center text-sm text-gray-400">Cargando nave…</p>
           ) : tab === 'datos' ? (
