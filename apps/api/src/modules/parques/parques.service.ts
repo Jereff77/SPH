@@ -433,6 +433,26 @@ export class ParquesService {
           'Cambio de situación',
           `${String(cambios.situacion.antes)} → ${String(cambios.situacion.despues)}`,
         );
+      if (r.accion === 'UPDATE') {
+        // Resto de los campos editables (terreno/construcción incluidos).
+        // `fum`/`fumUser` se excluyen: cambian en CADA guardado y solo son ruido aquí.
+        const ETIQUETAS_NAVE: Record<string, string> = {
+          numNaveNAME: 'Etiqueta',
+          mza: 'Manzana',
+          lote: 'Lote',
+          terreno: 'Terreno (m²)',
+          construccion: 'Construcción (m²)',
+          precio: 'Precio',
+          fecEntrega: 'Fecha de entrega',
+        };
+        const partes = Object.entries(ETIQUETAS_NAVE)
+          .filter(([campo]) => cambios[campo])
+          .map(
+            ([campo, etiqueta]) =>
+              `${etiqueta}: ${String(cambios[campo]!.antes)} → ${String(cambios[campo]!.despues)}`,
+          );
+        if (partes.length) return evt('venta', 'Datos de la nave actualizados', partes.join(' · '));
+      }
       return null;
     }
 
@@ -708,20 +728,39 @@ export class ParquesService {
 
   // ===================== Naves =====================
 
-  /** Edita una nave. Rechaza "Vendida" (esa transición es del módulo Propietarios). */
+  /**
+   * Edita una nave. Rechaza la TRANSICIÓN hacia "Vendida" (esa asignación es
+   * del módulo Propietarios) — pero si la nave YA está vendida, permite
+   * editar el resto de los campos (terreno, construcción, precio, etc.) sin
+   * tocar su situación. Se compara contra el valor REAL en BD, nunca contra
+   * lo que traiga el body: así una nave vendida no puede "regresarse" a
+   * Disponible por un valor por defecto mal armado en el cliente.
+   */
   async editarNave(
     idNave: string,
     dto: EditarNaveDto,
     uid: string,
   ): Promise<void> {
-    // Defensa server-side adicional al enum del schema.
-    if ((dto.situacion as string) === 'Vendida') {
+    const { data: actual, error: errActual } = await this.supabase.admin
+      .from('naves')
+      .select('situacion')
+      .eq('idNave', idNave)
+      .maybeSingle();
+    if (errActual) throw new InternalServerErrorException(errActual.message);
+    if (!actual) throw new NotFoundException('Nave no encontrada.');
+
+    const yaVendida = actual.situacion === 'Vendida';
+    if (!yaVendida && (dto.situacion as string) === 'Vendida') {
       throw new BadRequestException(
         'La situación "Vendida" solo se asigna desde Propietarios.',
       );
     }
+
     const cambios: TablesUpdate<'naves'> = {
-      situacion: dto.situacion,
+      // Si ya está vendida, se conserva tal cual sin importar qué mandó el
+      // cliente en este campo (el select del front lo deja fijo, pero no se
+      // confía en eso).
+      situacion: yaVendida ? 'Vendida' : dto.situacion,
       numNaveNAME: dto.numNaveName,
       mza: dto.mza,
       lote: dto.lote,

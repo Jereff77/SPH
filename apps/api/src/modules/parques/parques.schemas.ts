@@ -50,7 +50,11 @@ export const agregarNavesSchema = z.object({
 });
 
 export const editarNaveSchema = z.object({
-  situacion: z.enum(SITUACIONES_EDITABLES),
+  // Acepta también 'Vendida' porque una nave ya vendida sigue mandando su
+  // situación actual al editar los demás campos (terreno, precio, etc.); el
+  // service rechaza la TRANSICIÓN hacia 'Vendida' desde otro estado, no el
+  // valor en sí (ver editarNave()).
+  situacion: z.enum([...SITUACIONES_EDITABLES, 'Vendida']),
   // Etiqueta visible de la nave (consecutivo por defecto; personalizable:
   // "GYM", "Coworking", "Cafetería", etc.).
   numNaveName: z.string().trim().min(1, 'La etiqueta es obligatoria.').max(60),

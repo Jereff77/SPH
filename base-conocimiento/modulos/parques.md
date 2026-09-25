@@ -1,13 +1,13 @@
 ---
 modulo: Parques
 estado: desarrollado          # desarrollado | parcial | stub (pendiente)
-version_doc: 1.2
-ultima_actualizacion: 2026-07-05
+version_doc: 1.3
+ultima_actualizacion: 2026-09-24
 submodulos: [Parques, Disponibilidad, Historial de la nave]
 rutas: [/parques, /parques/disponibilidad]
 claves_permiso: [700, 701, 702, 710, 720]
 tablas: [parques, naves, v_naves, v_disponibilidad, propiedades, arrenPropiedades, arrePdp, pdp, raPdp, rgPdp, auditoria, catUsers, inversionista, kvasAsignados]
-palabras_clave: [parque, parque industrial, nave, bodega, local, lote, manzana, mza, KVA, kva, energia, disponibilidad, terreno, construccion, GYM, coworking, cafeteria, inquilino, arrendatario, dueño, inversionista, historial de la nave, trazabilidad de la nave, "línea de tiempo de la nave", "quién desvinculó la nave", "por qué se desvinculó", "motivo de la baja", "vida de la nave", "por dónde ha pasado la nave", "no veo el botón para crear un parque", "no me deja poner la nave como vendida", "el arrendatario aparece vacío", "la cantidad de naves no coincide", "la nave aparece duplicada", "aparece un arrendatario que ya se fue", "arrendatario fantasma", "sale dos veces la misma nave", "aparece un dueño que ya no es", "propietario fantasma"]
+palabras_clave: [parque, parque industrial, nave, bodega, local, lote, manzana, mza, KVA, kva, energia, disponibilidad, terreno, construccion, GYM, coworking, cafeteria, inquilino, arrendatario, dueño, inversionista, historial de la nave, trazabilidad de la nave, "línea de tiempo de la nave", "quién desvinculó la nave", "por qué se desvinculó", "motivo de la baja", "vida de la nave", "por dónde ha pasado la nave", "no veo el botón para crear un parque", "no me deja poner la nave como vendida", "el arrendatario aparece vacío", "la cantidad de naves no coincide", "la nave aparece duplicada", "aparece un arrendatario que ya se fue", "arrendatario fantasma", "sale dos veces la misma nave", "aparece un dueño que ya no es", "propietario fantasma", "metraje", "no me deja guardar la nave", "no me deja editar el terreno", "no me deja cambiar la construccion", "nave vendida no guarda"]
 relacionado_con: [kvas, propietarios, arrendatarios, fideicomiso, auditoria-y-ver-como, configuraciones]
 ---
 
@@ -125,7 +125,7 @@ dimensiones de la nave (venta y renta).
 |---|---|
 | **Venta** | Vinculada a venta (con inversionista) · Desvinculada de venta (+ motivo) · Plan de pagos creado · Renta Administrada/Garantizada creada |
 | **Renta** | Vinculada a renta (con arrendatario) · Liberada de renta (+ motivo) · Plan de renta creado / renovado / cancelado (+ motivo) / finalizado |
-| **Nave** | Nave creada · Cambio de situación |
+| **Nave** | Nave creada · Cambio de situación · Datos de la nave actualizados (terreno, construcción, precio, manzana, lote, etiqueta, fecha de entrega — detalle campo por campo, antes → después) |
 
 ### El "por qué": columna `motivoBaja`
 Al **desvincular** una nave de venta (Propietarios) o **liberar** una de renta (Arrendatarios) se **pide un
@@ -196,7 +196,30 @@ de tiempo. Ambas operaciones son **baja lógica** (`status=false`): NO borran el
      no es"; visto en el contenedor de Tickets `A3`). Fix: `AND prop.status = true` en el LEFT JOIN a
      `propiedades` de ambas vistas. Ahora **ninguna de las dos muestra vínculos ya dados de baja** (venta o
      renta). Ver `migraciones/2026-07-05-vistas-prop-status.sql`.
-8. **Desvincular una nave es BAJA LÓGICA, no borrado (v2.56.0).** Tanto desvincular de **venta**
+9. **🐛 (CORREGIDO 2026-09-24, v2.74.2) Editar una nave "Vendida" no dejaba guardar NADA, ni
+    siquiera terreno/construcción/precio — y quedaba a un paso de "regresarla" a Disponible sin
+    querer.** Dos bugs juntos en `EditarNaveModal.tsx`:
+    - El botón **Guardar** se deshabilitaba por completo si `situacion === 'Vendida'`
+      (`disabled={guardar.isPending || esVendida}`), sin distinguir qué campo se estaba cambiando.
+      El aviso amarillo ("su situación solo se cambia desde Propietarios") daba a entender que solo
+      la situación estaba bloqueada; en realidad bloqueaba el formulario entero.
+    - El `<select>` de Situación **mostraba** "Vendida", pero como 'Vendida' no está en
+      `SITUACIONES` (las editables: Disponible/Apartado/Bloqueado), el `useState` interno caía al
+      *default* `'Disponible'`. Si alguien hubiera quitado solo el candado del botón sin corregir
+      esto, el payload habría mandado `situacion: 'Disponible'` — una nave vendida y pagada
+      volviendo a aparecer como disponible para vender.
+    - Fix: el estado inicial respeta `'Vendida'` cuando corresponde; el backend
+      (`editarNave()`) deja de confiar en lo que manda el cliente y compara contra la **situación
+      real en BD** — solo rechaza la transición *hacia* "Vendida" desde otro estado, y si ya está
+      vendida fuerza `situacion: 'Vendida'` en el UPDATE sin importar el body. El schema
+      (`editarNaveSchema`) ahora acepta `'Vendida'` como valor a **mantener** (nunca a asignar).
+      Etiqueta y demás campos dejan de deshabilitarse por estar vendida; solo el selector de
+      Situación sigue fijo.
+    - De paso, el Historial (§4b) descartaba como "ruido" (`return null`) cualquier `UPDATE` de
+      `naves` que no fuera de `situacion` — así que ni antes ni después del fix de arriba, un
+      cambio de terreno/construcción quedaba visible en la línea de tiempo. Ahora genera el evento
+      "Datos de la nave actualizados" con cada campo cambiado.
+10. **Desvincular una nave es BAJA LÓGICA, no borrado (v2.56.0).** Tanto desvincular de **venta**
    (Propietarios) como liberar de **renta** (Arrendatarios) marcan el vínculo con `status=false`, regresan
    la nave a `Disponible` y **conservan todo el histórico** (planes, pagos) — que alimenta el Historial de la
    nave (§4b). **NO se borra la fila.**
@@ -226,6 +249,7 @@ de tiempo. Ambas operaciones son **baja lógica** (`status=false`): NO borran el
 | "El arrendatario aparece vacío (—)." | La nave no tiene arrendamiento activo en `arrenPropiedades`. | Normal si no está rentada; si debería estarlo → revisar Arrendatarios. |
 | "La cantidad de naves no coincide." | Confusión con el campo `parques.naves` (histórico) vs. conteo real. | El conteo real es el que muestra la lista (cuenta `naves`). |
 | "Guardé un cambio en la nave pero no se aplicó." / "Dice solo lectura." | Está en modo **"Ver como"** (soporte). | Salir del modo "Ver como" para poder editar. |
+| "Cambié el terreno/construcción de una nave vendida y no me deja guardar." | **Corregido en v2.74.2** (ver gotcha #9). Antes de esa versión, el botón Guardar se deshabilitaba completo en naves "Vendida". | Confirmar que corre v2.74.2+; si persiste, escalar. |
 | Error 403 al crear/editar. | Falta el permiso correspondiente (700/701/702). | Escalar a soporte si el usuario debería tenerlo. |
 
 **Cuándo levantar ticket a soporte:** asignación incorrecta de permisos, datos inconsistentes entre
@@ -249,6 +273,10 @@ de tiempo. Ambas operaciones son **baja lógica** (`status=false`): NO borran el
   asignar/editar/cancelar/devolver, dotación por nave, tope contra el disponible). Ver `modulos/kvas.md`.
   ⚠️ *Esta línea decía «sección no desarrollada» hasta el 2026-09-02: llevaba un mes describiendo como
   pendiente algo ya entregado. Corregido durante la migración al tablero.*
+- ✅ (2026-09-24, v2.74.2) **Editar nave "Vendida":** ya se puede guardar terreno/construcción/precio/
+  manzana/lote/etiqueta/fecha sin tocar la situación (antes el botón Guardar se deshabilitaba entero);
+  el Historial ahora también muestra estos cambios como "Datos de la nave actualizados" (antes solo
+  mostraba cambios de situación). Ver gotcha #9.
 - ⏳ Disponibilidad podría migrarse al formato de tarjetas (hoy es tabla).
 - ⏳ **Backlog:** naves-ticket dadas de baja (`propiedades.status=false`) dentro del contenedor de Tickets
   (`A3 (Tickets)`, `esTicket=true`) — las **vistas ya no las muestran** (filtro `prop.status=true`), pero las

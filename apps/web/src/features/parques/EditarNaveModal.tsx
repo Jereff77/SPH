@@ -147,10 +147,16 @@ function Formulario({
   onGuardada: () => void;
 }) {
   const esVendida = nave.situacion === 'Vendida';
+  // Si ya está vendida, el valor real es 'Vendida' (no está en la lista de
+  // situaciones EDITABLES, pero es el que hay que seguir mandando al guardar
+  // el resto de los campos; de lo contrario el estado caía al default
+  // 'Disponible' y la nave se habría "regresado" a disponible sin querer).
   const [situacion, setSituacion] = useState(
-    SITUACIONES.includes(nave.situacion as (typeof SITUACIONES)[number])
-      ? (nave.situacion as string)
-      : 'Disponible',
+    esVendida
+      ? 'Vendida'
+      : SITUACIONES.includes(nave.situacion as (typeof SITUACIONES)[number])
+        ? (nave.situacion as string)
+        : 'Disponible',
   );
   const [numNaveName, setNumNaveName] = useState(
     nave.numNaveNAME ?? String(nave.numNave ?? ''),
@@ -182,10 +188,6 @@ function Formulario({
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (esVendida) {
-      setError('Una nave vendida solo se modifica desde Propietarios.');
-      return;
-    }
     if (numNaveName.trim() === '') {
       setError('La etiqueta de la nave es obligatoria.');
       return;
@@ -221,7 +223,6 @@ function Formulario({
           value={numNaveName}
           onChange={(e) => setNumNaveName(e.target.value)}
           placeholder="Ej. 1, GYM, Coworking…"
-          disabled={esVendida}
           className={inputCls}
         />
       </label>
@@ -313,7 +314,7 @@ function Formulario({
         </button>
         <button
           type="submit"
-          disabled={guardar.isPending || esVendida}
+          disabled={guardar.isPending}
           className="rounded-lg bg-[#1f2a4d] px-4 py-2 text-sm font-medium text-white hover:bg-[#172039] disabled:opacity-50"
         >
           {guardar.isPending ? 'Guardando…' : 'Guardar'}
