@@ -1,0 +1,1925 @@
+{
+  "version": "2.20",
+  "children": [
+    {
+      "type": "frame",
+      "id": "bi8Au",
+      "x": 0,
+      "y": 0,
+      "name": "Frame",
+      "clip": true,
+      "width": 800,
+      "height": 600,
+      "fill": "#FFFFFF",
+      "layout": "none"
+    },
+    {
+      "type": "frame",
+      "id": "PQTsf",
+      "x": 880,
+      "y": 0,
+      "name": "Escrituras - Rediseño",
+      "clip": true,
+      "width": 1280,
+      "fill": "$bg-page",
+      "layout": "vertical",
+      "gap": 20,
+      "padding": 32,
+      "children": [
+        {
+          "type": "frame",
+          "id": "HGPLq",
+          "name": "Encabezado",
+          "width": "fill_container",
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "OOu1g",
+              "name": "Titulo",
+              "layout": "vertical",
+              "gap": 2,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "E71WS",
+                  "name": "Titulo texto",
+                  "fill": "$txt",
+                  "content": "Escrituras",
+                  "fontFamily": "Inter",
+                  "fontSize": 24,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "h0ERzN",
+                  "name": "Subtitulo",
+                  "fill": "$txt-soft",
+                  "content": "Naves con plan de pagos · fecha prevista de escrituración",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Prn6y",
+              "name": "Boton Excel",
+              "fill": "$sph-green",
+              "cornerRadius": 8,
+              "gap": 8,
+              "padding": [
+                8,
+                14
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "P62gh",
+                  "width": 16,
+                  "height": 16,
+                  "icon": "file-spreadsheet",
+                  "library": "lucide",
+                  "fill": "#ffffff"
+                },
+                {
+                  "type": "text",
+                  "id": "d6VNa",
+                  "name": "Excel label",
+                  "fill": "#ffffff",
+                  "content": "Exportar Excel",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "P6G0jq",
+          "name": "Resumen",
+          "width": "fill_container",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "LON7G",
+              "name": "Total",
+              "width": "fill_container",
+              "fill": "#ffffff",
+              "cornerRadius": 14,
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 4,
+              "padding": 18,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "hPNdD",
+                  "name": "Total titulo",
+                  "fill": "$txt-soft",
+                  "content": "Naves con plan",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "SD6zd",
+                  "name": "Total valor",
+                  "fill": "$sph-navy",
+                  "content": "212",
+                  "fontFamily": "Inter",
+                  "fontSize": 34,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Hw4kB",
+              "name": "Escrituradas",
+              "width": "fill_container",
+              "fill": "#ffffff",
+              "cornerRadius": 14,
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 4,
+              "padding": 18,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "puTRz",
+                  "name": "Escrituradas titulo",
+                  "fill": "$txt-soft",
+                  "content": "Escrituradas",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "WyOdb",
+                  "name": "Escrituradas valor",
+                  "fill": "$sph-green",
+                  "content": "46",
+                  "fontFamily": "Inter",
+                  "fontSize": 34,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "tkWD6",
+                  "name": "Escrituradas sub",
+                  "fill": "$txt-soft",
+                  "content": "22 % de avance",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "F0JQGU",
+              "name": "Faltan",
+              "width": "fill_container",
+              "fill": "#ffffff",
+              "cornerRadius": 14,
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 4,
+              "padding": 18,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "U75jo",
+                  "name": "Faltan titulo",
+                  "fill": "$txt-soft",
+                  "content": "Faltan por escriturar",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "ZkeGz",
+                  "name": "Faltan valor",
+                  "fill": "$sph-amber",
+                  "content": "166",
+                  "fontFamily": "Inter",
+                  "fontSize": 34,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "MV1CD",
+                  "name": "Faltan sub",
+                  "fill": "$txt-soft",
+                  "content": "78 % pendiente",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "x0kWVf",
+                  "name": "Barra avance",
+                  "width": "fill_container",
+                  "height": 6,
+                  "fill": "#e5e7eb",
+                  "cornerRadius": 3,
+                  "children": [
+                    {
+                      "type": "rectangle",
+                      "cornerRadius": 3,
+                      "id": "fUU5F",
+                      "name": "Avance",
+                      "fill": "$sph-green",
+                      "width": 62,
+                      "height": 6
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "hqcVK",
+          "name": "Herramientas",
+          "width": "fill_container",
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "hAhNg",
+              "name": "Buscador",
+              "width": 380,
+              "fill": "#ffffff",
+              "cornerRadius": 8,
+              "stroke": "$line",
+              "strokeWidth": 1,
+              "gap": 8,
+              "padding": [
+                8,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "tf2v4",
+                  "width": 16,
+                  "height": 16,
+                  "icon": "search",
+                  "library": "lucide",
+                  "fill": "$txt-soft"
+                },
+                {
+                  "type": "text",
+                  "id": "h1nxAG",
+                  "name": "Placeholder",
+                  "fill": "#9ca3af",
+                  "content": "Buscar por parque, nave o inversionista…",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "y1RHe",
+              "name": "Contador",
+              "fill": "$txt-soft",
+              "content": "212 naves",
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "q4c0sO",
+          "name": "Tabla",
+          "clip": true,
+          "width": "fill_container",
+          "fill": "#ffffff",
+          "cornerRadius": 12,
+          "stroke": "$line",
+          "strokeWidth": 1,
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "cZ8lY",
+              "name": "Encabezado tabla",
+              "width": "fill_container",
+              "height": 44,
+              "fill": "$sph-navy",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "i1X6XK",
+                  "name": "H Parque",
+                  "width": 220,
+                  "height": "fill_container",
+                  "gap": 6,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "eRJ9R",
+                      "name": "H txt Parque",
+                      "fill": "#ffffff",
+                      "content": "PARQUE",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "mTjOY",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "arrow-up-down",
+                      "library": "lucide",
+                      "fill": "#cbd5e1"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "owJk1",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "funnel",
+                      "library": "lucide",
+                      "fill": "#cbd5e1"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "DMLFM",
+                  "name": "H Nave",
+                  "width": 110,
+                  "height": "fill_container",
+                  "gap": 6,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "AGO31",
+                      "name": "H txt Nave",
+                      "fill": "#ffffff",
+                      "content": "NAVE",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "fWkrH",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "arrow-up-down",
+                      "library": "lucide",
+                      "fill": "#cbd5e1"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "j260V",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "funnel",
+                      "library": "lucide",
+                      "fill": "#cbd5e1"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Uws3g",
+                  "name": "H Inversionista",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "gap": 6,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ZH4Pl",
+                      "name": "H txt Inversionista",
+                      "fill": "#ffffff",
+                      "content": "INVERSIONISTA",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "tZqII",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "arrow-up-down",
+                      "library": "lucide",
+                      "fill": "#cbd5e1"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "NLFD4",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "funnel",
+                      "library": "lucide",
+                      "fill": "#cbd5e1"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "JdAyy",
+                  "name": "H Estatus",
+                  "width": 190,
+                  "height": "fill_container",
+                  "gap": 6,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "gIReu",
+                      "name": "H txt Estatus",
+                      "fill": "#ffffff",
+                      "content": "ESTATUS",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "Z8gri",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "arrow-up-down",
+                      "library": "lucide",
+                      "fill": "#cbd5e1"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "QOYcV",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "funnel",
+                      "library": "lucide",
+                      "fill": "#cbd5e1"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "XqqKx",
+                  "name": "H Fecha de escrituración",
+                  "width": 230,
+                  "height": "fill_container",
+                  "gap": 6,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "s6Axm",
+                      "name": "H txt Fecha de escrituración",
+                      "fill": "#ffffff",
+                      "content": "FECHA DE ESCRITURACIÓN",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "rjuBd",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "arrow-up-down",
+                      "library": "lucide",
+                      "fill": "#cbd5e1"
+                    },
+                    {
+                      "type": "icon",
+                      "id": "U7ZUD",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "funnel",
+                      "library": "lucide",
+                      "fill": "#cbd5e1"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "vT1tE",
+              "name": "Fila 1",
+              "width": "fill_container",
+              "height": 52,
+              "fill": "#ffffff",
+              "stroke": "$line",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "AUKZa",
+                  "name": "Parque",
+                  "width": 220,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "sJzzu",
+                      "name": "Parque txt",
+                      "fill": "$txt",
+                      "content": "Acupark II",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "tzK8q",
+                  "name": "Nave",
+                  "width": 110,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tTMRo",
+                      "name": "Nave txt",
+                      "fill": "$txt",
+                      "content": "68",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "R5W2Wz",
+                  "name": "Inversionista",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "gcLnM",
+                      "name": "Inv txt",
+                      "fill": "$txt",
+                      "content": "INVERSIONES DEMO UNO",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "peIXq",
+                  "name": "Estatus",
+                  "width": 190,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "WtVV1",
+                      "name": "Switch",
+                      "width": 36,
+                      "height": 20,
+                      "fill": "$sph-green",
+                      "cornerRadius": 10,
+                      "padding": 2,
+                      "justifyContent": "end",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "F1mXmR",
+                          "name": "Perilla",
+                          "fill": "#ffffff",
+                          "width": 16,
+                          "height": 16
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "TMYdz",
+                      "name": "Estatus txt",
+                      "fill": "$sph-green",
+                      "content": "Escriturada",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "QiaMq",
+                  "name": "Fecha",
+                  "width": 230,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "iZjFI",
+                      "name": "InputFecha",
+                      "width": 150,
+                      "fill": "#ffffff",
+                      "cornerRadius": 6,
+                      "stroke": "$line",
+                      "strokeWidth": 1,
+                      "gap": 8,
+                      "padding": [
+                        6,
+                        10
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ojse6",
+                          "name": "Fecha txt",
+                          "fill": "$txt",
+                          "content": "15/04/2025",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "dF9X8",
+                          "width": 14,
+                          "height": 14,
+                          "icon": "calendar",
+                          "library": "lucide",
+                          "fill": "$txt-soft"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "wAChd",
+              "name": "Fila 2",
+              "width": "fill_container",
+              "height": 52,
+              "fill": "#fafafa",
+              "stroke": "$line",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "uyKPP",
+                  "name": "Parque",
+                  "width": 220,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "hsF8Z",
+                      "name": "Parque txt",
+                      "fill": "$txt",
+                      "content": "Acupark II",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "yRv9S",
+                  "name": "Nave",
+                  "width": 110,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "J4o6ik",
+                      "name": "Nave txt",
+                      "fill": "$txt",
+                      "content": "58",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "o58fj2",
+                  "name": "Inversionista",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "kveNO",
+                      "name": "Inv txt",
+                      "fill": "$txt",
+                      "content": "MARÍA FERNANDA DEMO RÍOS",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "tAo39",
+                  "name": "Estatus",
+                  "width": 190,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "MMDKb",
+                      "name": "Switch",
+                      "width": 36,
+                      "height": 20,
+                      "fill": "$sph-green",
+                      "cornerRadius": 10,
+                      "padding": 2,
+                      "justifyContent": "end",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "Hs25E",
+                          "name": "Perilla",
+                          "fill": "#ffffff",
+                          "width": 16,
+                          "height": 16
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "bWOIR",
+                      "name": "Estatus txt",
+                      "fill": "$sph-green",
+                      "content": "Escriturada",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "CoepJ",
+                  "name": "Fecha",
+                  "width": 230,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "LTs7l",
+                      "name": "InputFecha",
+                      "width": 150,
+                      "fill": "#ffffff",
+                      "cornerRadius": 6,
+                      "stroke": "$line",
+                      "strokeWidth": 1,
+                      "gap": 8,
+                      "padding": [
+                        6,
+                        10
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "BgdIM",
+                          "name": "Fecha txt",
+                          "fill": "$txt",
+                          "content": "30/04/2025",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "AWXwo",
+                          "width": 14,
+                          "height": 14,
+                          "icon": "calendar",
+                          "library": "lucide",
+                          "fill": "$txt-soft"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "jtpLB",
+              "name": "Fila 3",
+              "width": "fill_container",
+              "height": 52,
+              "fill": "#ffffff",
+              "stroke": "$line",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "NnRNS",
+                  "name": "Parque",
+                  "width": 220,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "qCfPg",
+                      "name": "Parque txt",
+                      "fill": "$txt",
+                      "content": "Acupark II",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "jmXDR",
+                  "name": "Nave",
+                  "width": 110,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "smbWs",
+                      "name": "Nave txt",
+                      "fill": "$txt",
+                      "content": "6",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "oW5YB",
+                  "name": "Inversionista",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "n4TEVs",
+                      "name": "Inv txt",
+                      "fill": "$txt",
+                      "content": "LAURA PATRICIA DEMO SOTO",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "o3K3V",
+                  "name": "Estatus",
+                  "width": 190,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "eaz2o",
+                      "name": "Switch",
+                      "width": 36,
+                      "height": 20,
+                      "fill": "#d1d5db",
+                      "cornerRadius": 10,
+                      "padding": 2,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "iDw9y",
+                          "name": "Perilla",
+                          "fill": "#ffffff",
+                          "width": 16,
+                          "height": 16
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "fIy4b",
+                      "name": "Estatus txt",
+                      "fill": "$txt-soft",
+                      "content": "Pendiente",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "FdjNV",
+                  "name": "Fecha",
+                  "width": 230,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "J7dFdM",
+                      "name": "InputFecha",
+                      "width": 150,
+                      "fill": "#ffffff",
+                      "cornerRadius": 6,
+                      "stroke": "$sph-blue",
+                      "strokeWidth": 1,
+                      "gap": 8,
+                      "padding": [
+                        6,
+                        10
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "OFSl2",
+                          "name": "Fecha txt",
+                          "fill": "#9ca3af",
+                          "content": "dd/mm/aaaa",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "eJGXq",
+                          "width": 14,
+                          "height": 14,
+                          "icon": "calendar",
+                          "library": "lucide",
+                          "fill": "$txt-soft"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "dBXkw",
+              "name": "Fila 4",
+              "width": "fill_container",
+              "height": 52,
+              "fill": "#fafafa",
+              "stroke": "$line",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "JUumj",
+                  "name": "Parque",
+                  "width": 220,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "NqfpT",
+                      "name": "Parque txt",
+                      "fill": "$txt",
+                      "content": "Acupark II",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "wxxlM",
+                  "name": "Nave",
+                  "width": 110,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "X58Mp",
+                      "name": "Nave txt",
+                      "fill": "$txt",
+                      "content": "46",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "qG88e",
+                  "name": "Inversionista",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "lKgO6",
+                      "name": "Inv txt",
+                      "fill": "$txt",
+                      "content": "JORGE ALBERTO DEMO PAZ",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "qSpVc",
+                  "name": "Estatus",
+                  "width": 190,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "QK3d1",
+                      "name": "Switch",
+                      "width": 36,
+                      "height": 20,
+                      "fill": "#d1d5db",
+                      "cornerRadius": 10,
+                      "padding": 2,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "b7ExFA",
+                          "name": "Perilla",
+                          "fill": "#ffffff",
+                          "width": 16,
+                          "height": 16
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "tjofK",
+                      "name": "Estatus txt",
+                      "fill": "$txt-soft",
+                      "content": "Pendiente",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "MyjrZ",
+                  "name": "Fecha",
+                  "width": 230,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "bAZu1",
+                      "name": "InputFecha",
+                      "width": 150,
+                      "fill": "#ffffff",
+                      "cornerRadius": 6,
+                      "stroke": "$line",
+                      "strokeWidth": 1,
+                      "gap": 8,
+                      "padding": [
+                        6,
+                        10
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "wMGAM",
+                          "name": "Fecha txt",
+                          "fill": "$txt",
+                          "content": "20/12/2025",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "CigNK",
+                          "width": 14,
+                          "height": 14,
+                          "icon": "calendar",
+                          "library": "lucide",
+                          "fill": "$txt-soft"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "TJKHm",
+              "name": "Fila 5",
+              "width": "fill_container",
+              "height": 52,
+              "fill": "#ffffff",
+              "stroke": "$line",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "rhJXD",
+                  "name": "Parque",
+                  "width": 220,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "jK7eA",
+                      "name": "Parque txt",
+                      "fill": "$txt",
+                      "content": "Spartek II",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "D1hlX",
+                  "name": "Nave",
+                  "width": 110,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "SvCkx",
+                      "name": "Nave txt",
+                      "fill": "$txt",
+                      "content": "62",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "c9ek2j",
+                  "name": "Inversionista",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "W9JxA",
+                      "name": "Inv txt",
+                      "fill": "$txt",
+                      "content": "GRUPO DEMO DOS",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "M2yhJ",
+                  "name": "Estatus",
+                  "width": 190,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Augv9",
+                      "name": "Switch",
+                      "width": 36,
+                      "height": 20,
+                      "fill": "#d1d5db",
+                      "cornerRadius": 10,
+                      "padding": 2,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "bIY3k",
+                          "name": "Perilla",
+                          "fill": "#ffffff",
+                          "width": 16,
+                          "height": 16
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "K871lM",
+                      "name": "Estatus txt",
+                      "fill": "$txt-soft",
+                      "content": "Pendiente",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "AVuYo",
+                  "name": "Fecha",
+                  "width": 230,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "O6TlR",
+                      "name": "InputFecha",
+                      "width": 150,
+                      "fill": "#ffffff",
+                      "cornerRadius": 6,
+                      "stroke": "$line",
+                      "strokeWidth": 1,
+                      "gap": 8,
+                      "padding": [
+                        6,
+                        10
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Ragq6",
+                          "name": "Fecha txt",
+                          "fill": "$txt",
+                          "content": "20/12/2026",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "C20lni",
+                          "width": 14,
+                          "height": 14,
+                          "icon": "calendar",
+                          "library": "lucide",
+                          "fill": "$txt-soft"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "H1tPq",
+              "name": "Fila 6",
+              "width": "fill_container",
+              "height": 52,
+              "fill": "#fafafa",
+              "stroke": "$line",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "O3PPnx",
+                  "name": "Parque",
+                  "width": 220,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Aqckk",
+                      "name": "Parque txt",
+                      "fill": "$txt",
+                      "content": "Acupark II",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "sDnFj",
+                  "name": "Nave",
+                  "width": 110,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tVJWX",
+                      "name": "Nave txt",
+                      "fill": "$txt",
+                      "content": "38",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "IG2Ty",
+                  "name": "Inversionista",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "q0LkZj",
+                      "name": "Inv txt",
+                      "fill": "$txt",
+                      "content": "ANA SOFÍA DEMO LUNA",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "jqiot",
+                  "name": "Estatus",
+                  "width": 190,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "I9wQd",
+                      "name": "Switch",
+                      "width": 36,
+                      "height": 20,
+                      "fill": "$sph-green",
+                      "cornerRadius": 10,
+                      "padding": 2,
+                      "justifyContent": "end",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "NHHcW",
+                          "name": "Perilla",
+                          "fill": "#ffffff",
+                          "width": 16,
+                          "height": 16
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "yvIvB",
+                      "name": "Estatus txt",
+                      "fill": "$sph-green",
+                      "content": "Escriturada",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "z6GN7",
+                  "name": "Fecha",
+                  "width": 230,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Q0iZz",
+                      "name": "InputFecha",
+                      "width": 150,
+                      "fill": "#ffffff",
+                      "cornerRadius": 6,
+                      "stroke": "$line",
+                      "strokeWidth": 1,
+                      "gap": 8,
+                      "padding": [
+                        6,
+                        10
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "J1qtIf",
+                          "name": "Fecha txt",
+                          "fill": "$txt",
+                          "content": "12/05/2025",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "Lo7Oq",
+                          "width": 14,
+                          "height": 14,
+                          "icon": "calendar",
+                          "library": "lucide",
+                          "fill": "$txt-soft"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "giU9f",
+              "name": "Fila 7",
+              "width": "fill_container",
+              "height": 52,
+              "fill": "#ffffff",
+              "stroke": "$line",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "z40BKH",
+                  "name": "Parque",
+                  "width": 220,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "LmgJJ",
+                      "name": "Parque txt",
+                      "fill": "$txt",
+                      "content": "Acupark II",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "rEFwI",
+                  "name": "Nave",
+                  "width": 110,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "aTxDT",
+                      "name": "Nave txt",
+                      "fill": "$txt",
+                      "content": "18",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "PxrVB",
+                  "name": "Inversionista",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "CBTHD",
+                      "name": "Inv txt",
+                      "fill": "$txt",
+                      "content": "CARLOS EDUARDO DEMO VEGA",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "QPw4i",
+                  "name": "Estatus",
+                  "width": 190,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "pdPxX",
+                      "name": "Switch",
+                      "width": 36,
+                      "height": 20,
+                      "fill": "#d1d5db",
+                      "cornerRadius": 10,
+                      "padding": 2,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "Iqgpt",
+                          "name": "Perilla",
+                          "fill": "#ffffff",
+                          "width": 16,
+                          "height": 16
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "xYJNU",
+                      "name": "Estatus txt",
+                      "fill": "$txt-soft",
+                      "content": "Pendiente",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "E8ZLri",
+                  "name": "Fecha",
+                  "width": 230,
+                  "height": "fill_container",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "asskq",
+                      "name": "InputFecha",
+                      "width": 150,
+                      "fill": "#ffffff",
+                      "cornerRadius": 6,
+                      "stroke": "$sph-blue",
+                      "strokeWidth": 1,
+                      "gap": 8,
+                      "padding": [
+                        6,
+                        10
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "z5K9y",
+                          "name": "Fecha txt",
+                          "fill": "#9ca3af",
+                          "content": "dd/mm/aaaa",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "BY8og",
+                          "width": 14,
+                          "height": 14,
+                          "icon": "calendar",
+                          "library": "lucide",
+                          "fill": "$txt-soft"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "id": "VRsuS",
+          "name": "Nota",
+          "fill": "$txt-soft",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Estatus y fecha se guardan al instante, auditados con tu usuario. La fecha puede quedar vacía mientras la nave esté Pendiente.",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "sph-navy": {
+      "type": "color",
+      "value": "#1f2a4d"
+    },
+    "sph-blue": {
+      "type": "color",
+      "value": "#3f5b87"
+    },
+    "sph-green": {
+      "type": "color",
+      "value": "#1a7f4b"
+    },
+    "sph-lime": {
+      "type": "color",
+      "value": "#90BF32"
+    },
+    "sph-amber": {
+      "type": "color",
+      "value": "#d97706"
+    },
+    "txt": {
+      "type": "color",
+      "value": "#1f2937"
+    },
+    "txt-soft": {
+      "type": "color",
+      "value": "#6b7280"
+    },
+    "line": {
+      "type": "color",
+      "value": "#e5e7eb"
+    },
+    "bg-page": {
+      "type": "color",
+      "value": "#f3f4f6"
+    }
+  },
+  "fileToken": "c003d22d-8807-49aa-8b76-be795f0384ba"
+}

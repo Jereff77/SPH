@@ -130,29 +130,24 @@ export const tipoPagoSchema = z.object({
 export type TipoPagoDto = z.infer<typeof tipoPagoSchema>;
 
 /**
- * Escrituras (clave 630): edición de la fecha de una parcialidad de
- * escrituración (`pdpDetalle.fecha`). Réplica del calendario de v1.
+ * Fecha de una parcialidad de escrituración (`pdpDetalle.fecha`). La usa Fideicomiso
+ * para reprogramar la partida (módulo fideicomiso); la pantalla Escrituras ya no.
  */
 export const escrituraFechaSchema = z.object({ fecha: FECHA });
 export type EscrituraFechaDto = z.infer<typeof escrituraFechaSchema>;
 
-/** Escrituras (clave 630): edición del monto (`pdpDetalle.monto`). */
-export const escrituraMontoSchema = z.object({
-  monto: z.coerce.number().positive('El monto debe ser mayor a 0.'),
-});
-export type EscrituraMontoDto = z.infer<typeof escrituraMontoSchema>;
-
 /**
- * Escrituras (clave 630): estatus manual de escrituración
- * (`pdpDetalle.escriturada`). `true` = Escriturada, `false` = Pendiente.
+ * Escrituras (clave 630): estatus de escrituración por propiedad (`pdp.escriturada`).
+ * `true` = Escriturada, `false` = Pendiente. Para marcar Escriturada hace falta fecha:
+ * llega en `fecha` o ya debe existir en el plan.
  */
-export const escrituraEstatusSchema = z.object({ escriturada: z.coerce.boolean() });
+export const escrituraEstatusSchema = z.object({
+  escriturada: z.boolean(),
+  fecha: FECHA.nullable().optional(),
+});
 export type EscrituraEstatusDto = z.infer<typeof escrituraEstatusSchema>;
 
-/**
- * Escrituras (clave 630): fecha real de escrituración
- * (`pdpDetalle.fechaEscrituracion`). `null` limpia la fecha.
- */
+/** Escrituras (clave 630): fecha de escrituración (`pdp.fechaEscrituracion`). `null` la limpia. */
 export const escrituraFechaRealSchema = z.object({
   fecha: FECHA.nullable(),
 });

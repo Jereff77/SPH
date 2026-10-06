@@ -5563,8 +5563,10 @@ export type Database = {
         Row: {
           cantpagos: number | null
           Editable: boolean | null
+          escriturada: boolean
           esTicket: boolean
           fc: string
+          fechaEscrituracion: string | null
           frecuencia: string | null
           idPdp: string
           idPropiedad: string | null
@@ -5581,8 +5583,10 @@ export type Database = {
         Insert: {
           cantpagos?: number | null
           Editable?: boolean | null
+          escriturada?: boolean
           esTicket?: boolean
           fc?: string
+          fechaEscrituracion?: string | null
           frecuencia?: string | null
           idPdp: string
           idPropiedad?: string | null
@@ -5599,8 +5603,10 @@ export type Database = {
         Update: {
           cantpagos?: number | null
           Editable?: boolean | null
+          escriturada?: boolean
           esTicket?: boolean
           fc?: string
+          fechaEscrituracion?: string | null
           frecuencia?: string | null
           idPdp?: string
           idPropiedad?: string | null

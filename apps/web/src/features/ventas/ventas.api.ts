@@ -273,25 +273,20 @@ export interface ReporteGrafico {
   totalVencido: number;
 }
 
-/** Fila de la pantalla Escrituras (parcialidad con tipoPago='Escrituracion'). */
+/** Fila de la pantalla Escrituras (una por propiedad con plan de pagos). */
 export interface EscrituraRow {
-  idPdpDet: string;
+  idPdp: string;
   idPropiedad: string | null;
   idNave: string | null;
   idInversionista: string | null;
-  tipoPago: string | null;
-  nave: string | null;
   /** Parque (nomParque) — filtro independiente. */
   parque: string | null;
   /** Número de nave (numNaveNAME) — filtro independiente. */
   numNave: string | null;
-  numPago: number | null;
   inversionista: string | null;
-  fecha: string | null;
-  monto: number | null;
   /** Estatus manual: `true` = Escriturada, `false` = Pendiente. */
   escriturada: boolean;
-  /** Fecha real de escrituración. */
+  /** Fecha de escrituración (obligatoria si está Escriturada). */
   fechaEscrituracion: string | null;
 }
 
@@ -448,16 +443,12 @@ export const ventasApi = {
 
   // Escrituras (630)
   escrituras: () => api.get<EscriturasResp>('/ventas/escrituras'),
-  actualizarFechaEscritura: (idPdpDet: string, fecha: string) =>
-    api.patch<{ ok: true }>(`/ventas/escrituras/${idPdpDet}/fecha`, { fecha }),
-  actualizarMontoEscritura: (idPdpDet: string, monto: number) =>
-    api.patch<{ ok: true }>(`/ventas/escrituras/${idPdpDet}/monto`, { monto }),
-  /** Estatus manual de escrituración (Escriturada / Pendiente). */
-  actualizarEstatusEscritura: (idPdpDet: string, escriturada: boolean) =>
-    api.patch<{ ok: true }>(`/ventas/escrituras/${idPdpDet}/estatus`, { escriturada }),
-  /** Fecha real de escrituración (`null` la limpia). */
-  actualizarFechaEscrituracion: (idPdpDet: string, fecha: string | null) =>
-    api.patch<{ ok: true }>(`/ventas/escrituras/${idPdpDet}/fecha-escrituracion`, { fecha }),
+  /** Estatus de escrituración (Escriturada / Pendiente); `fecha` es obligatoria al marcar Escriturada si el plan aún no la tiene. */
+  actualizarEstatusEscritura: (idPdp: string, escriturada: boolean, fecha?: string) =>
+    api.patch<{ ok: true }>(`/ventas/escrituras/${idPdp}/estatus`, { escriturada, fecha }),
+  /** Fecha de escrituración (`null` la limpia; no aplica si está Escriturada). */
+  actualizarFechaEscrituracion: (idPdp: string, fecha: string | null) =>
+    api.patch<{ ok: true }>(`/ventas/escrituras/${idPdp}/fecha-escrituracion`, { fecha }),
 };
 
 export const MESES = [

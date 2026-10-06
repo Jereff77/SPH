@@ -17,7 +17,7 @@ relacionado_con: [parques, arrendatarios, cxp, clientes, fideicomiso]
 - **Propósito:** gestionar la **cobranza** de los inversionistas/propietarios (planes de pago de compra
   de naves) y administrar sus datos, documentos, propiedades y planes.
 - **Rutas / permisos:** **Dashboard** `/ventas` (**600**) · **Planes** `/ventas/planes` (**610**).
-- **Etapa actual (v2):** Dashboard + Planes. **Reportes** (620) y **Escrituras** (630) siguen en v1.
+- **Etapa actual (v2):** Dashboard + Planes. **Reportes** (620) siguen en v1; **Escrituras** (630) rediseñada en v2.75.0.
 
 > ⚠️ **Universo de cálculo (Dashboard y Planes, consistente):** parcialidades de propiedades con
 > `propiedades.pdpActivo = <filtro>`, **`propiedades.esTicket = false`** (el **parque de Tickets** —p. ej.
@@ -342,31 +342,38 @@ aplica a Dashboard/Reportes/saldos-vencidos, **NO** a este selector operativo de
   (hallazgo ALTO de monto negativo corregido; atomicidad/concurrencia resueltas con la RPC transaccional).
   La decisión de **cuándo** aplicarla sobre contratos es operativa del negocio (modifica el plan de pagos).
 
-## 3b. Escrituras (`/ventas/escrituras`, clave 630)
-Pantalla **operativa de escrituración** (evolución de "Fechas de escrituración" de v1,
-`i01_inversionistas/escrituracion`). Lista las **parcialidades cuyo `pdpDetalle.tipoPago = 'Escrituracion'`**
-(status=true). **Cálculos sin vistas** (v1 usaba `v_pagos`): el backend lee `pdpDetalle` y enriquece con
-parque (`parques.nomParque`) y nave (`naves.numNaveNAME`) **por separado**, inversionista (`razonsocial`) y
-**excluye el parque de Tickets** (`propiedades.esTicket=false`, regla del módulo).
-- **Tarjetas de resumen (v2.44.0):** **Total** · **Escrituradas** · **Pendientes**. El conteo **se adapta a
-  los filtros** (cuenta lo que se ve en la tabla, igual que el contador del header). El backend también devuelve
-  `{escrituradas, pendientes}` del universo en `listar()`, por si se requiere.
-- **Columnas:** Tipo Pago · **Parque** · **Nave** (`numNaveNAME`) · No. de pago (`numPago`) · Inversionista ·
-  **Estatus** (interruptor) · **Fecha de escrituración** (editable) · **Monto** (editable). Encabezado sticky
-  azul + ordenable (`useSort`) + búsqueda + **fila de total** al pie. Orden por defecto: parque asc.
-- **Filtros de columna (multi-selección, regla 7c, v2.44.0):** **Parque**, **Nave**, **Inversionista** y
-  **Estatus** (Escriturada/Pendiente).
-- **Estatus manual (v2.44.0):** interruptor **Escriturada / Pendiente** por fila → `pdpDetalle.escriturada`
-  (boolean). `PATCH .../estatus` (`{escriturada}`).
-- **Fecha de escrituración (v2.44.0):** fecha **real** en que se escrituró → `pdpDetalle.fechaEscrituracion`
-  (date, nullable). **Sustituye en pantalla** a la fecha *programada* de la parcialidad (`pdpDetalle.fecha`,
-  que se sigue editando desde Planes/Config). `PATCH .../fecha-escrituracion` (`{fecha}`; `null` la limpia).
-- **Edición (anti-error):** **doble clic** en la celda de fecha/monto habilita el input; el cambio se aplica
-  solo al **confirmar** con ✓ (o Enter), y se cancela con ✕ o Esc. El estatus se cambia con un clic en el
-  interruptor. Backend: `UPDATE pdpDetalle` por `idPdpDet`, con `comoActor(uid)` y registro en **`actividad`**.
-- **Validación:** fecha `yyyy-MM-dd`; monto > 0.
-- **📌 BD (v2.44.0):** se agregaron a `pdpDetalle` las columnas **`escriturada`** (boolean NOT NULL DEFAULT
-  false) y **`fechaEscrituracion`** (date). Aditivas, no rompen v1. Ver `migraciones/2026-06-25-pdpdetalle-escrituras-estatus-fecha.sql`.
+## 3b. Escrituras (`/ventas/escrituras`, clave 630) — rediseñada en v2.75.0
+Pantalla de **seguimiento de escrituración por propiedad**: una fila por **plan de pagos (`pdp`)** de una nave
+vendida (status=true, `esTicket=false`), para ver de un vistazo **cuántas naves faltan por escriturar** y
+capturar la fecha. **Rediseño v2.75.0 (decisión de Jereff, 2026-10-06):** el estatus y la fecha dejaron de vivir
+en `pdpDetalle` (por pago) y pasaron a **`pdp.escriturada` / `pdp.fechaEscrituracion`** (por propiedad). Una
+propiedad tiene a lo más un `pdp` (verificado: 0 propiedades con 2+ planes). Naves Disponibles/Bloqueadas **no se
+escrituran** y no aparecen; las **21 naves Vendidas sin plan** tampoco (negocio aún no define cómo entran).
+Cálculos sin vistas: `escrituras.service.ts` lee `pdp` y enriquece por separado con `propiedades` → `naves`
+(`numNaveNAME`) → `parques` (`nomParque`) e `inversionista` (`razonsocial`). **Nunca se escribe «Ticket» en la UI**
+(los usuarios no distinguen naves de Tickets; el filtro es interno).
+- **Tarjetas:** **Naves con plan** · **Escrituradas** (% de avance) · **Faltan por escriturar** (% pendiente + barra
+  de avance). Se **adaptan a los filtros** (cuentan lo que se ve).
+- **Columnas:** **Parque** · **Nave** · **Inversionista** · **Estatus** (interruptor) · **Fecha de escrituración**
+  (`InputFecha` dd/mm/aaaa siempre visible; vacía resalta en azul). **Ya no hay Monto, Tipo Pago ni No. de pago.**
+  Encabezado sticky azul, ordenable, filtros multi-selección (7c) en Parque/Nave/Inversionista/Estatus, buscador
+  (parque, nave, inversionista). Orden por defecto: parque → nave.
+- **Reglas:** para marcar **Escriturada la fecha es obligatoria** (la pantalla pide capturarla primero; el servidor
+  lo valida: 400 si no hay fecha) y **no se puede borrar la fecha de una nave Escriturada**. Pendiente puede tener
+  fecha (fecha prevista) o no. El estatus y la fecha se guardan al instante.
+- **Excel:** Parque · Nave · Inversionista · Estatus · Fecha, con fila de total (naves · escrituradas · pendientes).
+  Se arma en el navegador (ExcelJS) respetando búsqueda, filtros y orden — **excepción acordada** (contexto.md 7d).
+- **API:** `GET ventas/escrituras` → `{filas,total,escrituradas,pendientes}`; `PATCH ventas/escrituras/:idPdp/estatus`
+  (`{escriturada, fecha?}`); `PATCH ventas/escrituras/:idPdp/fecha-escrituracion` (`{fecha}`, nullable). Se **eliminaron**
+  `.../monto` y `.../fecha` (fecha programada). `EscriturasService.actualizarFecha(idPdpDet…)` se **conserva** porque
+  lo usa **Fideicomiso** (reprogramar partidas, `pdpDetalle.fecha`).
+- **📌 BD (v2.75.0):** migración `pdp_escrituracion_estatus_fecha` (en `docs/escrituras/migracion-pdp-escrituracion.sql`):
+  `pdp.escriturada` (boolean NOT NULL DEFAULT false) + `pdp.fechaEscrituracion` (date), con `COMMENT ON`. Se copiaron
+  desde `pdpDetalle` (tipoPago='Escrituracion'): si alguna fila del plan estaba Escriturada → plan Escriturada con la
+  fecha más reciente (46 planes, todos con fecha; 5 planes tenían 2 filas con valores distintos y se resolvieron así).
+  Las columnas viejas de `pdpDetalle.escriturada/fechaEscrituracion` **quedan como respaldo, sin uso** (retirarlas es
+  un paso aparte, con autorización). Auditoría: `trg_auditoria` de `pdp` + bitácora `actividad` (pantalla «Escrituras»).
+- **Diseño:** mockup en `docs/escrituras/escrituras.pen` (Pencil).
 
 ## 4. Modelo de datos (todo EXISTENTE; sin DDL nuevo)
 - **Catálogo/propietario:** `inversionista` (PK `idInversionista`), `inversionista_docs`, `propiedades`
@@ -375,7 +382,7 @@ parque (`parques.nomParque`) y nave (`naves.numNaveNAME`) **por separado**, inve
 - **KVAs:** `kvasAsignados` (`idNave`, `idParque`, `cantKvas`, `tipoTension` [1=Alta/2=Media], `tipoContrato`,
   `status`) — KVAs por nave para las tarjetas de Propiedades.
 - **Plan de pagos:** `pdp` (PK `idPdp`), `pdpDetalle` (PK `idPdpDet`, parcialidades; incl. `escriturada`
-  boolean + `fechaEscrituracion` date, agregadas en v2.44.0 para Escrituras), `pagos` (PK `idPago`, cobros con
+  boolean + `fechaEscrituracion` date, de v2.44.0: **ya sin uso desde v2.75.0**, el estatus/fecha viven en `pdp`), `pagos` (PK `idPago`, cobros con
   `tipomovimiento`/`tipoOperacion`/`comprobante`).
 - **Bitácora:** `comentarios` (origen 'Ventas' por defecto), `actividad`.
 - **Rentas (lectura):** `rgPdp`/`rgPdpDetalle`, `raPdp`/`raPdpDetalle`.
@@ -413,11 +420,8 @@ parque (`parques.nomParque`) y nave (`naves.numNaveNAME`) **por separado**, inve
   `ventas/reportes/vencidos`, `ventas/reportes/vencidos-resumen`, `ventas/reportes/vencidos-evolucion`
   (todos con filtros anio/mes/razonsocial/parque/propiedad). Backend `reportes.service.ts` → RPCs
   `v_pdpdetalle_get_*`.
-- **Escrituras (630):** `GET ventas/escrituras` (lista `{filas,total,escrituradas,pendientes}` de `pdpDetalle`
-  con `tipoPago='Escrituracion'`, sin Tickets), `PATCH ventas/escrituras/:idPdpDet/fecha` (fecha programada),
-  **`PATCH ventas/escrituras/:idPdpDet/estatus`** (`{escriturada}`),
-  **`PATCH ventas/escrituras/:idPdpDet/fecha-escrituracion`** (`{fecha}`, nullable),
-  `PATCH ventas/escrituras/:idPdpDet/monto`. Backend: `escrituras.service.ts`.
+- **Escrituras (630):** ver §3b (v2.75.0): `GET ventas/escrituras`, `PATCH ventas/escrituras/:idPdp/estatus` y
+  `PATCH ventas/escrituras/:idPdp/fecha-escrituracion`. Backend: `escrituras.service.ts`.
 
 ## 6. Seguridad
 - `JwtAuthGuard + PermisoGuard`; Dashboard con **600**, Planes/Config/Comentarios con **610**. SSE con

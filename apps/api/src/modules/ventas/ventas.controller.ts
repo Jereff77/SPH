@@ -25,8 +25,6 @@ import {
   docSchema,
   escrituraEstatusSchema,
   escrituraFechaRealSchema,
-  escrituraFechaSchema,
-  escrituraMontoSchema,
   inversionistaSchema,
   montosPlanSchema,
   partidaFechaSchema,
@@ -39,9 +37,7 @@ import {
   type CrearPlanPagosDto,
   type DocDto,
   type EscrituraEstatusDto,
-  type EscrituraFechaDto,
   type EscrituraFechaRealDto,
-  type EscrituraMontoDto,
   type InversionistaDto,
   type MontosPlanDto,
   type PartidaFechaDto,
@@ -583,45 +579,25 @@ export class VentasController {
     return this.escrituras.listar();
   }
 
-  @Patch('escrituras/:idPdpDet/fecha')
-  @RequierePermiso(630)
-  async actualizarFechaEscritura(
-    @CurrentUser() actor: AuthUser,
-    @Param('idPdpDet') idPdpDet: string,
-    @Body(new ZodValidationPipe(escrituraFechaSchema)) dto: EscrituraFechaDto,
-  ) {
-    return this.escrituras.actualizarFecha(idPdpDet, dto.fecha, actor.uid);
-  }
-
-  @Patch('escrituras/:idPdpDet/monto')
-  @RequierePermiso(630)
-  async actualizarMontoEscritura(
-    @CurrentUser() actor: AuthUser,
-    @Param('idPdpDet') idPdpDet: string,
-    @Body(new ZodValidationPipe(escrituraMontoSchema)) dto: EscrituraMontoDto,
-  ) {
-    return this.escrituras.actualizarMonto(idPdpDet, dto.monto, actor.uid);
-  }
-
   /** Estatus manual de escrituración (Escriturada / Pendiente). */
-  @Patch('escrituras/:idPdpDet/estatus')
+  @Patch('escrituras/:idPdp/estatus')
   @RequierePermiso(630)
   async actualizarEstatusEscritura(
     @CurrentUser() actor: AuthUser,
-    @Param('idPdpDet') idPdpDet: string,
+    @Param('idPdp') idPdp: string,
     @Body(new ZodValidationPipe(escrituraEstatusSchema)) dto: EscrituraEstatusDto,
   ) {
-    return this.escrituras.actualizarEstatus(idPdpDet, dto.escriturada, actor.uid);
+    return this.escrituras.actualizarEstatus(idPdp, dto.escriturada, dto.fecha, actor.uid);
   }
 
   /** Fecha real de escrituración (`null` la limpia). */
-  @Patch('escrituras/:idPdpDet/fecha-escrituracion')
+  @Patch('escrituras/:idPdp/fecha-escrituracion')
   @RequierePermiso(630)
   async actualizarFechaEscrituracion(
     @CurrentUser() actor: AuthUser,
-    @Param('idPdpDet') idPdpDet: string,
+    @Param('idPdp') idPdp: string,
     @Body(new ZodValidationPipe(escrituraFechaRealSchema)) dto: EscrituraFechaRealDto,
   ) {
-    return this.escrituras.actualizarFechaEscrituracion(idPdpDet, dto.fecha, actor.uid);
+    return this.escrituras.actualizarFechaEscrituracion(idPdp, dto.fecha, actor.uid);
   }
 }
