@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiRequestError } from '@/lib/api';
 import { useAuth } from '@/features/auth/useAuth';
 import { kvasApi } from './kvas.api';
+import { GenerarDocumentoModal } from '@/features/plantillas/GenerarDocumentoModal';
 
 const inputCls =
   'mt-1 w-full rounded-lg border px-2 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#1f2a4d]';
@@ -30,6 +31,8 @@ interface Props {
 export function DocumentosNave({ idNave, onCambio, onClose }: Props) {
   const { tienePermiso } = useAuth();
   const puedeEditar = tienePermiso(723);
+  const puedeGenerar = tienePermiso(730) || tienePermiso(731) || tienePermiso(721);
+  const [generando, setGenerando] = useState(false);
   const qc = useQueryClient();
 
   const [titulo, setTitulo] = useState('');
@@ -90,6 +93,17 @@ export function DocumentosNave({ idNave, onCambio, onClose }: Props) {
   return (
     <>
       <div className="min-h-0 flex-1 overflow-auto px-5 py-3">
+        {puedeGenerar && (
+          <div className="mb-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setGenerando(true)}
+              className="rounded-lg border border-[#1f2a4d] px-3 py-1.5 text-sm font-medium text-[#1f2a4d] hover:bg-[#1f2a4d]/5"
+            >
+              Generar documento desde plantilla
+            </button>
+          </div>
+        )}
         {error && (
           <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
@@ -199,6 +213,7 @@ export function DocumentosNave({ idNave, onCambio, onClose }: Props) {
           </button>
         </footer>
       )}
+      <GenerarDocumentoModal abierto={generando} onCerrar={() => setGenerando(false)} />
     </>
   );
 }

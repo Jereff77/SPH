@@ -189,7 +189,9 @@ function Editor({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-gray-50">
+    // Alto propio = ventana − barra superior (3.5rem) − relleno de <main> (3rem): así solo
+    // scrollea la hoja y la barra del nombre, la de formato y el panel de campos quedan fijos.
+    <div className="flex h-[calc(100vh-6.5rem)] min-h-[420px] flex-col overflow-hidden bg-gray-50">
       {/* Barra superior */}
       <div className="flex flex-wrap items-center gap-3 border-b border-gray-200 bg-white px-4 py-2.5">
         <button

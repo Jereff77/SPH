@@ -4,7 +4,8 @@ import { z } from 'zod';
  * Plantillas de documentos de KVA's · VERSION LIGHT.
  * `contenido` = { encabezado, cuerpo, pie }; cada zona es un Doc de Tiptap/ProseMirror
  * con un esquema CERRADO: nodos doc, paragraph, text, hardBreak, bulletList, orderedList,
- * listItem · marcas bold, italic, underline · atributo textAlign solo en paragraph.
+ * listItem · marcas bold, italic, underline y textStyle (fuente y tamaño de listas CERRADAS) ·
+ * atributo textAlign solo en paragraph · `logoAncho` (paso de una lista cerrada) en la raíz.
  * Lo que se guarda es el resultado SANEADO (nunca el crudo del cliente).
  */
 
@@ -13,6 +14,10 @@ export type TipoPlantilla = (typeof TIPOS_PLANTILLA)[number];
 
 export const MARCAS = ['bold', 'italic', 'underline'] as const;
 export const ALINEACIONES = ['left', 'center', 'right', 'justify'] as const;
+/** Listas cerradas: el usuario elige, nunca teclea; el servidor rechaza cualquier otro valor. */
+export const FUENTES = ['Arial', 'Calibri', 'Times New Roman', 'Georgia', 'Verdana'] as const;
+export const TAMANOS = ['9px', '10px', '11px', '12px', '13px', '14px', '16px', '18px', '20px', '24px'] as const;
+export const LOGO_ANCHOS = [80, 110, 140, 170, 220, 280, 340, 400] as const;
 
 export const LIMITES = {
   textoTotal: 20_000,
@@ -40,12 +45,22 @@ const linea = (max: number) =>
 // ---------------------------------------------------------------------------
 // Árbol Tiptap (forma estricta; la saneada se hace en `sanearDoc`)
 // ---------------------------------------------------------------------------
-const marca = z.object({ type: z.enum(MARCAS) }).strict();
+const marcaSimple = z.object({ type: z.enum(MARCAS) }).strict();
+const marcaEstilo = z
+  .object({
+    type: z.literal('textStyle'),
+    attrs: z
+      .object({ fontFamily: z.enum(FUENTES).nullish(), fontSize: z.enum(TAMANOS).nullish() })
+      .strict()
+      .optional(),
+  })
+  .strict();
+const marca = z.union([marcaSimple, marcaEstilo]);
 const texto = z
   .object({
     type: z.literal('text'),
     text: z.string().max(LIMITES.textoTotal * 2),
-    marks: z.array(marca).max(3).optional(),
+    marks: z.array(marca).max(4).optional(),
   })
   .strict();
 const salto = z.object({ type: z.literal('hardBreak') }).strict();
@@ -101,7 +116,7 @@ const docSchema = z
 type Nodo = {
   type: string;
   text?: string;
-  marks?: { type: string }[];
+  marks?: { type: string; attrs?: { fontFamily?: string | null; fontSize?: string | null } }[];
   attrs?: Record<string, unknown>;
   content?: Nodo[];
 };
@@ -112,7 +127,20 @@ function sanearNodo(n: Nodo): Nodo | null {
     const t = sanearTexto(n.text ?? '');
     if (!t) return null;
     const out: Nodo = { type: 'text', text: t };
-    if (n.marks?.length) out.marks = [...new Set(n.marks.map((m) => m.type))].map((type) => ({ type }));
+    if (n.marks?.length) {
+      const marcas: NonNullable<Nodo['marks']> = [];
+      for (const m of n.marks) {
+        if (marcas.some((x) => x.type === m.type)) continue;
+        if (m.type === 'textStyle') {
+          const attrs: { fontFamily?: string; fontSize?: string } = {};
+          if (m.attrs?.fontFamily) attrs.fontFamily = m.attrs.fontFamily;
+          if (m.attrs?.fontSize) attrs.fontSize = m.attrs.fontSize;
+          // textStyle sin fuente ni tamaño no aporta nada: se descarta.
+          if (Object.keys(attrs).length) marcas.push({ type: 'textStyle', attrs });
+        } else marcas.push({ type: m.type });
+      }
+      if (marcas.length) out.marks = marcas;
+    }
     return out;
   }
   const out: Nodo = { type: n.type };
@@ -138,13 +166,23 @@ function medir(n: Nodo, prof: number, acc: { nodos: number; prof: number; texto:
 export const doc = docSchema;
 
 const contenidoBase = z
-  .object({ encabezado: docSchema, cuerpo: docSchema, pie: docSchema })
+  .object({
+    encabezado: docSchema,
+    cuerpo: docSchema,
+    pie: docSchema,
+    logoAncho: z
+      .number()
+      .int()
+      .refine((v) => (LOGO_ANCHOS as readonly number[]).includes(v), 'Ancho de logo no permitido.')
+      .optional(),
+  })
   .strict();
 
 export type ContenidoPlantilla = {
   encabezado: Nodo;
   cuerpo: Nodo;
   pie: Nodo;
+  logoAncho?: number;
 };
 
 /**
@@ -170,6 +208,7 @@ export const contenidoSchema = contenidoBase.transform((c, ctx): ContenidoPlanti
   }
   if (textoTotal > LIMITES.textoTotal)
     ctx.addIssue({ code: 'custom', path: [], message: `El texto supera ${LIMITES.textoTotal} caracteres.` });
+  if (c.logoAncho !== undefined) out.logoAncho = c.logoAncho;
   return out;
 });
 

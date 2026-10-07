@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Logo } from '@/components/Logo';
 import { Modal } from '@/components/ui/Modal';
-import { BarraFormato, HojaDocumento, htmlDeHoja, useEditoresHoja, useZoomHoja, ZoomHoja } from './HojaDocumento';
+import { BarraFormato, CLASE_LOGO, HojaDocumento, htmlDeHoja, useEditoresHoja, useZoomHoja, ZoomHoja } from './HojaDocumento';
 import { IconImprimir } from './iconos';
 import { contenidoInicial } from './contenido-inicial';
 import { plantillasApi, type ContenidoPlantilla } from './plantillas.api';
@@ -118,7 +118,9 @@ function Documento({ contenido, onCerrar }: { contenido: ContenidoPlantilla; onC
         createPortal(
           <div className="solo-impresion hoja-doc">
             <div className="impresion-membrete">
-              <Logo />
+              <div style={{ width: hoja.logoAncho, maxWidth: '100%', flexShrink: 0 }}>
+                <Logo className={CLASE_LOGO} />
+              </div>
               <div className="ProseMirror" style={{ width: 270, fontSize: 10 }} dangerouslySetInnerHTML={{ __html: impresion.encabezado }} />
             </div>
             <div className="ProseMirror" dangerouslySetInnerHTML={{ __html: impresion.cuerpo }} />

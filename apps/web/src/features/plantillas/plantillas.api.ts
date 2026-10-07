@@ -18,6 +18,8 @@ export interface ContenidoPlantilla {
   encabezado: DocJson;
   cuerpo: DocJson;
   pie: DocJson;
+  /** Ancho del logo en px (uno de PASOS_LOGO); por omisión 170. */
+  logoAncho?: number;
 }
 
 export interface PlantillaResumen {

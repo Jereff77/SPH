@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
+import { FontFamily, FontSize, TextStyle } from '@tiptap/extension-text-style';
 import { Logo } from '@/components/Logo';
 import type { ContenidoPlantilla, DocJson } from './plantillas.api';
 import { IconLapiz } from './iconos';
@@ -22,13 +23,30 @@ const extensiones = () => [
     trailingNode: false,
   }),
   TextAlign.configure({ types: ['paragraph'], alignments: ['left', 'center', 'right', 'justify'] }),
+  TextStyle,
+  FontFamily,
+  FontSize,
 ];
+
+/** Listas CERRADAS (el API valida contra ellas). */
+export const FUENTES = ['Arial', 'Calibri', 'Times New Roman', 'Georgia', 'Verdana'] as const;
+export const TAMANOS = ['9px', '10px', '11px', '12px', '13px', '14px', '16px', '18px', '20px', '24px'] as const;
+export const PASOS_LOGO = [80, 110, 140, 170, 220, 280, 340, 400] as const;
+export const LOGO_ANCHO_DEFECTO = 170;
+
+/** Fuerza al logo a llenar el contenedor (el Logo trae su propio ancho configurado). */
+export const CLASE_LOGO = '!w-full !h-auto aspect-[auto_17/6]';
+
+const logoValido = (n: unknown): number =>
+  typeof n === 'number' && (PASOS_LOGO as readonly number[]).includes(n) ? n : LOGO_ANCHO_DEFECTO;
 
 export interface EditoresHoja {
   editores: Record<Zona, Editor | null>;
   activo: Editor | null;
   leer: () => ContenidoPlantilla | null;
   cargar: (c: ContenidoPlantilla) => void;
+  logoAncho: number;
+  setLogoAncho: (n: number) => void;
 }
 
 /**
@@ -41,6 +59,7 @@ export function useEditoresHoja(
   onCambio?: () => void,
 ): EditoresHoja {
   const [activo, setActivo] = useState<Editor | null>(null);
+  const [logoAncho, setLogo] = useState<number>(() => logoValido(inicial.logoAncho));
   const cambioRef = useRef(onCambio);
   cambioRef.current = onCambio;
 
@@ -71,19 +90,26 @@ export function useEditoresHoja(
       encabezado: encabezado.getJSON() as DocJson,
       cuerpo: cuerpo.getJSON() as DocJson,
       pie: pie.getJSON() as DocJson,
+      logoAncho,
     };
-  }, [encabezado, cuerpo, pie]);
+  }, [encabezado, cuerpo, pie, logoAncho]);
+
+  const setLogoAncho = useCallback((n: number) => {
+    setLogo(logoValido(n));
+    cambioRef.current?.();
+  }, []);
 
   const cargar = useCallback(
     (c: ContenidoPlantilla) => {
       encabezado?.commands.setContent(c.encabezado, { emitUpdate: false });
       cuerpo?.commands.setContent(c.cuerpo, { emitUpdate: false });
       pie?.commands.setContent(c.pie, { emitUpdate: false });
+      setLogo(logoValido(c.logoAncho));
     },
     [encabezado, cuerpo, pie],
   );
 
-  return { editores: { encabezado, cuerpo, pie }, activo: activo ?? cuerpo, leer, cargar };
+  return { editores: { encabezado, cuerpo, pie }, activo: activo ?? cuerpo, leer, cargar, logoAncho, setLogoAncho };
 }
 
 /** Datos de impresión: HTML ya generado por el esquema de Tiptap (no HTML libre). */
@@ -101,6 +127,38 @@ function EtiquetaZona({ texto }: { texto: string }) {
       <IconLapiz width={10} height={10} />
       {texto}
     </span>
+  );
+}
+
+/** Tamaño del logo: botones − y + entre los pasos permitidos. */
+function ControlLogo({ valor, onCambio }: { valor: number; onCambio: (n: number) => void }) {
+  const pasos = PASOS_LOGO as readonly number[];
+  const i = Math.max(0, pasos.indexOf(valor));
+  return (
+    <div className="mb-1 flex items-center gap-1 text-[10px] text-gray-600" role="group" aria-label="Tamaño del logo">
+      <span className="font-medium">Logo</span>
+      <button
+        type="button"
+        title="Reducir logo"
+        aria-label="Reducir logo"
+        disabled={i <= 0}
+        onClick={() => onCambio(pasos[Math.max(0, i - 1)] ?? LOGO_ANCHO_DEFECTO)}
+        className="flex h-5 w-5 items-center justify-center rounded border border-gray-300 bg-white text-xs hover:bg-gray-100 disabled:opacity-30"
+      >
+        −
+      </button>
+      <span className="min-w-[2.75rem] text-center tabular-nums" aria-live="polite">{valor} px</span>
+      <button
+        type="button"
+        title="Agrandar logo"
+        aria-label="Agrandar logo"
+        disabled={i >= pasos.length - 1}
+        onClick={() => onCambio(pasos[Math.min(pasos.length - 1, i + 1)] ?? LOGO_ANCHO_DEFECTO)}
+        className="flex h-5 w-5 items-center justify-center rounded border border-gray-300 bg-white text-xs hover:bg-gray-100 disabled:opacity-30"
+      >
+        +
+      </button>
+    </div>
   );
 }
 
@@ -129,15 +187,20 @@ export function HojaDocumento({
   return (
     <div
       id="hoja-documento"
-      className="hoja-doc mx-auto flex w-[660px] max-w-full flex-col border border-gray-200 bg-white px-10 py-8 shadow-sm"
+      className="hoja-doc mx-auto flex w-[660px] shrink-0 flex-col border border-gray-200 bg-white px-10 py-8 shadow-sm"
       style={{ minHeight: 854 }}
     >
       {/* ENCABEZADO */}
       <div>
-        {editable && <EtiquetaZona texto="Encabezado · editable" />}
+        {editable && (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <EtiquetaZona texto="Encabezado · editable" />
+            <ControlLogo valor={hoja.logoAncho} onCambio={hoja.setLogoAncho} />
+          </div>
+        )}
         <div className="flex items-start justify-between gap-4 pb-3">
-          <div className="w-[170px] shrink-0 overflow-hidden">
-            <Logo />
+          <div className="shrink-0 overflow-hidden" style={{ width: hoja.logoAncho, maxWidth: '100%' }}>
+            <Logo className={CLASE_LOGO} />
           </div>
           <div className={`min-w-0 flex-1 text-[10px] leading-snug ${marco(editencabezado)}`}>
             <EditorContent editor={editencabezado} />
@@ -198,6 +261,9 @@ function Boton({
     </button>
   );
 }
+
+const SELECT_BARRA =
+  'h-8 shrink-0 rounded border border-gray-200 bg-white px-1 text-xs text-gray-700 outline-none focus:border-[#1f2a4d] disabled:opacity-30';
 
 const Sep = () => <span className="mx-1 h-5 w-px shrink-0 bg-gray-200" aria-hidden />;
 
@@ -308,6 +374,8 @@ export function BarraFormato({
       jus: e?.isActive({ textAlign: 'justify' }) ?? false,
       puedeDeshacer: e?.can().undo() ?? false,
       puedeRehacer: e?.can().redo() ?? false,
+      fuente: (e?.getAttributes('textStyle').fontFamily as string | undefined) ?? '',
+      tamano: (e?.getAttributes('textStyle').fontSize as string | undefined) ?? '',
     }),
   });
   const c = () => editor?.chain().focus();
@@ -325,6 +393,47 @@ export function BarraFormato({
       <Boton titulo="Rehacer (Ctrl+Shift+Z)" deshabilitado={off || !est?.puedeRehacer} onClick={() => c()?.redo().run()}>
         <svg {...trazo}><path d="m15 14 5-5-5-5" /><path d="M20 9H10a6 6 0 0 0 0 12h3" /></svg>
       </Boton>
+      <Sep />
+      <select
+        aria-label="Fuente"
+        title="Fuente"
+        disabled={off}
+        value={(FUENTES as readonly string[]).includes(est?.fuente ?? '') ? est?.fuente : ''}
+        onChange={(ev) => {
+          const v = ev.target.value;
+          if (v) c()?.setFontFamily(v).run();
+          else c()?.unsetFontFamily().run();
+        }}
+        className={SELECT_BARRA}
+        style={{ width: 130 }}
+      >
+        <option value="">Fuente</option>
+        {FUENTES.map((f) => (
+          <option key={f} value={f} style={{ fontFamily: f }}>
+            {f}
+          </option>
+        ))}
+      </select>
+      <select
+        aria-label="Tamaño"
+        title="Tamaño"
+        disabled={off}
+        value={(TAMANOS as readonly string[]).includes(est?.tamano ?? '') ? est?.tamano : ''}
+        onChange={(ev) => {
+          const v = ev.target.value;
+          if (v) c()?.setFontSize(v).run();
+          else c()?.unsetFontSize().run();
+        }}
+        className={SELECT_BARRA}
+        style={{ width: 80 }}
+      >
+        <option value="">Tamaño</option>
+        {TAMANOS.map((t) => (
+          <option key={t} value={t}>
+            {t.replace('px', '')}
+          </option>
+        ))}
+      </select>
       <Sep />
       <Boton titulo="Negrita (Ctrl+B)" activo={est?.negrita} deshabilitado={off} onClick={() => c()?.toggleBold().run()}>
         <span className="font-bold">B</span>
