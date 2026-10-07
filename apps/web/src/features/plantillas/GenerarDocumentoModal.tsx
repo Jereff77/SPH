@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Logo } from '@/components/Logo';
 import { Modal } from '@/components/ui/Modal';
-import { BarraFormato, HojaDocumento, htmlDeHoja, useEditoresHoja } from './HojaDocumento';
+import { BarraFormato, HojaDocumento, htmlDeHoja, useEditoresHoja, useZoomHoja, ZoomHoja } from './HojaDocumento';
 import { IconImprimir } from './iconos';
 import { contenidoInicial } from './contenido-inicial';
 import { plantillasApi, type ContenidoPlantilla } from './plantillas.api';
@@ -76,6 +76,7 @@ export function GenerarDocumentoModal({ abierto, onCerrar }: { abierto: boolean;
 
 function Documento({ contenido, onCerrar }: { contenido: ContenidoPlantilla; onCerrar: () => void }) {
   const hoja = useEditoresHoja(contenido ?? contenidoInicial(), true);
+  const [zoom, setZoom] = useZoomHoja();
   const [impresion, setImpresion] = useState<{ encabezado: string; cuerpo: string; pie: string } | null>(null);
 
   useEffect(() => {
@@ -91,9 +92,11 @@ function Documento({ contenido, onCerrar }: { contenido: ContenidoPlantilla; onC
         Versión preliminar: aún sin campos automáticos ni guardado en el expediente. Lo que edites aquí no modifica la plantilla.
       </div>
       <div className="overflow-hidden rounded-lg border border-gray-200">
-        <BarraFormato editor={hoja.activo} habilitada />
+        <BarraFormato editor={hoja.activo} habilitada zoom={zoom} onZoom={setZoom} />
         <div className="scrollbar-hide max-h-[55vh] overflow-auto bg-gray-50 p-4">
-          <HojaDocumento hoja={hoja} editable />
+          <ZoomHoja zoom={zoom}>
+            <HojaDocumento hoja={hoja} editable />
+          </ZoomHoja>
         </div>
       </div>
       <div className="flex justify-end gap-2">

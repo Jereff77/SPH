@@ -60,7 +60,9 @@ export function useEditoresHoja(
   const pie = useEditor({ ...comun, content: inicial.pie });
 
   useEffect(() => {
-    for (const e of [encabezado, cuerpo, pie]) e?.setEditable(editable);
+    // 2.º parámetro `false`: cambiar editable NO es una edición. Sin él, Tiptap emite
+    // `update` y el editor se marcaba «sin guardar» justo después de guardar.
+    for (const e of [encabezado, cuerpo, pie]) e?.setEditable(editable, false);
   }, [editable, encabezado, cuerpo, pie]);
 
   const leer = useCallback((): ContenidoPlantilla | null => {
@@ -226,7 +228,73 @@ function IconAlin({ tipo }: { tipo: 'left' | 'center' | 'right' | 'justify' }) {
   );
 }
 
-export function BarraFormato({ editor, habilitada }: { editor: Editor | null; habilitada: boolean }) {
+/* ---------------- Zoom de la hoja (solo pantalla; no afecta la impresión) ---------------- */
+
+export const NIVELES_ZOOM = [75, 90, 100, 125, 150, 175, 200] as const;
+const CLAVE_ZOOM = 'plantillas.zoom';
+
+/** Nivel de zoom de la hoja, recordado en este navegador (comodidad por persona). */
+export function useZoomHoja(): [number, (z: number) => void] {
+  const [zoom, setZoom] = useState<number>(() => {
+    try {
+      const v = Number(localStorage.getItem(CLAVE_ZOOM));
+      return (NIVELES_ZOOM as readonly number[]).includes(v) ? v : 100;
+    } catch {
+      return 100;
+    }
+  });
+  const fijar = useCallback((z: number) => {
+    setZoom(z);
+    try {
+      localStorage.setItem(CLAVE_ZOOM, String(z));
+    } catch {
+      /* sin almacenamiento: el zoom vale solo para esta sesión */
+    }
+  }, []);
+  return [zoom, fijar];
+}
+
+/** Envuelve la hoja aplicando el zoom elegido (el contenedor padre hace scroll). */
+export function ZoomHoja({ zoom, children }: { zoom: number; children: React.ReactNode }) {
+  return <div style={{ zoom: zoom / 100 }}>{children}</div>;
+}
+
+function ControlZoom({ zoom, onZoom }: { zoom: number; onZoom: (z: number) => void }) {
+  const niveles = NIVELES_ZOOM as readonly number[];
+  const i = Math.max(0, niveles.indexOf(zoom));
+  return (
+    <div className="ml-auto flex shrink-0 items-center gap-1 pl-3" role="group" aria-label="Zoom de la hoja">
+      <Boton titulo="Alejar" deshabilitado={i <= 0} onClick={() => onZoom(niveles[Math.max(0, i - 1)] ?? 100)}>
+        <svg {...trazo}><circle cx="11" cy="11" r="7" /><line x1="21" x2="16.5" y1="21" y2="16.5" /><line x1="8" x2="14" y1="11" y2="11" /></svg>
+      </Boton>
+      <button
+        type="button"
+        title="Volver a 100 %"
+        aria-label={`Zoom ${zoom} %. Volver a 100 %`}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => onZoom(100)}
+        className="min-w-[3.5rem] rounded px-1 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+      >
+        {zoom} %
+      </button>
+      <Boton titulo="Acercar" deshabilitado={i >= niveles.length - 1} onClick={() => onZoom(niveles[Math.min(niveles.length - 1, i + 1)] ?? 100)}>
+        <svg {...trazo}><circle cx="11" cy="11" r="7" /><line x1="21" x2="16.5" y1="21" y2="16.5" /><line x1="8" x2="14" y1="11" y2="11" /><line x1="11" x2="11" y1="8" y2="14" /></svg>
+      </Boton>
+    </div>
+  );
+}
+
+export function BarraFormato({
+  editor,
+  habilitada,
+  zoom,
+  onZoom,
+}: {
+  editor: Editor | null;
+  habilitada: boolean;
+  zoom?: number;
+  onZoom?: (z: number) => void;
+}) {
   const est = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -287,6 +355,7 @@ export function BarraFormato({ editor, habilitada }: { editor: Editor | null; ha
           <circle cx="4.5" cy="6" r="1" /><circle cx="4.5" cy="12" r="1" /><circle cx="4.5" cy="18" r="1" />
         </svg>
       </Boton>
+      {zoom !== undefined && onZoom && <ControlZoom zoom={zoom} onZoom={onZoom} />}
     </div>
   );
 }

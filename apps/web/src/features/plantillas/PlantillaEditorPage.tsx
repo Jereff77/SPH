@@ -6,7 +6,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useAuth } from '@/features/auth/useAuth';
 import { ApiRequestError } from '@/lib/api';
 import { contenidoInicial, docSinTexto } from './contenido-inicial';
-import { BarraFormato, HojaDocumento, useEditoresHoja } from './HojaDocumento';
+import { BarraFormato, HojaDocumento, useEditoresHoja, useZoomHoja, ZoomHoja } from './HojaDocumento';
 import { IconRayo, IconVolver } from './iconos';
 import {
   codigoError,
@@ -110,6 +110,7 @@ function Editor({
     contenido: ContenidoPlantilla;
   } | null>(null);
 
+  const [zoom, setZoom] = useZoomHoja();
   const hoja = useEditoresHoja(detalle?.contenido ?? contenidoInicial(), editable && !guardando, () => {
     setSucio(true);
     setAviso(null);
@@ -259,11 +260,13 @@ function Editor({
         </div>
       )}
 
-      {editable && <BarraFormato editor={hoja.activo} habilitada={!guardando} />}
+      <BarraFormato editor={hoja.activo} habilitada={editable && !guardando} zoom={zoom} onZoom={setZoom} />
 
       <div className="flex min-h-0 flex-1">
         <div className="scrollbar-hide min-w-0 flex-1 overflow-auto p-6">
-          <HojaDocumento hoja={hoja} editable={editable} />
+          <ZoomHoja zoom={zoom}>
+            <HojaDocumento hoja={hoja} editable={editable} />
+          </ZoomHoja>
         </div>
         <PanelCampos />
       </div>
