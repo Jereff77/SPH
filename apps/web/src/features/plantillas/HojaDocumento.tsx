@@ -134,10 +134,10 @@ export function HojaDocumento({
       <div>
         {editable && <EtiquetaZona texto="Encabezado · editable" />}
         <div className="flex items-start justify-between gap-4 pb-3">
-          <div className="shrink-0">
+          <div className="w-[170px] shrink-0 overflow-hidden">
             <Logo />
           </div>
-          <div className={`w-[270px] shrink-0 text-[10px] leading-snug ${marco(editencabezado)}`}>
+          <div className={`min-w-0 flex-1 text-[10px] leading-snug ${marco(editencabezado)}`}>
             <EditorContent editor={editencabezado} />
           </div>
         </div>
