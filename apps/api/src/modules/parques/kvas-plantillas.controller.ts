@@ -5,11 +5,14 @@ import {
   crearPlantillaSchema,
   guardarPlantillaSchema,
   idPlantillaSchema,
+  tipoPlantillaSchema,
   listarPlantillasQuerySchema,
   type BajaPlantillaDto,
   type CrearPlantillaDto,
   type GuardarPlantillaDto,
+  type TipoPlantilla,
 } from './kvas-plantillas.schemas.js';
+import { catalogoDeTipo } from './kvas-plantillas.campos.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard.js';
 import { PermisoGuard } from '../../common/auth/permiso.guard.js';
@@ -42,6 +45,12 @@ export class KvasPlantillasController {
     const incluirBajas = q.incluirBajas === 'true' || q.incluirBajas === '1';
     if (incluirBajas) await this.svc.exigirVerBajas(actor.uid);
     return this.svc.listar(incluirBajas);
+  }
+
+  /** Campos automáticos disponibles para un tipo (declarada ANTES de `:id`). */
+  @Get('catalogo/:tipo')
+  catalogo(@Param('tipo', new ZodValidationPipe(tipoPlantillaSchema)) tipo: TipoPlantilla) {
+    return { tipo, campos: catalogoDeTipo(tipo) };
   }
 
   /** Una plantilla dada de baja solo la ve quien puede ver bajas (730/731 o soporte). */

@@ -24,6 +24,30 @@
   margin: 0;
 }
 
+/* Campo automático (chip verde, atómico). */
+.hoja-doc .campo-chip {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1px solid #8dbe2f;
+  border-radius: 9999px;
+  background: #ecfccb;
+  color: #3f6212;
+  font-size: 0.92em;
+  line-height: 1.4;
+  white-space: nowrap;
+  user-select: all;
+}
+.hoja-doc .campo-chip--desconocido {
+  border-color: #9ca3af;
+  background: #f3f4f6;
+  color: #4b5563;
+}
+.hoja-doc .ProseMirror-selectednode.campo-chip,
+.hoja-doc .campo-chip.ProseMirror-selectednode {
+  outline: 2px solid #1f2a4d;
+  outline-offset: 1px;
+}
+
 /* Copia solo para imprimir: en pantalla no existe. */
 .solo-impresion {
   display: none;

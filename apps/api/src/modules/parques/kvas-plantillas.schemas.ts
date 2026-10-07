@@ -1,10 +1,12 @@
 import { z } from 'zod';
+import { CLAVES_CAMPO } from './kvas-plantillas.campos.js';
 
 /**
  * Plantillas de documentos de KVA's · VERSION LIGHT.
  * `contenido` = { encabezado, cuerpo, pie }; cada zona es un Doc de Tiptap/ProseMirror
  * con un esquema CERRADO: nodos doc, paragraph, text, hardBreak, bulletList, orderedList,
  * listItem · marcas bold, italic, underline y textStyle (fuente y tamaño de listas CERRADAS) ·
+ * nodo inline `campo` (clave de lista cerrada; las MISMAS marcas que el texto) ·
  * atributo textAlign solo en paragraph · `logoAncho` (paso de una lista cerrada) en la raíz.
  * Lo que se guarda es el resultado SANEADO (nunca el crudo del cliente).
  */
@@ -64,7 +66,15 @@ const texto = z
   })
   .strict();
 const salto = z.object({ type: z.literal('hardBreak') }).strict();
-const inline = z.union([texto, salto]);
+/** Campo automático (Fase 2): nodo atómico; la clave se valida contra el catálogo del tipo en el servicio. */
+const campo = z
+  .object({
+    type: z.literal('campo'),
+    attrs: z.object({ clave: z.enum(CLAVES_CAMPO) }).strict(),
+    marks: z.array(marca).max(4).optional(),
+  })
+  .strict();
+const inline = z.union([texto, salto, campo]);
 
 const parrafo = z
   .object({
@@ -121,26 +131,36 @@ type Nodo = {
   content?: Nodo[];
 };
 
+function sanearMarcas(marks: NonNullable<Nodo['marks']> | undefined): NonNullable<Nodo['marks']> {
+  const marcas: NonNullable<Nodo['marks']> = [];
+  for (const m of marks ?? []) {
+    if (marcas.some((x) => x.type === m.type)) continue;
+    if (m.type === 'textStyle') {
+      const attrs: { fontFamily?: string; fontSize?: string } = {};
+      if (m.attrs?.fontFamily) attrs.fontFamily = m.attrs.fontFamily;
+      if (m.attrs?.fontSize) attrs.fontSize = m.attrs.fontSize;
+      // textStyle sin fuente ni tamaño no aporta nada: se descarta.
+      if (Object.keys(attrs).length) marcas.push({ type: 'textStyle', attrs });
+    } else marcas.push({ type: m.type });
+  }
+  return marcas;
+}
+
 /** Copia SANEADA del árbol: texto limpio, sin nodos de texto vacíos, atributos solo los permitidos. */
 function sanearNodo(n: Nodo): Nodo | null {
   if (n.type === 'text') {
     const t = sanearTexto(n.text ?? '');
     if (!t) return null;
     const out: Nodo = { type: 'text', text: t };
-    if (n.marks?.length) {
-      const marcas: NonNullable<Nodo['marks']> = [];
-      for (const m of n.marks) {
-        if (marcas.some((x) => x.type === m.type)) continue;
-        if (m.type === 'textStyle') {
-          const attrs: { fontFamily?: string; fontSize?: string } = {};
-          if (m.attrs?.fontFamily) attrs.fontFamily = m.attrs.fontFamily;
-          if (m.attrs?.fontSize) attrs.fontSize = m.attrs.fontSize;
-          // textStyle sin fuente ni tamaño no aporta nada: se descarta.
-          if (Object.keys(attrs).length) marcas.push({ type: 'textStyle', attrs });
-        } else marcas.push({ type: m.type });
-      }
-      if (marcas.length) out.marks = marcas;
-    }
+    const marcas = sanearMarcas(n.marks);
+    if (marcas.length) out.marks = marcas;
+    return out;
+  }
+  if (n.type === 'campo') {
+    // Solo `clave` (ya validada contra la lista cerrada) y sus marcas.
+    const out: Nodo = { type: 'campo', attrs: { clave: n.attrs?.['clave'] } };
+    const marcas = sanearMarcas(n.marks);
+    if (marcas.length) out.marks = marcas;
     return out;
   }
   const out: Nodo = { type: n.type };
@@ -154,6 +174,19 @@ function sanearNodo(n: Nodo): Nodo | null {
     if (hijos.length || n.type !== 'paragraph') out.content = hijos;
   }
   return out;
+}
+
+/** Claves de campo usadas en las tres zonas (sin repetir). */
+export function clavesUsadas(c: ContenidoPlantilla): string[] {
+  const set = new Set<string>();
+  const rec = (n: Nodo): void => {
+    if (n.type === 'campo' && typeof n.attrs?.['clave'] === 'string') set.add(n.attrs['clave']);
+    for (const h of n.content ?? []) rec(h);
+  };
+  rec(c.encabezado);
+  rec(c.cuerpo);
+  rec(c.pie);
+  return [...set];
 }
 
 function medir(n: Nodo, prof: number, acc: { nodos: number; prof: number; texto: number }): void {
@@ -247,6 +280,8 @@ export const bajaPlantillaSchema = z
   })
   .strict();
 export type BajaPlantillaDto = z.infer<typeof bajaPlantillaSchema>;
+
+export const tipoPlantillaSchema = z.enum(TIPOS_PLANTILLA);
 
 export const idPlantillaSchema = z.string().uuid('Identificador de plantilla inválido.');
 

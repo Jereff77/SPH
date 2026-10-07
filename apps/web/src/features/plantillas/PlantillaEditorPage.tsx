@@ -6,7 +6,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useAuth } from '@/features/auth/useAuth';
 import { ApiRequestError } from '@/lib/api';
 import { contenidoInicial, docSinTexto } from './contenido-inicial';
-import { BarraFormato, HojaDocumento, useEditoresHoja, useZoomHoja, ZoomHoja } from './HojaDocumento';
+import { BarraFormato, HojaDocumento, useEditoresHoja, useZoomHoja, ZoomHoja, type EditoresHoja } from './HojaDocumento';
 import { IconRayo, IconVolver } from './iconos';
 import {
   codigoError,
@@ -14,6 +14,7 @@ import {
   ETIQUETA_TIPO,
   plantillasApi,
   type ContenidoPlantilla,
+  type GrupoCampo,
   type PlantillaDetalle,
   type TipoPlantilla,
 } from './plantillas.api';
@@ -111,7 +112,7 @@ function Editor({
   } | null>(null);
 
   const [zoom, setZoom] = useZoomHoja();
-  const hoja = useEditoresHoja(detalle?.contenido ?? contenidoInicial(), editable && !guardando, () => {
+  const hoja = useEditoresHoja(detalle?.contenido ?? contenidoInicial(tipo === 'ASIGNACION_CARGA'), editable && !guardando, () => {
     setSucio(true);
     setAviso(null);
   });
@@ -270,7 +271,7 @@ function Editor({
             <HojaDocumento hoja={hoja} editable={editable} />
           </ZoomHoja>
         </div>
-        <PanelCampos />
+        <PanelCampos tipo={tipo} hoja={hoja} habilitado={editable && !guardando} />
       </div>
 
       {/* Salir con cambios */}
@@ -345,49 +346,81 @@ function Editor({
   );
 }
 
-const GRUPOS: { titulo: string; campos: string[] }[] = [
-  { titulo: 'Inversionistas', campos: ['Empresa'] },
-  { titulo: 'Parques', campos: ['Parque'] },
-  { titulo: 'Propiedades', campos: ['Naves', 'KVA por nave', 'Nivel de tensión'] },
-  { titulo: 'Sistema', campos: ['Fecha'] },
+const GRUPOS_CAMPOS: { grupo: GrupoCampo; titulo: string }[] = [
+  { grupo: 'INVERSIONISTAS', titulo: 'Inversionistas' },
+  { grupo: 'PARQUES', titulo: 'Parques' },
+  { grupo: 'PROPIEDADES', titulo: 'Propiedades' },
+  { grupo: 'SISTEMA', titulo: 'Sistema' },
 ];
 
-/** Panel derecho de 300 px. En la versión light los campos están deshabilitados. */
-function PanelCampos() {
+/** Panel derecho de 300 px: un clic inserta el campo en el editor activo. */
+function PanelCampos({ tipo, hoja, habilitado }: { tipo: TipoPlantilla; hoja: EditoresHoja; habilitado: boolean }) {
+  const admiteCampos = tipo === 'ASIGNACION_CARGA';
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['plantillas', 'catalogo', tipo],
+    queryFn: () => plantillasApi.catalogo(tipo),
+    enabled: admiteCampos,
+    staleTime: 5 * 60 * 1000,
+  });
+  const campos = data?.campos ?? [];
+
+  function insertar(clave: string) {
+    const ed = hoja.activo;
+    if (!ed || !habilitado) return;
+    ed.chain().focus().insertContent({ type: 'campo', attrs: { clave } }).run();
+  }
+
   return (
     <aside
       aria-label="Campos automáticos"
       className="scrollbar-hide hidden w-[300px] shrink-0 overflow-y-auto border-l border-gray-200 bg-white p-4 lg:block"
     >
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-gray-800">Campos automáticos</h2>
-        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
-          Próximamente
-        </span>
-      </div>
-      <p className="mb-4 text-xs text-gray-500">
-        Aquí podrás insertar datos que se llenan solos (empresa, parque, naves…). Por ahora el texto se escribe a mano.
-      </p>
-      <div className="flex flex-col gap-4">
-        {GRUPOS.map((g) => (
-          <section key={g.titulo}>
-            <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{g.titulo}</h3>
-            <div className="flex flex-wrap gap-1.5">
-              {g.campos.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  disabled
-                  title="Próximamente"
-                  className="inline-flex cursor-not-allowed items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs text-gray-400"
-                >
-                  <IconRayo width={11} height={11} /> {c}
-                </button>
-              ))}
+      <h2 className="mb-1 text-sm font-semibold text-gray-800">Campos automáticos</h2>
+      {!admiteCampos ? (
+        <p className="text-xs text-gray-500">Este tipo aún no tiene campos.</p>
+      ) : (
+        <>
+          <p className="mb-4 text-xs text-gray-500">
+            Haz clic en un campo para insertarlo donde está el cursor. Al generar el documento se llena solo.
+          </p>
+          {isLoading && <p className="text-xs text-gray-400">Cargando campos…</p>}
+          {error && (
+            <div className="text-xs text-red-600">
+              No pudimos cargar los campos.{' '}
+              <button type="button" onClick={() => void refetch()} className="underline">
+                Reintentar
+              </button>
             </div>
-          </section>
-        ))}
-      </div>
+          )}
+          <div className="flex flex-col gap-4">
+            {GRUPOS_CAMPOS.map((g) => {
+              const delGrupo = campos.filter((c) => c.grupo === g.grupo);
+              if (delGrupo.length === 0) return null;
+              return (
+                <section key={g.grupo}>
+                  <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{g.titulo}</h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {delGrupo.map((c) => (
+                      <button
+                        key={c.clave}
+                        type="button"
+                        disabled={!habilitado}
+                        title={`Insertar «${c.etiqueta}». Ejemplo: ${c.ejemplo}`}
+                        aria-label={`Insertar campo ${c.etiqueta}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => insertar(c.clave)}
+                        className="inline-flex items-center gap-1 rounded-full border border-[#8DBE2F] bg-[#ecfccb] px-2.5 py-1 text-xs text-[#3f6212] transition-colors hover:bg-[#d9f99d] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                        <IconRayo width={11} height={11} /> {c.etiqueta}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </>
+      )}
     </aside>
   );
 }

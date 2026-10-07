@@ -5,6 +5,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import { FontFamily, FontSize, TextStyle } from '@tiptap/extension-text-style';
 import { Logo } from '@/components/Logo';
 import type { ContenidoPlantilla, DocJson } from './plantillas.api';
+import { Campo } from './campo-extension';
 import { IconLapiz } from './iconos';
 import './plantillas.css';
 
@@ -26,6 +27,7 @@ const extensiones = () => [
   TextStyle,
   FontFamily,
   FontSize,
+  Campo,
 ];
 
 /** Listas CERRADAS (el API valida contra ellas). */

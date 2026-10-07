@@ -72,6 +72,56 @@ export const plantillasApi = {
     api.post<{ idPlantilla: string }>(`${BASE}/${encodeURIComponent(id)}/duplicar`),
   baja: (id: string, motivo: string) =>
     api.post<{ ok: true }>(`${BASE}/${encodeURIComponent(id)}/baja`, { motivo }),
+  /** Catálogo de campos automáticos permitidos para un tipo de plantilla. */
+  catalogo: (tipo: TipoPlantilla) =>
+    api.get<{ tipo: TipoPlantilla; campos: CampoCatalogo[] }>(`${BASE}/catalogo/${encodeURIComponent(tipo)}`),
+};
+
+export type GrupoCampo = 'INVERSIONISTAS' | 'PARQUES' | 'PROPIEDADES' | 'SISTEMA';
+
+export interface CampoCatalogo {
+  clave: string;
+  etiqueta: string;
+  grupo: GrupoCampo;
+  ejemplo: string;
+}
+
+export interface EmpresaDoc {
+  idInversionista: string;
+  razonsocial: string;
+  totalNaves: number;
+}
+
+export interface NaveDoc {
+  idNave: string;
+  numNave: string;
+  idParque: string;
+  nomParque: string;
+  rol: 'INVERSIONISTA' | 'ARRENDATARIO' | 'AMBOS';
+  dotacionBt: number;
+  dotacionMt: number;
+}
+
+export interface VistaPreviaBody {
+  idPlantilla: string;
+  idInversionista: string;
+  naves: { idNave: string; kvas: { nivel: 'BT' | 'MT'; cantidad: number }[] }[];
+}
+
+export interface VistaPreviaRespuesta {
+  contenido: ContenidoPlantilla;
+  advertencias: { codigo: string; mensaje: string }[];
+  resueltos: Record<string, string>;
+}
+
+const BASE_DOCS = '/kvas/documentos';
+
+export const documentosApi = {
+  empresas: () => api.get<EmpresaDoc[]>(`${BASE_DOCS}/empresas`),
+  navesDeEmpresa: (idInversionista: string) =>
+    api.get<NaveDoc[]>(`${BASE_DOCS}/empresas/${encodeURIComponent(idInversionista)}/naves`),
+  vistaPrevia: (body: VistaPreviaBody) =>
+    api.post<VistaPreviaRespuesta>(`${BASE_DOCS}/vista-previa`, body),
 };
 
 /** Lee el código de negocio de un 409 (NOMBRE_DUPLICADO, VERSION_DESACTUALIZADA...). */

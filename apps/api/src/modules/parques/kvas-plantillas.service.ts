@@ -9,11 +9,13 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { fallaBd } from '../../common/utils/db-error.js';
-import type {
-  ContenidoPlantilla,
-  CrearPlantillaDto,
-  GuardarPlantillaDto,
-  TipoPlantilla,
+import { clavesPermitidas } from './kvas-plantillas.campos.js';
+import {
+  clavesUsadas,
+  type ContenidoPlantilla,
+  type CrearPlantillaDto,
+  type GuardarPlantillaDto,
+  type TipoPlantilla,
 } from './kvas-plantillas.schemas.js';
 
 export interface PlantillaResumen {
@@ -137,7 +139,23 @@ export class KvasPlantillasService {
 
   // ---------- Escritura ----------
 
+  /** 400 `CAMPO_FUERA_DE_CATALOGO` si el contenido usa un campo que el tipo no admite. */
+  private exigirCamposDelCatalogo(tipo: TipoPlantilla, contenido: ContenidoPlantilla): void {
+    const fuera = clavesUsadas(contenido).filter((c) => !clavesPermitidas(tipo, [c]));
+    if (fuera.length)
+      throw new BadRequestException({
+        message: {
+          codigo: 'CAMPO_FUERA_DE_CATALOGO',
+          mensaje:
+            tipo === 'DEVOLUCION'
+              ? 'Este tipo de plantilla aún no admite campos automáticos.'
+              : 'La plantilla usa un campo automático que no existe para este tipo.',
+        },
+      });
+  }
+
   async crear(dto: CrearPlantillaDto, actorUid: string): Promise<{ idPlantilla: string; version: 1 }> {
+    this.exigirCamposDelCatalogo(dto.tipo, dto.contenido);
     const { data, error } = await this.actor(actorUid).rpc('kva_plantilla_crear', {
       p_tipo: dto.tipo,
       p_nombre: dto.nombre,
@@ -154,6 +172,15 @@ export class KvasPlantillasService {
     dto: GuardarPlantillaDto,
     actorUid: string,
   ): Promise<{ version: number }> {
+    // El tipo sale de la BD (el cliente no lo manda).
+    const { data: cab, error: errTipo } = await this.lector()
+      .from('kvaPlantillas')
+      .select('tipo')
+      .eq('idPlantilla', idPlantilla)
+      .maybeSingle();
+    if (errTipo) fallaBd(this.logger, 'plantillas.guardar.tipo', errTipo);
+    if (!cab) throw new NotFoundException('La plantilla no existe.');
+    this.exigirCamposDelCatalogo(cab.tipo as TipoPlantilla, dto.contenido);
     const { data, error } = await this.actor(actorUid).rpc('kva_plantilla_guardar', {
       p_id: idPlantilla,
       p_base: dto.versionBase,
