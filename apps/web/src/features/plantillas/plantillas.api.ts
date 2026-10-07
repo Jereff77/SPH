@@ -92,6 +92,12 @@ export interface EmpresaDoc {
   totalNaves: number;
 }
 
+export interface EmpresaDeNave {
+  idInversionista: string;
+  razonsocial: string;
+  rol: 'INVERSIONISTA' | 'ARRENDATARIO' | 'AMBOS';
+}
+
 export interface NaveDoc {
   idNave: string;
   numNave: string;
@@ -118,6 +124,8 @@ const BASE_DOCS = '/kvas/documentos';
 
 export const documentosApi = {
   empresas: () => api.get<EmpresaDoc[]>(`${BASE_DOCS}/empresas`),
+  empresasDeNave: (idNave: string) =>
+    api.get<EmpresaDeNave[]>(`${BASE_DOCS}/naves/${encodeURIComponent(idNave)}/empresas`),
   navesDeEmpresa: (idInversionista: string) =>
     api.get<NaveDoc[]>(`${BASE_DOCS}/empresas/${encodeURIComponent(idInversionista)}/naves`),
   vistaPrevia: (body: VistaPreviaBody) =>

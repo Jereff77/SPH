@@ -52,15 +52,24 @@ function validarKva(texto: string): { valor: number } | { error: string } {
 }
 
 /** Parques → KVA's → «Generar documento»: el servidor llena los campos; no se guarda nada. */
-export function GenerarDocumentoModal({ abierto, onCerrar }: { abierto: boolean; onCerrar: () => void }) {
+export function GenerarDocumentoModal({
+  abierto,
+  onCerrar,
+  idNaveInicial,
+}: {
+  abierto: boolean;
+  onCerrar: () => void;
+  /** Si se abre desde la ficha de una nave: se precargan su empresa y la nave marcada. */
+  idNaveInicial?: string;
+}) {
   return (
     <Modal abierto={abierto} onCerrar={onCerrar} titulo="Generar documento" ancho="xl" cabeceraAzul>
-      <Contenido onCerrar={onCerrar} />
+      <Contenido onCerrar={onCerrar} idNaveInicial={idNaveInicial} />
     </Modal>
   );
 }
 
-function Contenido({ onCerrar }: { onCerrar: () => void }) {
+function Contenido({ onCerrar, idNaveInicial }: { onCerrar: () => void; idNaveInicial?: string }) {
   const [idPlantilla, setIdPlantilla] = useState('');
   const [idInversionista, setIdInversionista] = useState('');
   const [busqueda, setBusqueda] = useState('');
@@ -87,6 +96,17 @@ function Contenido({ onCerrar }: { onCerrar: () => void }) {
     queryFn: () => documentosApi.navesDeEmpresa(idInversionista),
     enabled: !!idInversionista,
   });
+
+  // Desde la ficha de una nave ya sabemos su empresa: la ocupante primero (arrendatario).
+  const deNave = useQuery({
+    queryKey: ['documentos', 'empresas-de-nave', idNaveInicial],
+    queryFn: () => documentosApi.empresasDeNave(idNaveInicial!),
+    enabled: !!idNaveInicial,
+  });
+  useEffect(() => {
+    const primera = deNave.data?.[0];
+    if (primera) setIdInversionista((actual) => actual || primera.idInversionista);
+  }, [deNave.data]);
 
   const generar = useMutation({ mutationFn: documentosApi.vistaPrevia });
 
@@ -191,6 +211,7 @@ function Contenido({ onCerrar }: { onCerrar: () => void }) {
         <SeleccionNaves
           key={idInversionista}
           naves={naves.data}
+          naveInicial={idNaveInicial}
           puedeVer={!!idPlantilla}
           generando={generar.isPending}
           onCambio={alCambiarDatos}
@@ -236,19 +257,24 @@ function Alerta({ children }: { children: React.ReactNode }) {
 /** Naves de la empresa agrupadas por parque: casilla + KVA + nivel por nave. */
 function SeleccionNaves({
   naves,
+  naveInicial,
   puedeVer,
   generando,
   onCambio,
   onVer,
 }: {
   naves: NaveDoc[];
+  /** Nave que llega marcada (cuando se abre desde su ficha). */
+  naveInicial?: string;
   puedeVer: boolean;
   generando: boolean;
   onCambio: () => void;
   onVer: (sel: { idNave: string; nivel: Nivel; cantidad: number }[]) => void;
 }) {
   const [filas, setFilas] = useState<Record<string, FilaNave>>(() =>
-    Object.fromEntries(naves.map((n) => [n.idNave, filaInicial(n)])),
+    Object.fromEntries(
+      naves.map((n) => [n.idNave, { ...filaInicial(n), marcada: n.idNave === naveInicial }]),
+    ),
   );
   const [errores, setErrores] = useState<Record<string, string>>({});
 

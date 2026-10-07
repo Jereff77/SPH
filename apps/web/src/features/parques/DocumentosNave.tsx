@@ -213,7 +213,7 @@ export function DocumentosNave({ idNave, onCambio, onClose }: Props) {
           </button>
         </footer>
       )}
-      <GenerarDocumentoModal abierto={generando} onCerrar={() => setGenerando(false)} />
+      <GenerarDocumentoModal abierto={generando} onCerrar={() => setGenerando(false)} idNaveInicial={idNave} />
     </>
   );
 }

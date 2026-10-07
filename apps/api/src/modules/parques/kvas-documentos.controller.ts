@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs
 import { KvasDocumentosService } from './kvas-documentos.service.js';
 import {
   idInversionistaSchema,
+  idNaveSchema,
   vistaPreviaSchema,
   type VistaPreviaDto,
 } from './kvas-documentos.schemas.js';
@@ -23,6 +24,12 @@ export class KvasDocumentosController {
   @Get('empresas')
   empresas() {
     return this.svc.empresas();
+  }
+
+  /** Empresas de una nave (la ocupante primero): para abrir el modal desde la ficha de la nave. */
+  @Get('naves/:idNave/empresas')
+  empresasDeNave(@Param('idNave', new ZodValidationPipe(idNaveSchema)) idNave: string) {
+    return this.svc.empresasDeNave(idNave);
   }
 
   @Get('empresas/:idInversionista/naves')

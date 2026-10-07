@@ -22,6 +22,12 @@ import {
   type NodoDoc,
 } from './kvas-redaccion.js';
 
+export interface EmpresaDeNave {
+  idInversionista: string;
+  razonsocial: string;
+  rol: 'INVERSIONISTA' | 'ARRENDATARIO' | 'AMBOS';
+}
+
 export interface EmpresaElegible {
   idInversionista: string;
   razonsocial: string;
@@ -159,6 +165,25 @@ export class KvasDocumentosService {
       .filter(([id]) => nombres.has(id))
       .map(([id, total]) => ({ idInversionista: id, razonsocial: nombres.get(id)!, totalNaves: total }))
       .sort((a, b) => a.razonsocial.localeCompare(b.razonsocial, 'es', { sensitivity: 'base' }));
+  }
+
+  /**
+   * Empresas elegibles de UNA nave (para abrir «Generar documento» desde la ficha de la nave).
+   * Primero quien ocupa la nave (arrendatario); si hay dueño distinto, también aparece.
+   */
+  async empresasDeNave(idNave: string): Promise<EmpresaDeNave[]> {
+    const filas = (await this.elegibles()).filter((f) => f.idNave === idNave);
+    if (!filas.length) throw new NotFoundException('La nave no tiene empresa elegible.');
+    const nombres = await this.nombresEmpresas([...new Set(filas.map((f) => f.idInversionista))]);
+    const orden = { ARRENDATARIO: 0, AMBOS: 1, INVERSIONISTA: 2 } as const;
+    return filas
+      .filter((f) => nombres.has(f.idInversionista))
+      .map((f) => ({
+        idInversionista: f.idInversionista,
+        razonsocial: nombres.get(f.idInversionista)!,
+        rol: f.rol as EmpresaDeNave['rol'],
+      }))
+      .sort((a, b) => orden[a.rol] - orden[b.rol] || a.razonsocial.localeCompare(b.razonsocial, 'es'));
   }
 
   async navesDeEmpresa(idInversionista: string): Promise<NaveElegible[]> {

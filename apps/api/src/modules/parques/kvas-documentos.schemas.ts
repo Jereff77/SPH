@@ -40,3 +40,4 @@ export const vistaPreviaSchema = z
 export type VistaPreviaDto = z.infer<typeof vistaPreviaSchema>;
 
 export const idInversionistaSchema = idTexto;
+export const idNaveSchema = idTexto;
