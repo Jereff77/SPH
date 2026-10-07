@@ -29,6 +29,12 @@ const ETIQUETA_ROL: Record<NaveDoc['rol'], string> = {
   AMBOS: 'Inversionista y arrendatario',
 };
 
+const ROL_ETIQUETA = {
+  ARRENDATARIO: 'Arrendatario',
+  INVERSIONISTA: 'Propietario',
+  AMBOS: 'Propietario y arrendatario',
+} as const;
+
 const CLASE_CONTROL =
   'rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#1f2a4d] disabled:bg-gray-50 disabled:text-gray-400';
 
@@ -84,7 +90,12 @@ function Contenido({ onCerrar, idNaveInicial }: { onCerrar: () => void; idNaveIn
   // Por ahora solo «Asignación de carga» tiene campos automáticos.
   const activas = (lista.data ?? []).filter((p) => p.status && p.tipo === 'ASIGNACION_CARGA');
 
-  const empresas = useQuery({ queryKey: ['documentos', 'empresas'], queryFn: documentosApi.empresas });
+  // Desde la ficha de una nave la empresa viene de la nave: no hace falta bajar las 300+ empresas.
+  const empresas = useQuery({
+    queryKey: ['documentos', 'empresas'],
+    queryFn: documentosApi.empresas,
+    enabled: !idNaveInicial,
+  });
   const visibles = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     const todas = empresas.data ?? [];
@@ -97,12 +108,15 @@ function Contenido({ onCerrar, idNaveInicial }: { onCerrar: () => void; idNaveIn
     enabled: !!idInversionista,
   });
 
-  // Desde la ficha de una nave ya sabemos su empresa: la ocupante primero (arrendatario).
+  // Desde la ficha de una nave la empresa NO se elige: viene de la nave (la ocupante primero).
+  const desdeNave = !!idNaveInicial;
   const deNave = useQuery({
     queryKey: ['documentos', 'empresas-de-nave', idNaveInicial],
     queryFn: () => documentosApi.empresasDeNave(idNaveInicial!),
     enabled: !!idNaveInicial,
+    retry: false, // un 404 («nave sin empresa») es una respuesta, no un fallo a reintentar
   });
+  const opcionesNave = deNave.data ?? [];
   useEffect(() => {
     const primera = deNave.data?.[0];
     if (primera) setIdInversionista((actual) => actual || primera.idInversionista);
@@ -157,36 +171,82 @@ function Contenido({ onCerrar, idNaveInicial }: { onCerrar: () => void; idNaveIn
             ))}
           </select>
         </label>
-        <div className="flex flex-col gap-1 text-sm text-gray-700">
-          <label htmlFor="gd-busca-empresa">Empresa</label>
-          <input
-            id="gd-busca-empresa"
-            type="search"
-            aria-label="Buscar empresa por nombre"
-            placeholder="Buscar empresa por nombre…"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            disabled={empresas.isLoading}
-            className={CLASE_CONTROL}
-          />
-          <select
-            aria-label="Empresa"
-            value={idInversionista}
-            onChange={(e) => {
-              setIdInversionista(e.target.value);
-              alCambiarDatos();
-            }}
-            disabled={empresas.isLoading}
-            className={CLASE_CONTROL}
-          >
-            <option value="">{empresas.isLoading ? 'Cargando…' : `Elige una empresa (${visibles.length})`}</option>
-            {visibles.map((e) => (
-              <option key={e.idInversionista} value={e.idInversionista}>
-                {e.razonsocial} · {e.totalNaves} {e.totalNaves === 1 ? 'nave' : 'naves'}
-              </option>
-            ))}
-          </select>
-        </div>
+        {desdeNave ? (
+          <div className="flex flex-col gap-1 text-sm text-gray-700">
+            <span id="gd-empresa-nave">Empresa de la nave</span>
+            {deNave.isLoading && <p className="py-2 text-gray-400">Cargando…</p>}
+            {deNave.error && (
+              <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
+                Esta nave no tiene empresa registrada (ni ocupante ni dueño), por eso no se puede generar un
+                documento para ella.
+              </p>
+            )}
+            {opcionesNave.length === 1 && (
+              <div
+                aria-labelledby="gd-empresa-nave"
+                className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-gray-800"
+              >
+                <span className="min-w-0 truncate font-medium">{opcionesNave[0]!.razonsocial}</span>
+                <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] text-gray-600 ring-1 ring-gray-200">
+                  {ROL_ETIQUETA[opcionesNave[0]!.rol]}
+                </span>
+              </div>
+            )}
+            {opcionesNave.length > 1 && (
+              <>
+                <select
+                  aria-labelledby="gd-empresa-nave"
+                  value={idInversionista}
+                  onChange={(e) => {
+                    setIdInversionista(e.target.value);
+                    alCambiarDatos();
+                  }}
+                  className={CLASE_CONTROL}
+                >
+                  {opcionesNave.map((e) => (
+                    <option key={e.idInversionista} value={e.idInversionista}>
+                      {e.razonsocial} · {ROL_ETIQUETA[e.rol]}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500">
+                  Esta nave tiene más de una empresa; elige a nombre de cuál va el documento.
+                </p>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1 text-sm text-gray-700">
+            <label htmlFor="gd-busca-empresa">Empresa</label>
+            <input
+              id="gd-busca-empresa"
+              type="search"
+              aria-label="Buscar empresa por nombre"
+              placeholder="Buscar empresa por nombre…"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              disabled={empresas.isLoading}
+              className={CLASE_CONTROL}
+            />
+            <select
+              aria-label="Empresa"
+              value={idInversionista}
+              onChange={(e) => {
+                setIdInversionista(e.target.value);
+                alCambiarDatos();
+              }}
+              disabled={empresas.isLoading}
+              className={CLASE_CONTROL}
+            >
+              <option value="">{empresas.isLoading ? 'Cargando…' : `Elige una empresa (${visibles.length})`}</option>
+              {visibles.map((e) => (
+                <option key={e.idInversionista} value={e.idInversionista}>
+                  {e.razonsocial} · {e.totalNaves} {e.totalNaves === 1 ? 'nave' : 'naves'}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {lista.error && <Alerta>No pudimos cargar las plantillas. Reintenta.</Alerta>}
@@ -195,7 +255,7 @@ function Contenido({ onCerrar, idNaveInicial }: { onCerrar: () => void; idNaveIn
         <p className="text-sm text-gray-500">No hay plantillas activas con campos automáticos.</p>
       )}
 
-      {!idInversionista && (
+      {!idInversionista && !(desdeNave && deNave.error) && (
         <p className="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-400">
           Elige una plantilla y una empresa para ver sus naves.
         </p>
