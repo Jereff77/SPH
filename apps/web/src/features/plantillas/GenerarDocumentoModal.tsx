@@ -537,6 +537,8 @@ function Documento({
       {impresion &&
         createPortal(
           <div className="solo-impresion hoja-doc">
+            {/* ⚠️ dangerouslySetInnerHTML: `impresion` solo puede venir de `getHTML()` de Tiptap
+                (esquema cerrado). NUNCA pegar aquí HTML de otras fuentes (API, usuario, pegado). */}
             <div className="impresion-membrete">
               <div style={{ width: hoja.logoAncho, maxWidth: '100%', flexShrink: 0 }}>
                 <Logo className={CLASE_LOGO} />

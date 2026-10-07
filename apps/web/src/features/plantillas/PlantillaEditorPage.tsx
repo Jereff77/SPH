@@ -7,6 +7,7 @@ import { useAuth } from '@/features/auth/useAuth';
 import { ApiRequestError } from '@/lib/api';
 import { contenidoInicial, docSinTexto } from './contenido-inicial';
 import { BarraFormato, HojaDocumento, useEditoresHoja, useZoomHoja, ZoomHoja, type EditoresHoja } from './HojaDocumento';
+import { HistorialVersiones } from './HistorialVersiones';
 import { IconRayo, IconVolver } from './iconos';
 import {
   codigoError,
@@ -106,6 +107,9 @@ function Editor({
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [salir, setSalir] = useState(false);
+  const [historial, setHistorial] = useState(false);
+  const { tienePermiso } = useAuth();
+  const puedeHistorial = tienePermiso(730) || tienePermiso(731);
   const [conflicto, setConflicto] = useState<{
     versionActual: number;
     contenido: ContenidoPlantilla;
@@ -189,6 +193,45 @@ function Editor({
     }
   }
 
+  /** Restaura una versión anterior como versión nueva. Devuelve un mensaje de error o null. */
+  async function restaurar(n: number): Promise<string | null> {
+    if (!detalle) return null;
+    try {
+      const r = await plantillasApi.restaurar(detalle.idPlantilla, { version: n, versionBase: version });
+      const v = await plantillasApi.version(detalle.idPlantilla, r.version);
+      hoja.cargar(v.contenido);
+      setVersion(r.version);
+      setSucio(false);
+      setError(null);
+      setConflicto(null);
+      setAviso(`Se restauró la versión ${n} como versión ${r.version}.`);
+      setHistorial(false);
+      // No se invalida 'detalle': cambiaría la `key` del Editor y lo remontaría perdiendo el aviso
+      // (el editor ya quedó con el contenido nuevo vía hoja.cargar).
+      void qc.invalidateQueries({ queryKey: ['plantillas', 'lista'] });
+      void qc.invalidateQueries({ queryKey: ['plantillas', 'versiones'] });
+      return null;
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        const cod = codigoError(e.body) ?? e.message;
+        if (e.status === 409 && cod.includes('VERSION_DESACTUALIZADA')) {
+          const d = datosConflicto(e.body);
+          if (d) {
+            setHistorial(false);
+            setConflicto(d);
+            return null;
+          }
+          return 'Otra persona guardó una versión nueva. Cierra el historial, recarga la plantilla y reintenta.';
+        }
+        if (e.status === 409 && cod.includes('PLANTILLA_DE_BAJA')) {
+          return 'Esta plantilla está dada de baja y ya no se puede restaurar.';
+        }
+        if (e.status === 404) return 'Esa versión o la plantilla ya no existe.';
+      }
+      return 'No se pudo restaurar la versión. Reintenta.';
+    }
+  }
+
   return (
     // Alto propio = ventana − barra superior (3.5rem) − relleno de <main> (3rem): así solo
     // scrollea la hoja y la barra del nombre, la de formato y el panel de campos quedan fijos.
@@ -220,6 +263,16 @@ function Editor({
           <span className="flex items-center gap-1 text-xs text-gray-500">
             <span className="h-2 w-2 rounded-full bg-amber-500" /> Cambios sin guardar
           </span>
+        )}
+        {puedeHistorial && !esNueva && (
+          <button
+            type="button"
+            onClick={() => setHistorial(true)}
+            title="Ver el historial de versiones"
+            className="rounded-lg border border-gray-300 bg-white px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Historial
+          </button>
         )}
         {editable && (
           <>
@@ -273,6 +326,17 @@ function Editor({
         </div>
         <PanelCampos tipo={tipo} hoja={hoja} habilitado={editable && !guardando} />
       </div>
+
+      {historial && detalle && (
+        <HistorialVersiones
+          idPlantilla={detalle.idPlantilla}
+          versionVigente={version}
+          puedeRestaurar={editable}
+          hayCambios={sucio}
+          onCerrar={() => setHistorial(false)}
+          onRestaurar={restaurar}
+        />
+      )}
 
       {/* Salir con cambios */}
       <Modal

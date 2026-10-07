@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 /** Documentos de KVA's · Fase 2 (vista previa). Todo `.strict()`; el cliente solo manda ids y cantidades. */
 
-const idTexto = z.string().min(1).max(40);
+/** Ids de la BD: solo letras, dígitos, guion y guion bajo (B-3: nada que altere un filtro `.in()`). */
+const idTexto = z.string().min(1).max(40).regex(/^[A-Za-z0-9_-]+$/, 'Identificador inválido.');
 
 const cantidadKva = z
   .number()

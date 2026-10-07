@@ -18,6 +18,8 @@ export interface MenuItem {
   to: string;
   /** Clave de permiso requerida para ver el ítem (de segModulos). */
   clave?: number;
+  /** Alternativa a `clave`: basta con tener CUALQUIERA de estas claves. */
+  claves?: number[];
   /** Si es true, el ítem solo se muestra a personal de soporte (isSupport). */
   soloSoporte?: boolean;
   /** Contador dinámico (círculo) a mostrar junto al ítem, resuelto por el Sidebar. */
@@ -87,7 +89,7 @@ export const MENU: MenuGrupo[] = [
       { label: 'Parques', to: '/parques', clave: 700 },
       { label: 'Disponibilidad', to: '/parques/disponibilidad', clave: 710 },
       { label: "KVA's", to: '/parques/kvas', clave: 720 },
-      { label: 'Plantillas', to: '/parques/plantillas', clave: 730 },
+      { label: 'Plantillas', to: '/parques/plantillas', claves: [730, 731] },
     ],
   },
   {

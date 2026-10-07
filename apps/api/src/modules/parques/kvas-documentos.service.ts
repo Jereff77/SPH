@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { fallaBd } from '../../common/utils/db-error.js';
 import { KvasPlantillasService } from './kvas-plantillas.service.js';
-import { clavesUsadas, type ContenidoPlantilla } from './kvas-plantillas.schemas.js';
+import { clavesUsadas, sanearTexto, type ContenidoPlantilla } from './kvas-plantillas.schemas.js';
 import { clavesPermitidas } from './kvas-plantillas.campos.js';
 import type { VistaPreviaDto } from './kvas-documentos.schemas.js';
 import {
@@ -94,12 +94,24 @@ export class KvasDocumentosService {
   }
 
   private async elegibles(idInversionista?: string): Promise<FilaElegible[]> {
-    const q = idInversionista
-      ? this.db().rpc('kva_naves_elegibles', { p_id_inversionista: idInversionista })
-      : this.db().rpc('kva_naves_elegibles');
-    const { data, error } = await q.range(0, 9999);
-    if (error) fallaBd(this.logger, 'kvasDocumentos.elegibles', error);
-    return (data ?? []) as FilaElegible[];
+    // B-2: PostgREST limita cada respuesta (max_rows, 1000 por omisión): se pagina en bloques.
+    const BLOQUE = 1000;
+    const out: FilaElegible[] = [];
+    for (let desde = 0; desde < 100_000; desde += BLOQUE) {
+      const q = idInversionista
+        ? this.db().rpc('kva_naves_elegibles', { p_id_inversionista: idInversionista })
+        : this.db().rpc('kva_naves_elegibles');
+      // H-1: orden determinista; sin él, entre bloques podrían repetirse u omitirse filas (>1000).
+      const { data, error } = await q
+        .order('idInversionista', { ascending: true })
+        .order('idNave', { ascending: true })
+        .range(desde, desde + BLOQUE - 1);
+      if (error) fallaBd(this.logger, 'kvasDocumentos.elegibles', error);
+      const fila = (data ?? []) as FilaElegible[];
+      out.push(...fila);
+      if (fila.length < BLOQUE) break;
+    }
+    return out;
   }
 
   private async nombresEmpresas(ids: string[]): Promise<Map<string, string>> {
@@ -269,7 +281,10 @@ export class KvasDocumentosService {
 
     // 4) Redacción y sustitución de campos.
     const { resueltos, advertencias } = resolverTodo(empresa, seleccion);
-    const mapa: Record<string, string> = { ...resueltos };
+    // B-1: defensa en profundidad: lo que viene de la BD (razón social, parque) se sanea otra vez.
+    const mapa: Record<string, string> = Object.fromEntries(
+      Object.entries(resueltos).map(([k, v]) => [k, sanearTexto(v)]),
+    );
     const resolver = (z: unknown): unknown => resolverCampos(z as NodoDoc, mapa);
     const salida: VistaPreviaRespuesta['contenido'] = {
       encabezado: resolver(contenido.encabezado),
@@ -277,6 +292,6 @@ export class KvasDocumentosService {
       pie: resolver(contenido.pie),
     };
     if (contenido.logoAncho !== undefined) salida.logoAncho = contenido.logoAncho;
-    return { contenido: salida, advertencias, resueltos };
+    return { contenido: salida, advertencias, resueltos: mapa as unknown as CamposResueltos };
   }
 }

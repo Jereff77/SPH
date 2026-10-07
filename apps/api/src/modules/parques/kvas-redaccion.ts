@@ -91,8 +91,13 @@ export interface GrupoParque {
 /**
  * Agrupa las naves por parque. Un solo parque → solo la lista de números (`107, 108 y 109`);
  * varios → una porción por parque unidas con `; ` (`107 y 108 del parque A; 12 del parque B`).
+ * `forzarParque` califica con «del parque X» aunque este subconjunto sea de un solo parque
+ * (para redactar grupos de un conjunto mayor que sí tiene varios parques; hallazgo M-1).
  */
-export function agruparNaves(naves: readonly NaveSeleccionada[]): {
+export function agruparNaves(
+  naves: readonly NaveSeleccionada[],
+  forzarParque = false,
+): {
   texto: string;
   grupos: GrupoParque[];
 } {
@@ -104,7 +109,7 @@ export function agruparNaves(naves: readonly NaveSeleccionada[]): {
     else grupos.push({ idParque: n.idParque, nomParque: n.nomParque, etiquetas: [n.numNave] });
   }
   const texto =
-    grupos.length <= 1
+    grupos.length <= 1 && !forzarParque
       ? unirLista(grupos[0]?.etiquetas ?? [])
       : grupos.map((g) => `${unirLista(g.etiquetas)} del parque ${g.nomParque}`).join('; ');
   return { texto, grupos };
@@ -172,7 +177,9 @@ export function redactarKvas(navesEntrada: readonly NaveSeleccionada[]): {
   if (nivel.mixto)
     advertencias.push({
       codigo: 'NIVEL_MIXTO',
-      mensaje: 'Hay naves con baja y media tensión: revisa la redacción del documento.',
+      mensaje:
+        'Hay naves con baja y media tensión: el texto de «KVA por nave» ya indica el nivel de cada grupo; ' +
+        'si tu plantilla pone además «en [Nivel de tensión]», quita ese fragmento y revisa la redacción.',
     });
 
   const grupos = new Map<string, NaveSeleccionada[]>();
@@ -190,12 +197,15 @@ export function redactarKvas(navesEntrada: readonly NaveSeleccionada[]): {
       codigo: 'CANTIDADES_DISTINTAS',
       mensaje: 'Las naves tienen cantidades de KVA distintas: revisa la redacción del documento.',
     });
+    // M-1: con más de un parque en la selección, TODA nave se califica con su parque
+    // (el número solo es ambiguo entre parques).
+    const variosParques = new Set(naves.map((n) => n.idParque)).size > 1;
     const partes = [...grupos.entries()].map(([f, ns]) => {
-      const lista = agruparNaves(ns).texto;
+      const lista = agruparNaves(ns, variosParques).texto;
       return `${describirFirma(f, nivel.mixto)} en ${ns.length === 1 ? 'la nave' : 'las naves'} ${lista}`;
     });
-    // Con una « y » dentro de algún grupo, las partes se separan con `; ` para no duplicar la «y».
-    texto = partes.some((p) => p.includes(' y ')) ? partes.join('; ') : unirLista(partes);
+    // Con una « y » dentro de algún grupo (o con varios parques), las partes se separan con `; ` para no duplicar la «y».
+    texto = variosParques || partes.some((p) => p.includes(' y ')) ? partes.join('; ') : unirLista(partes);
   }
 
   if (new Set(naves.map((n) => n.idParque)).size > 1)

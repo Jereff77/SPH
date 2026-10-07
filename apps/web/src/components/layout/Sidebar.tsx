@@ -102,6 +102,7 @@ export function Sidebar({ colapsado, onNavegar }: SidebarProps) {
     items: g.items.filter(
       (it) =>
         (it.clave === undefined || tienePermiso(it.clave)) &&
+        (it.claves === undefined || it.claves.some((c) => tienePermiso(c))) &&
         (!it.soloSoporte || esSoporte),
     ),
   })).filter((g) =>

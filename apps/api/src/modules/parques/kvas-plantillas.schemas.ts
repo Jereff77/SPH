@@ -198,6 +198,21 @@ function medir(n: Nodo, prof: number, acc: { nodos: number; prof: number; texto:
 
 export const doc = docSchema;
 
+/** Cada nodo ocupa ~2 niveles JSON (objeto + arreglo `content`); holgura sobre `LIMITES.profundidad`. */
+const MAX_PROFUNDIDAD_JSON = LIMITES.profundidad * 2 + 8;
+
+/** `true` si el valor JSON anida objetos/arreglos más de `max` niveles. Sin recursión. */
+export function excedeProfundidad(raiz: unknown, max: number): boolean {
+  const pila: [unknown, number][] = [[raiz, 1]];
+  while (pila.length) {
+    const [v, d] = pila.pop()!;
+    if (v === null || typeof v !== 'object') continue;
+    if (d > max) return true;
+    for (const h of Array.isArray(v) ? v : Object.values(v)) pila.push([h, d + 1]);
+  }
+  return false;
+}
+
 const contenidoBase = z
   .object({
     encabezado: docSchema,
@@ -222,7 +237,20 @@ export type ContenidoPlantilla = {
  * `contenido` validado (forma cerrada) y SANEADO. El resultado es lo que se guarda.
  * Límites: texto total ≤ 20 000, profundidad ≤ 8 y ≤ 500 nodos por zona.
  */
-export const contenidoSchema = contenidoBase.transform((c, ctx): ContenidoPlantilla => {
+export const contenidoSchema = z
+  .unknown()
+  .superRefine((v, ctx) => {
+    // L2: se mide la profundidad de forma ITERATIVA antes de validar con Zod (la validación
+    // recursiva de las listas desbordaría la pila con miles de niveles → 500).
+    if (excedeProfundidad(v, MAX_PROFUNDIDAD_JSON))
+      ctx.addIssue({
+        code: 'custom',
+        message: `Listas demasiado anidadas (máx. profundidad ${LIMITES.profundidad}).`,
+        fatal: true,
+      });
+  })
+  .pipe(contenidoBase)
+  .transform((c, ctx): ContenidoPlantilla => {
   const zonas = ['encabezado', 'cuerpo', 'pie'] as const;
   const out = {} as ContenidoPlantilla;
   let textoTotal = 0;
@@ -280,6 +308,22 @@ export const bajaPlantillaSchema = z
   })
   .strict();
 export type BajaPlantillaDto = z.infer<typeof bajaPlantillaSchema>;
+
+/** Restaurar una versión anterior como versión NUEVA (nunca sobrescribe). */
+export const restaurarVersionSchema = z
+  .object({
+    version: z.number().int().min(1).max(1_000_000),
+    versionBase: z.number().int().min(1).max(1_000_000),
+    nota: linea(200).nullish(),
+  })
+  .strict();
+export type RestaurarVersionDto = z.infer<typeof restaurarVersionSchema>;
+
+/** `:n` de la ruta: entero ≥ 1 en texto (rechaza `1.5`, `-1`, `abc`, `1e3`, `0`). */
+export const numeroVersionSchema = z
+  .string()
+  .regex(/^[1-9]\d{0,8}$/, 'Número de versión inválido.')
+  .transform(Number);
 
 export const tipoPlantillaSchema = z.enum(TIPOS_PLANTILLA);
 

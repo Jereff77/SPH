@@ -1,10 +1,14 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import type { ZodType } from 'zod';
 import { KvasPlantillasService } from './kvas-plantillas.service.js';
 import {
   bajaPlantillaSchema,
   crearPlantillaSchema,
   guardarPlantillaSchema,
   idPlantillaSchema,
+  numeroVersionSchema,
+  restaurarVersionSchema,
+  type RestaurarVersionDto,
   tipoPlantillaSchema,
   listarPlantillasQuerySchema,
   type BajaPlantillaDto,
@@ -61,7 +65,36 @@ export class KvasPlantillasController {
     return detalle;
   }
 
+  // ---------- Historial (730 / 731; NO basta 721) ----------
+
+  @Get(':id/versiones')
+  @RequierePermiso(730, 731)
+  versiones(@Param('id', idPipe) id: string) {
+    return this.svc.versiones(id);
+  }
+
+  @Get(':id/versiones/:n')
+  @RequierePermiso(730, 731)
+  version(
+    @Param('id', idPipe) id: string,
+    @Param('n', new ZodValidationPipe<number>(numeroVersionSchema as unknown as ZodType<number>)) n: number,
+  ) {
+    return this.svc.version(id, n);
+  }
+
   // ---------- Escritura (731) ----------
+
+  /** Crea una versión NUEVA con el contenido de una anterior (nunca sobrescribe). */
+  @Post(':id/restaurar')
+  @RequierePermiso(731)
+  @HttpCode(200)
+  restaurar(
+    @CurrentUser() actor: AuthUser,
+    @Param('id', idPipe) id: string,
+    @Body(new ZodValidationPipe(restaurarVersionSchema)) dto: RestaurarVersionDto,
+  ) {
+    return this.svc.restaurar(id, dto, actor.uid);
+  }
 
   @Post()
   @RequierePermiso(731)

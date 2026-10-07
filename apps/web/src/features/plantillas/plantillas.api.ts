@@ -45,6 +45,17 @@ export interface PlantillaDetalle {
   fcVersion: string;
 }
 
+export interface VersionResumen {
+  version: number;
+  nota: string | null;
+  fc: string;
+  autor: string | null;
+}
+
+export interface VersionDetalle extends VersionResumen {
+  contenido: ContenidoPlantilla;
+}
+
 const BASE = '/kvas/plantillas';
 
 export const plantillasApi = {
@@ -72,6 +83,14 @@ export const plantillasApi = {
     api.post<{ idPlantilla: string }>(`${BASE}/${encodeURIComponent(id)}/duplicar`),
   baja: (id: string, motivo: string) =>
     api.post<{ ok: true }>(`${BASE}/${encodeURIComponent(id)}/baja`, { motivo }),
+  /** Historial de versiones (más reciente primero, sin contenido). */
+  versiones: (id: string) =>
+    api.get<VersionResumen[]>(`${BASE}/${encodeURIComponent(id)}/versiones`),
+  version: (id: string, n: number) =>
+    api.get<VersionDetalle>(`${BASE}/${encodeURIComponent(id)}/versiones/${n}`),
+  /** Crea una versión nueva con el contenido de una anterior (no borra nada). */
+  restaurar: (id: string, body: { version: number; versionBase: number; nota?: string }) =>
+    api.post<{ version: number }>(`${BASE}/${encodeURIComponent(id)}/restaurar`, body),
   /** Catálogo de campos automáticos permitidos para un tipo de plantilla. */
   catalogo: (tipo: TipoPlantilla) =>
     api.get<{ tipo: TipoPlantilla; campos: CampoCatalogo[] }>(`${BASE}/catalogo/${encodeURIComponent(tipo)}`),
@@ -157,6 +176,15 @@ export function datosConflicto(body: unknown): DatosConflicto | null {
     return { versionActual: r.versionActual, contenido: r.contenido as ContenidoPlantilla };
   }
   return datosConflicto(r.message ?? r.detalle ?? r.details ?? r.error ?? r.data);
+}
+
+/** dd/mm/aaaa hh:mm */
+export function formatearFechaHora(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${formatearFecha(iso)} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 /** dd/mm/aaaa */

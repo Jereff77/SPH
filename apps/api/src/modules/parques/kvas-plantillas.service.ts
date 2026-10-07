@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
@@ -12,6 +13,8 @@ import { fallaBd } from '../../common/utils/db-error.js';
 import { clavesPermitidas } from './kvas-plantillas.campos.js';
 import {
   clavesUsadas,
+  contenidoSchema,
+  type RestaurarVersionDto,
   type ContenidoPlantilla,
   type CrearPlantillaDto,
   type GuardarPlantillaDto,
@@ -39,6 +42,18 @@ export interface PlantillaDetalle {
   contenido: ContenidoPlantilla;
   nota: string | null;
   fcVersion: string;
+}
+
+export interface VersionResumen {
+  version: number;
+  nota: string | null;
+  fc: string;
+  /** Nombre legible de quien guardó la versión; `null` si no se puede resolver (nunca uuid ni correo). */
+  autor: string | null;
+}
+
+export interface VersionDetalle extends VersionResumen {
+  contenido: ContenidoPlantilla;
 }
 
 interface ErrorPg {
@@ -135,6 +150,121 @@ export class KvasPlantillasService {
       nota: ver!.nota,
       fcVersion: ver!.fc,
     };
+  }
+
+  /** Nombres legibles por uid (patrón de cxp/aprobacion): sin uuid ni correo como respaldo. */
+  private async nombresDe(uids: (string | null)[]): Promise<Map<string, string>> {
+    const unicos = [...new Set(uids.filter((x): x is string => !!x))];
+    const mapa = new Map<string, string>();
+    if (!unicos.length) return mapa;
+    const { data, error } = await this.lector()
+      .from('catUsers')
+      .select('uid, nomCompleto, nombre, apellidos')
+      .in('uid', unicos);
+    // H-5: sin nombres el historial sigue funcionando (autor = null), pero queda rastro.
+    if (error) this.logger.warn(`No se pudieron resolver los autores del historial: ${error.message}`);
+    for (const u of (data ?? []) as {
+      uid: string;
+      nomCompleto: string | null;
+      nombre: string | null;
+      apellidos: string | null;
+    }[]) {
+      const n =
+        (u.nombre && u.apellidos ? `${u.nombre} ${u.apellidos}` : null) || u.nomCompleto || u.nombre;
+      if (n?.trim()) mapa.set(u.uid, n.trim());
+    }
+    return mapa;
+  }
+
+  private async exigirExiste(idPlantilla: string): Promise<void> {
+    const { data, error } = await this.lector()
+      .from('kvaPlantillas')
+      .select('idPlantilla')
+      .eq('idPlantilla', idPlantilla)
+      .maybeSingle();
+    if (error) fallaBd(this.logger, 'plantillas.existe', error);
+    if (!data) throw new NotFoundException('La plantilla no existe.');
+  }
+
+  /** Historial (sin contenido), de la más reciente a la más antigua. */
+  async versiones(idPlantilla: string): Promise<VersionResumen[]> {
+    await this.exigirExiste(idPlantilla);
+    const { data, error } = await this.lector()
+      .from('kvaPlantillaVersiones')
+      .select('version, nota, fc, uidr')
+      .eq('idPlantilla', idPlantilla)
+      .order('version', { ascending: false })
+      .limit(MAX_LISTA);
+    if (error) fallaBd(this.logger, 'plantillas.versiones', error);
+    const filas = (data ?? []) as { version: number; nota: string | null; fc: string; uidr: string | null }[];
+    const nombres = await this.nombresDe(filas.map((f) => f.uidr));
+    return filas.map((f) => ({
+      version: f.version,
+      nota: f.nota,
+      fc: f.fc,
+      autor: f.uidr ? (nombres.get(f.uidr) ?? null) : null,
+    }));
+  }
+
+  async version(idPlantilla: string, n: number): Promise<VersionDetalle> {
+    await this.exigirExiste(idPlantilla);
+    const { data, error } = await this.lector()
+      .from('kvaPlantillaVersiones')
+      .select('version, nota, fc, uidr, contenido')
+      .eq('idPlantilla', idPlantilla)
+      .eq('version', n)
+      .maybeSingle();
+    if (error) fallaBd(this.logger, 'plantillas.version', error);
+    if (!data) throw new NotFoundException('La versión no existe.');
+    const nombres = await this.nombresDe([data.uidr]);
+    return {
+      version: data.version,
+      nota: data.nota,
+      fc: data.fc,
+      autor: data.uidr ? (nombres.get(data.uidr) ?? null) : null,
+      contenido: data.contenido as ContenidoPlantilla,
+    };
+  }
+
+  /**
+   * Restaura una versión anterior creando una versión NUEVA (nunca sobrescribe). El contenido
+   * leído de la BD se RE-VALIDA con el esquema actual y el catálogo del tipo (defensa en
+   * profundidad) y se guarda por la misma vía que `PUT` (mismos 404/409).
+   */
+  async restaurar(
+    idPlantilla: string,
+    dto: RestaurarVersionDto,
+    actorUid: string,
+  ): Promise<{ version: number }> {
+    const { data: cab, error } = await this.lector()
+      .from('kvaPlantillas')
+      .select('status')
+      .eq('idPlantilla', idPlantilla)
+      .maybeSingle();
+    if (error) fallaBd(this.logger, 'plantillas.restaurar.cab', error);
+    if (!cab) throw new NotFoundException('La plantilla no existe.');
+    if (!cab.status)
+      throw new ConflictException({
+        message: { codigo: 'PLANTILLA_DE_BAJA', mensaje: 'La plantilla está dada de baja.' },
+      });
+    const elegida = await this.version(idPlantilla, dto.version);
+    const valido = contenidoSchema.safeParse(elegida.contenido);
+    if (!valido.success)
+      throw new UnprocessableEntityException({
+        message: {
+          codigo: 'VERSION_NO_RESTAURABLE',
+          mensaje: 'Esa versión ya no cumple las reglas vigentes de contenido y no se puede restaurar.',
+        },
+      });
+    return this.guardar(
+      idPlantilla,
+      {
+        contenido: valido.data,
+        versionBase: dto.versionBase,
+        nota: dto.nota?.trim() ? dto.nota : `Restaurada desde la versión ${dto.version}`,
+      },
+      actorUid,
+    );
   }
 
   // ---------- Escritura ----------

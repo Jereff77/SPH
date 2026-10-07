@@ -12,7 +12,7 @@ import {
   resolverTodo,
   unirLista,
 } from '../dist/modules/parques/kvas-redaccion.js';
-import { contenidoSchema, crearPlantillaSchema } from '../dist/modules/parques/kvas-plantillas.schemas.js';
+import { contenidoSchema, crearPlantillaSchema, restaurarVersionSchema, numeroVersionSchema } from '../dist/modules/parques/kvas-plantillas.schemas.js';
 import { clavesPermitidas } from '../dist/modules/parques/kvas-plantillas.campos.js';
 import { vistaPreviaSchema } from '../dist/modules/parques/kvas-documentos.schemas.js';
 
@@ -154,6 +154,59 @@ eq('vista previa rechaza cantidad 0', vistaPreviaSchema.safeParse({ ...base, nav
 eq('vista previa rechaza niveles repetidos', vistaPreviaSchema.safeParse({ ...base, naves: [{ idNave: 'N1', kvas: [...bt(1), ...bt(2)] }] }).success, false);
 eq('vista previa rechaza contenido del cliente', vistaPreviaSchema.safeParse({ ...base, contenido: {} }).success, false);
 eq('vista previa rechaza 0 naves', vistaPreviaSchema.safeParse({ ...base, naves: [] }).success, false);
+
+
+// --- Pulidos (M-1, M-2) ---
+const vpDist = [nave('a', '5', bt(5), 'PA', 'Parque A'), nave('b', '5', bt(10), 'PB', 'Parque B')];
+eq('M-1 mismo número, distintos parques', redactarKvas(vpDist).texto, '5 KVAS en la nave 5 del parque Parque A; 10 KVAS en la nave 5 del parque Parque B');
+const vpIg = [nave('a', '5', bt(5), 'PA', 'A'), nave('b', '7', bt(5), 'PB', 'B')];
+eq('M-1 cantidades iguales no cambia', redactarKvas(vpIg).texto, '5 KVAS');
+eq('M-1 un parque no califica', redactarKvas([nave('a', '5', bt(5)), nave('b', '6', bt(9))]).texto, '5 KVAS en la nave 5 y 9 KVAS en la nave 6');
+eq('M-1 agruparNaves forzarParque', agruparNaves([nave('a', '5', bt(1))], true).texto, '5 del parque Acupark III');
+eq('M-1 agruparNaves por omisión', agruparNaves([nave('a', '5', bt(1))]).texto, '5');
+const mixP = redactarKvas([nave('a', '5', bt(5), 'PA', 'A'), nave('b', '5', mt(5), 'PB', 'B')]);
+eq('M-1+M-2 mixto en dos parques', mixP.texto, '5 KVAS en baja tensión en la nave 5 del parque A; 5 KVAS en media tensión en la nave 5 del parque B');
+eq('M-2 mixto: nivel sigue "baja y media tensión"', resolverTodo('E', mezcla).resueltos.nivel, 'baja y media tensión');
+eq('M-2 aviso orienta a quitar el nivel repetido', redactarKvas(mezcla).advertencias.find((a) => a.codigo === 'NIVEL_MIXTO').mensaje.includes('quita ese fragmento'), true);
+
+// --- L2: anidamiento extremo → rechazo limpio (sin desbordar la pila) ---
+let prof = { type: 'paragraph' };
+for (let i = 0; i < 20000; i++) prof = { type: 'bulletList', content: [{ type: 'listItem', content: [prof] }] };
+const hondo = { encabezado: parrafo(), cuerpo: { type: 'doc', content: [prof] }, pie: parrafo() };
+let hondoRes;
+try { hondoRes = contenidoSchema.safeParse(hondo); } catch (e) { hondoRes = { success: 'EXCEPCION ' + e.message }; }
+eq('L2 anidamiento extremo → safeParse falso, sin excepción', hondoRes.success, false);
+eq('L2 mensaje claro', JSON.stringify(hondoRes.error?.issues ?? '').includes('demasiado anidadas'), true);
+const listas = (hoja, n) => {
+  let x = hoja;
+  for (let i = 0; i < n; i++) x = { type: 'bulletList', content: [{ type: 'listItem', content: [x] }] };
+  return x;
+};
+const hojaMax = { type: 'paragraph', content: [{ type: 'text', text: 'a', marks: [{ type: 'textStyle', attrs: { fontFamily: 'Arial', fontSize: '12px' } }] }] };
+const cuerpoCon = (x) => ({ encabezado: parrafo(), cuerpo: { type: 'doc', content: [x] }, pie: parrafo() });
+eq('L2 profundidad legítima máxima (2 listas + texto con marcas) pasa', contenidoSchema.safeParse(cuerpoCon(listas(hojaMax, 2))).success, true);
+eq('L2 un nivel más (3 listas) rechazado por la regla de nodos', contenidoSchema.safeParse(cuerpoCon(listas(hojaMax, 3))).success, false);
+
+// --- Restaurar: esquema hostil ---
+const okR = { version: 2, versionBase: 3 };
+eq('restaurar válido', restaurarVersionSchema.safeParse(okR).success, true);
+eq('restaurar con nota', restaurarVersionSchema.safeParse({ ...okR, nota: 'x' }).success, true);
+eq('restaurar version negativa', restaurarVersionSchema.safeParse({ ...okR, version: -1 }).success, false);
+eq('restaurar version 0', restaurarVersionSchema.safeParse({ ...okR, version: 0 }).success, false);
+eq('restaurar version decimal', restaurarVersionSchema.safeParse({ ...okR, version: 1.5 }).success, false);
+eq('restaurar version texto', restaurarVersionSchema.safeParse({ ...okR, version: '2' }).success, false);
+eq('restaurar sin versionBase', restaurarVersionSchema.safeParse({ version: 2 }).success, false);
+eq('restaurar atributo extra', restaurarVersionSchema.safeParse({ ...okR, contenido: {} }).success, false);
+eq('restaurar nota > 200', restaurarVersionSchema.safeParse({ ...okR, nota: 'x'.repeat(201) }).success, false);
+eq('restaurar version enorme', restaurarVersionSchema.safeParse({ ...okR, version: 1e12 }).success, false);
+eq('restaurar vacío', restaurarVersionSchema.safeParse({}).success, false);
+eq(':n válido', numeroVersionSchema.safeParse('12').data, 12);
+for (const m of ['0', '-1', '1.5', 'abc', '1e3', '', '01', '99999999999', ' 1'])
+  eq(`:n rechaza "${m}"`, numeroVersionSchema.safeParse(m).success, false);
+
+// --- B-3: ids de documentos ---
+eq('B-3 id con coma/comillas rechazado', vistaPreviaSchema.safeParse({ ...base, idInversionista: 'a",b(' }).success, false);
+
 
 console.log(`\n${ok} correctas, ${mal} fallidas`);
 process.exit(mal ? 1 : 0);
