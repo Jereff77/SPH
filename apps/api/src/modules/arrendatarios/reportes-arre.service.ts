@@ -658,22 +658,42 @@ export class ReportesArreService {
       incluidos.add(p.idArrePdp);
     }
 
-    if (cands.length === 0) return [];
+    // Una nave física solo se lista con su ÚLTIMO contrato (mayor fecFin): los contratos
+    // viejos de una nave renovada no se repiten. Mismo criterio que las RPC del sidebar
+    // (`contratos_vencidos_sin_renovacion` / `contratos_por_vencer`), fix 2026-10-07.
+    const claveNave = (ap: { idNave: string | null }, idNavArrend: string): string =>
+      ap.idNave ?? `nav:${idNavArrend}`;
+    const ultimoFinPorNave = new Map<string, string>();
+    for (const p of planes) {
+      if (p.canceladoAnticipado || !p.idNavArrend) continue;
+      const ap = vinculoActivoPorNav.get(p.idNavArrend);
+      if (!ap) continue;
+      const fin = p.fecFin ? (finISO(p.fecFin) as string) : '9999-12-31';
+      const k = claveNave(ap, p.idNavArrend);
+      if (fin > (ultimoFinPorNave.get(k) ?? '')) ultimoFinPorNave.set(k, fin);
+    }
+    const esUltimoDeSuNave = (c: Candidato): boolean => {
+      const fin = c.plan.fecFin ? (finISO(c.plan.fecFin) as string) : '9999-12-31';
+      return fin >= (ultimoFinPorNave.get(claveNave({ idNave: c.idNave }, c.idNavArrend)) ?? '');
+    };
+    const candidatos = cands.filter(esUltimoDeSuNave);
+
+    if (candidatos.length === 0) return [];
 
     // Enriquecer nave/parque/arrendatario de todos los candidatos.
     const [{ data: naves }, { data: parques }, { data: invs }] = await Promise.all([
       this.supabase.admin
         .from('naves')
         .select('idNave, numNaveNAME, numNave')
-        .in('idNave', orEmpty(cands.map((c) => c.idNave))),
+        .in('idNave', orEmpty(candidatos.map((c) => c.idNave))),
       this.supabase.admin
         .from('parques')
         .select('idParque, nomParque, esTicket')
-        .in('idParque', orEmpty(cands.map((c) => c.idParque))),
+        .in('idParque', orEmpty(candidatos.map((c) => c.idParque))),
       this.supabase.admin
         .from('inversionista')
         .select('idInversionista, nombre, apellido1, apellido2, razonsocial, pruebas')
-        .in('idInversionista', orEmpty(cands.map((c) => c.idArrendador))),
+        .in('idInversionista', orEmpty(candidatos.map((c) => c.idArrendador))),
     ]);
 
     const navePorId = new Map((naves ?? []).map((n) => [n.idNave, n]));
@@ -681,7 +701,7 @@ export class ReportesArreService {
     const invPorId = new Map((invs ?? []).map((i) => [i.idInversionista, i]));
 
     const filas: VencimientoReporteRow[] = [];
-    for (const c of cands) {
+    for (const c of candidatos) {
       const parque = c.idParque ? parquePorId.get(c.idParque) : undefined;
       if (parque?.esTicket === true) continue; // Tickets se gestionan en Ventas.
       const nave = c.idNave ? navePorId.get(c.idNave) : undefined;

@@ -449,6 +449,14 @@ recalcula bien).
   - ⚠️ **Próximos por vencer (`contratos_por_vencer`)**: verificado que NO arrastra el bug (0 vínculos
     cerrados, 0 re-rentas) — solo se cuelan **2 filas de prueba**. El fix (excluir `pruebas`) quedó
     **PENDIENTE de OK** (ver `migraciones/2026-07-02-arrepdp-vencimientos-vinculo-activo.sql`, Parte 2).
+  - ⚠️ **Regla vigente (2026-10-07) — un solo contrato por nave**: por **nave física (`idNave`)** solo
+    se lista el contrato de **mayor `fecFin`**. Antes, una nave con contrato viejo + renovado (ambos ya
+    vencidos) salía **dos veces** (caso real: Acupark II 43/44/45 y Sitapark C). Aplica igual al panel
+    del sidebar (RPC `contratos_vencidos_sin_renovacion` y `contratos_por_vencer`) y a este reporte
+    (`vencimientos()`, filtro `esUltimoDeSuNave`). Prod: sidebar «sin renovación» 8 → 4, por vencer
+    (365 d) 54 → 52. SQL en `migraciones/2026-10-07-arre-vencimientos-ultimo-contrato-por-nave.sql`.
+    Supera el «PENDIENTE de OK» de `contratos_por_vencer` de arriba solo en lo de nave repetida; el
+    filtro `pruebas` de esa RPC sigue sin aplicarse.
   - Backend `reportes-arre.service.ts` → `vencimientos()` (enriquece en memoria, sin vistas; "hoy" en zona
     México; ordena por urgencia Vencido→1→2→3). Columnas: Arrendatario · Parque · Nave · Inicio · Fin ·
     **Estado** (badge) · **Días** ("Vence en N d"/"Venció hace N d", front con `hoyMexico()`) · Renta base
