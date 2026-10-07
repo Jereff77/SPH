@@ -83,6 +83,11 @@ function Tarjeta({
   );
 }
 
+/** Orden por defecto y desempate: parque → nave (numérico). */
+const porParqueNave = (a: EscrituraRow, b: EscrituraRow): number =>
+  (a.parque ?? '').localeCompare(b.parque ?? '', 'es') ||
+  (a.numNave ?? '').localeCompare(b.numNave ?? '', 'es', { numeric: true });
+
 const pct = (parte: number, total: number): number =>
   total === 0 ? 0 : Math.round((parte / total) * 100);
 
@@ -177,6 +182,7 @@ export function EscriturasPage() {
       fechaEscrituracion: (f) => f.fechaEscrituracion,
     },
     { key: 'parque', dir: 'asc' },
+    porParqueNave,
   );
 
   // Las tarjetas se adaptan a los filtros: cuentan lo que se ve.

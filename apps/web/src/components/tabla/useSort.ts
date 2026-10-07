@@ -9,12 +9,15 @@ export type Accessors<T> = Record<string, (item: T) => Valor>;
  * Hook de ordenamiento de tablas (regla de diseño 7). Recibe los items y un mapa
  * de "accessors" (clave de columna -> función que extrae el valor a comparar).
  * Devuelve los items ordenados + el estado y un `toggle(clave)` para el clic en
- * el encabezado (alterna asc/desc). Los valores nulos van al final.
+ * el encabezado (alterna asc/desc). Los valores nulos van al final. El 4.º
+ * parámetro opcional (`desempate`) ordena los empates, siempre en el mismo sentido
+ * (p. ej. parque → nave), sin importar la columna activa ni su dirección.
  */
 export function useSort<T>(
   items: T[],
   accessors: Accessors<T>,
   inicial?: { key: string; dir?: Dir },
+  desempate?: (a: T, b: T) => number,
 ) {
   const [key, setKey] = useState<string | null>(inicial?.key ?? null);
   const [dir, setDir] = useState<Dir>(inicial?.dir ?? 'asc');
@@ -26,7 +29,7 @@ export function useSort<T>(
     copia.sort((a, b) => {
       const va = acc(a);
       const vb = acc(b);
-      if (va == null && vb == null) return 0;
+      if (va == null && vb == null) return desempate?.(a, b) ?? 0;
       if (va == null) return 1;
       if (vb == null) return -1;
       let cmp: number;
@@ -37,10 +40,11 @@ export function useSort<T>(
       } else {
         cmp = String(va).localeCompare(String(vb), 'es', { numeric: true });
       }
+      if (cmp === 0) return desempate?.(a, b) ?? 0;
       return dir === 'asc' ? cmp : -cmp;
     });
     return copia;
-  }, [items, key, dir, accessors]);
+  }, [items, key, dir, accessors, desempate]);
 
   function toggle(k: string): void {
     if (key === k) {
