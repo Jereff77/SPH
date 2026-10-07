@@ -14,6 +14,8 @@ import { ChangelogPage } from '@/features/changelog/ChangelogPage';
 import { ParquesPage } from '@/features/parques/ParquesPage';
 import { DisponibilidadPage } from '@/features/parques/DisponibilidadPage';
 import KvasPage from '@/features/parques/KvasPage';
+import PlantillasPage from '@/features/plantillas/PlantillasPage';
+import PlantillaEditorPage from '@/features/plantillas/PlantillaEditorPage';
 import { ProveedoresPage } from '@/features/cxp/ProveedoresPage';
 import { BancosPage } from '@/features/cxp/BancosPage';
 import { SolicitudesPage } from '@/features/cxp/SolicitudesPage';
@@ -161,6 +163,8 @@ export const router = createBrowserRouter([
           { path: '/parques', element: <ParquesPage /> },
           { path: '/parques/disponibilidad', element: <DisponibilidadPage /> },
           { path: '/parques/kvas', element: <KvasPage /> },
+          { path: '/parques/plantillas', element: <PlantillasPage /> },
+          { path: '/parques/plantillas/:idPlantilla', element: <PlantillaEditorPage /> },
           { path: '/cxp/pagar', element: <PagarSolicitudesPage /> },
           { path: '/cxp/aprobar', element: <AprobarSolicitudesPage /> },
           { path: '/cxp/solicitudes', element: <SolicitudesPage /> },

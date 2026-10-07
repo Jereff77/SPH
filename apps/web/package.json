@@ -14,6 +14,10 @@
   "dependencies": {
     "@erp/types": "workspace:*",
     "@tanstack/react-query": "^5.62.7",
+    "@tiptap/extension-text-align": "^3.31.4",
+    "@tiptap/pm": "^3.31.4",
+    "@tiptap/react": "^3.31.4",
+    "@tiptap/starter-kit": "^3.31.4",
     "chart.js": "^4.5.1",
     "exceljs": "^4.4.0",
     "html-to-image": "^1.11.13",

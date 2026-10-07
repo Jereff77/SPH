@@ -6,6 +6,8 @@ import {
 import { ParquesService } from './parques.service.js';
 import { KvasController } from './kvas.controller.js';
 import { KvasService } from './kvas.service.js';
+import { KvasPlantillasController } from './kvas-plantillas.controller.js';
+import { KvasPlantillasService } from './kvas-plantillas.service.js';
 import { KvasCompromisosScheduler } from './kvas-compromisos.scheduler.js';
 import { InvitacionesModule } from '../invitaciones/invitaciones.module.js';
 
@@ -14,8 +16,8 @@ import { InvitacionesModule } from '../invitaciones/invitaciones.module.js';
   // scheduler de compromisos avisa por correo. `RegistroCronService` no se
   // importa: su módulo es global.
   imports: [InvitacionesModule],
-  controllers: [ParquesController, DisponibilidadController, KvasController],
-  providers: [ParquesService, KvasService, KvasCompromisosScheduler],
+  controllers: [ParquesController, DisponibilidadController, KvasController, KvasPlantillasController],
+  providers: [ParquesService, KvasService, KvasPlantillasService, KvasCompromisosScheduler],
   // `KvasService` para el candado de liberación de nave (Ventas y Arrendatarios
   // consultan los KVA vendidos pendientes de devolución antes de liberar).
   // El scheduler, para que la pantalla Cron pueda dispararlo a mano.

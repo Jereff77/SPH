@@ -16,6 +16,8 @@ import {
   type ResumenParqueKva,
 } from './kvas.api';
 import { NaveKvaModal } from './NaveKvaModal';
+import { useAuth } from '@/features/auth/useAuth';
+import { GenerarDocumentoModal } from '@/features/plantillas/GenerarDocumentoModal';
 
 const fmt = (n: number) => n.toLocaleString('es-MX', { maximumFractionDigits: 2 });
 
@@ -50,6 +52,9 @@ const FILAS: {
  */
 export default function KvasPage() {
   const [expandido, setExpandido] = useState<string | null>(null);
+  const { tienePermiso } = useAuth();
+  const puedeGenerarDoc = tienePermiso(730) || tienePermiso(731) || tienePermiso(721);
+  const [generando, setGenerando] = useState(false);
 
   const {
     data: resumen,
@@ -76,13 +81,25 @@ export default function KvasPage() {
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-4">
-      <header>
-        <h1 className="text-lg font-semibold text-gray-800">KVA's</h1>
-        <p className="text-xs text-gray-500">
-          Capacidad eléctrica contratada con CFE y su reparto entre naves. Baja y media
-          son bolsas independientes.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-800">KVA's</h1>
+          <p className="text-xs text-gray-500">
+            Capacidad eléctrica contratada con CFE y su reparto entre naves. Baja y media
+            son bolsas independientes.
+          </p>
+        </div>
+        {puedeGenerarDoc && (
+          <button
+            type="button"
+            onClick={() => setGenerando(true)}
+            className="rounded-lg bg-[#1f2a4d] px-4 py-2 text-sm font-medium text-white hover:bg-[#2a3869]"
+          >
+            Generar documento
+          </button>
+        )}
       </header>
+      <GenerarDocumentoModal abierto={generando} onCerrar={() => setGenerando(false)} />
 
       {error && (
         <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

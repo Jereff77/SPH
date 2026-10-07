@@ -87,6 +87,7 @@ export const MENU: MenuGrupo[] = [
       { label: 'Parques', to: '/parques', clave: 700 },
       { label: 'Disponibilidad', to: '/parques/disponibilidad', clave: 710 },
       { label: "KVA's", to: '/parques/kvas', clave: 720 },
+      { label: 'Plantillas', to: '/parques/plantillas', clave: 730 },
     ],
   },
   {
