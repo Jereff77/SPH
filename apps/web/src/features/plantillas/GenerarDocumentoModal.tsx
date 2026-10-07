@@ -545,7 +545,24 @@ function Documento({
               </div>
               <div className="ProseMirror" style={{ width: 270, fontSize: 10 }} dangerouslySetInnerHTML={{ __html: impresion.encabezado }} />
             </div>
-            <div className="ProseMirror" dangerouslySetInnerHTML={{ __html: impresion.cuerpo }} />
+            {/* Tabla con `tfoot` de relleno: Chrome repite el tfoot en CADA página, así el cuerpo
+                nunca queda debajo del pie fijo (un padding solo reservaría espacio al final). */}
+            <table className="impresion-tabla">
+              <tbody>
+                <tr>
+                  <td>
+                    <div className="ProseMirror" dangerouslySetInnerHTML={{ __html: impresion.cuerpo }} />
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td>
+                    <div className="impresion-reserva" />
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
             <div className="impresion-pie ProseMirror" dangerouslySetInnerHTML={{ __html: impresion.pie }} />
           </div>,
           document.body,

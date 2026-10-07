@@ -70,6 +70,17 @@
     display: block !important;
     width: 100%;
   }
+  /* El cuerpo va en una tabla cuyo `tfoot` (repetido en cada página) reserva el alto del pie fijo. */
+  .solo-impresion .impresion-tabla {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .solo-impresion .impresion-tabla td {
+    padding: 0;
+  }
+  .solo-impresion .impresion-reserva {
+    height: 1.8cm;
+  }
   .solo-impresion .impresion-membrete {
     display: flex;
     justify-content: space-between;
@@ -79,12 +90,17 @@
     border-bottom: 2px solid #1f2a4d;
     margin-bottom: 16px;
   }
+  /* Pie de página: fijo al fondo del área imprimible y repetido en CADA página. */
   .solo-impresion .impresion-pie {
-    margin-top: 24px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
     padding-top: 8px;
     border-top: 1px solid #d1d5db;
     font-size: 10px;
     color: #4b5563;
+    background: #fff;
   }
   .solo-impresion .ProseMirror p {
     break-inside: avoid;
