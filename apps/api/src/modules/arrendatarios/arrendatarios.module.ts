@@ -13,6 +13,7 @@ import { ResponsablesService } from './responsables.service.js';
 import { SseAuthGuard } from '../cxp/sse-auth.guard.js';
 import { InvitacionesModule } from '../invitaciones/invitaciones.module.js';
 import { ParquesModule } from '../parques/parques.module.js';
+import { NotasModule } from '../notas/notas.module.js';
 
 /**
  * Módulo Arrendatarios. Planes de Renta (clave 20): selector arrendatario/
@@ -28,7 +29,8 @@ import { ParquesModule } from '../parques/parques.module.js';
 @Module({
   // ParquesModule aporta KvasService: el candado que impide liberar una nave
   // con KVA vendidos sin devolución acreditada.
-  imports: [InvitacionesModule, ParquesModule],
+  // NotasModule aporta NotasService: avisos de MontseAI en el chat del plan.
+  imports: [InvitacionesModule, ParquesModule, NotasModule],
   controllers: [
     IncrementosController,
     ResponsablesController,

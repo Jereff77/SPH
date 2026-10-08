@@ -9,6 +9,8 @@ import {
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { fallaBd } from '../../common/utils/db-error.js';
 import { IncrementosNotificadorService } from './incrementos-notificador.service.js';
+import { NotasService } from '../notas/notas.service.js';
+import { refPlanRenta } from '../notas/notas.config.js';
 import type { Json } from '@erp/types';
 
 /** Tolerancia para comparar pm2 (los valores traen hasta 8 decimales). */
@@ -104,6 +106,8 @@ export class IncrementosService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly notificador: IncrementosNotificadorService,
+    /** Avisos de MontseAI en el chat del plan (best-effort). */
+    private readonly notas: NotasService,
   ) {}
 
   /** Desfase de meses configurado (SPHConfiguraciones, caché 5 min). */
@@ -520,6 +524,24 @@ export class IncrementosService {
         .eq('id', reserva.id);
       if (updErr) this.logger.error(`Snapshot no guardado (${reserva.id}): ${updErr.message}`);
 
+      const fmt = (n: number) => n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      await this.notas.avisar(
+        refPlanRenta(plan.idArrePdp),
+        {
+          evento: 'inpc',
+          texto: `${origen === 'reaplicacion' ? 'Incremento INPC re-aplicado (corrección)' : 'Incremento INPC aplicado'} · año ${plan.anioObjetivo} · +${plan.incrementoPct.toFixed(2)} % (monto mensual ${fmt(plan.montoActual)} → ${fmt(plan.montoNuevo)} ${plan.moneda}).`,
+          detalle: {
+            anio: plan.anioObjetivo,
+            incrementoPct: plan.incrementoPct,
+            montoActual: plan.montoActual,
+            montoNuevo: plan.montoNuevo,
+            moneda: plan.moneda,
+            origen,
+          },
+        },
+        actorUid,
+      );
+
       aplicados.push({
         idArrePdp: plan.idArrePdp,
         empresa: plan.empresa,
@@ -667,6 +689,16 @@ export class IncrementosService {
       })
       .eq('id', idIncremento);
     if (updErr) throw fallaBd(this.logger, 'incrementos.revertir.marca', updErr);
+
+    await this.notas.avisar(
+      refPlanRenta(fila.idArrePdp),
+      {
+        evento: 'inpc',
+        texto: `Incremento INPC del año ${fila.anioAplicado} revertido. Motivo: ${motivo}`,
+        detalle: { anio: fila.anioAplicado, revertido: true, motivo },
+      },
+      actorUid,
+    );
 
     return { ok: true as const, filasRestauradas: res.filasActualizadas ?? 0 };
   }

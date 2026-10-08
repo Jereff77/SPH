@@ -187,10 +187,11 @@ export class ArrendatariosController {
   @RequierePermiso(25)
   async activar(
     @CurrentUser() actor: AuthUser,
+    @Param('idArrePdp') idArrePdp: string,
     @Query('idNavArrend') idNavArrend: string,
   ) {
     if (!idNavArrend) throw new BadRequestException('Falta idNavArrend.');
-    await this.planes.setActivo(idNavArrend, true, actor.uid);
+    await this.planes.setActivo(idNavArrend, true, actor.uid, idArrePdp);
     return { ok: true };
   }
 
@@ -198,10 +199,11 @@ export class ArrendatariosController {
   @RequierePermiso(25)
   async desactivar(
     @CurrentUser() actor: AuthUser,
+    @Param('idArrePdp') idArrePdp: string,
     @Query('idNavArrend') idNavArrend: string,
   ) {
     if (!idNavArrend) throw new BadRequestException('Falta idNavArrend.');
-    await this.planes.setActivo(idNavArrend, false, actor.uid);
+    await this.planes.setActivo(idNavArrend, false, actor.uid, idArrePdp);
     return { ok: true };
   }
 

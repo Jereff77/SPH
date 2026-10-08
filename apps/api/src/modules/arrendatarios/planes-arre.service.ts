@@ -9,6 +9,8 @@ import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { IncrementosService } from './incrementos.service.js';
 import { KvasService } from '../parques/kvas.service.js';
+import { NotasService } from '../notas/notas.service.js';
+import { refPlanRenta } from '../notas/notas.config.js';
 import type {
   CancelarAnticipadoDto,
   ConceptoFinanciadoDto,
@@ -28,9 +30,21 @@ const BUCKET_DOCS = 'Documentos';
 
 type Db = ReturnType<SupabaseService['comoActor']>;
 
+/** Etiqueta legible de los campos editables de la corrida (avisos de MontseAI). */
+const ETIQUETA_CAMPO: Record<EditarCampoDto['campo'], string> = {
+  pm2: '$ × m²',
+  constM2: 'Const m²',
+  INPC: 'INPC',
+  ptsINPC: 'Pts INPC',
+};
+
+const fmtNum = (n: number | null | undefined): string =>
+  n == null ? '—' : Number(n).toLocaleString('es-MX', { maximumFractionDigits: 4 });
+
 /** Forma del jsonb que devuelven las RPCs `arrepdp_*` (exito/mensaje). */
 interface RpcResultado {
   exito?: boolean;
+  codigo?: string;
   mensaje?: string;
   detalles?: { id_plan?: string } & Record<string, unknown>;
 }
@@ -52,6 +66,8 @@ export class PlanesArreService {
     private readonly incrementos: IncrementosService,
     /** Candado de KVA al liberar la nave (ver `liberarNave`). */
     private readonly kvas: KvasService,
+    /** Avisos de MontseAI en el chat del plan (best-effort). */
+    private readonly notas: NotasService,
   ) {}
 
   private generarId(n: number): string {
@@ -332,7 +348,7 @@ export class PlanesArreService {
   ): Promise<void> {
     const { data: prop, error: propErr } = await this.supabase.admin
       .from('arrenPropiedades')
-      .select('idNavArrend, idNave, pdpActivo, status')
+      .select('idNavArrend, idNave, pdpActivo, status, idArrePdp')
       .eq('idNavArrend', idNavArrend)
       .maybeSingle();
     if (propErr) throw new InternalServerErrorException(propErr.message);
@@ -387,6 +403,19 @@ export class PlanesArreService {
       }`,
       actorUid,
     });
+
+    // MontseAI avisa en el chat del último plan de la nave (su idArrePdp se limpió arriba).
+    if (prop.idArrePdp) {
+      await this.notas.avisar(
+        refPlanRenta(prop.idArrePdp),
+        {
+          evento: 'liberacion',
+          texto: `Nave liberada: queda disponible para rentar de nuevo.${motivoBaja ? ` Motivo: ${motivoBaja}` : ''}`,
+          detalle: { idNavArrend, motivo: motivoBaja },
+        },
+        actorUid,
+      );
+    }
   }
 
   // ----------------------------- Plan de Pago (crear/editar/conceptos/activar/eliminar) -----------------------------
@@ -488,7 +517,19 @@ export class PlanesArreService {
     if (plan.arrePdpVigente === 'No')
       throw new BadRequestException('No se puede modificar un plan no vigente.');
 
-    const { error } = await this.supabase
+    // Valor y partida de ANTES (primera partida del concepto en ese año), para el
+    // aviso de MontseAI. Se lee en el servidor: nunca se confía en lo que diga el cliente.
+    const { data: previa } = await this.supabase.admin
+      .from('arrePdpDetalle')
+      .select('numPartida, pm2, constM2, INPC, ptsINPC')
+      .eq('idArrePdp', idArrePdp)
+      .eq('concepto', dto.concepto)
+      .eq('anio', dto.anioDesde)
+      .order('numPartida', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    const { data: rpcData, error } = await this.supabase
       .comoActor(actorUid)
       .rpc('arrepdpdetalle_actualizar_campo_manual', {
         p_id_arre_pdp: idArrePdp,
@@ -498,6 +539,19 @@ export class PlanesArreService {
         p_valor: dto.valor,
       });
     if (error) throw new InternalServerErrorException(error.message);
+    this.exigirExitoRpc(rpcData, 'editarCampo', 'No se pudo modificar el campo.');
+
+    await this.notas.avisarCambioManual(
+      refPlanRenta(idArrePdp),
+      {
+        descripcion: `${ETIQUETA_CAMPO[dto.campo]} (desde el año ${dto.anioDesde}): ${fmtNum(
+          previa?.[dto.campo] as number | null | undefined,
+        )} → ${fmtNum(dto.valor)}`,
+        concepto: dto.concepto,
+        partida: previa?.numPartida ?? null,
+      },
+      actorUid,
+    );
 
     // La edición manual de INPC/pts (año ≥ 2, la RPC recalcula pm2) queda en la
     // bitácora de incrementos (origen='manual') para que el flujo automático
@@ -558,6 +612,18 @@ export class PlanesArreService {
       .update({ contratoFirmado: dto.contratoFirmado, idContratoDoc })
       .eq('idArrePdp', idArrePdp);
     if (error) throw new InternalServerErrorException(error.message);
+
+    await this.notas.avisar(
+      refPlanRenta(idArrePdp),
+      {
+        evento: 'contrato',
+        texto: dto.contratoFirmado
+          ? 'Contrato firmado marcado: se vinculó el documento del contrato.'
+          : 'Contrato firmado desmarcado: se quitó el documento vinculado.',
+        detalle: { contratoFirmado: dto.contratoFirmado, idContratoDoc },
+      },
+      actorUid,
+    );
   }
 
   /** Agrega un concepto financiado (KVA / adecuación) al plan. */
@@ -566,7 +632,7 @@ export class PlanesArreService {
     dto: ConceptoFinanciadoDto,
     actorUid: string,
   ): Promise<void> {
-    const { error } = await this.supabase
+    const { data: rpcData, error } = await this.supabase
       .comoActor(actorUid)
       .rpc('arrepdp_agregar_concepto_financiado', {
         p_id_arre_pdp: idArrePdp,
@@ -577,27 +643,82 @@ export class PlanesArreService {
         p_dividir: dto.dividir,
       });
     if (error) throw new InternalServerErrorException(error.message);
+    this.exigirExitoRpc(rpcData, 'agregarConcepto', 'No se pudo agregar el concepto.');
+
+    await this.notas.avisarCambioManual(
+      refPlanRenta(idArrePdp),
+      {
+        descripcion: `Concepto agregado: ${dto.concepto} · monto ${fmtNum(dto.monto)} a ${dto.periodo} mes(es)`,
+        concepto: dto.concepto,
+      },
+      actorUid,
+    );
   }
 
   /** Elimina (físico) las partidas de un concepto del plan. */
   async eliminarConcepto(idArrePdp: string, concepto: string, actorUid: string): Promise<void> {
-    const { error } = await this.supabase
+    const { error, count } = await this.supabase
       .comoActor(actorUid)
       .from('arrePdpDetalle')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('idArrePdp', idArrePdp)
       .eq('concepto', concepto);
     if (error) throw new InternalServerErrorException(error.message);
+
+    // Sin partidas borradas no hubo cambio: no se avisa (evita avisos falsos).
+    if (!count) return;
+    await this.notas.avisarCambioManual(
+      refPlanRenta(idArrePdp),
+      { descripcion: `Concepto eliminado: ${concepto}`, concepto },
+      actorUid,
+    );
   }
 
-  /** Activa o desactiva el plan (congela/edita renta) togglando `pdpActivo`. */
-  async setActivo(idNavArrend: string, activo: boolean, actorUid: string): Promise<void> {
+  /**
+   * Las RPC `arrepdp*` devuelven jsonb `{exito, mensaje, codigo}` y rechazan SIN
+   * lanzar error. Si rechazaron, no hubo cambio: se informa al usuario (mensaje
+   * redactado por la RPC; ERROR_INTERNO trae SQLERRM → solo al log) y no se avisa.
+   */
+  private exigirExitoRpc(data: unknown, contexto: string, mensajeGenerico: string): void {
+    const res = data as RpcResultado | null;
+    if (res?.exito !== false) return;
+    if (res.codigo === 'ERROR_INTERNO') {
+      this.logger.error(`RPC ${contexto} ERROR_INTERNO: ${res.mensaje ?? 'sin detalle'}`);
+      throw new InternalServerErrorException(mensajeGenerico);
+    }
+    throw new BadRequestException(res.mensaje ?? mensajeGenerico);
+  }
+
+  /**
+   * Activa o desactiva el plan (congela/edita renta) togglando `pdpActivo`.
+   * `idArrePdp` solo sirve para ubicar el chat del aviso de MontseAI (se verifica
+   * que el plan pertenezca a la propiedad antes de avisar).
+   */
+  async setActivo(
+    idNavArrend: string,
+    activo: boolean,
+    actorUid: string,
+    idArrePdp?: string,
+  ): Promise<void> {
     const { error } = await this.supabase
       .comoActor(actorUid)
       .from('arrenPropiedades')
       .update({ pdpActivo: activo })
       .eq('idNavArrend', idNavArrend);
     if (error) throw new InternalServerErrorException(error.message);
+
+    if (!idArrePdp) return;
+    const { count } = await this.supabase.admin
+      .from('arrePdp')
+      .select('idArrePdp', { count: 'exact', head: true })
+      .eq('idArrePdp', idArrePdp)
+      .eq('idNavArrend', idNavArrend);
+    if (!count) return;
+    await this.notas.avisarCambioManual(
+      refPlanRenta(idArrePdp),
+      { descripcion: activo ? 'Plan activado' : 'Plan desactivado (queda editable)' },
+      actorUid,
+    );
   }
 
   /** Elimina un plan con restricciones (RPC) y registra la actividad. */
@@ -835,6 +956,17 @@ export class PlanesArreService {
       comentario: `Cancelación anticipada del plan ${idArrePdp} (corte en partida ${dto.numPartidaCorte}). Motivo: ${dto.motivo}`,
       actorUid,
     });
+    await this.notas.avisar(
+      refPlanRenta(idArrePdp),
+      {
+        evento: 'cancelacion',
+        texto: `Cancelación anticipada del contrato desde la partida #${dto.numPartidaCorte}${
+          fecCancelacion ? ` (${fecCancelacion})` : ''
+        }; la nave quedó liberada. Motivo: ${dto.motivo}`,
+        detalle: { numPartidaCorte: dto.numPartidaCorte, fecCancelacion, motivo: dto.motivo },
+      },
+      actorUid,
+    );
     return { mensaje: res?.mensaje ?? 'Contrato cancelado.', fecCancelacion };
   }
 

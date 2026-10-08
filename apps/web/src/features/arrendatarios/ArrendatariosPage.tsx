@@ -24,6 +24,7 @@ import { useAuth } from '@/features/auth/useAuth';
 import { SearchSelect } from '@/components/SearchSelect';
 import { THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
 import { IconGear } from '@/components/icons';
+import { PanelNotas } from '@/components/notas/PanelNotas';
 
 /** Color del badge según el estado de vigencia del plan. */
 const BADGE_VIGENCIA: Record<ArrePdpVigente, string> = {
@@ -221,7 +222,10 @@ export function ArrendatariosPage() {
               plan={planSel}
               docs={docsArrendatario}
               puedeEditar={tienePermiso(25)}
-              onGuardado={() => queryClient.invalidateQueries({ queryKey: ['arre-planes'] })}
+              onGuardado={() => {
+                void queryClient.invalidateQueries({ queryKey: ['arre-planes'] });
+                void queryClient.invalidateQueries({ queryKey: ['notas'] });
+              }}
             />
           </div>
         )}
@@ -289,7 +293,14 @@ export function ArrendatariosPage() {
       {planSel && <CorridaPlan plan={planSel} />}
 
       {config && (
-        <ConfigArrendatarioModal arrendatario={config} onClose={() => setConfig(null)} />
+        <ConfigArrendatarioModal
+          arrendatario={config}
+          onClose={() => {
+            setConfig(null);
+            // La configuración puede haber generado avisos de MontseAI en el chat del plan.
+            void queryClient.invalidateQueries({ queryKey: ['notas'] });
+          }}
+        />
       )}
       {verInpc && <ConsultaInpcModal onClose={() => setVerInpc(false)} />}
       {renovarDe && (
@@ -312,6 +323,7 @@ export function ArrendatariosPage() {
             // La nave se liberó: se limpia la selección y se refrescan listas.
             void queryClient.invalidateQueries({ queryKey: ['arre-planes'] });
             void queryClient.invalidateQueries({ queryKey: ['arre-propiedades', idArrendador] });
+            void queryClient.invalidateQueries({ queryKey: ['notas'] });
             setIdNavArrend('');
             setIdArrePdp('');
           }}
@@ -516,8 +528,20 @@ function CorridaPlan({ plan }: { plan: PlanRenta }) {
 
   if (!isLoading && data.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed bg-white p-6 text-center text-sm text-gray-400">
-        El plan no está activo o no tiene corrida. Actívalo en Configuración para verla.
+      <div className="flex items-stretch gap-3">
+        <div className="min-w-0 flex-1 rounded-xl border border-dashed bg-white p-6 text-center text-sm text-gray-400">
+          El plan no está activo o no tiene corrida. Actívalo en Configuración para verla.
+        </div>
+        <PanelNotas
+          key={plan.idArrePdp}
+          titulo="Notas del plan"
+          refNotas={{
+            modulo: 'arrendatarios',
+            pantalla: 'planes-renta',
+            entidadTipo: 'arrePdp',
+            entidadId: plan.idArrePdp,
+          }}
+        />
       </div>
     );
   }
@@ -558,7 +582,9 @@ function CorridaPlan({ plan }: { plan: PlanRenta }) {
           onClose={() => setVerIncrementos(false)}
         />
       )}
-    <div className="overflow-auto rounded-xl border bg-white" style={{ maxHeight: '60vh' }}>
+    {/* Corrida (izquierda) + notas del plan (derecha, misma altura que la tabla) */}
+    <div className="flex items-stretch gap-3">
+    <div className="min-w-0 flex-1 overflow-auto rounded-xl border bg-white" style={{ maxHeight: '60vh' }}>
       <table className="min-w-full border-collapse text-sm">
         <thead className={THEAD_STICKY}>
           <tr className={THEAD_TR}>
@@ -598,6 +624,17 @@ function CorridaPlan({ plan }: { plan: PlanRenta }) {
           )}
         </tbody>
       </table>
+    </div>
+    <PanelNotas
+      key={plan.idArrePdp}
+      titulo="Notas del plan"
+      refNotas={{
+        modulo: 'arrendatarios',
+        pantalla: 'planes-renta',
+        entidadTipo: 'arrePdp',
+        entidadId: plan.idArrePdp,
+      }}
+    />
     </div>
     </>
   );

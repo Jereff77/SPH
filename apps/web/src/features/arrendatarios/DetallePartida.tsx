@@ -67,6 +67,8 @@ export function DetallePartida({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['arre-detalle', idArrePdp] }),
         queryClient.invalidateQueries({ queryKey: ['arre-resumen', idArrePdp] }),
+        // MontseAI avisa del cambio manual en el chat del plan.
+        queryClient.invalidateQueries({ queryKey: ['notas'] }),
       ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar.');

@@ -1,15 +1,15 @@
 ---
 modulo: Arrendatarios
 estado: desarrollado
-version_doc: 1.8
-ultima_actualizacion: 2026-09-11
+version_doc: 1.9
+ultima_actualizacion: 2026-10-07
 rutas_v2: [/arrendatarios, /arrendatarios/planes, /arrendatarios/reportes]
 rutas_v1: [i02_arrendatarios]
 claves_permiso: [10, 20, 21, 22, 23, 24, 25]
-tablas: [inversionista, arrenPropiedades, arrePdp, arrePdpDetalle, arreConceptos, inversionista_docs, naves, parques, inpc, movbancarios, v_arrendadasNaves, catUsers, segModulos, auditoria]
+tablas: [inversionista, arrenPropiedades, arrePdp, arrePdpDetalle, arreConceptos, inversionista_docs, naves, parques, inpc, movbancarios, v_arrendadasNaves, catUsers, segModulos, auditoria, notasEntidad]
 rpcs: [arrepdp_crear_plan_simple_rpc, arrepdp_generar_corrida_desde_plan_simple, arrepdpdetalle_aplicar_meses_gracia, arrepdpdetalle_obtener_resumen_por_plan, arrepdpdetalle_actualizar_campo_manual, arrepdpdetalle_calcular_anio_por_plan, arrepdpdetalle_recalcular_anos_contrato, actualizar_anios_planes_nuevos, actualizar_ciclo_plan_pago, actualizar_inpc_por_ciclo, arrepdp_agregar_concepto_financiado, arrepdp_eliminar_plan_con_restricciones, aplicar_pago_arrendatario, pagos_arrendatarios, contratos_por_vencer, contratos_vencidos_sin_renovacion, movbancarios_sin_aplicar, v2_arrepdp_renovar, v2_arrepdp_activar_renovaciones, v2_arrepdp_cancelar_anticipado]
-palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo, arrendatario no aparece, no aparece en arrendatarios, no aparece en el selector, nave no disponible, nave disponible para rentar, sin clasificar, plan de renta huérfano, arrePdp huérfano, el plan no tiene parcialidades, con plan pero vacío, no me aparece el plan, no puedo liberar la nave, no puedo desvincular la nave, motivo de la desvinculación, motivo de baja, motivoBaja, por qué se liberó la nave, historial de la nave, papelera, cliente en papelera no sale, no aparece un arrendatario en el selector, contrato firmado, contratoFirmado, idContratoDoc, switch contrato, ya tenemos el contrato, subir el contrato, documento del contrato, contrato no firmado, file too large, archivo muy grande, no me deja subir el contrato, tope de tamaño, 50 MB]
-relacionado_con: [parques, clientes, inversionistas, cxp]
+palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo, arrendatario no aparece, no aparece en arrendatarios, no aparece en el selector, nave no disponible, nave disponible para rentar, sin clasificar, plan de renta huérfano, arrePdp huérfano, el plan no tiene parcialidades, con plan pero vacío, no me aparece el plan, no puedo liberar la nave, no puedo desvincular la nave, motivo de la desvinculación, motivo de baja, motivoBaja, por qué se liberó la nave, historial de la nave, papelera, cliente en papelera no sale, no aparece un arrendatario en el selector, contrato firmado, contratoFirmado, idContratoDoc, switch contrato, ya tenemos el contrato, subir el contrato, documento del contrato, contrato no firmado, file too large, archivo muy grande, no me deja subir el contrato, tope de tamaño, 50 MB, notas del plan, chat del plan, MontseAI, nota, comentario del plan, avisos automáticos, panel de notas, borrar una nota]
+relacionado_con: [parques, clientes, inversionistas, cxp, notas]
 ---
 
 # Módulo: Arrendatarios
@@ -553,8 +553,32 @@ recalcula bien).
 - Toda escritura se audita server-side (`comoActor` + triggers de BD) y, en crear/
   eliminar plan y aplicar pago, se registra además en `actividad`.
 
+## Notas del plan y avisos de MontseAI (v2.77.0, 2026-10-07)
+
+Cada plan de renta (`arrePdp`) tiene su propio **chat de notas**, a la derecha de la tabla de la corrida, a la misma
+altura. Es el componente compartido `PanelNotas` (módulo `notas`, ver `modulos/notas.md`) con
+`modulo=arrendatarios · pantalla=planes-renta · entidadTipo=arrePdp · entidadId=idArrePdp`.
+
+- **Quién ve y escribe:** quien tenga la **clave 20** (la que abre Planes de renta); soporte siempre.
+- **Colapsado por defecto**; recuerda en el navegador si la persona lo abrió. Se refresca cada 60 s (y al volver a la pestaña).
+- **Borrar:** cada quien solo sus propias notas y solo **el mismo día** (hora de México). El texto queda en `auditoria`.
+- **Una renovación nace con el chat vacío** (es otro plan).
+- **MontseAI** deja avisos automáticos (plantillas fijas, sin llamar al modelo de IA, sin gastar créditos) — se firman como
+  MontseAI con «por <persona>»: **cancelación anticipada**, **INPC aplicado o revertido**, **contrato firmado marcado o
+  desmarcado**, **nave liberada** y **cambios manuales** (doble clic en la partida; Configuración: agregar/quitar concepto,
+  activar/desactivar el plan). Los cambios manuales de la misma persona con menos de 10 min entre sí se **agrupan en un solo
+  aviso desplegable** (campo, valor anterior → nuevo, partida). No avisa la renovación ni eliminar un plan en diseño.
+- **Best-effort:** el aviso se escribe *después* del cambio (no en la misma transacción); si falla, el cambio queda y el error
+  va al log. Código: `PlanesArreService` / `IncrementosService` → `NotasService.avisar` / `avisarCambioManual`.
+- **Efecto lateral corregido:** las RPC `arrepdpdetalle_actualizar_campo_manual` y `arrepdp_agregar_concepto_financiado`
+  rechazan con `{exito:false}` sin lanzar error; antes la pantalla mostraba éxito. Ahora `exigirExitoRpc` muestra el motivo.
+
 ## Para el agente de soporte
 
+- **"¿Quién cambió esto del plan?" / "¿Qué pasó con este plan?"** → mira el **chat «Notas del plan»** (derecha de la corrida):
+  MontseAI registra cancelación, INPC aplicado/revertido, contrato firmado, nave liberada y los cambios manuales (con valor
+  anterior → nuevo y quién). Si la persona **no ve el panel** → le falta la clave 20. Si **no puede borrar una nota** → solo se
+  borran las propias y el mismo día; los avisos de MontseAI no se borran. Detalle en `modulos/notas.md`.
 - "No puedo editar la renta" → el plan probablemente está en **vigencia `No`**
   (vencido) o **no está activo**; solo los planes vigentes y activos permiten editar
   partidas.
