@@ -512,6 +512,12 @@ function ContratoFirmadoBox({
 function CorridaPlan({ plan }: { plan: PlanRenta }) {
   const modificable = plan.arrePdpVigente !== 'No';
   const divisa = plan.Moneda ?? 'MXN';
+  // Pestaña «Historial» del panel: avisos de MontseAI + eventos de trazabilidad (solo lectura).
+  const historial = {
+    queryKey: ['notas', 'historial', plan.idArrePdp] as const,
+    queryFn: () => arrendatariosApi.historialPlan(plan.idArrePdp),
+    pie: 'Solo lectura · registrado desde junio de 2026',
+  };
   const { data = [], isLoading } = useQuery({
     queryKey: ['arre-resumen', plan.idArrePdp],
     queryFn: () => arrendatariosApi.resumen(plan.idArrePdp),
@@ -535,6 +541,7 @@ function CorridaPlan({ plan }: { plan: PlanRenta }) {
         <PanelNotas
           key={plan.idArrePdp}
           titulo="Notas del plan"
+          historial={historial}
           refNotas={{
             modulo: 'arrendatarios',
             pantalla: 'planes-renta',
@@ -628,6 +635,7 @@ function CorridaPlan({ plan }: { plan: PlanRenta }) {
     <PanelNotas
       key={plan.idArrePdp}
       titulo="Notas del plan"
+      historial={historial}
       refNotas={{
         modulo: 'arrendatarios',
         pantalla: 'planes-renta',

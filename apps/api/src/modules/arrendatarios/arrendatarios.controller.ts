@@ -16,6 +16,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { PlanesArreService } from './planes-arre.service.js';
 import { CobranzaService } from './cobranza.service.js';
 import { ReportesArreService } from './reportes-arre.service.js';
+import { HistorialPlanService } from './historial-plan.service.js';
 import {
   aplicarPagoSchema,
   cancelarAnticipadoSchema,
@@ -91,6 +92,7 @@ export class ArrendatariosController {
     private readonly planes: PlanesArreService,
     private readonly cobranza: CobranzaService,
     private readonly reportes: ReportesArreService,
+    private readonly historialPlan: HistorialPlanService,
   ) {}
 
   // ============================ Planes de Renta (20) ============================
@@ -121,6 +123,13 @@ export class ArrendatariosController {
   @RequierePermiso(20)
   resumen(@Param('idArrePdp') idArrePdp: string) {
     return this.planes.resumenPlan(idArrePdp);
+  }
+
+  /** Historial del plan (solo lectura): avisos de MontseAI + eventos de trazabilidad. Clave 20. */
+  @Get('planes/:idArrePdp/historial')
+  @RequierePermiso(20)
+  historial(@Param('idArrePdp') idArrePdp: string) {
+    return this.historialPlan.historial(idArrePdp);
   }
 
   @Get('planes/:idArrePdp/detalle')

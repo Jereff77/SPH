@@ -31,6 +31,31 @@ export interface Nota {
   fa: string;
 }
 
+export type TipoEventoHistorial =
+  | 'plan_creado'
+  | 'contrato'
+  | 'cancelacion'
+  | 'activacion'
+  | 'liberacion'
+  | 'inpc'
+  | 'pago_aplicado'
+  | 'pago_desaplicado'
+  | 'cambio_manual';
+
+/** Renglón del Historial de una entidad (espejo de `EventoHistorial` en la API). */
+export interface EventoHistorial {
+  id: string;
+  fecha: string;
+  tipo: TipoEventoHistorial;
+  titulo: string;
+  detalle: string | null;
+  /** Solo `cambio_manual`: detalle desplegable de cada cambio. */
+  cambios?: CambioNota[];
+  autor: string | null;
+  /** `montse` = aviso de MontseAI; `auditoria` = reconstruido de la trazabilidad. */
+  origen: 'montse' | 'auditoria';
+}
+
 const qs = (r: RefNotas) =>
   `?modulo=${encodeURIComponent(r.modulo)}&pantalla=${encodeURIComponent(r.pantalla)}` +
   `&entidadTipo=${encodeURIComponent(r.entidadTipo)}&entidadId=${encodeURIComponent(r.entidadId)}`;

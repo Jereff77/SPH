@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { notasApi, type Nota, type RefNotas } from './notas.api';
+import { notasApi, type EventoHistorial, type Nota, type RefNotas, type TipoEventoHistorial } from './notas.api';
 
 const TZ = 'America/Mexico_City';
 const MAX_TEXTO = 2000;
@@ -91,56 +91,124 @@ const IconChispa = () => (
   </Svg>
 );
 
-/** Mensaje de MontseAI: aviso automático; los de «cambio manual» se despliegan con su detalle. */
-function AvisoMontse({ nota }: { nota: Nota }) {
-  const cambios = nota.evento === 'cambio_manual' ? (nota.detalle?.cambios ?? []) : [];
+const IconHist = ({ size }: { size?: number }) => (
+  <Svg size={size}>
+    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+    <path d="M3 3v5h5M12 7v5l4 2" />
+  </Svg>
+);
+const IconCandado = () => (
+  <Svg size={12}>
+    <rect x="3" y="11" width="18" height="11" rx="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </Svg>
+);
+
+/** Icono y colores de cada tipo de evento del historial. */
+const ESTILO_EVENTO: Record<TipoEventoHistorial, { color: string; fondo: string; icono: React.ReactNode }> = {
+  plan_creado: {
+    color: '#1f2a4d', fondo: '#e8edf8',
+    icono: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M12 18v-6M9 15h6" /></>,
+  },
+  contrato: {
+    color: '#1f2a4d', fondo: '#e8edf8',
+    icono: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="m9 15 2 2 4-4" /></>,
+  },
+  cancelacion: {
+    color: '#dc2626', fondo: '#fee2e2',
+    icono: <><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6M9 9l6 6" /></>,
+  },
+  activacion: {
+    color: '#15803d', fondo: '#dcfce7',
+    icono: <><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.77.04" /></>,
+  },
+  liberacion: {
+    color: '#b45309', fondo: '#fef3c7',
+    icono: <><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" /></>,
+  },
+  inpc: {
+    color: '#1f2a4d', fondo: '#e8edf8',
+    icono: <><path d="m22 7-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></>,
+  },
+  pago_aplicado: {
+    color: '#15803d', fondo: '#dcfce7',
+    icono: <><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2" /><path d="M6 12h.01M18 12h.01" /></>,
+  },
+  pago_desaplicado: {
+    color: '#b45309', fondo: '#fef3c7',
+    icono: <><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></>,
+  },
+  cambio_manual: {
+    color: '#1f2a4d', fondo: '#e8edf8',
+    icono: <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />,
+  },
+};
+
+/** Renglón del Historial: icono, título (con marca MontseAI si fue su aviso), detalle, hora y quién. */
+function FilaEvento({ evento }: { evento: EventoHistorial }) {
+  const est = ESTILO_EVENTO[evento.tipo];
+  const cambios = evento.cambios ?? [];
   const [abierto, setAbierto] = useState(false);
   const desplegable = cambios.length > 0;
-  return (
-    <div className="space-y-1.5 rounded-lg border border-[#c9d6ee] bg-[#eef3fb] p-2.5">
-      <div className="flex items-center gap-1.5">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1f2a4d] text-[#8cc63f]">
+  const titulo = (
+    <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+      <span className="text-xs font-bold text-gray-800">
+        {evento.titulo}
+        {desplegable && evento.autor ? <span className="font-normal text-gray-600"> · por {evento.autor}</span> : null}
+      </span>
+      {evento.origen === 'montse' && (
+        <span className="inline-flex items-center gap-0.5 rounded-lg border border-[#c9d6ee] bg-[#eef3fb] px-1.5 py-px text-[9px] font-bold text-[#1f2a4d]">
           <IconChispa />
+          MontseAI
         </span>
-        <span className="text-xs font-bold text-[#1f2a4d]">MontseAI</span>
-        <span className="text-[11px] text-gray-500">{horaMx(nota.fa)}</span>
-      </div>
-      {desplegable ? (
-        <>
+      )}
+    </span>
+  );
+  return (
+    <div className="flex gap-2.5">
+      <span
+        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+        style={{ background: est.fondo, color: est.color }}
+      >
+        <Svg size={14}>{est.icono}</Svg>
+      </span>
+      <div className="min-w-0 flex-1 space-y-0.5">
+        {desplegable ? (
           <button
             type="button"
             onClick={() => setAbierto((v) => !v)}
             aria-expanded={abierto}
-            className="flex w-full items-center justify-between gap-2 text-left text-xs text-gray-800"
+            className="flex w-full items-center justify-between gap-2 text-left"
           >
-            <span className={abierto ? 'font-semibold' : ''}>
-              {nota.texto}
-              {nota.autor ? ` · por ${nota.autor}` : ''}
-            </span>
+            {titulo}
             <span className="shrink-0 text-gray-500">
               <IconChev abierto={abierto} />
             </span>
           </button>
-          {abierto &&
-            cambios.map((c, i) => (
-              <div key={i} className="space-y-0.5 border-t border-[#c9d6ee] pt-1.5">
-                {(c.partida != null || c.concepto) && (
-                  <div className="text-[11px] font-semibold text-gray-500">
-                    {c.partida != null ? `#${c.partida}` : ''}
-                    {c.partida != null && c.concepto ? ' · ' : ''}
-                    {c.concepto ?? ''}
-                  </div>
-                )}
-                <div className="text-xs font-semibold text-[#1f2a4d]">{c.descripcion}</div>
-              </div>
-            ))}
-        </>
-      ) : (
-        <p className="whitespace-pre-wrap break-words text-xs leading-snug text-gray-800">
-          {nota.texto}
-          {nota.autor ? <span className="text-gray-500"> — por {nota.autor}</span> : null}
-        </p>
-      )}
+        ) : (
+          titulo
+        )}
+        {evento.detalle && (
+          <p className="whitespace-pre-wrap break-words text-[11px] leading-snug text-gray-600">{evento.detalle}</p>
+        )}
+        {abierto &&
+          cambios.map((c, i) => (
+            <div key={i} className="space-y-0.5 border-t border-[#c9d6ee] pt-1">
+              {(c.partida != null || c.concepto) && (
+                <div className="text-[10px] font-semibold text-gray-500">
+                  {c.partida != null ? `#${c.partida}` : ''}
+                  {c.partida != null && c.concepto ? ' · ' : ''}
+                  {c.concepto ?? ''}
+                </div>
+              )}
+              <div className="text-[11px] font-semibold text-[#1f2a4d]">{c.descripcion}</div>
+            </div>
+          ))}
+        <div className="text-[11px] text-gray-500">
+          {horaMx(evento.fecha)}
+          {!desplegable && evento.autor ? ` · por ${evento.autor}` : ''}
+        </div>
+      </div>
     </div>
   );
 }
@@ -182,20 +250,46 @@ function NotaUsuario({ nota, onEliminar, eliminando }: { nota: Nota; onEliminar:
  * MontseAI los inserta el servidor al ocurrir un cambio; aquí solo se muestran.
  * Ver / escribir exige el permiso del módulo (lo valida el backend).
  */
-export function PanelNotas({ refNotas, titulo = 'Notas' }: { refNotas: RefNotas; titulo?: string }) {
+export function PanelNotas({
+  refNotas,
+  titulo = 'Notas',
+  historial,
+}: {
+  refNotas: RefNotas;
+  titulo?: string;
+  /** Si se da, el panel gana la pestaña «Historial» (solo lectura; todo lo automático). */
+  historial?: {
+    queryKey: readonly unknown[];
+    queryFn: () => Promise<EventoHistorial[]>;
+    /** Texto del pie de solo lectura (p. ej. desde cuándo hay registros). */
+    pie?: string;
+  };
+}) {
   const queryClient = useQueryClient();
   const [colapsado, setColapsado] = useState(leerColapsado);
   const [texto, setTexto] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [pestana, setPestana] = useState<'notas' | 'historial'>('notas');
   const finRef = useRef<HTMLDivElement>(null);
 
   const clave = ['notas', refNotas.modulo, refNotas.pantalla, refNotas.entidadTipo, refNotas.entidadId];
-  const { data: notas = [], isLoading, isError } = useQuery({
+  const { data: todas = [], isLoading, isError } = useQuery({
     queryKey: clave,
     queryFn: () => notasApi.listar(refNotas),
-    // Los avisos de MontseAI nacen en el servidor: se refresca al volver a la ventana y cada 60 s
-    // (y de inmediato tras editar el plan, ver `invalidateQueries(['notas'])`).
-    refetchInterval: 60_000,
+    // Las notas de otras personas llegan por sondeo: cada 60 s y al volver a la ventana, pero solo mientras
+    // el panel está abierto en la pestaña Notas (de inmediato tras editar el plan: `invalidateQueries(['notas'])`).
+    refetchInterval: !colapsado && pestana === 'notas' ? 60_000 : false,
+    refetchOnWindowFocus: true,
+  });
+  // «Notas» = solo lo que escriben las personas; lo automático (MontseAI) vive en «Historial».
+  const notas = useMemo(() => todas.filter((n) => n.tipo === 'usuario'), [todas]);
+
+  const { data: eventos = [], isLoading: cargandoHist, isError: errorHist } = useQuery({
+    queryKey: historial?.queryKey ?? ['notas', 'historial', 'sin-historial'],
+    queryFn: historial?.queryFn ?? (() => Promise.resolve([] as EventoHistorial[])),
+    enabled: !!historial,
+    // La primera carga alimenta el contador; el sondeo solo corre con el Historial a la vista.
+    refetchInterval: !colapsado && pestana === 'historial' ? 60_000 : false,
     refetchOnWindowFocus: true,
   });
 
@@ -219,8 +313,8 @@ export function PanelNotas({ refNotas, titulo = 'Notas' }: { refNotas: RefNotas;
 
   // Al abrir o llegar mensajes nuevos, baja al último.
   useEffect(() => {
-    if (!colapsado) finRef.current?.scrollIntoView({ block: 'end' });
-  }, [notas.length, colapsado]);
+    if (!colapsado && pestana === 'notas') finRef.current?.scrollIntoView({ block: 'end' });
+  }, [notas.length, colapsado, pestana]);
 
   const grupos = useMemo(() => {
     const out: Array<{ dia: string; items: Nota[] }> = [];
@@ -232,6 +326,17 @@ export function PanelNotas({ refNotas, titulo = 'Notas' }: { refNotas: RefNotas;
     }
     return out;
   }, [notas]);
+
+  const gruposHist = useMemo(() => {
+    const out: Array<{ dia: string; items: EventoHistorial[] }> = [];
+    for (const e of eventos) {
+      const dia = etiquetaDia(e.fecha);
+      const ult = out[out.length - 1];
+      if (ult && ult.dia === dia) ult.items.push(e);
+      else out.push({ dia, items: [e] });
+    }
+    return out;
+  }, [eventos]);
 
   function alternar() {
     setColapsado((v) => {
@@ -276,14 +381,49 @@ export function PanelNotas({ refNotas, titulo = 'Notas' }: { refNotas: RefNotas;
   return (
     <div className="relative min-h-[420px] w-[360px] shrink-0">
     <aside className="absolute inset-0 flex flex-col overflow-hidden rounded-xl border bg-white" aria-label={titulo}>
-      <div className="flex items-center justify-between border-b px-3.5 py-3">
-        <div className="flex items-center gap-2 text-[#1f2a4d]">
-          <IconChat />
-          <span className="text-sm font-bold text-gray-800">{titulo}</span>
-          {notas.length > 0 && (
-            <span className="rounded-full bg-[#1f2a4d] px-2 py-0.5 text-[11px] font-bold text-white">{notas.length}</span>
-          )}
-        </div>
+      <div className={`flex items-center justify-between border-b ${historial ? 'pr-2.5' : 'px-3.5 py-3'}`}>
+        {historial ? (
+          <div className="flex" role="tablist">
+            {(
+              [
+                ['notas', 'Notas', notas.length, <IconChat key="n" size={14} />],
+                ['historial', 'Historial', eventos.length, <IconHist key="h" size={14} />],
+              ] as const
+            ).map(([id, etiqueta, n, icono]) => {
+              const activa = pestana === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activa}
+                  onClick={() => setPestana(id)}
+                  className={`flex items-center gap-1.5 border-b-2 px-3.5 py-3 text-[13px] ${
+                    activa ? 'border-[#1f2a4d] font-bold text-gray-800' : 'border-transparent font-medium text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <span className={activa ? 'text-[#1f2a4d]' : ''}>{icono}</span>
+                  {etiqueta}
+                  <span
+                    className={`rounded-full px-1.5 py-px text-[11px] font-bold ${
+                      activa ? 'bg-[#1f2a4d] text-white' : 'bg-gray-200 text-gray-500'
+                    }`}
+                  >
+                    {n}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-[#1f2a4d]">
+            <IconChat />
+            <span className="text-sm font-bold text-gray-800">{titulo}</span>
+            {notas.length > 0 && (
+              <span className="rounded-full bg-[#1f2a4d] px-2 py-0.5 text-[11px] font-bold text-white">{notas.length}</span>
+            )}
+          </div>
+        )}
         <button
           type="button"
           onClick={alternar}
@@ -295,13 +435,35 @@ export function PanelNotas({ refNotas, titulo = 'Notas' }: { refNotas: RefNotas;
       </div>
 
       <div className="scrollbar-hide min-h-0 flex-1 space-y-2.5 overflow-y-auto p-3.5">
-        {isLoading ? (
+        {pestana === 'historial' && historial ? (
+          cargandoHist ? (
+            <p className="py-6 text-center text-xs text-gray-400">Cargando…</p>
+          ) : errorHist ? (
+            <p className="py-6 text-center text-xs text-red-600">No se pudo cargar el historial.</p>
+          ) : gruposHist.length === 0 ? (
+            <p className="py-6 text-center text-xs text-gray-400">Aún no hay eventos registrados en este plan.</p>
+          ) : (
+            gruposHist.map((g) => (
+              <div key={g.dia} className="space-y-3">
+                <div className="flex items-center justify-center gap-2 text-[11px] font-semibold text-gray-500">
+                  <span className="h-px w-14 bg-gray-200" />
+                  {g.dia}
+                  <span className="h-px w-14 bg-gray-200" />
+                </div>
+                {g.items.map((e) => (
+                  <FilaEvento key={e.id} evento={e} />
+                ))}
+              </div>
+            ))
+          )
+        ) : isLoading ? (
           <p className="py-6 text-center text-xs text-gray-400">Cargando…</p>
         ) : isError ? (
           <p className="py-6 text-center text-xs text-red-600">No se pudieron cargar las notas.</p>
         ) : grupos.length === 0 ? (
           <p className="py-6 text-center text-xs text-gray-400">
-            Aún no hay notas. Escribe la primera; aquí también verás los avisos de MontseAI sobre este plan.
+            Aún no hay notas. Escribe la primera
+            {historial ? '; los avisos automáticos de MontseAI están en la pestaña Historial.' : '.'}
           </p>
         ) : (
           grupos.map((g) => (
@@ -311,26 +473,28 @@ export function PanelNotas({ refNotas, titulo = 'Notas' }: { refNotas: RefNotas;
                 {g.dia}
                 <span className="h-px w-14 bg-gray-200" />
               </div>
-              {g.items.map((n) =>
-                n.tipo === 'sistema' ? (
-                  <AvisoMontse key={n.id} nota={n} />
-                ) : (
-                  <NotaUsuario
-                    key={n.id}
-                    nota={n}
-                    eliminando={eliminar.isPending}
-                    onEliminar={() => {
-                      if (window.confirm('¿Eliminar esta nota? No se puede deshacer.')) eliminar.mutate(n.id);
-                    }}
-                  />
-                ),
-              )}
+              {g.items.map((n) => (
+                <NotaUsuario
+                  key={n.id}
+                  nota={n}
+                  eliminando={eliminar.isPending}
+                  onEliminar={() => {
+                    if (window.confirm('¿Eliminar esta nota? No se puede deshacer.')) eliminar.mutate(n.id);
+                  }}
+                />
+              ))}
             </div>
           ))
         )}
         <div ref={finRef} />
       </div>
 
+      {pestana === 'historial' && historial ? (
+        <div className="flex items-center gap-1.5 border-t bg-gray-50 px-3.5 py-2.5 text-[11px] text-gray-500">
+          <IconCandado />
+          {historial.pie ?? 'Solo lectura'}
+        </div>
+      ) : (
       <div className="border-t p-3">
         {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
         <div className="flex items-end gap-2">
@@ -358,6 +522,7 @@ export function PanelNotas({ refNotas, titulo = 'Notas' }: { refNotas: RefNotas;
           </button>
         </div>
       </div>
+      )}
     </aside>
     </div>
   );

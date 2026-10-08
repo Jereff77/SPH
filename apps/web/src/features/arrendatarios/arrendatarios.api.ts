@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import type { EventoHistorial } from '@/components/notas/notas.api';
 
 // ============================ Planes de Renta ============================
 
@@ -469,6 +470,9 @@ function dq(
 export const arrendatariosApi = {
   // Planes de Renta
   lista: () => api.get<ArrendatarioOpt[]>('/arrendatarios/lista'),
+  /** Historial del plan (solo lectura): avisos de MontseAI + eventos de trazabilidad. */
+  historialPlan: (idArrePdp: string) =>
+    api.get<EventoHistorial[]>(`/arrendatarios/planes/${idArrePdp}/historial`),
   propiedades: (idArrendador: string) =>
     api.get<PropiedadArrendada[]>(`/arrendatarios/${idArrendador}/propiedades`),
   planes: (idNavArrend: string, idArrendador: string) =>

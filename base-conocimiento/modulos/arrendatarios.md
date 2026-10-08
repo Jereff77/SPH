@@ -1,7 +1,7 @@
 ---
 modulo: Arrendatarios
 estado: desarrollado
-version_doc: 1.9
+version_doc: 2.0
 ultima_actualizacion: 2026-10-07
 rutas_v2: [/arrendatarios, /arrendatarios/planes, /arrendatarios/reportes]
 rutas_v1: [i02_arrendatarios]
@@ -553,29 +553,30 @@ recalcula bien).
 - Toda escritura se audita server-side (`comoActor` + triggers de BD) y, en crear/
   eliminar plan y aplicar pago, se registra además en `actividad`.
 
-## Notas del plan y avisos de MontseAI (v2.77.0, 2026-10-07)
+## Notas del plan, Historial y avisos de MontseAI (v2.77.0 / v2.78.0, 2026-10-07)
 
-Cada plan de renta (`arrePdp`) tiene su propio **chat de notas**, a la derecha de la tabla de la corrida, a la misma
-altura. Es el componente compartido `PanelNotas` (módulo `notas`, ver `modulos/notas.md`) con
-`modulo=arrendatarios · pantalla=planes-renta · entidadTipo=arrePdp · entidadId=idArrePdp`.
+Cada plan de renta (`arrePdp`) tiene su propio **panel de notas**, a la derecha de la corrida, a la misma altura. Es el componente
+compartido `PanelNotas` (módulo `notas`, ver `modulos/notas.md`) con `modulo=arrendatarios · pantalla=planes-renta ·
+entidadTipo=arrePdp · entidadId=idArrePdp`. Tiene **dos pestañas**:
 
-- **Quién ve y escribe:** quien tenga la **clave 20** (la que abre Planes de renta); soporte siempre.
-- **Colapsado por defecto**; recuerda en el navegador si la persona lo abrió. Se refresca cada 60 s (y al volver a la pestaña).
-- **Borrar:** cada quien solo sus propias notas y solo **el mismo día** (hora de México). El texto queda en `auditoria`.
-- **Una renovación nace con el chat vacío** (es otro plan).
-- **MontseAI** deja avisos automáticos (plantillas fijas, sin llamar al modelo de IA, sin gastar créditos) — se firman como
-  MontseAI con «por <persona>»: **cancelación anticipada**, **INPC aplicado o revertido**, **contrato firmado marcado o
-  desmarcado**, **nave liberada** y **cambios manuales** (doble clic en la partida; Configuración: agregar/quitar concepto,
-  activar/desactivar el plan). Los cambios manuales de la misma persona con menos de 10 min entre sí se **agrupan en un solo
-  aviso desplegable** (campo, valor anterior → nuevo, partida). No avisa la renovación ni eliminar un plan en diseño.
-- **Best-effort:** el aviso se escribe *después* del cambio (no en la misma transacción); si falla, el cambio queda y el error
-  va al log. Código: `PlanesArreService` / `IncrementosService` → `NotasService.avisar` / `avisarCambioManual`.
-- **Efecto lateral corregido:** las RPC `arrepdpdetalle_actualizar_campo_manual` y `arrepdp_agregar_concepto_financiado`
+- **Notas** — solo lo que escriben las **personas**. Ve y escribe quien tenga la **clave 20**; soporte siempre. Cada quien borra
+  solo las propias y solo **el mismo día** (hora de México); el texto queda en `auditoria`. Una renovación nace con el chat vacío
+  (es otro plan).
+- **Historial** (v2.78.0) — **solo lectura**, todo lo automático: avisos de **MontseAI** + eventos del plan (creado, activado/
+  desactivado, contrato firmado, cancelación, nave liberada, INPC aplicado/revertido, pagos aplicados/desaplicados con monto,
+  parcialidad, motivo y quién). Lo ve quien tenga la clave 20. Detalle de fuentes y regla anti-duplicado en `modulos/notas.md`.
+- Colapsado por defecto (recuerda si lo abriste). Sondeo de 60 s solo con el panel abierto.
+- **MontseAI** usa plantillas fijas (sin modelo de IA ni créditos) y firma como MontseAI «por <persona>»: **cancelación
+  anticipada**, **INPC aplicado/revertido**, **contrato firmado**, **nave liberada** y **cambios manuales** (doble clic en la
+  partida; Configuración: agregar/quitar concepto, activar/desactivar). Los cambios manuales de la misma persona con menos de
+  10 min entre sí se agrupan en **un aviso desplegable**. No avisa la renovación ni eliminar un plan en diseño. Es *best-effort*:
+  el aviso se escribe **después** del cambio; si falla, el cambio queda y el error va al log.
+- **Efecto lateral corregido (v2.77.0):** las RPC `arrepdpdetalle_actualizar_campo_manual` y `arrepdp_agregar_concepto_financiado`
   rechazan con `{exito:false}` sin lanzar error; antes la pantalla mostraba éxito. Ahora `exigirExitoRpc` muestra el motivo.
 
 ## Para el agente de soporte
 
-- **"¿Quién cambió esto del plan?" / "¿Qué pasó con este plan?"** → mira el **chat «Notas del plan»** (derecha de la corrida):
+- **"¿Quién cambió esto del plan?" / "¿Qué pasó con este plan?"** → mira el **panel «Notas del plan» → pestaña Historial** (derecha de la corrida):
   MontseAI registra cancelación, INPC aplicado/revertido, contrato firmado, nave liberada y los cambios manuales (con valor
   anterior → nuevo y quién). Si la persona **no ve el panel** → le falta la clave 20. Si **no puede borrar una nota** → solo se
   borran las propias y el mismo día; los avisos de MontseAI no se borran. Detalle en `modulos/notas.md`.
