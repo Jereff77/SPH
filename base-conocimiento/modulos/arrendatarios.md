@@ -368,6 +368,35 @@ recalcula bien).
   después; ej. inicio 1-jun-2023, plazo 36 → fin 31-may-2026). **No se captura ni se edita**, se
   calcula sola. (Hasta jun-2026 la fórmula no restaba el día; se corrigió.)
 
+## Cómo se traducen las cláusulas de incremento del contrato al plan (2026-10-07)
+
+> 📌 Caso que lo originó: contrato A3N130 (Acupark III, nave 130, DIQMA WORK SAFE; inicio 15/08/2026, 61 meses,
+> plan `PDP_260825182358_37ada293`). El plan estaba bien en el año 1 pero **sin INPC+3 desde el año 2 en las
+> cuotas y desde el año 3 en la renta**. Se corrigió el 07/10/2026 (ver bitácora).
+
+- **Dónde vive cada cosa:** el monto de una partida es `pm2 × constM2` (columna generada). El incremento NO se
+  teclea como monto: se fijan `INPC` y `ptsINPC` del año y el motor recalcula
+  `pm2[N] = pm2[N−1] × (1 + (INPC[N] + ptsINPC[N]) / 100)`.
+- **Qué hace la RPC `arrepdpdetalle_actualizar_campo_manual(plan, anio_desde, concepto, campo, valor)`:**
+  pone el campo en TODAS las filas del concepto con `anio >= anio_desde` y, si `anio_desde >= 2` y el campo es
+  `INPC`/`ptsINPC`, deja el **mismo** `pm2` (año N−1 × factor del año `anio_desde`) en todos esos años. **No compone
+  año a año**: para que el piso quede compuesto hay que llamarla en orden ascendente (`anio_desde` = 2, 3, 4…),
+  **una llamada a la vez** (varias en una misma sentencia SQL no garantizan el orden). Con INPC en 0 los montos son
+  un **piso provisional** que se reemplaza al capturar el INPC real cada aniversario.
+- **Lectura de cláusulas típicas (criterio de Jereff, 2026-10-07):**
+  - Renta del año 2 **pactada en $/m²** (p. ej. $95): fija, sin INPC (`ptsINPC=0` solo en la renta del año 2).
+  - Cuotas de mantenimiento, vigilancia y administración: «monto del año 1 más INPC + 3 puntos» **desde el año 2**.
+  - «A partir del tercer año»: **todos** los conceptos (renta incluida) con INPC + 3 puntos.
+  - Los `ptsINPC=3` que trae el **año 1** (por `INPCPlus`) son informativos: el `pm2` del año 1 es la base.
+- ⚠️ **Poner los puntos en 0 «para fijar la renta del año 2» NO debe extenderse a las cuotas ni a los años 3+.** Es el
+  error que tenía la nave 130 (edición del 11/09/2026). Antes de tocar un plan, leer qué dice su contrato.
+- ⛔ **Editar por SQL directo a la RPC no deja rastro:** `arre_incrementos` solo lo llena el backend
+  (`incrementos.service.registrarManual`). Si se corrige por SQL, queda sin actor/fecha, y las filas manuales
+  `aplicado` previas de un año pueden bloquear el INPC automático de ese año (**por verificar**, tablero #75).
+  Las correcciones de datos de dinero se hacen **con visto bueno explícito de Jereff**.
+- Pendientes relacionados en el tablero: #75 (rastro/bloqueo en nave 130), #76 (barrido de otros planes), #18 (desfase
+  de `anio` por crons: la renta del día de aniversario puede quedar con `anio−1`).
+
 ## Contrato firmado por versión de plan (v2.74.0)
 
 > 📌 **Un contrato es una VERSIÓN del plan (`arrePdp`)**: cada alta nueva y cada renovación es su
