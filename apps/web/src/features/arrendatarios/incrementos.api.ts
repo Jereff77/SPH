@@ -6,8 +6,16 @@ import { api } from '@/lib/api';
  * la clave 20. Diseño: `base-conocimiento/PLAN-incrementos-inpc-automaticos.md`.
  */
 
+/** Monto mensual de un plan en UNA moneda (un plan mixto trae una entrada por moneda). */
+export interface MontoMoneda {
+  moneda: string;
+  montoActual: number;
+  montoNuevo: number;
+}
+
 export interface ConceptoPreview {
   concepto: string;
+  moneda?: string;
   pm2Base: number;
   pts: number;
   pm2Nuevo: number;
@@ -27,6 +35,8 @@ export interface PlanPreview {
   incrementoPct: number;
   montoActual: number;
   montoNuevo: number;
+  /** Desglose por moneda (la del plan primero); nunca se suman monedas distintas. */
+  montos?: MontoMoneda[];
   conceptos: ConceptoPreview[];
   estatus: 'aplicable' | 'omitido' | 'manual';
   motivo?: string;
@@ -58,6 +68,7 @@ export interface ResultadoAplicar {
     empresa: string;
     montoActual: number;
     montoNuevo: number;
+    montos?: MontoMoneda[];
     idIncremento: string;
   }>;
   fallidos: Array<{ idArrePdp: string; empresa: string; motivo: string }>;
@@ -79,6 +90,7 @@ export interface IncrementoBitacora {
     montoActual?: number;
     montoNuevo?: number;
     moneda?: string;
+    montos?: MontoMoneda[];
     aniversario?: string;
     previo?: unknown[];
     conceptos?: unknown[];

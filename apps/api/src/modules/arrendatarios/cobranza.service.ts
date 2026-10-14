@@ -8,6 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { AplicarPagoDto } from './arrendatarios.schemas.js';
+import { monedaDeposito, monedaValida } from './moneda.util.js';
 import { parsearEstadoCuentaBanBajio } from './estado-cuenta.parser.js';
 import type { TablesInsert } from '@erp/types';
 
@@ -417,7 +418,7 @@ export class CobranzaService {
     // Movimiento: debe existir y conservar saldo (aplicado=true ⇒ ya agotado).
     const { data: mov, error: movErr } = await this.supabase.admin
       .from('movbancarios')
-      .select('idmov, importe, aplicado, ordenante')
+      .select('idmov, importe, aplicado, ordenante, moneda')
       .eq('idmov', dto.idmov)
       .maybeSingle();
     if (movErr) throw new InternalServerErrorException(movErr.message);
@@ -435,13 +436,50 @@ export class CobranzaService {
     const tasa = await this.tasaIva();
     const { data: partidas, error: parErr } = await this.supabase.admin
       .from('arrePdpDetalle')
-      .select('idArrePdpDet, cantidad, concepto, idArrePdp, fecPago')
+      .select('idArrePdpDet, cantidad, concepto, idArrePdp, fecPago, moneda')
       .in('idArrePdpDet', dto.idsDetalle);
     if (parErr) throw new InternalServerErrorException(parErr.message);
     if (!partidas || partidas.length !== dto.idsDetalle.length)
       throw new BadRequestException('Alguna partida seleccionada no existe.');
     if (partidas.some((p) => p.fecPago))
       throw new BadRequestException('Alguna partida seleccionada ya estaba pagada.');
+
+    // Moneda: es OBLIGATORIA en el depósito y en las partidas/plan, y deben coincidir (sin
+    // tipo de cambio no se mezclan). Nunca se omite en silencio: si falta, se dice la causa.
+    // Datos heredados: 'MNX' (typo) = MXN; partida con moneda vacía/'null' usa la de su plan.
+    const monedaMov = monedaDeposito(mov.moneda);
+    if (!monedaMov)
+      throw new BadRequestException(
+        `El depósito no tiene una moneda válida (dice «${(mov.moneda ?? '').trim() || 'vacía'}»; debe ser MXN o USD). ` +
+          'Corrige la moneda del movimiento bancario antes de aplicar el pago.',
+      );
+
+    const idsPlan = [...new Set(partidas.map((p) => p.idArrePdp).filter((x): x is string => !!x))];
+    const { data: planes, error: plErr } = await this.supabase.admin
+      .from('arrePdp')
+      .select('idArrePdp, Moneda')
+      .in('idArrePdp', idsPlan);
+    if (plErr) throw new InternalServerErrorException(plErr.message);
+    const monedaPlan = new Map((planes ?? []).map((pl) => [pl.idArrePdp, monedaValida(pl.Moneda)]));
+
+    const sinMoneda = partidas.find(
+      (p) => !(monedaValida(p.moneda) ?? monedaPlan.get(p.idArrePdp ?? '')),
+    );
+    if (sinMoneda)
+      throw new BadRequestException(
+        `La partida «${sinMoneda.concepto ?? 'sin concepto'}» no tiene moneda válida ni su plan tampoco ` +
+          '(debe ser MXN o USD). Defínela en Planes de Renta → columna Moneda antes de aplicar el pago.',
+      );
+
+    const distinta = partidas.find(
+      (p) => (monedaValida(p.moneda) ?? monedaPlan.get(p.idArrePdp ?? '')) !== monedaMov,
+    );
+    if (distinta)
+      throw new BadRequestException(
+        `El depósito es ${monedaMov} y la partida «${distinta.concepto ?? 'sin concepto'}» está en ${
+          monedaValida(distinta.moneda) ?? monedaPlan.get(distinta.idArrePdp ?? '')
+        }: no se puede aplicar sin tipo de cambio.`,
+      );
 
     // Monto (con IVA) por partida; se guarda por idArrePdpDet para arre_pagos.
     const montoPorDet = new Map<string, number>();

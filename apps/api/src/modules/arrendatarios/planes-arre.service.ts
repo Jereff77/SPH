@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -9,9 +10,11 @@ import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { IncrementosService } from './incrementos.service.js';
 import { KvasService } from '../parques/kvas.service.js';
+import { monedaEfectiva, monedaValida } from './moneda.util.js';
 import { NotasService } from '../notas/notas.service.js';
 import { refPlanRenta } from '../notas/notas.config.js';
 import type {
+  CambiarMonedaDto,
   CancelarAnticipadoDto,
   ConceptoFinanciadoDto,
   ContratoFirmadoDto,
@@ -153,9 +156,56 @@ export class PlanesArreService {
       { p_idarrepdp: idArrePdp, p_validar: false },
     );
     if (error) throw new InternalServerErrorException(error.message);
-    const filas = (data ?? []) as Array<{ pdpactivo: boolean | null }>;
+    const filas = (data ?? []) as Array<{ pdpactivo: boolean | null; numPartida: number }>;
     if (filas.length > 0 && filas[0]!.pdpactivo === false) return [];
-    return filas;
+    return this.conDesgloseMoneda(idArrePdp, filas);
+  }
+
+  /**
+   * La RPC suma TODOS los conceptos del mes en un solo total. Si el plan mezcla monedas
+   * (ej. renta en USD y un cargo en MXN) ese total sumaría monedas distintas: a las partidas
+   * mixtas se les agrega `montos` (total por moneda, la del plan primero). Las demás quedan igual.
+   */
+  private async conDesgloseMoneda<T extends { numPartida: number }>(
+    idArrePdp: string,
+    filas: T[],
+  ): Promise<Array<T & { montos?: Array<{ moneda: string; total: number }> }>> {
+    if (filas.length === 0) return filas;
+    const { data: plan } = await this.supabase.admin
+      .from('arrePdp')
+      .select('Moneda')
+      .eq('idArrePdp', idArrePdp)
+      .maybeSingle();
+    const monedaPlan = monedaEfectiva(null, plan?.Moneda);
+
+    // Por páginas: un plan largo puede pasar del tope de filas de PostgREST.
+    const porPartida = new Map<number, Map<string, number>>();
+    for (let desde = 0; ; desde += 1000) {
+      const { data, error } = await this.supabase.admin
+        .from('arrePdpDetalle')
+        .select('numPartida, moneda, cantidad')
+        .eq('idArrePdp', idArrePdp)
+        .eq('status', true)
+        .order('idArrePdpDet', { ascending: true })
+        .range(desde, desde + 999);
+      if (error) throw new InternalServerErrorException(error.message);
+      for (const d of data ?? []) {
+        const mon = monedaEfectiva(d.moneda, monedaPlan);
+        const m = porPartida.get(d.numPartida ?? 0) ?? new Map<string, number>();
+        m.set(mon, (m.get(mon) ?? 0) + (Number(d.cantidad) || 0));
+        porPartida.set(d.numPartida ?? 0, m);
+      }
+      if ((data ?? []).length < 1000) break;
+    }
+
+    return filas.map((f) => {
+      const m = porPartida.get(f.numPartida);
+      if (!m || m.size < 2) return f;
+      const montos = [...m.entries()]
+        .map(([moneda, total]) => ({ moneda, total }))
+        .sort((a, b) => Number(b.moneda === monedaPlan) - Number(a.moneda === monedaPlan));
+      return { ...f, montos };
+    });
   }
 
   /**
@@ -569,6 +619,66 @@ export class PlanesArreService {
   }
 
   /**
+   * Cambia la moneda de un concepto de la corrida desde un año hacia abajo (RPC
+   * `v2_arrepdpdetalle_cambiar_moneda`). Las reglas (vigente, MXN/USD y el
+   * bloqueo por pago aplicado) las impone la BD; aquí solo se traducen los
+   * errores y se deja el aviso en Notas + la bitácora de actividad.
+   */
+  async cambiarMoneda(
+    idArrePdp: string,
+    dto: CambiarMonedaDto,
+    actorUid: string,
+  ): Promise<{ ok: true; partidasAlcance: number; partidasCambiadas: number }> {
+    const db = this.supabase.comoActor(actorUid);
+    // RPC nueva v2_ (aún no tipada en @erp/types); cast localizado (igual que renovar).
+    const { data, error } = await (
+      db.rpc as unknown as (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message: string } | null }>
+    )('v2_arrepdpdetalle_cambiar_moneda', {
+      p_id_arre_pdp: idArrePdp,
+      p_anio_desde: dto.anioDesde,
+      p_concepto: dto.concepto,
+      p_moneda: dto.moneda,
+      p_simular: dto.simular,
+    });
+    if (error) {
+      this.logger.error(`Error cambiando moneda del plan ${idArrePdp}: ${error.message}`);
+      throw new InternalServerErrorException('No se pudo cambiar la moneda.');
+    }
+    const res = data as RpcResultado;
+    if (res?.codigo === 'PLAN_NO_EXISTE') throw new NotFoundException(res.mensaje);
+    if (res?.codigo === 'PAGO_APLICADO') throw new ConflictException(res.mensaje);
+    this.exigirExitoRpc(res, 'cambiarMoneda', 'No se pudo cambiar la moneda.');
+
+    const cambiadas = Number(res?.detalles?.partidas_cambiadas ?? 0);
+    const alcance = Number(res?.detalles?.partidas_alcance ?? 0);
+    // Simulación o sin cambios reales: no se avisa (evita avisos falsos).
+    if (!dto.simular && cambiadas > 0) {
+      const antes = Array.isArray(res?.detalles?.moneda_anterior)
+        ? (res.detalles.moneda_anterior as string[]).map((m) => (m && m !== 'null' ? m : 'sin moneda')).join(', ')
+        : '—';
+      await this.notas.avisarCambioManual(
+        refPlanRenta(idArrePdp),
+        {
+          descripcion: `Moneda (desde el año ${dto.anioDesde}): ${antes} → ${dto.moneda}`,
+          concepto: dto.concepto,
+          partida: null,
+        },
+        actorUid,
+      );
+      await this.registrarActividad(db, {
+        pantalla: 'Arrendatarios',
+        nomwidget: 'CambiarMonedaConcepto',
+        comentario: `Moneda de «${dto.concepto}» del plan ${idArrePdp} desde el año ${dto.anioDesde}: ${antes} → ${dto.moneda} (${cambiadas} partidas).`,
+        actorUid,
+      });
+    }
+    return { ok: true, partidasAlcance: alcance, partidasCambiadas: cambiadas };
+  }
+
+  /**
    * Marca/desmarca el contrato firmado de ESTA versión del plan (`arrePdp` —
    * un contrato por cada plan nuevo o renovación). Al encender exige un
    * documento YA subido en Documentos del MISMO arrendatario (evita colgar el
@@ -795,7 +905,8 @@ export class PlanesArreService {
       pm2Mtto: ultimo('Mantenimiento'),
       pm2Vig: ultimo('Vigilancia'),
       inpcPlus: Number(plan.INPCPlus) || 0,
-      moneda: (plan.Moneda as 'MXN' | 'USD') ?? 'MXN',
+      // Datos heredados traen 'null' (texto) en vez de una moneda: cae a MXN.
+      moneda: monedaValida(plan.Moneda) === 'USD' ? 'USD' : 'MXN',
     };
   }
 

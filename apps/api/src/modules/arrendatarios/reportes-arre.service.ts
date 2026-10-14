@@ -1,5 +1,6 @@
 import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { monedaEfectiva } from './moneda.util.js';
 
 /** Filtros del reporte de cancelaciones anticipadas (todos opcionales). */
 export interface FiltrosCancelaciones {
@@ -56,6 +57,8 @@ export interface EstadoCuentaPartida {
   anio: number | null;
   ciclo: number | null;
   fecha: string | null;
+  /** Moneda de ESTE renglón: un mes con conceptos en dos monedas sale en dos renglones. */
+  moneda: string;
   pm2: number;
   constM2: number;
   inpc: number;
@@ -75,8 +78,11 @@ export interface EstadoCuentaPartida {
 /** Respuesta del estado de cuenta de un plan: cabecera + corrida. */
 export interface EstadoCuentaCorrida {
   cabecera: EstadoCuentaCabecera;
+  /** Monedas presentes en la corrida (la del plan primero). >1 = plan mixto. */
+  monedas: string[];
   partidas: EstadoCuentaPartida[];
 }
+
 
 /** Fila cruda de `arrePdp` (incluye `canceladoAnticipado`, aún no en @erp/types). */
 interface PlanCabeceraRow {
@@ -439,7 +445,7 @@ export class ReportesArreService {
     const { data: det, error: detErr } = await this.supabase.admin
       .from('arrePdpDetalle')
       .select(
-        'numPartida, anio, ciclo, concepto, fecha, pm2, constM2, INPC, inpcTotal, cantidad, cantidadAplicada, fecPago',
+        'numPartida, anio, ciclo, concepto, fecha, pm2, constM2, INPC, inpcTotal, cantidad, cantidadAplicada, fecPago, moneda',
       )
       .eq('idArrePdp', idArrePdp)
       .eq('status', true)
@@ -447,8 +453,13 @@ export class ReportesArreService {
       .order('anio', { ascending: true });
     if (detErr) throw new InternalServerErrorException(detErr.message);
 
+    // Moneda efectiva de cada renglón: la propia si es válida; si no (datos heredados
+    // vacíos o 'null'), la del plan. Un mes con dos monedas se parte en dos renglones.
+    const monedaPlan = monedaEfectiva(null, plan.Moneda);
+
     interface Acc {
       numPartida: number;
+      moneda: string;
       anio: number | null;
       ciclo: number | null;
       fecha: string | null;
@@ -468,13 +479,16 @@ export class ReportesArreService {
       filas: number;
       filasPagadas: number;
     }
-    const map = new Map<number, Acc>();
+    const map = new Map<string, Acc>();
     for (const r of det ?? []) {
       const np = r.numPartida ?? 0;
-      let a = map.get(np);
+      const mon = monedaEfectiva(r.moneda, monedaPlan);
+      const clave = `${np}|${mon}`;
+      let a = map.get(clave);
       if (!a) {
         a = {
           numPartida: np,
+          moneda: mon,
           anio: r.anio,
           ciclo: r.ciclo,
           fecha: r.fecha ? String(r.fecha).slice(0, 10) : null,
@@ -494,7 +508,7 @@ export class ReportesArreService {
           filas: 0,
           filasPagadas: 0,
         };
-        map.set(np, a);
+        map.set(clave, a);
       }
       const m = Number(r.cantidad) || 0;
       a.total += m;
@@ -521,9 +535,14 @@ export class ReportesArreService {
       }
     }
 
+    // Monedas presentes: la del plan primero (ordena los renglones de un mismo mes).
+    const monedas = [...new Set([...map.values()].map((a) => a.moneda))].sort(
+      (x, y) => Number(y === monedaPlan) - Number(x === monedaPlan) || x.localeCompare(y),
+    );
     const partidas: EstadoCuentaPartida[] = [...map.values()]
       .map((a) => ({
         numPartida: a.numPartida,
+        moneda: a.moneda,
         anio: a.anio,
         ciclo: a.ciclo,
         fecha: a.fecha,
@@ -542,9 +561,12 @@ export class ReportesArreService {
         fecPago: a.fecPago,
         pagado: a.filas > 0 && a.filasPagadas === a.filas,
       }))
-      .sort((x, y) => x.numPartida - y.numPartida);
+      .sort(
+        (x, y) =>
+          x.numPartida - y.numPartida || monedas.indexOf(x.moneda) - monedas.indexOf(y.moneda),
+      );
 
-    return { cabecera, partidas };
+    return { cabecera, monedas, partidas };
   }
 
   /**

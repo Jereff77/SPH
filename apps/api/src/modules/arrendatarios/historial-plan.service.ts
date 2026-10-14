@@ -175,14 +175,20 @@ export class HistorialPlanService {
     // numPartida de las partidas pagadas (para «parcialidad #n»)
     const filasPago = (pagos.data ?? []) as Fila[];
     const numPartida = new Map<string, number>();
+    const monedaDet = new Map<string, string>();
     if (filasPago.length) {
       // Por plan (no `.in` con cientos de ids: rebasaría la URL de PostgREST).
       const { data: dets, error: dErr } = await this.supabase.admin
         .from('arrePdpDetalle')
-        .select('idArrePdpDet, numPartida')
+        .select('idArrePdpDet, numPartida, moneda')
         .eq('idArrePdp', idArrePdp);
       if (dErr) fallaBd(this.logger, 'historial.partidas', dErr);
-      for (const d of dets ?? []) if (d.numPartida != null) numPartida.set(d.idArrePdpDet, d.numPartida);
+      for (const d of dets ?? []) {
+        if (d.numPartida != null) numPartida.set(d.idArrePdpDet, d.numPartida);
+        // Moneda efectiva de la partida: la propia si es válida; si no, la del plan.
+        const m = (d.moneda ?? '').trim().toUpperCase();
+        monedaDet.set(d.idArrePdpDet, m === 'MXN' || m === 'USD' ? m : moneda);
+      }
     }
 
     const ev: Array<EventoHistorial & { uid: string | null }> = [];
@@ -292,19 +298,25 @@ export class HistorialPlanService {
       const f0 = g.filas[0]!;
       const partidas = [...new Set(g.filas.map((p) => numPartida.get(p.idArrePdpDet as string)).filter((n): n is number => n != null))].sort((a, b) => a - b);
       const parc = partidas.length ? `parcialidad${partidas.length > 1 ? 'es' : ''} ${partidas.map((n) => `#${n}`).join(', ')}` : `${g.filas.length} partida(s)`;
-      const total = g.filas.reduce((s, p) => s + Number(p.monto ?? 0), 0);
+      // Total POR MONEDA (un pago puede cubrir partidas en monedas distintas): «$a MXN + $b USD».
+      const porMoneda = new Map<string, number>();
+      for (const p of g.filas) {
+        const m = monedaDet.get(p.idArrePdpDet as string) ?? moneda;
+        porMoneda.set(m, (porMoneda.get(m) ?? 0) + Number(p.monto ?? 0));
+      }
+      const totalTxt = [...porMoneda.entries()].map(([m, t]) => `${fmtDinero(t)} ${m}`).join(' + ');
       if (!g.desaplicado) {
         push({
           id: `pago-${k}`, fecha: f0.aplicadoEn as string, uid: (f0.uid as string | null) ?? null, origen: 'auditoria',
           tipo: 'pago_aplicado', titulo: 'Pago aplicado',
-          detalle: `${fmtDinero(total)} ${moneda} · ${parc} · depósito del ${fmtFecha(f0.fecPago)}`,
+          detalle: `${totalTxt} · ${parc} · depósito del ${fmtFecha(f0.fecPago)}`,
         });
       } else {
         const motivo = f0.motivoDesaplicacion;
         push({
           id: `pago-${k}`, fecha: f0.desaplicadoEn as string, uid: (f0.desaplicadoPor as string | null) ?? null, origen: 'auditoria',
           tipo: 'pago_desaplicado', titulo: 'Pago desaplicado',
-          detalle: `${fmtDinero(total)} ${moneda} · ${parc}${typeof motivo === 'string' && motivo ? ` · Motivo: ${motivo}` : ''}`,
+          detalle: `${totalTxt} · ${parc}${typeof motivo === 'string' && motivo ? ` · Motivo: ${motivo}` : ''}`,
         });
       }
     }

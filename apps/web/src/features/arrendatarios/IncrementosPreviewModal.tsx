@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   incrementosApi,
+  type MontoMoneda,
   type PlanPreview,
   type ResultadoAplicar,
 } from './incrementos.api';
@@ -20,6 +21,13 @@ function dinero(n: number, moneda = 'MXN'): string {
   } catch {
     return `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${moneda}`;
   }
+}
+
+/** Desglose por moneda de un plan (planes sin `montos` o de una sola moneda: una entrada). */
+function montosDe(p: PlanPreview): MontoMoneda[] {
+  return p.montos?.length
+    ? p.montos
+    : [{ moneda: p.moneda, montoActual: p.montoActual, montoNuevo: p.montoNuevo }];
 }
 
 /**
@@ -134,13 +142,23 @@ export function IncrementosPreviewModal({
                 <td className="px-3 py-2">{p.parque}</td>
                 <td className="px-3 py-2 text-center">{p.nave}</td>
                 <td className="px-3 py-2">{fechaCorta(p.aniversario)}</td>
-                <td className="px-3 py-2 text-center font-medium text-gray-500">{p.moneda}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{dinero(p.montoActual, p.moneda)}</td>
+                <td className="px-3 py-2 text-center font-medium text-gray-500">
+                  {montosDe(p).map((m) => (
+                    <div key={m.moneda}>{m.moneda}</div>
+                  ))}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {montosDe(p).map((m) => (
+                    <div key={m.moneda}>{dinero(m.montoActual, m.moneda)}</div>
+                  ))}
+                </td>
                 <td className="px-3 py-2 text-center tabular-nums">
                   {p.incrementoPct ? `${p.incrementoPct.toFixed(2)}%` : '—'}
                 </td>
                 <td className="px-3 py-2 text-right font-medium tabular-nums">
-                  {p.montoNuevo ? dinero(p.montoNuevo, p.moneda) : '—'}
+                  {p.montoNuevo
+                    ? montosDe(p).map((m) => <div key={m.moneda}>{dinero(m.montoNuevo, m.moneda)}</div>)
+                    : '—'}
                 </td>
                 <td className="px-3 py-2 text-right">
                   {p.conceptos.length > 0 && (
@@ -171,9 +189,9 @@ export function IncrementosPreviewModal({
                         {p.conceptos.map((c) => (
                           <tr key={c.concepto}>
                             <td className="py-0.5">{c.concepto}</td>
-                            <td className="py-0.5 text-right tabular-nums">{dinero(c.montoActual, p.moneda)}</td>
+                            <td className="py-0.5 text-right tabular-nums">{dinero(c.montoActual, c.moneda ?? p.moneda)}</td>
                             <td className="py-0.5 text-center tabular-nums">{c.pts}</td>
-                            <td className="py-0.5 text-right tabular-nums">{dinero(c.montoNuevo, p.moneda)}</td>
+                            <td className="py-0.5 text-right tabular-nums">{dinero(c.montoNuevo, c.moneda ?? p.moneda)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -220,11 +238,19 @@ export function IncrementosPreviewModal({
                 </p>
                 <ul className="mt-2 space-y-1 text-sm text-green-900">
                   {resultado.aplicados.map((a) => {
-                    const mon = prev?.aplicables.find((p) => p.idArrePdp === a.idArrePdp)?.moneda;
+                    const plan = prev?.aplicables.find((p) => p.idArrePdp === a.idArrePdp);
+                    const montos = a.montos?.length
+                      ? a.montos
+                      : [{ moneda: plan?.moneda ?? 'MXN', montoActual: a.montoActual, montoNuevo: a.montoNuevo }];
                     return (
                       <li key={a.idIncremento}>
-                        {a.empresa}: {dinero(a.montoActual, mon)} →{' '}
-                        <strong>{dinero(a.montoNuevo, mon)}</strong>
+                        {a.empresa}:{' '}
+                        {montos.map((m, i) => (
+                          <span key={m.moneda}>
+                            {i > 0 ? ' + ' : ''}
+                            {dinero(m.montoActual, m.moneda)} → <strong>{dinero(m.montoNuevo, m.moneda)}</strong>
+                          </span>
+                        ))}
                       </li>
                     );
                   })}

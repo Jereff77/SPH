@@ -1,14 +1,14 @@
 ---
 modulo: Arrendatarios
 estado: desarrollado
-version_doc: 2.0
-ultima_actualizacion: 2026-10-07
+version_doc: 2.1
+ultima_actualizacion: 2026-10-13
 rutas_v2: [/arrendatarios, /arrendatarios/planes, /arrendatarios/reportes]
 rutas_v1: [i02_arrendatarios]
 claves_permiso: [10, 20, 21, 22, 23, 24, 25]
 tablas: [inversionista, arrenPropiedades, arrePdp, arrePdpDetalle, arreConceptos, inversionista_docs, naves, parques, inpc, movbancarios, v_arrendadasNaves, catUsers, segModulos, auditoria, notasEntidad]
-rpcs: [arrepdp_crear_plan_simple_rpc, arrepdp_generar_corrida_desde_plan_simple, arrepdpdetalle_aplicar_meses_gracia, arrepdpdetalle_obtener_resumen_por_plan, arrepdpdetalle_actualizar_campo_manual, arrepdpdetalle_calcular_anio_por_plan, arrepdpdetalle_recalcular_anos_contrato, actualizar_anios_planes_nuevos, actualizar_ciclo_plan_pago, actualizar_inpc_por_ciclo, arrepdp_agregar_concepto_financiado, arrepdp_eliminar_plan_con_restricciones, aplicar_pago_arrendatario, pagos_arrendatarios, contratos_por_vencer, contratos_vencidos_sin_renovacion, movbancarios_sin_aplicar, v2_arrepdp_renovar, v2_arrepdp_activar_renovaciones, v2_arrepdp_cancelar_anticipado]
-palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo, arrendatario no aparece, no aparece en arrendatarios, no aparece en el selector, nave no disponible, nave disponible para rentar, sin clasificar, plan de renta huérfano, arrePdp huérfano, el plan no tiene parcialidades, con plan pero vacío, no me aparece el plan, no puedo liberar la nave, no puedo desvincular la nave, motivo de la desvinculación, motivo de baja, motivoBaja, por qué se liberó la nave, historial de la nave, papelera, cliente en papelera no sale, no aparece un arrendatario en el selector, contrato firmado, contratoFirmado, idContratoDoc, switch contrato, ya tenemos el contrato, subir el contrato, documento del contrato, contrato no firmado, file too large, archivo muy grande, no me deja subir el contrato, tope de tamaño, 50 MB, notas del plan, chat del plan, MontseAI, nota, comentario del plan, avisos automáticos, panel de notas, borrar una nota]
+rpcs: [arrepdp_crear_plan_simple_rpc, arrepdp_generar_corrida_desde_plan_simple, arrepdpdetalle_aplicar_meses_gracia, arrepdpdetalle_obtener_resumen_por_plan, arrepdpdetalle_actualizar_campo_manual, arrepdpdetalle_calcular_anio_por_plan, arrepdpdetalle_recalcular_anos_contrato, actualizar_anios_planes_nuevos, actualizar_ciclo_plan_pago, actualizar_inpc_por_ciclo, arrepdp_agregar_concepto_financiado, arrepdp_eliminar_plan_con_restricciones, aplicar_pago_arrendatario, pagos_arrendatarios, contratos_por_vencer, contratos_vencidos_sin_renovacion, movbancarios_sin_aplicar, v2_arrepdp_renovar, v2_arrepdp_activar_renovaciones, v2_arrepdp_cancelar_anticipado, v2_arrepdpdetalle_cambiar_moneda]
+palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo, arrendatario no aparece, no aparece en arrendatarios, no aparece en el selector, nave no disponible, nave disponible para rentar, sin clasificar, plan de renta huérfano, arrePdp huérfano, el plan no tiene parcialidades, con plan pero vacío, no me aparece el plan, no puedo liberar la nave, no puedo desvincular la nave, motivo de la desvinculación, motivo de baja, motivoBaja, por qué se liberó la nave, historial de la nave, papelera, cliente en papelera no sale, no aparece un arrendatario en el selector, contrato firmado, contratoFirmado, idContratoDoc, switch contrato, ya tenemos el contrato, subir el contrato, documento del contrato, contrato no firmado, file too large, archivo muy grande, no me deja subir el contrato, tope de tamaño, 50 MB, notas del plan, chat del plan, MontseAI, nota, comentario del plan, avisos automáticos, panel de notas, borrar una nota, "moneda null", "moneda vacía", "sin moneda", "cambiar la moneda", "cambiar moneda de un concepto", "moneda editable", "Datos de entrada inválidos al renovar", "no me deja renovar", "error al renovar el plan", "renovación programada", "no veo la renovación", "ya renové y no aparece", "renovación registrada", "estado de cuenta por moneda", "plan en dólares y pesos", "mezcla de monedas", "Mtto BQ", "no se puede cambiar la moneda", "pago aplicado moneda", "el depósito es USD", "sin tipo de cambio"]
 relacionado_con: [parques, clientes, inversionistas, cxp, notas]
 ---
 
@@ -574,7 +574,84 @@ entidadTipo=arrePdp · entidadId=idArrePdp`. Tiene **dos pestañas**:
 - **Efecto lateral corregido (v2.77.0):** las RPC `arrepdpdetalle_actualizar_campo_manual` y `arrepdp_agregar_concepto_financiado`
   rechazan con `{exito:false}` sin lanzar error; antes la pantalla mostraba éxito. Ahora `exigirExitoRpc` muestra el motivo.
 
+## Moneda por concepto, renovación programada y reportes por moneda (v2.79.0, 2026-10-13)
+
+**Contexto (ticket de soporte `ecb0f0bf`, BOLLHOFF · Actitek 09).** Dos planes de renta heredados de la migración traían la
+moneda guardada como el **texto `'null'`** (no un NULL real). El modal «Renovar» precargaba ese valor, el combo *mostraba* MXN pero
+el formulario enviaba `moneda: "null"` y el servidor respondía 400 «Datos de entrada inválidos» (solo MXN/USD son válidos). Se
+corrigió en dos frentes: el servidor precarga `MXN` cuando la moneda no es USD (`precargaRenovacion`) y los dos planes se pasaron a MXN.
+
+**Regla de fondo.** La moneda vive en **dos niveles**: `arrePdp."Moneda"` (encabezado del plan; es la que usa «Renovar» y la que
+hereda la corrida nueva) y `arrePdpDetalle.moneda` (**por partida/concepto**). Un plan puede **mezclar** monedas (caso real: Fort
+Wayne Wire Die, plan en USD con el concepto «Mtto BQ» en MXN). **Moneda efectiva de una partida** = la suya si es `MXN`/`USD`; si
+está vacía (`''`) o es `'null'` → la del plan. Hay datos heredados con moneda vacía/`'null'` en ~19 contratos vigentes y en
+planes vencidos: la app los lee como la moneda del plan y se corrigen con la columna nueva (abajo). En `movbancarios.moneda` hay
+~935 depósitos con el typo `'MNX'` (= MXN): el código lo trata como MXN.
+
+### Columna «Moneda» editable en la corrida (Planes de Renta → partida desplegada)
+- En el detalle de una partida hay una columna **Moneda** (entre Monto y Cortesía). **Doble clic** abre un selector MXN/USD
+  (misma mecánica que `$ × m²`, INPC, etc.). Una celda sin moneda válida se ve **«Sin moneda»** (ámbar punteado).
+- **Alcance:** el cambio se aplica al **concepto** elegido **desde el año de esa partida hacia abajo** (`anio >= X`), igual que
+  las demás columnas. Antes de aplicar, la pantalla hace una **simulación** y muestra «Aplica desde el año N hacia abajo: M
+  partidas. Ninguna tiene pagos aplicados» con **Cancelar / Aplicar cambio**.
+- **Bloqueo por pagos (decisión de Jereff):** si **alguna** partida del alcance ya tiene **pago aplicado** (`fecPago`, `uidPago`
+  o `cantidadAplicada > 0`) **no se cambia nada** y sale el aviso rojo «No se puede cambiar la moneda de «<concepto>» — La
+  partida N ya tiene un pago aplicado…». Para corregir esos casos: desaplicar el pago desde Cobranza o pedir apoyo a soporte.
+  Caso conocido: **Farmer Parts (Acupark II, naves 31 y 32), partida 12** pagada el 03/06/2026 con moneda vacía; la app la lee
+  como MXN (plan MXN y depósito MXN), no afecta montos.
+- **Quién/cuándo:** permiso **20** (igual que las demás ediciones de la corrida), solo planes **vigentes** (`arrePdpVigente <> 'No'`).
+  Solo `MXN`/`USD` (EUR no existe en la app). Deja **aviso de MontseAI** en el Historial del plan («Moneda (desde el año N): MXN → USD»).
+- **Implementación:** RPC `v2_arrepdpdetalle_cambiar_moneda(p_id_arre_pdp, p_anio_desde, p_concepto, p_moneda, p_simular)` (sin
+  SECURITY DEFINER, solo `service_role`; bloquea las filas del alcance con `FOR UPDATE` para que `aplicar_pago_arrendatario` no se
+  cuele). Endpoint `PATCH /arrendatarios/planes/:idArrePdp/detalle/moneda` (`planes-arre.service.ts → cambiarMoneda`). El
+  `concepto` se compara **exacto** (hay conceptos con espacios, p. ej. `'📌 KVAS '`). **No toca** `arrePdp."Moneda"`.
+- **Decisión de diseño:** el `CHECK` en BD que impida valores distintos de MXN/USD **no se creó**: hoy hay ~4,700 partidas con moneda
+  vacía/`'null'` que lo harían fallar; las corrige Arrendatarios con esta columna (no se sabe sin el contrato si son MXN o USD).
+
+### Renovación programada (ya no desaparece)
+Al registrar una renovación con la nave aún en un plan vigente, el plan nuevo queda **programado** (`pdpActivo=false`; inicia el día
+siguiente al fin del vigente). Antes la pantalla lo ocultaba (lo trataba como plan «en diseño») y desaparecía también el botón
+Renovar. Ahora: chip **«Renovación programada»**, aviso azul «Renovación registrada: inicia el … Se activa sola cuando venza el
+plan vigente», y el recuadro grande dice **PROGRAMADA · Inicia el …**. Se puede abrir y consultar (y editar, es vigente).
+**Activación automática:** el cron `v2-arrepdp-activar-renovaciones` (diario 02:00 **UTC**, ≈ 20:00 hora de México del día anterior)
+apunta la nave a la renovación cuando el plan vigente pasa a `No` (el cron de vigencia corre a las 01:00 UTC); el de desvinculación
+(07:30 UTC) ya no la toca. Condición: la renovación debe tener `arrePdpVigente <> 'No'` e iniciar después del fin del plan vigente.
+**Regla al renovar:** la **moneda elegida en el modal** aplica a **todo** el plan nuevo (no se conservan monedas por concepto).
+
+### Reportes y avisos agrupados por moneda (nunca se suman monedas distintas)
+- **Estado de cuenta** (pantalla, PDF y CSV): si el plan **mezcla** monedas sale **un renglón por moneda** en cada mes (el segundo
+  se marca «↳»), columna **Moneda**, **totales por moneda** y el encabezado dice «USD + MXN». Si el plan tiene una sola moneda se ve
+  como siempre. (`reportes-arre.service.ts → estadoCuentaCorrida` devuelve `monedas[]` y `moneda` por renglón.)
+- **Incrementos INPC** (vista previa, informe, bitácora, aviso de MontseAI y **correo** a responsables): un plan mixto muestra el monto
+  mensual **por moneda** (`montos[]`); el correo trae una fila por moneda. Los planes de una sola moneda no cambian.
+- **Historial del plan:** un pago que cubre partidas en dos monedas se muestra «$a MXN + $b USD».
+- **Cobranza (dashboard)** ya agrupaba por la moneda de cada partida (`pagos_arrendatarios`, `COALESCE(NULLIF(NULLIF(moneda,''),'null'),'MXN')`).
+
+### Aplicar pago valida la moneda
+`CobranzaService.aplicarPago` **rechaza** el pago si la moneda del depósito (`movbancarios.moneda`; `MNX` = MXN) no coincide con la
+moneda efectiva de las partidas: «El depósito es USD y la partida «Renta» está en MXN: no se puede aplicar sin tipo de cambio».
+Los 136 pagos históricos no mezclaban monedas, así que no bloquea nada que antes se hiciera.
+**La moneda es obligatoria y nunca se omite en silencio:** si el depósito no trae moneda válida («El depósito no tiene una moneda válida…» →
+corregir el movimiento bancario) o una partida y su plan no la tienen («La partida «X» no tiene moneda válida ni su plan tampoco…» →
+definirla en Planes de Renta → columna Moneda), el pago se rechaza explicando la causa.
+
 ## Para el agente de soporte
+
+- **"Me dice «Datos de entrada inválidos» al renovar"** → casi siempre la **moneda del plan está en `'null'`** (texto) en vez de MXN/USD
+  (arrePdp.Moneda). Desde v2.79.0 el modal ya precarga MXN; si aun así falla, revisa `arrePdp."Moneda"` y la moneda de las partidas.
+- **"Ya renové y no aparece la renovación"** → está en la lista **Planes de esta propiedad** como chip **«Renovación programada»**
+  (v2.79.0; antes se ocultaba). Se activa sola cuando vence el plan vigente (cron 02:00 UTC). Si no aparece: ¿la renovación existe en
+  `arrePdp` (misma `idNavArrend`, `fecInicio` > `fecFin` del vigente, `arrePdpVigente <> 'No'`)?
+- **"¿Cómo cambio la moneda de un concepto?" / "Sin moneda"** → Planes de Renta → partida desplegada → **doble clic en la columna
+  Moneda** (permiso 20, plan vigente). Aplica desde ese año hacia abajo. **"No se puede cambiar la moneda"** → hay un pago aplicado
+  en el alcance: desaplicar el pago o pedir apoyo a soporte. No se decide por el usuario si es MXN o USD: lo confirma Arrendatarios
+  con el contrato.
+- **"El depósito no tiene una moneda válida" / "La partida no tiene moneda válida ni su plan tampoco"** al aplicar un pago → la moneda es
+  obligatoria en el depósito y en la partida/plan; el mensaje dice cuál falta y dónde corregirla.
+- **"El depósito es USD y la partida está en MXN"** al aplicar un pago → la moneda del depósito y la de las partidas debe coincidir
+  (no hay tipo de cambio). Verifica la moneda de las partidas (columna Moneda) y la del depósito.
+- **"El estado de cuenta muestra dos renglones por mes"** → el plan **mezcla monedas** (ej. renta en USD y un cargo en MXN): un renglón
+  por moneda y totales por moneda; es lo esperado.
 
 - **"¿Quién cambió esto del plan?" / "¿Qué pasó con este plan?"** → mira el **panel «Notas del plan» → pestaña Historial** (derecha de la corrida):
   MontseAI registra cancelación, INPC aplicado/revertido, contrato firmado, nave liberada y los cambios manuales (con valor

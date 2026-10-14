@@ -27,6 +27,7 @@ import {
   desaplicarPagoSchema,
   docArreSchema,
   editarCampoSchema,
+  cambiarMonedaSchema,
   quitarSugerenciaSchema,
   renovarPlanSchema,
   vincularNaveArreSchema,
@@ -40,6 +41,7 @@ import {
   type DesaplicarPagoDto,
   type DocArreDto,
   type EditarCampoDto,
+  type CambiarMonedaDto,
   type QuitarSugerenciaDto,
   type RenovarPlanDto,
   type VincularNaveArreDto,
@@ -157,6 +159,16 @@ export class ArrendatariosController {
   ) {
     await this.planes.editarCampo(idArrePdp, dto, actor.uid);
     return { ok: true };
+  }
+
+  @Patch('planes/:idArrePdp/detalle/moneda')
+  @RequierePermiso(20)
+  async cambiarMoneda(
+    @CurrentUser() actor: AuthUser,
+    @Param('idArrePdp') idArrePdp: string,
+    @Body(new ZodValidationPipe(cambiarMonedaSchema)) dto: CambiarMonedaDto,
+  ) {
+    return this.planes.cambiarMoneda(idArrePdp, dto, actor.uid);
   }
 
   @Patch('planes/:idArrePdp/contrato')

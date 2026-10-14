@@ -12,6 +12,7 @@ import { IncrementosNotificadorService } from './incrementos-notificador.service
 import { NotasService } from '../notas/notas.service.js';
 import { refPlanRenta } from '../notas/notas.config.js';
 import type { Json } from '@erp/types';
+import { monedaValida } from './moneda.util.js';
 
 /** Tolerancia para comparar pm2 (los valores traen hasta 8 decimales). */
 const EPSILON_PM2 = 0.0001;
@@ -20,8 +21,21 @@ const DESFASE_DEFAULT = 3;
 /** Sentinela de `idInpc` cuando el registro nace de una edición manual. */
 export const ID_INPC_MANUAL = 'MANUAL';
 
+/** Monto mensual de un plan en UNA moneda (un plan mixto trae una entrada por moneda). */
+export interface MontoMoneda {
+  moneda: string;
+  montoActual: number;
+  montoNuevo: number;
+}
+
+/** «a → b MXN + c → d USD» (planes de una sola moneda: «a → b MXN»). */
+const textoMontos = (montos: MontoMoneda[], fmt: (n: number) => string): string =>
+  montos.map((m) => `${fmt(m.montoActual)} → ${fmt(m.montoNuevo)} ${m.moneda}`).join(' + ');
+
 export interface ConceptoPreview {
   concepto: string;
+  /** Moneda de este concepto (la propia si es válida; si no, la del plan). */
+  moneda: string;
   pm2Base: number;
   pts: number;
   pm2Nuevo: number;
@@ -39,8 +53,11 @@ export interface PlanPreview {
   aniversario: string; // yyyy-mm-dd
   anioObjetivo: number;
   incrementoPct: number; // inpc + pts predominantes del plan
+  /** Totales en la moneda principal (`moneda`); nunca suman monedas distintas. */
   montoActual: number;
   montoNuevo: number;
+  /** Desglose por moneda (la del plan primero). Un plan mixto trae más de una. */
+  montos: MontoMoneda[];
   conceptos: ConceptoPreview[];
   estatus: 'aplicable' | 'omitido' | 'manual';
   motivo?: string;
@@ -68,6 +85,7 @@ interface FilaDetalle {
   numPartida: number | null;
   anio: number;
   concepto: string | null;
+  moneda: string | null;
   pm2: number;
   constM2: number;
   ptsINPC: number;
@@ -240,12 +258,13 @@ export class IncrementosService {
           idParque: prop?.idParque ?? '',
           parque: prop?.idParque ? (parques.get(prop.idParque) ?? '—') : '—',
           nave: prop?.idNave ? (naves.get(prop.idNave) ?? '—') : '—',
-          moneda: p.Moneda ?? 'MXN',
+          moneda: monedaValida(p.Moneda) ?? 'MXN',
           aniversario: aniversario.toISOString().slice(0, 10),
           anioObjetivo,
           incrementoPct: 0,
           montoActual: 0,
           montoNuevo: 0,
+          montos: [],
           conceptos: [],
         };
 
@@ -299,7 +318,7 @@ export class IncrementosService {
         const { data: filas, error: filasErr } = await this.supabase.admin
           .from('arrePdpDetalle')
           .select(
-            'idArrePdp, numPartida, anio, concepto, pm2, constM2, ptsINPC, INPC, cantidad, fecPago, cantidadAplicada, aplicaInpc',
+            'idArrePdp, numPartida, anio, concepto, moneda, pm2, constM2, ptsINPC, INPC, cantidad, fecPago, cantidadAplicada, aplicaInpc',
           )
           .eq('idArrePdp', p.idArrePdp)
           .eq('status', true)
@@ -352,6 +371,7 @@ export class IncrementosService {
           const constM2 = Number(filaObj.constM2) || 0;
           conceptos.push({
             concepto,
+            moneda: monedaValida(filaObj.moneda) ?? monedaValida(baseFila.moneda) ?? base.moneda,
             pm2Base,
             pts,
             pm2Nuevo,
@@ -372,16 +392,31 @@ export class IncrementosService {
           };
         }
 
-        const montoActual = conceptos.reduce((s, c) => s + c.montoActual, 0);
-        const montoNuevo = conceptos.reduce((s, c) => s + c.montoNuevo, 0);
+        // Totales POR MONEDA (nunca se suman monedas distintas); la del plan primero.
+        const montos: MontoMoneda[] = [];
+        for (const c of conceptos) {
+          let m = montos.find((x) => x.moneda === c.moneda);
+          if (!m) {
+            m = { moneda: c.moneda, montoActual: 0, montoNuevo: 0 };
+            montos.push(m);
+          }
+          m.montoActual += c.montoActual;
+          m.montoNuevo += c.montoNuevo;
+        }
+        montos.sort((a, b) => Number(b.moneda === base.moneda) - Number(a.moneda === base.moneda));
+        const principal = montos[0]!;
+        const montoActual = principal.montoActual;
+        const montoNuevo = principal.montoNuevo;
         const ptsPredominantes = conceptos
           .map((c) => c.pts)
           .sort((a, b) => conceptos.filter((x) => x.pts === b).length - conceptos.filter((x) => x.pts === a).length)[0] ?? 0;
         const enriquecido = {
           ...base,
+          moneda: principal.moneda,
           incrementoPct: Number(inpc.inpc) + ptsPredominantes,
           montoActual,
           montoNuevo,
+          montos,
           conceptos,
         };
 
@@ -446,7 +481,7 @@ export class IncrementosService {
     );
 
     const db = this.supabase.comoActor(actorUid);
-    const aplicados: Array<{ idArrePdp: string; empresa: string; montoActual: number; montoNuevo: number; idIncremento: string }> = [];
+    const aplicados: Array<{ idArrePdp: string; empresa: string; montoActual: number; montoNuevo: number; montos: MontoMoneda[]; idIncremento: string }> = [];
     const fallidos: Array<{ idArrePdp: string; empresa: string; motivo: string }> = [];
 
     for (const plan of aplicables) {
@@ -516,6 +551,7 @@ export class IncrementosService {
         montoActual: plan.montoActual,
         montoNuevo: plan.montoNuevo,
         moneda: plan.moneda,
+        montos: plan.montos as unknown as Json,
         aniversario: plan.aniversario,
       } as Json;
       const { error: updErr } = await db
@@ -529,13 +565,14 @@ export class IncrementosService {
         refPlanRenta(plan.idArrePdp),
         {
           evento: 'inpc',
-          texto: `${origen === 'reaplicacion' ? 'Incremento INPC re-aplicado (corrección)' : 'Incremento INPC aplicado'} · año ${plan.anioObjetivo} · +${plan.incrementoPct.toFixed(2)} % (monto mensual ${fmt(plan.montoActual)} → ${fmt(plan.montoNuevo)} ${plan.moneda}).`,
+          texto: `${origen === 'reaplicacion' ? 'Incremento INPC re-aplicado (corrección)' : 'Incremento INPC aplicado'} · año ${plan.anioObjetivo} · +${plan.incrementoPct.toFixed(2)} % (monto mensual ${textoMontos(plan.montos, fmt)}).`,
           detalle: {
             anio: plan.anioObjetivo,
             incrementoPct: plan.incrementoPct,
             montoActual: plan.montoActual,
             montoNuevo: plan.montoNuevo,
             moneda: plan.moneda,
+            montos: plan.montos,
             origen,
           },
         },
@@ -547,6 +584,7 @@ export class IncrementosService {
         empresa: plan.empresa,
         montoActual: plan.montoActual,
         montoNuevo: plan.montoNuevo,
+        montos: plan.montos,
         idIncremento: reserva.id,
       });
     }

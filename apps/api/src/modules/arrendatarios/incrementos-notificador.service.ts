@@ -145,22 +145,31 @@ export class IncrementosNotificadorService {
         montoActual?: number;
         montoNuevo?: number;
         moneda?: string;
+        montos?: Array<{ moneda: string; montoActual: number; montoNuevo: number }>;
         aniversario?: string;
       };
-      return [
-        {
-          idIncremento: inc.id,
-          idParque: prop.idParque,
-          empresa: empresas.get(plan.idArrendador) ?? '—',
-          parque: parques.get(prop.idParque) ?? '—',
-          nave: prop.idNave ? (naves.get(prop.idNave) ?? '—') : '—',
-          moneda: det.moneda ?? 'MXN',
-          aniversario: det.aniversario ?? '',
-          montoActual: Number(det.montoActual ?? 0),
-          montoNuevo: Number(det.montoNuevo ?? 0),
-          pct: Number(inc.inpcAplicado) + Number(inc.ptsAplicados),
-        },
-      ];
+      // Un plan mixto sale en una fila POR MONEDA (nunca se suman monedas distintas).
+      const montos = det.montos?.length
+        ? det.montos
+        : [
+            {
+              moneda: det.moneda ?? 'MXN',
+              montoActual: Number(det.montoActual ?? 0),
+              montoNuevo: Number(det.montoNuevo ?? 0),
+            },
+          ];
+      return montos.map((m) => ({
+        idIncremento: inc.id,
+        idParque: prop.idParque!,
+        empresa: empresas.get(plan.idArrendador) ?? '—',
+        parque: parques.get(prop.idParque!) ?? '—',
+        nave: prop.idNave ? (naves.get(prop.idNave) ?? '—') : '—',
+        moneda: m.moneda,
+        aniversario: det.aniversario ?? '',
+        montoActual: Number(m.montoActual ?? 0),
+        montoNuevo: Number(m.montoNuevo ?? 0),
+        pct: Number(inc.inpcAplicado) + Number(inc.ptsAplicados),
+      }));
     });
   }
 
@@ -226,7 +235,7 @@ export class IncrementosNotificadorService {
   }
 
   private asunto(filas: FilaCorreo[], esCorreccion: boolean): string {
-    const n = filas.length;
+    const n = new Set(filas.map((f) => f.idIncremento)).size;
     return esCorreccion
       ? `Corrección de incremento de renta — ${n} plan(es) re-aplicado(s)`
       : `Incrementos de renta aplicados — ${n} plan(es)`;

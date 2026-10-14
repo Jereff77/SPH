@@ -84,21 +84,34 @@ function EstadoCuentaTab() {
   const cab = corrida?.cabecera ?? null;
   const partidas = useMemo(() => corrida?.partidas ?? [], [corrida]);
   const divisa = cab?.moneda ?? 'MXN';
+  // Plan mixto (conceptos en MXN y USD): un renglón por moneda y totales por moneda;
+  // nunca se suman monedas distintas.
+  const monedas = useMemo(
+    () => (corrida?.monedas?.length ? corrida.monedas : [divisa]),
+    [corrida, divisa],
+  );
+  const mixto = monedas.length > 1;
+  const textoMonedas = mixto ? monedas.join(' + ') : (monedas[0] ?? cab?.moneda ?? 'MXN');
 
-  // Totales (pie de la corrida).
-  const tot = useMemo(() => {
-    const t = { renta: 0, admin: 0, mtto: 0, vig: 0, otros: 0, total: 0, pagado: 0 };
-    for (const p of partidas) {
-      t.renta += p.renta;
-      t.admin += p.admin;
-      t.mtto += p.mtto;
-      t.vig += p.vig;
-      t.otros += p.otros;
-      t.total += p.total;
-      t.pagado += p.montoPagado;
-    }
-    return t;
-  }, [partidas]);
+  // Totales (pie de la corrida), uno por moneda.
+  const totales = useMemo(
+    () =>
+      monedas.map((mon) => {
+        const t = { moneda: mon, renta: 0, admin: 0, mtto: 0, vig: 0, otros: 0, total: 0, pagado: 0 };
+        for (const p of partidas) {
+          if (p.moneda !== mon) continue;
+          t.renta += p.renta;
+          t.admin += p.admin;
+          t.mtto += p.mtto;
+          t.vig += p.vig;
+          t.otros += p.otros;
+          t.total += p.total;
+          t.pagado += p.montoPagado;
+        }
+        return t;
+      }),
+    [partidas, monedas],
+  );
 
   function onParque(id: string) {
     setIdParque(id);
@@ -132,30 +145,55 @@ function EstadoCuentaTab() {
     'Fecha pago',
     'Estado',
   ];
-  const COLS_PDF = COLS_CSV.slice(4); // sin Nave/Parque/Razón Social/Divisa (van en el encabezado)
+  // PDF: sin Nave/Parque/Razón Social/Divisa (van en el encabezado); con la columna
+  // Moneda (tras Fecha) solo cuando el plan mezcla monedas.
+  const COLS_PDF = mixto
+    ? [...COLS_CSV.slice(4, 7), 'Moneda', ...COLS_CSV.slice(7)]
+    : COLS_CSV.slice(4);
 
-  // CSV: número a 2 decimales (Excel lo trata como número). PDF: formato moneda.
+  // CSV: número a 2 decimales (Excel lo trata como número). PDF: formato moneda (la del renglón).
   const csvMonto = (n: number): string | number => (n > 0 ? Math.round(n * 100) / 100 : '');
-  const pdfMonto = (n: number): string => (n > 0 ? moneda(n, divisa) : '');
+  const pdfMonto = (n: number, mon: string): string => (n > 0 ? moneda(n, mon) : '');
 
   const filaPartida = (
     p: EstadoCuentaPartida,
-    fmt: (n: number) => string | number,
+    fmt: (n: number, mon: string) => string | number,
+    conMoneda = false,
   ): (string | number)[] => [
     p.numPartida,
     p.anio ?? '',
     fechaCorta(p.fecha),
+    ...(conMoneda ? [p.moneda] : []),
     p.inpcTotal > 0 ? num(p.inpcTotal) : '',
-    fmt(p.renta),
-    fmt(p.admin),
-    fmt(p.mtto),
-    fmt(p.vig),
-    fmt(p.otros),
+    fmt(p.renta, p.moneda),
+    fmt(p.admin, p.moneda),
+    fmt(p.mtto, p.moneda),
+    fmt(p.vig, p.moneda),
+    fmt(p.otros, p.moneda),
     p.nota,
-    fmt(p.total),
-    fmt(p.montoPagado),
+    fmt(p.total, p.moneda),
+    fmt(p.montoPagado, p.moneda),
     fechaCorta(p.fecPago),
     p.pagado ? 'Pagado' : 'Pendiente',
+  ];
+
+  // Renglones de totales por moneda (solo PDF de planes mixtos; el CSV es solo de datos).
+  const filaTotal = (t: (typeof totales)[number]): (string | number)[] => [
+    '',
+    '',
+    'TOTALES',
+    t.moneda,
+    '',
+    pdfMonto(t.renta, t.moneda),
+    pdfMonto(t.admin, t.moneda),
+    pdfMonto(t.mtto, t.moneda),
+    pdfMonto(t.vig, t.moneda),
+    pdfMonto(t.otros, t.moneda),
+    '',
+    pdfMonto(t.total, t.moneda),
+    pdfMonto(t.pagado, t.moneda),
+    '',
+    '',
   ];
 
   const archivo = cab ? `estado-cuenta-${cab.nave}`.replace(/[^\w-]+/g, '_') : 'estado-cuenta';
@@ -166,7 +204,7 @@ function EstadoCuentaTab() {
       cab.nave,
       cab.parque,
       cab.arrendatario,
-      cab.moneda,
+      p.moneda,
       ...filaPartida(p, csvMonto),
     ]);
     exportarCSV(archivo, COLS_CSV, filas);
@@ -187,7 +225,7 @@ function EstadoCuentaTab() {
           { etiqueta: 'Arrendatario', valor: cab.arrendatario },
           { etiqueta: 'Parque', valor: cab.parque },
           { etiqueta: 'Nave', valor: cab.nave },
-          { etiqueta: 'Moneda', valor: cab.moneda },
+          { etiqueta: 'Moneda', valor: textoMonedas },
           { etiqueta: 'Inicio', valor: fechaCorta(cab.fecInicio) },
           { etiqueta: 'Fin', valor: fechaCorta(cab.fecFin) },
           { etiqueta: 'Plazo', valor: `${cab.plazo ?? '—'} meses` },
@@ -198,7 +236,10 @@ function EstadoCuentaTab() {
           { etiqueta: 'INPC adic.', valor: num(cab.inpcPlus) },
         ],
         columnas: COLS_PDF,
-        filas: partidas.map((p) => filaPartida(p, pdfMonto)),
+        filas: [
+          ...partidas.map((p) => filaPartida(p, pdfMonto, mixto)),
+          ...(mixto ? totales.map(filaTotal) : []),
+        ],
       });
     } finally {
       setGenerandoPdf(false);
@@ -293,7 +334,7 @@ function EstadoCuentaTab() {
               <Dato etq="Arrendatario" val={cab.arrendatario} />
               <Dato etq="Parque" val={cab.parque} />
               <Dato etq="Nave" val={cab.nave} />
-              <Dato etq="Moneda" val={cab.moneda} />
+              <Dato etq="Moneda" val={textoMonedas} />
               <Dato etq="Inicio" val={fechaCorta(cab.fecInicio)} />
               <Dato etq="Fin" val={fechaCorta(cab.fecFin)} />
               <Dato etq="Plazo" val={`${cab.plazo ?? '—'} meses`} />
@@ -314,6 +355,7 @@ function EstadoCuentaTab() {
                   <SortableTh align="center">#</SortableTh>
                   <SortableTh align="center">Año</SortableTh>
                   <SortableTh>Fecha</SortableTh>
+                  {mixto && <SortableTh>Moneda</SortableTh>}
                   <SortableTh align="right">INPC total</SortableTh>
                   <SortableTh align="right">Renta</SortableTh>
                   <SortableTh align="right">Admin</SortableTh>
@@ -328,11 +370,30 @@ function EstadoCuentaTab() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {partidas.map((p) => (
-                  <tr key={p.numPartida} className={p.pagado ? 'bg-[#F0FAF1]' : 'hover:bg-gray-50'}>
-                    <td className="px-3 py-1.5 text-center font-medium">{p.numPartida}</td>
-                    <td className="px-3 py-1.5 text-center">{p.anio ?? '—'}</td>
-                    <td className="px-3 py-1.5 whitespace-nowrap">{fechaCorta(p.fecha)}</td>
+                {partidas.map((p, i) => {
+                  // Segundo renglón del mismo mes (otra moneda): se atenúa #, año y fecha.
+                  const repetida = i > 0 && partidas[i - 1]!.numPartida === p.numPartida;
+                  return (
+                  <tr
+                    key={`${p.numPartida}|${p.moneda}`}
+                    className={p.pagado ? 'bg-[#F0FAF1]' : 'hover:bg-gray-50'}
+                  >
+                    <td className={`px-3 py-1.5 text-center font-medium ${repetida ? 'text-gray-300' : ''}`}>
+                      {repetida ? '↳' : p.numPartida}
+                    </td>
+                    <td className={`px-3 py-1.5 text-center ${repetida ? 'text-gray-300' : ''}`}>
+                      {repetida ? '' : (p.anio ?? '—')}
+                    </td>
+                    <td className={`px-3 py-1.5 whitespace-nowrap ${repetida ? 'text-gray-300' : ''}`}>
+                      {repetida ? '' : fechaCorta(p.fecha)}
+                    </td>
+                    {mixto && (
+                      <td className="px-3 py-1.5">
+                        <span className="rounded-md bg-[#e8ecf7] px-2 py-0.5 text-[11px] font-semibold text-[#1f2a4d]">
+                          {p.moneda}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-3 py-1.5 text-right tabular-nums">{p.inpcTotal > 0 ? num(p.inpcTotal) : '—'}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums">{p.renta > 0 ? num(p.renta) : '—'}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums">{p.admin > 0 ? num(p.admin) : '—'}</td>
@@ -361,24 +422,28 @@ function EstadoCuentaTab() {
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
               <tfoot className="[&>tr>td]:sticky [&>tr>td]:bottom-0 [&>tr>td]:bg-[#1f2a4d]">
-                <tr className="font-bold text-white">
-                  <td className="px-3 py-2 text-right" colSpan={3}>
-                    TOTALES
-                  </td>
-                  <td />
-                  <td className="px-3 py-2 text-right tabular-nums">{num(tot.renta)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{num(tot.admin)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{num(tot.mtto)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{num(tot.vig)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{num(tot.otros)}</td>
-                  <td />
-                  <td className="px-3 py-2 text-right tabular-nums">{num(tot.total)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{num(tot.pagado)}</td>
-                  <td colSpan={2} />
-                </tr>
+                {totales.map((t) => (
+                  <tr key={t.moneda} className="font-bold text-white">
+                    <td className="px-3 py-2 text-right" colSpan={3}>
+                      TOTALES
+                    </td>
+                    {mixto && <td className="px-3 py-2">{t.moneda}</td>}
+                    <td />
+                    <td className="px-3 py-2 text-right tabular-nums">{num(t.renta)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{num(t.admin)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{num(t.mtto)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{num(t.vig)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{num(t.otros)}</td>
+                    <td />
+                    <td className="px-3 py-2 text-right tabular-nums">{num(t.total)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{num(t.pagado)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                ))}
               </tfoot>
             </table>
           </div>

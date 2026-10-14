@@ -52,6 +52,23 @@ export const editarCampoSchema = z.object({
 export type EditarCampoDto = z.infer<typeof editarCampoSchema>;
 
 /**
+ * Cambiar la moneda de un concepto de la corrida desde un año (RPC
+ * `v2_arrepdpdetalle_cambiar_moneda`). La RPC bloquea si hay pagos aplicados.
+ */
+export const cambiarMonedaSchema = z.object({
+  anioDesde: z.coerce.number().int().min(0).max(32767),
+  // Sin .trim(): el concepto se compara EXACTO con la BD (hay conceptos con espacios, p. ej. '📌 KVAS ').
+  concepto: z
+    .string()
+    .max(120)
+    .refine((s) => s.trim().length > 0, 'Falta el concepto.'),
+  moneda: z.enum(['MXN', 'USD']),
+  /** true = solo revisa alcance y pagos (para la confirmación); no cambia nada. */
+  simular: z.boolean().default(false),
+});
+export type CambiarMonedaDto = z.infer<typeof cambiarMonedaSchema>;
+
+/**
  * Marcar/desmarcar el contrato firmado de ESTA versión del plan (`arrePdp`). Al
  * encender el switch es obligatorio elegir el documento (de los ya subidos en
  * Documentos del arrendatario); al apagarlo el backend limpia `idContratoDoc`.

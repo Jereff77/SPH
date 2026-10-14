@@ -79,6 +79,8 @@ export interface ResumenPartida {
   totalINPC: number;
   ciclo: number;
   total_cantidad: number;
+  /** Solo si el mes mezcla monedas: total por moneda (la del plan primero). */
+  montos?: Array<{ moneda: string; total: number }>;
   idArrePdp: string;
   pdpactivo: boolean;
 }
@@ -175,6 +177,20 @@ export interface EditarCampoInput {
   concepto: string;
   campo: 'pm2' | 'constM2' | 'INPC' | 'ptsINPC';
   valor: number;
+}
+
+export interface CambiarMonedaInput {
+  anioDesde: number;
+  concepto: string;
+  moneda: 'MXN' | 'USD';
+  /** true = solo revisa el alcance y los pagos, sin cambiar nada. */
+  simular?: boolean;
+}
+
+export interface CambiarMonedaResultado {
+  ok: true;
+  partidasAlcance: number;
+  partidasCambiadas: number;
 }
 
 export interface ConceptoInput {
@@ -315,6 +331,8 @@ export interface EstadoCuentaPartida {
   anio: number | null;
   ciclo: number | null;
   fecha: string | null;
+  /** Moneda de este renglón (un mes con dos monedas sale en dos renglones). */
+  moneda: string;
   pm2: number;
   constM2: number;
   inpc: number;
@@ -334,6 +352,8 @@ export interface EstadoCuentaPartida {
 /** Estado de cuenta de un plan: cabecera + corrida. */
 export interface EstadoCuentaCorrida {
   cabecera: EstadoCuentaCabecera;
+  /** Monedas presentes en la corrida (la del plan primero). >1 = plan mixto. */
+  monedas: string[];
   partidas: EstadoCuentaPartida[];
 }
 
@@ -488,6 +508,8 @@ export const arrendatariosApi = {
     ),
   editarCampo: (idArrePdp: string, dto: EditarCampoInput) =>
     api.patch<{ ok: true }>(`/arrendatarios/planes/${idArrePdp}/detalle`, dto),
+  cambiarMoneda: (idArrePdp: string, dto: CambiarMonedaInput) =>
+    api.patch<CambiarMonedaResultado>(`/arrendatarios/planes/${idArrePdp}/detalle/moneda`, dto),
   marcarContratoFirmado: (
     idArrePdp: string,
     dto: { contratoFirmado: boolean; idContratoDoc: string | null },

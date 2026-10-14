@@ -164,9 +164,15 @@ export function IncrementosBitacora({
                   )}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
-                  {r.detalle?.montoActual != null
-                    ? `${dinero(r.detalle.montoActual, r.detalle.moneda)} → ${dinero(r.detalle.montoNuevo, r.detalle.moneda)}${r.detalle.moneda && r.detalle.moneda !== 'MXN' ? ` (${r.detalle.moneda})` : ''}`
-                    : '—'}
+                  {r.detalle?.montos && r.detalle.montos.length > 1
+                    ? r.detalle.montos.map((m) => (
+                        <div key={m.moneda}>
+                          {dinero(m.montoActual, m.moneda)} → {dinero(m.montoNuevo, m.moneda)} ({m.moneda})
+                        </div>
+                      ))
+                    : r.detalle?.montoActual != null
+                      ? `${dinero(r.detalle.montoActual, r.detalle.moneda)} → ${dinero(r.detalle.montoNuevo, r.detalle.moneda)}${r.detalle.moneda && r.detalle.moneda !== 'MXN' ? ` (${r.detalle.moneda})` : ''}`
+                      : '—'}
                 </td>
                 <td className="px-3 py-2 text-center">{ORIGEN_LABEL[r.origen]}</td>
                 <td className="px-3 py-2 text-center">

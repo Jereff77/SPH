@@ -97,10 +97,33 @@ export function ArrendatariosPage() {
   // Configuración y no se listan aquí.
   const esPlanActivo = (p: PlanRenta) =>
     !!propSel?.pdpActivo && p.idArrePdp === propSel?.idArrendadoPdp;
+  // Renovación programada: plan aún no activo cuyo inicio es posterior al fin de otro plan
+  // de la misma nave (lo crea «Renovar»; se activa solo al vencer el vigente). Se muestra
+  // para que se pueda consultar y para que quede claro que la renovación ya se registró.
+  // Referencia: el fin del plan ACTIVO; si no hay activo, el del plan vencido más reciente. Así no se
+  // confunde con una renovación un plan «en diseño» que solo empieza después de un plan viejo vencido.
+  const finReferencia = (() => {
+    const activo = planes.find((o) => esPlanActivo(o));
+    if (activo) return activo.fecFin ?? null;
+    return planes.reduce<string | null>(
+      (m, o) => (o.arrePdpVigente === 'No' && o.fecFin && (!m || o.fecFin > m) ? o.fecFin : m),
+      null,
+    );
+  })();
+  const esRenovacionProgramada = (p: PlanRenta) =>
+    !esPlanActivo(p) &&
+    p.arrePdpVigente !== 'No' &&
+    !!p.fecInicio &&
+    !!finReferencia &&
+    p.fecInicio > finReferencia;
   const planesVisibles = useMemo(
-    () => planes.filter((p) => p.arrePdpVigente === 'No' || esPlanActivo(p)),
+    () =>
+      planes.filter(
+        (p) => p.arrePdpVigente === 'No' || esPlanActivo(p) || esRenovacionProgramada(p),
+      ),
     [planes, propSel],
   );
+  const renovacionProgramada = planesVisibles.find((p) => esRenovacionProgramada(p)) ?? null;
 
   // Se puede liberar la nave si todos sus planes están vencidos ('No') y ninguno
   // está activo. El backend revalida esta condición.
@@ -216,7 +239,10 @@ export function ArrendatariosPage() {
 
         {planSel && (
           <div className="ml-auto flex flex-wrap items-center gap-3 self-center">
-            <EstadoContratoBox vigencia={planSel.arrePdpVigente} />
+            <EstadoContratoBox
+              vigencia={planSel.arrePdpVigente}
+              programadaDesde={esRenovacionProgramada(planSel) ? planSel.fecInicio : null}
+            />
             <ContratoFirmadoBox
               key={planSel.idArrePdp}
               plan={planSel}
@@ -270,6 +296,14 @@ export function ArrendatariosPage() {
               )}
             </div>
           </div>
+          {renovacionProgramada && (
+            <div className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+              🔄 <strong>Renovación registrada:</strong> inicia el{' '}
+              {fechaCorta(renovacionProgramada.fecInicio)} (plazo {renovacionProgramada.plazo ?? '—'}{' '}
+              meses). Se activa sola cuando venza el plan vigente; mientras tanto puedes consultarla
+              abajo.
+            </div>
+          )}
           {planesVisibles.length === 0 ? (
             <div className="rounded-xl border border-dashed bg-white p-6 text-center text-sm text-gray-400">
               Esta propiedad no tiene planes activos ni finalizados. Los planes en diseño se ven en Configuración.
@@ -281,6 +315,7 @@ export function ArrendatariosPage() {
                   key={p.idArrePdp}
                   plan={p}
                   activo={p.idArrePdp === idArrePdp}
+                  programada={esRenovacionProgramada(p)}
                   onClick={() => setIdArrePdp(p.idArrePdp)}
                 />
               ))}
@@ -336,13 +371,19 @@ export function ArrendatariosPage() {
 function PlanChip({
   plan,
   activo,
+  programada,
   onClick,
 }: {
   plan: PlanRenta;
   activo: boolean;
+  programada: boolean;
   onClick: () => void;
 }) {
-  const badge = plan.arrePdpVigente ? BADGE_VIGENCIA[plan.arrePdpVigente] : 'bg-gray-100 text-gray-500';
+  const badge = programada
+    ? 'bg-sky-100 text-sky-700'
+    : plan.arrePdpVigente
+      ? BADGE_VIGENCIA[plan.arrePdpVigente]
+      : 'bg-gray-100 text-gray-500';
   return (
     <button
       type="button"
@@ -356,7 +397,7 @@ function PlanChip({
           {fechaCorta(plan.fecInicio)} → {fechaCorta(plan.fecFin)}
         </span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${badge}`}>
-          {plan.arrePdpVigente ?? '—'}
+          {programada ? 'Renovación programada' : (plan.arrePdpVigente ?? '—')}
         </span>
       </div>
       <div className="mt-0.5 text-[11px] text-gray-400">
@@ -371,15 +412,31 @@ function PlanChip({
  * verde "VIGENTE" si está vigente, ámbar "POR VENCER" si está por vencer
  * (3/2/1 meses) y gris "NO VIGENTE" si ya venció ('No').
  */
-function EstadoContratoBox({ vigencia }: { vigencia: ArrePdpVigente | null }) {
+function EstadoContratoBox({
+  vigencia,
+  programadaDesde = null,
+}: {
+  vigencia: ArrePdpVigente | null;
+  /** Fecha de inicio si el plan es una renovación aún no activa. */
+  programadaDesde?: string | null;
+}) {
   const vencido = vigencia == null || vigencia === 'No';
   const porVencer = vigencia === '3 Meses' || vigencia === '2 Meses' || vigencia === '1 Mes';
-  const estado = vencido ? 'NO VIGENTE' : porVencer ? 'POR VENCER' : 'VIGENTE';
-  const cls = vencido
-    ? 'border-gray-300 text-gray-500'
-    : porVencer
-      ? 'border-amber-400 text-amber-600'
-      : 'border-green-400 text-green-600';
+  const programada = !!programadaDesde;
+  const estado = programada
+    ? 'PROGRAMADA'
+    : vencido
+      ? 'NO VIGENTE'
+      : porVencer
+        ? 'POR VENCER'
+        : 'VIGENTE';
+  const cls = programada
+    ? 'border-sky-400 text-sky-600'
+    : vencido
+      ? 'border-gray-300 text-gray-500'
+      : porVencer
+        ? 'border-amber-400 text-amber-600'
+        : 'border-green-400 text-green-600';
   return (
     <div
       className={`flex min-w-[12rem] flex-col items-center justify-center rounded-xl border-2 bg-white px-8 py-2.5 text-center ${cls}`}
@@ -389,6 +446,11 @@ function EstadoContratoBox({ vigencia }: { vigencia: ArrePdpVigente | null }) {
         Estado del contrato
       </span>
       <span className="text-2xl font-extrabold uppercase tracking-wide">{estado}</span>
+      {programada && (
+        <span className="text-[11px] font-medium normal-case text-sky-700">
+          Inicia el {fechaCorta(programadaDesde)}
+        </span>
+      )}
     </div>
   );
 }
@@ -674,7 +736,9 @@ function PartidaFila({
         <td className="px-3 py-2 text-right tabular-nums">{num(fila.constM2)}</td>
         <td className="px-3 py-2 text-right tabular-nums">{num(fila.totalINPC)}</td>
         <td className="px-3 py-2 text-right tabular-nums font-medium">
-          {moneda(fila.total_cantidad, divisa)}
+          {fila.montos && fila.montos.length > 1
+            ? fila.montos.map((m) => <div key={m.moneda}>{moneda(m.total, m.moneda)}</div>)
+            : moneda(fila.total_cantidad, divisa)}
         </td>
         <td className="px-3 py-2 text-center">
           <button

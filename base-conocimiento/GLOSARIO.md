@@ -1,7 +1,7 @@
 ---
 documento: Glosario transversal
 estado: vivo
-ultima_actualizacion: 2026-07-05
+ultima_actualizacion: 2026-10-13
 palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parque, PDP, KVA, INPC, situacion, status, esTicket, auditoria, ver como, saldo vencido, días de atraso, cartera vencida, tipo de pago, escrituración, Montse AI, asistente, pruebas, papelera, sin clasificar, baja lógica, motivoBaja, historial de la nave, trazabilidad de la nave, desvincular nave, liberar nave, ticket, tickets]
 ---
 
@@ -78,6 +78,11 @@ palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parq
   ha sido cubierta** por pagos (`monto − Σ pagos > 0`). Los **días de atraso** se cuentan desde la fecha de
   vencimiento de la parcialidad más antigua sin cubrir. Se usa en Ventas → **Dashboard** (naves con atrasos)
   y → **Reportes → Vencidos**.
+- **Moneda efectiva (Arrendatarios):** la moneda de una partida de renta (`arrePdpDetalle.moneda`) si es `MXN`/`USD`; si viene vacía o
+  como el texto `'null'` (datos heredados), la moneda de su plan (`arrePdp.Moneda`). Un plan puede **mezclar** monedas por concepto;
+  los reportes agrupan por moneda y nunca suman MXN con USD. Se edita por concepto desde Planes de Renta (v2.79.0). Ver `modulos/arrendatarios.md`.
+- **Renovación programada (Arrendatarios):** plan de renovación ya registrado cuyo inicio es posterior al fin del plan vigente de la
+  nave; se activa solo (cron diario) cuando el vigente vence. En Planes de Renta se ve como chip «Renovación programada».
 
 ## Campos y banderas comunes
 
