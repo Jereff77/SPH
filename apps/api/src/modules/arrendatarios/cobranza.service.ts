@@ -300,6 +300,78 @@ export class CobranzaService {
   }
 
   /**
+   * Contratos **vigentes** (`vigente=true`, `arrePdpVigente≠'No'`) sin contrato firmado
+   * (`contratoFirmado=false`), con su vínculo a la nave activo. Excluye Tickets y
+   * arrendatarios de prueba. Mismo formato de fila que los vencidos (sin `dias_vencido`).
+   */
+  async contratosSinFirma() {
+    const [{ data: planes, error }, ticket] = await Promise.all([
+      this.supabase.admin
+        .from('arrePdp')
+        .select('idArrePdp, idNavArrend, idArrendador, fecFin, Moneda')
+        .eq('vigente', true)
+        .eq('contratoFirmado', false)
+        .neq('arrePdpVigente', 'No')
+        .order('fecFin', { ascending: true })
+        .limit(1000),
+      this.nombresParquesTicket(),
+    ]);
+    if (error) throw new InternalServerErrorException(error.message);
+    if (!planes?.length) return [];
+
+    const idsNav = [...new Set(planes.map((p) => p.idNavArrend).filter((x) => x != null))];
+    const idsArr = [...new Set(planes.map((p) => p.idArrendador).filter((x) => x != null))];
+    const [{ data: props, error: e1 }, { data: invs, error: e2 }] = await Promise.all([
+      this.supabase.admin
+        .from('arrenPropiedades')
+        .select('idNavArrend, idNave, status')
+        .in('idNavArrend', idsNav),
+      this.supabase.admin
+        .from('inversionista')
+        .select('idInversionista, razonsocial, nombre, pruebas')
+        .in('idInversionista', idsArr),
+    ]);
+    if (e1) throw new InternalServerErrorException(e1.message);
+    if (e2) throw new InternalServerErrorException(e2.message);
+
+    const idsNave = [...new Set((props ?? []).map((p) => p.idNave).filter((x) => x != null))];
+    const { data: naves, error: e3 } = await this.supabase.admin
+      .from('naves')
+      .select('idNave, numNave, numNaveNAME, idParque')
+      .in('idNave', idsNave);
+    if (e3) throw new InternalServerErrorException(e3.message);
+    const idsParque = [...new Set((naves ?? []).map((n) => n.idParque).filter((x) => x != null))];
+    const { data: parques, error: e4 } = await this.supabase.admin
+      .from('parques')
+      .select('idParque, nomParque')
+      .in('idParque', idsParque);
+    if (e4) throw new InternalServerErrorException(e4.message);
+
+    const propPor = new Map((props ?? []).map((p) => [p.idNavArrend, p]));
+    const navePor = new Map((naves ?? []).map((n) => [n.idNave, n]));
+    const parquePor = new Map((parques ?? []).map((p) => [p.idParque, p.nomParque]));
+    const invPor = new Map((invs ?? []).map((i) => [i.idInversionista, i]));
+
+    return planes
+      .map((pl) => {
+        const prop = propPor.get(pl.idNavArrend);
+        const nave = prop ? navePor.get(prop.idNave) : undefined;
+        const inv = invPor.get(pl.idArrendador);
+        return {
+          activo: prop?.status === true,
+          prueba: inv?.pruebas === true,
+          nave: (nave?.numNaveNAME || (nave?.numNave != null ? String(nave.numNave) : null)) ?? 'N/A',
+          parque: (nave?.idParque != null ? parquePor.get(nave.idParque) : null) ?? 'N/A',
+          razon_social: inv?.razonsocial?.trim() || inv?.nombre || 'N/A',
+          fec_fin: pl.fecFin,
+          moneda: monedaValida(pl.Moneda) ?? 'MXN',
+        };
+      })
+      .filter((r) => r.activo && !r.prueba && !ticket.has(r.parque ?? ''))
+      .map(({ activo: _a, prueba: _p, ...fila }) => fila);
+  }
+
+  /**
    * Depósitos bancarios **recibidos** sin aplicar (`idtipo=2`: "Instrucción de
    * depósito a tu cuenta" + "SPEI Recibido"), para el modal de aplicar pago. Se
    * lee directo de `movbancarios` (no la RPC de v1) para poder acotar a `idtipo=2`

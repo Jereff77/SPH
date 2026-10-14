@@ -1,8 +1,8 @@
 ---
 modulo: Arrendatarios
 estado: desarrollado
-version_doc: 2.1
-ultima_actualizacion: 2026-10-13
+version_doc: 2.2
+ultima_actualizacion: 2026-10-14
 rutas_v2: [/arrendatarios, /arrendatarios/planes, /arrendatarios/reportes]
 rutas_v1: [i02_arrendatarios]
 claves_permiso: [10, 20, 21, 22, 23, 24, 25]
@@ -635,7 +635,25 @@ Los 136 pagos históricos no mezclaban monedas, así que no bloquea nada que ant
 corregir el movimiento bancario) o una partida y su plan no la tienen («La partida «X» no tiene moneda válida ni su plan tampoco…» →
 definirla en Planes de Renta → columna Moneda), el pago se rechaza explicando la causa.
 
+## Tarjetas del sidebar de Gestión de Pagos (v2.80.0, 2026-10-14)
+
+Pantalla Arrendatarios · Gestión de Pagos (clave 10), columna derecha, de arriba abajo:
+
+| Tarjeta | Qué lista | Fuente |
+|---|---|---|
+| **Sin contrato firmado** (índigo) | Planes **vigentes** (`vigente=true`, `arrePdpVigente≠'No'`) con `contratoFirmado=false`, con vínculo a la nave activo (`arrenPropiedades.status=true`); sin arrendatarios de prueba ni parques Tickets | `GET /arrendatarios/cobranza/contratos-sin-firma` → `CobranzaService.contratosSinFirma()` (consultas por lote, sin RPC nueva) |
+| **Sin renovación** (rojo) | Último contrato vencido de cada nave aún vinculada | RPC `contratos_vencidos_sin_renovacion` |
+| **1 mes / 3 meses / 6 meses** | Contratos por vencer, en rangos **que no se traslapan**: 1 mes = vence en el próximo mes; 3 meses = entre 1 y 3 meses; 6 meses = entre 3 y 6 meses | RPC `contratos_por_vencer` (una fila por nave, el vigente de mayor `fecFin`) |
+
+- La tarjeta de **2 meses se eliminó** (petición de Arrendatarios, 2026-10-14): ahora son 1, 3 y 6.
+- «Sin contrato firmado» refleja el mismo `contratoFirmado` que se marca en la ficha del plan (v2.74.0): al marcarlo, el contrato sale de la tarjeta (la lista se refresca en ≤5 min por caché).
+- Hoy hay **100** contratos vigentes sin firma. Es un conteo de **planes**: una nave con dos planes vigentes aparece dos veces (ver abajo).
+- ⚠️ **Naves con 2 planes vigentes activos** (hallazgo 2026-10-14, incrementos INPC de octubre): 09, 12, 43, 44, 79, 80, 86 y 111. En KMEX nave 111 los dos planes recibieron su incremento y el correo trae dos renglones por la misma nave; **no es un fallo del incremento**, es el dato. Decide Arrendatarios si son contratos distintos o un duplicado (uno suele tener id sin prefijo `PDP_`).
+
 ## Para el agente de soporte
+- **"En el dashboard no veo la tarjeta de 2 meses"** → se quitó en v2.80.0; las tarjetas son 1, 3 y 6 meses (rangos sin traslape).
+- **"Un contrato no sale en Sin contrato firmado"** → la tarjeta solo lista planes vigentes con `contratoFirmado=false` y vínculo activo; si ya se marcó firmado, está vencido, desvinculado o es de prueba/Tickets, no aparece.
+- **"La misma nave sale dos veces en el correo de incrementos o en Sin contrato firmado"** → la nave tiene 2 planes vigentes activos; revisar en Planes de Renta cuál es el real.
 
 - **"Me dice «Datos de entrada inválidos» al renovar"** → casi siempre la **moneda del plan está en `'null'`** (texto) en vez de MXN/USD
   (arrePdp.Moneda). Desde v2.79.0 el modal ya precarga MXN; si aun así falla, revisa `arrePdp."Moneda"` y la moneda de las partidas.

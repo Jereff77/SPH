@@ -128,6 +128,11 @@ export function DashboardCobranzaPage() {
     queryFn: () => arrendatariosApi.contratosVencidos(),
     staleTime: 5 * 60 * 1000,
   });
+  const { data: sinFirma = [] } = useQuery({
+    queryKey: ['arre-cob-sin-firma'],
+    queryFn: () => arrendatariosApi.contratosSinFirma(),
+    staleTime: 5 * 60 * 1000,
+  });
 
   const onCambio = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['arre-cob-pagos'] });
@@ -623,6 +628,26 @@ export function DashboardCobranzaPage() {
         {/* Sidebar de vencimientos */}
         <div className="space-y-2">
           <p className="px-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">
+            Contratos vigentes
+          </p>
+          <PanelVenc
+            id="sinfirma"
+            titulo="Sin contrato firmado"
+            color="bg-indigo-700"
+            count={sinFirma.length}
+            colapsado={!!colapso.sinfirma}
+            onToggle={() => setColapso((c) => ({ ...c, sinfirma: !c.sinfirma }))}
+          >
+            {sinFirma.length === 0 ? (
+              <p className="px-2 py-2.5 text-center text-[11px] text-gray-400">Todos firmados</p>
+            ) : (
+              sinFirma.map((c, i) => (
+                <ItemVenc key={i} c={c} extra={`${c.moneda ?? 'MXN'}`} />
+              ))
+            )}
+          </PanelVenc>
+
+          <p className="px-1 pt-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">
             Contratos vencidos
           </p>
           <PanelVenc
@@ -730,7 +755,7 @@ function Stat({ label, valor, clase }: { label: string; valor: string; clase?: s
   );
 }
 
-/** Agrupa los contratos por vencer en rangos 1m / 2m / 3m según `fec_fin`. */
+/** Agrupa los contratos por vencer en rangos 1m / 3m / 6m según `fec_fin`. */
 function Vencimientos({
   porVencer,
   colapso,
@@ -740,27 +765,28 @@ function Vencimientos({
   colapso: Record<string, boolean>;
   setColapso: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 }) {
-  const { b1, b2, b3 } = useMemo(() => {
+  const { b1, b3, b6 } = useMemo(() => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     const m1 = addMonths(now, 1);
-    const m2 = addMonths(now, 2);
     const m3 = addMonths(now, 3);
+    const m6 = addMonths(now, 6);
     const en = (r: ContratoPorVencer, a: Date, b: Date) => {
       const d = parseLocal(r.fec_fin);
       return d ? d >= a && d < b : false;
     };
+    // Rangos excluyentes: un contrato aparece en una sola tarjeta.
     return {
       b1: porVencer.filter((r) => en(r, now, m1)),
-      b2: porVencer.filter((r) => en(r, m1, m2)),
-      b3: porVencer.filter((r) => en(r, m2, m3)),
+      b3: porVencer.filter((r) => en(r, m1, m3)),
+      b6: porVencer.filter((r) => en(r, m3, m6)),
     };
   }, [porVencer]);
 
   const paneles = [
     { id: '1m', titulo: '1 mes', color: 'bg-[#e67e22]', filas: b1 },
-    { id: '2m', titulo: '2 meses', color: 'bg-[#f39c12]', filas: b2 },
-    { id: '3m', titulo: '3 meses', color: 'bg-[#27ae60]', filas: b3 },
+    { id: '3m', titulo: '3 meses', color: 'bg-[#f39c12]', filas: b3 },
+    { id: '6m', titulo: '6 meses', color: 'bg-[#27ae60]', filas: b6 },
   ];
 
   return (

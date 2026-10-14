@@ -597,6 +597,8 @@ export const arrendatariosApi = {
     api.get<ContratoPorVencer[]>(`/arrendatarios/cobranza/contratos-por-vencer${dq({ desde, hasta })}`),
   contratosVencidos: () =>
     api.get<ContratoVencido[]>('/arrendatarios/cobranza/contratos-vencidos'),
+  contratosSinFirma: () =>
+    api.get<ContratoPorVencer[]>('/arrendatarios/cobranza/contratos-sin-firma'),
   depositosSinAplicar: (busqueda?: string, anio?: number, mes?: number, idArrePdp?: string) =>
     api.get<DepositoSinAplicar[]>(
       `/arrendatarios/cobranza/depositos-sin-aplicar${dq({ busqueda, anio, mes, idArrePdp })}`,

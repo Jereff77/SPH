@@ -423,6 +423,12 @@ export class ArrendatariosController {
     return this.cobranza.contratosVencidos();
   }
 
+  @Get('cobranza/contratos-sin-firma')
+  @RequierePermiso(10)
+  contratosSinFirma() {
+    return this.cobranza.contratosSinFirma();
+  }
+
   @Get('cobranza/depositos-sin-aplicar')
   @RequierePermiso(10)
   depositos(
