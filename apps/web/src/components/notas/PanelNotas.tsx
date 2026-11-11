@@ -138,6 +138,15 @@ const ESTILO_EVENTO: Record<TipoEventoHistorial, { color: string; fondo: string;
     color: '#b45309', fondo: '#fef3c7',
     icono: <><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></>,
   },
+  // Traspaso de depósito de garantía: misma paleta que «pago aplicado» (verde) y «pago desaplicado» (ámbar).
+  traspaso_deposito: {
+    color: '#15803d', fondo: '#dcfce7',
+    icono: <><path d="M8 3 4 7l4 4" /><path d="M4 7h16" /><path d="m16 21 4-4-4-4" /><path d="M20 17H4" /></>,
+  },
+  traspaso_revertido: {
+    color: '#b45309', fondo: '#fef3c7',
+    icono: <><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></>,
+  },
   cambio_manual: {
     color: '#1f2a4d', fondo: '#e8edf8',
     icono: <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />,

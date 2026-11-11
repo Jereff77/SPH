@@ -1,6 +1,13 @@
 import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { monedaEfectiva } from './moneda.util.js';
+import {
+  calcularDeposito,
+  esConceptoDeposito,
+  fmtMonto,
+  sumarTraspasos,
+} from './deposito.util.js';
+import { TraspasosDepositoService } from './traspasos-deposito.service.js';
 
 /** Filtros del reporte de cancelaciones anticipadas (todos opcionales). */
 export interface FiltrosCancelaciones {
@@ -49,6 +56,14 @@ export interface EstadoCuentaCabecera {
   pm2Mtto: number;
   pm2Vig: number;
   inpcPlus: number;
+  /**
+   * Traspaso de depósito (D14) — SOLO si el plan participa en traspasos aplicados (si no, no
+   * viajan y la respuesta es idéntica a la de siempre). `depositoTraspasado` = lo recibido por
+   * traspaso (o, si el plan solo emitió, lo emitido); `depositoPorCobrar` = lo que falta cobrar
+   * en efectivo del depósito (0 si ya está pagado o se traspasó a otro contrato).
+   */
+  depositoTraspasado?: number;
+  depositoPorCobrar?: number;
 }
 
 /** Partida (mes) de la corrida desglosada por concepto. */
@@ -73,6 +88,11 @@ export interface EstadoCuentaPartida {
   montoPagado: number;
   fecPago: string | null;
   pagado: boolean;
+  /**
+   * Solo el renglón 0 de un plan que EMITIÓ un traspaso aplicado (00 §10 #9): su depósito
+   * se traspasó a otro contrato, así que NO suma al pendiente (la `nota` dice «Traspasado → …»).
+   */
+  traspasado?: boolean;
 }
 
 /** Respuesta del estado de cuenta de un plan: cabecera + corrida. */
@@ -180,7 +200,11 @@ interface ArrePdpCanceladoRow {
  */
 @Injectable()
 export class ReportesArreService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    /** Traspasos de depósito del plan (nota del renglón 0 y resumen D14 del estado de cuenta). */
+    private readonly traspasos: TraspasosDepositoService,
+  ) {}
 
   private nombre(i: {
     nombre: string | null;
@@ -445,7 +469,7 @@ export class ReportesArreService {
     const { data: det, error: detErr } = await this.supabase.admin
       .from('arrePdpDetalle')
       .select(
-        'numPartida, anio, ciclo, concepto, fecha, pm2, constM2, INPC, inpcTotal, cantidad, cantidadAplicada, fecPago, moneda',
+        'idArrePdpDet, numPartida, anio, ciclo, concepto, fecha, pm2, constM2, INPC, inpcTotal, cantidad, cantidadAplicada, fecPago, moneda',
       )
       .eq('idArrePdp', idArrePdp)
       .eq('status', true)
@@ -478,6 +502,11 @@ export class ReportesArreService {
       fecPago: string | null;
       filas: number;
       filasPagadas: number;
+      /** La partida de depósito de garantía de este renglón (solo el renglón 0). */
+      deposito: { concepto: string; cantidad: number; fecPago: string | null } | null;
+      /** D14: texto corto de traspaso que antecede al resto de la nota. */
+      notaTraspaso: string | null;
+      traspasado: boolean;
     }
     const map = new Map<string, Acc>();
     for (const r of det ?? []) {
@@ -507,10 +536,15 @@ export class ReportesArreService {
           fecPago: null,
           filas: 0,
           filasPagadas: 0,
+          deposito: null,
+          notaTraspaso: null,
+          traspasado: false,
         };
         map.set(clave, a);
       }
       const m = Number(r.cantidad) || 0;
+      if (np === 0 && esConceptoDeposito(r.concepto) && !a.deposito)
+        a.deposito = { concepto: r.concepto ?? 'Otro', cantidad: m, fecPago: r.fecPago ?? null };
       a.total += m;
       a.montoPagado += Number(r.cantidadAplicada) || 0;
       const n = normConcepto(r.concepto ?? '');
@@ -535,6 +569,46 @@ export class ReportesArreService {
       }
     }
 
+    // D14 — traspaso de depósito: el renglón 0 explica el traspaso en la columna Nota que ya existe
+    // (texto corto: la columna trunca a 16 rem) y la cabecera suma «Traspasado» / «Depósito por
+    // cobrar». Solo si el plan participa en traspasos aplicados; con 0 traspasos nada cambia.
+    const dep = [...map.values()].find((a) => a.deposito);
+    if (dep?.deposito) {
+      const filasTr = await this.traspasos.filasDePlan(idArrePdp, { soloAplicados: true });
+      if (filasTr.length > 0) {
+        const { recibido, emitido } = sumarTraspasos(filasTr, idArrePdp);
+        const calc = calcularDeposito({
+          cantidad: dep.deposito.cantidad,
+          recibido,
+          emitido,
+          pagada: !!dep.deposito.fecPago,
+        });
+        cabecera.depositoTraspasado = recibido > 0 ? recibido : emitido;
+        cabecera.depositoPorCobrar = calc.porCobrar;
+
+        const partes: string[] = [];
+        const nRecibidos = filasTr.filter((t) => t.idArrePdpDestino === idArrePdp).length;
+        if (nRecibidos > 0)
+          partes.push(`Traspaso $${fmtMonto(recibido)} (${nRecibidos} contrato${nRecibidos > 1 ? 's' : ''})`);
+        if (emitido > 0) {
+          const destinos = [
+            ...new Set(filasTr.filter((t) => t.idArrePdpOrigen === idArrePdp).map((t) => t.idArrePdpDestino)),
+          ];
+          const etiquetas = await this.traspasos.etiquetasDePlanes(destinos);
+          const corto = destinos.map((id) => {
+            const e = etiquetas.get(id);
+            const anio = e?.fecInicio ? e.fecInicio.slice(0, 4) : null;
+            return e?.nave ? `Nave ${e.nave}${anio ? ` · ${anio}` : ''}` : 'otro contrato';
+          });
+          partes.push(`Traspasado → ${corto.join(', ')}`);
+          dep.traspasado = true;
+        }
+        dep.notaTraspaso = partes.join(' · ');
+        // El texto de traspaso reemplaza al rótulo del propio depósito en la Nota.
+        dep.detalle.delete(dep.deposito.concepto);
+      }
+    }
+
     // Monedas presentes: la del plan primero (ordena los renglones de un mismo mes).
     const monedas = [...new Set([...map.values()].map((a) => a.moneda))].sort(
       (x, y) => Number(y === monedaPlan) - Number(x === monedaPlan) || x.localeCompare(y),
@@ -555,11 +629,15 @@ export class ReportesArreService {
         mtto: a.mtto,
         vig: a.vig,
         otros: a.otros,
-        nota: [...a.detalle.entries()].map(([nom, mo]) => `${montoTxt(mo)} ${nom}`).join(', '),
+        nota: [
+          ...(a.notaTraspaso ? [a.notaTraspaso] : []),
+          ...[...a.detalle.entries()].map(([nom, mo]) => `${montoTxt(mo)} ${nom}`),
+        ].join(', '),
         total: a.total,
         montoPagado: a.montoPagado,
         fecPago: a.fecPago,
         pagado: a.filas > 0 && a.filasPagadas === a.filas,
+        ...(a.traspasado ? { traspasado: true } : {}),
       }))
       .sort(
         (x, y) =>

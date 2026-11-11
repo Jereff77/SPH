@@ -53,10 +53,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
           ? message
           : ((message as Record<string, unknown>)['message'] ?? message);
 
+    // Código de negocio estable (p. ej. `OCUPADO`, `PARTIDA_CAMBIO`): si la excepción lo trae como
+    // `codigo` string en su cuerpo, viaja al cliente para que decida SIN adivinar por el texto. Es
+    // aditivo: las demás excepciones responden exactamente igual que antes (sin el campo).
+    const codigo =
+      exception instanceof HttpException &&
+      typeof message === 'object' &&
+      message !== null &&
+      typeof (message as Record<string, unknown>)['codigo'] === 'string'
+        ? ((message as Record<string, unknown>)['codigo'] as string)
+        : undefined;
+
     res.status(status).json({
       statusCode: status,
       path: req.url,
       message: clientMessage,
+      ...(codigo ? { codigo } : {}),
     });
   }
 }

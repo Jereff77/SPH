@@ -3,6 +3,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { fallaBd } from '../../common/utils/db-error.js';
 import type { CambioNota } from '../notas/notas.config.js';
+import { aMicro, deMicro, fmtMonto, type TraspasoRow } from './deposito.util.js';
+import { TraspasosDepositoService, textoPlan } from './traspasos-deposito.service.js';
 
 export type TipoEventoHistorial =
   | 'plan_creado'
@@ -13,7 +15,9 @@ export type TipoEventoHistorial =
   | 'inpc'
   | 'pago_aplicado'
   | 'pago_desaplicado'
-  | 'cambio_manual';
+  | 'cambio_manual'
+  | 'traspaso_deposito'
+  | 'traspaso_revertido';
 
 /** Un renglón del Historial del plan (ya redactado: nunca JSON crudo de auditoría). */
 export interface EventoHistorial {
@@ -55,7 +59,8 @@ const cambiosDe = (f: Fila): Record<string, Cambio> => (f.cambios ?? {}) as Reco
  * de `auditoria`, `arre_incrementos` y `arre_pagos`. Regla anti-duplicado: desde el
  * primer aviso de MontseAI, los eventos que ella ya avisa (contrato, cancelación,
  * activación, liberación, INPC) salen SOLO de su aviso; de las tablas de trazabilidad
- * se toman los anteriores a ese momento y los tipos que MontseAI no cubre (creación, pagos).
+ * se toman los anteriores a ese momento y los tipos que MontseAI no cubre (creación, pagos,
+ * traspasos de depósito: siempre de `arre_traspasos_deposito`).
  * No se muestran los cambios de `arrePdpVigente` (los hace el cron diario) ni la corrida.
  */
 @Injectable()
@@ -64,7 +69,11 @@ export class HistorialPlanService {
   /** Instante del primer aviso de MontseAI en toda la plataforma (inmutable una vez conocido). */
   private corteMs: number | null = null;
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    /** Traspasos de depósito del plan (como origen o destino). */
+    private readonly traspasos: TraspasosDepositoService,
+  ) {}
 
   /** Tablas nuevas o sin tipar: cliente sin tipar, localizado aquí (solo lectura). */
   private get db(): SupabaseClient {
@@ -112,7 +121,7 @@ export class HistorialPlanService {
       .or('cambios->contratoFirmado.not.is.null,cambios->canceladoAnticipado.not.is.null');
     if (corteIso) qPlanUpd = qPlanUpd.lt('fc', corteIso);
 
-    const [audPlanIns, audPlan, audProp, incs, pagos, avisos, hermanos] = await Promise.all([
+    const [audPlanIns, audPlan, audProp, incs, pagos, avisos, hermanos, filasTraspaso] = await Promise.all([
       // «Plan creado» va aparte (lo más viejo): ningún tope de filas lo puede dejar fuera.
       db
         .from('auditoria')
@@ -155,6 +164,8 @@ export class HistorialPlanService {
         .select('idArrePdp, fecFin')
         .eq('idNavArrend', plan.idNavArrend ?? '')
         .eq('status', true),
+      // Traspasos de depósito (aplicados y revertidos) donde el plan es origen o destino.
+      this.traspasos.filasDePlan(idArrePdp),
     ]);
     for (const [ctx, r] of [
       ['audPlanIns', audPlanIns],
@@ -317,6 +328,51 @@ export class HistorialPlanService {
           id: `pago-${k}`, fecha: f0.desaplicadoEn as string, uid: (f0.desaplicadoPor as string | null) ?? null, origen: 'auditoria',
           tipo: 'pago_desaplicado', titulo: 'Pago desaplicado',
           detalle: `${totalTxt} · ${parc}${typeof motivo === 'string' && motivo ? ` · Motivo: ${motivo}` : ''}`,
+        });
+      }
+    }
+
+    // 4b) traspasos de depósito (MontseAI no los cubre → siempre de la tabla, aplicados y revertidos)
+    if (filasTraspaso.length) {
+      const otroPlan = (t: TraspasoRow): string =>
+        t.idArrePdpDestino === idArrePdp ? t.idArrePdpOrigen : t.idArrePdpDestino;
+      const etiquetas = await this.traspasos.etiquetasDePlanes(filasTraspaso.map(otroPlan));
+      const txt = (id: string): string => textoPlan(etiquetas.get(id));
+
+      // Como DESTINO: una entrada por envío (varios orígenes de un mismo envío comparten la clave).
+      const recibidos = new Map<string, TraspasoRow[]>();
+      for (const t of filasTraspaso) {
+        if (t.idArrePdpDestino !== idArrePdp) continue;
+        const g = recibidos.get(t.claveIdempotencia) ?? [];
+        g.push(t);
+        recibidos.set(t.claveIdempotencia, g);
+      }
+      for (const [clave, filas] of recibidos) {
+        const f0 = filas[0]!;
+        const total = deMicro(filas.reduce((s, t) => s + aMicro(t.monto), 0));
+        push({
+          id: `trasp-${clave}`, fecha: f0.fc, uid: f0.uid || null, origen: 'auditoria',
+          tipo: 'traspaso_deposito', titulo: 'Depósito traspasado',
+          detalle: `$${fmtMonto(total)} ${f0.moneda} desde ${filas.map((t) => txt(t.idArrePdpOrigen)).join(' y ')} · Nota: ${f0.nota}`,
+        });
+      }
+      // Como ORIGEN: una entrada por fila (se revierte desde el destino).
+      for (const t of filasTraspaso) {
+        if (t.idArrePdpOrigen !== idArrePdp) continue;
+        push({
+          id: `trasp-${t.id}`, fecha: t.fc, uid: t.uid || null, origen: 'auditoria',
+          tipo: 'traspaso_deposito', titulo: 'Depósito traspasado a otro contrato',
+          detalle: `$${fmtMonto(t.monto)} ${t.moneda} hacia ${txt(t.idArrePdpDestino)} · Nota: ${t.nota}`,
+        });
+      }
+      // Reversas (por fila).
+      for (const t of filasTraspaso) {
+        if (t.estado !== 'revertido' || !t.fecReversion) continue;
+        const comoDestino = t.idArrePdpDestino === idArrePdp;
+        push({
+          id: `trasp-rev-${t.id}`, fecha: t.fecReversion, uid: t.revertidoPor, origen: 'auditoria',
+          tipo: 'traspaso_revertido', titulo: 'Traspaso revertido',
+          detalle: `$${fmtMonto(t.monto)} ${t.moneda} ${comoDestino ? 'desde' : 'hacia'} ${txt(otroPlan(t))}${t.motivoReversion ? ` · Motivo: ${t.motivoReversion}` : ''}`,
         });
       }
     }

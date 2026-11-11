@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireframe v2 — Traspaso de depósito de garantía</title>
+<style>
+/* Paleta y medidas tomadas del código real (Tailwind del ERP): azul #1f2a4d, Inter, rounded-xl/2xl, etc. */
+:root{--azul:#1f2a4d;--azul2:#2a376a;--link:#3f5b87;--g50:#f9fafb;--g100:#f3f4f6;--g200:#e5e7eb;--g300:#d1d5db;--g400:#9ca3af;--g500:#6b7280;--g600:#4b5563;--g700:#374151;--g800:#1f2937;
+--sky50:#f0f9ff;--sky200:#bae6fd;--sky500:#0ea5e9;--sky700:#0369a1;--sky800:#075985;--grn50:#f0fdf4;--grn100:#dcfce7;--grn200:#bbf7d0;--grn700:#15803d;--grn800:#166534;
+--red100:#fee2e2;--red200:#fecaca;--red600:#dc2626;--red700:#b91c1c;--amb50:#fffbeb;--amb100:#fef3c7;--amb500:#f59e0b;--amb600:#d97706;--amb700:#b45309;--nuevo:#16a34a}
+*{box-sizing:border-box}
+body{margin:0;background:#f4f5f7;color:var(--g800);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.4}
+.num{font-variant-numeric:tabular-nums}
+header.top{background:var(--azul);color:#fff;padding:16px 24px}
+header.top h1{margin:0;font-size:19px}
+header.top p{margin:3px 0 0;color:#cbd5e1;font-size:12.5px}
+.wrap{display:flex;gap:22px;max-width:1560px;margin:0 auto;padding:18px 24px}
+nav.idx{position:sticky;top:12px;align-self:flex-start;min-width:215px;max-width:215px;background:#fff;border:1px solid var(--g200);border-radius:12px;padding:10px;font-size:12.5px}
+nav.idx b{display:block;margin:2px 4px 6px;color:var(--azul)}
+nav.idx a{display:block;color:var(--g800);text-decoration:none;padding:4px 6px;border-radius:6px}
+nav.idx a:hover{background:#eef2ff}
+main{flex:1;min-width:0}
+.leyenda{background:#fff;border:1px solid var(--g200);border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:12.5px;display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center}
+.leyenda .k{display:inline-flex;align-items:center;gap:6px}
+.sw{display:inline-block;width:26px;height:14px;border-radius:3px}
+.aviso{background:var(--amb50);border:1px solid #fcd34d;border-radius:10px;padding:9px 14px;margin-bottom:16px;font-size:12.5px;color:#92400e}
+.aviso ul{margin:5px 0 0 18px;padding:0}
+section.frame{margin:0 0 30px}
+section.frame>h2{font-size:16.5px;margin:0;color:var(--azul)}
+.meta{margin:2px 0 10px;color:var(--g500);font-size:12px}
+.variants{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start}
+figure{margin:0;flex:1 1 560px;min-width:320px}
+figcaption{font-size:12px;color:var(--g500);margin:5px 2px 0}
+.scrim{background:rgba(0,0,0,.4);border-radius:10px;padding:18px}
+.pagina{background:var(--g50);border:1px solid var(--g200);border-radius:10px;padding:14px}
+
+/* ---- Lo NUEVO (siempre marcado) ---- */
+.nuevo{outline:2px dashed var(--nuevo);outline-offset:3px;position:relative;border-radius:8px}
+.nuevo::before{content:"NUEVO";position:absolute;top:-11px;right:8px;background:var(--nuevo);color:#fff;font-size:9.5px;font-weight:700;letter-spacing:.06em;padding:1px 7px;border-radius:999px;z-index:3}
+.sin-cambio{font-size:11px;color:var(--g400);border:1px dashed var(--g300);border-radius:8px;padding:5px 10px;text-align:center;background:#fff}
+
+/* ---- Modal EXISTENTE de Renovar (contenedor propio, rounded-2xl, botones dentro del formulario) ---- */
+.rn{background:#fff;border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.28);overflow:hidden;max-width:672px;margin:0 auto}
+.rn .h{background:var(--azul);color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center}
+.rn .h b{font-size:16px;font-weight:600}
+.rn .f{padding:20px;display:flex;flex-direction:column;gap:12px}
+.fld{font-size:12px;color:var(--g600)}
+.fld .in{margin-top:4px;border:1px solid var(--g300);border-radius:4px;padding:6px 8px;font-size:14px;color:var(--g800);background:#fff;text-align:right;min-height:32px}
+.fld .in.ro{background:var(--g100);color:var(--g600);text-align:left}
+.fld .in.l{text-align:left}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.conc{display:grid;grid-template-columns:3fr 3fr 4fr 2fr;gap:8px;align-items:end;border-top:1px solid var(--g200);padding-top:8px}
+.conc .lb{font-size:12px;font-weight:500;color:var(--g600);padding-bottom:6px}
+.conc .sub{font-size:11px;color:var(--g500)}
+.conc .sub div,.conc .gr div{margin-top:2px;border:1px solid var(--g300);border-radius:4px;padding:4px 8px;font-size:14px;text-align:right;color:var(--g800);background:#fff}
+.conc .sub div.v{background:var(--g50);font-weight:500}
+.conc .gr{font-size:11px;color:var(--g500)}
+.totmes{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--g200);padding-top:8px}
+.totmes b{font-size:14px;color:var(--g700)}
+.totmes span{background:var(--azul);color:#fff;font-weight:700;font-size:14px;padding:4px 12px;border-radius:4px}
+.bt{border:1px solid var(--g300);background:#fff;color:var(--g600);border-radius:8px;padding:6px 16px;font-size:14px;cursor:default;display:inline-block}
+.bt.pri{background:var(--azul);border-color:var(--azul);color:#fff;font-weight:500}
+.bt.dis{opacity:.5}
+.bt.xs{padding:6px 12px;font-size:12px;font-weight:500}
+.bt.sky{border-color:var(--sky500);color:var(--sky700)}
+.bt.red{border-color:#ef4444;color:var(--red600)}
+.bt.amb{background:var(--amb500);border-color:var(--amb500);color:#fff;font-weight:500}
+.bt.azl{border-color:var(--azul);color:var(--azul)}
+.bt.sm{padding:3px 10px;font-size:12px}
+.acc{display:flex;justify-content:flex-end;gap:8px}
+.msg{border-radius:8px;border:1px solid;padding:8px 12px;font-size:12px}
+.msg.sky{background:var(--sky50);border-color:var(--sky200);color:var(--sky800)}
+.msg.ok{background:var(--grn50);border-color:var(--grn200);color:var(--grn800)}
+.msg.err{background:#fef2f2;border-color:var(--red200);color:#991b1b}
+.msg.warn{background:var(--amb50);border-color:#fcd34d;color:#92400e}
+
+/* ---- Modal COMPARTIDO (components/ui/Modal.tsx: rounded-xl, cabecera azul, pie gris) ---- */
+.mc{background:#fff;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.28);overflow:hidden;margin:0 auto;max-width:768px}
+.mc.sm{max-width:448px}.mc.md{max-width:576px}.mc.xl{max-width:1024px}
+.mc .h{background:var(--azul);color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center}
+.mc .h b{font-size:16px;font-weight:600}
+.mc .b{padding:20px;display:flex;flex-direction:column;gap:12px}
+.mc .pie{border-top:1px solid var(--g200);background:var(--g50);padding:12px 20px;display:flex;justify-content:flex-end;gap:8px}
+
+/* ---- Tablas (THEAD azul, mayúsculas) ---- */
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th{background:var(--azul);color:#fff;text-transform:uppercase;font-size:11px;letter-spacing:.04em;text-align:left;padding:10px 12px;font-weight:600}
+table.t td{padding:8px 12px;border-bottom:1px solid var(--g200);vertical-align:middle;background:#fff}
+table.t.s td{font-size:13px;padding:7px 10px}
+table.t tr.blq td{background:var(--g50);color:var(--g400)}
+table.t tr.pag td{background:#F0FAF1}
+table.t td.r,table.t th.r{text-align:right}table.t td.c,table.t th.c{text-align:center}
+.cbx{display:inline-block;width:15px;height:15px;border:1.5px solid var(--g400);border-radius:3px;vertical-align:middle;background:#fff;position:relative}
+.cbx.on{background:var(--azul);border-color:var(--azul)}
+.cbx.on::after{content:"✓";color:#fff;font-size:11px;position:absolute;left:1.5px;top:-2px}
+.cbx.amb.on{background:var(--amb500);border-color:var(--amb500)}
+.cbx.off{background:var(--g200);border-color:var(--g300)}
+.pill{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600}
+.pill.g{background:var(--grn100);color:var(--grn700)}
+.pill.r{background:var(--red100);color:var(--red600)}
+.pill.gy{background:var(--g100);color:var(--g500)}
+.pill.sk{background:#e0f2fe;color:var(--sky700)}
+.pill.am{background:var(--amb100);color:var(--amb700)}
+.pill.bl{background:#e8ecf7;color:var(--azul)}
+.pill.ln{border:1px solid;font-weight:500}
+.compl{display:flex;justify-content:space-between;align-items:center;background:var(--g50);border:1px solid var(--g200);border-radius:12px;padding:10px 14px}
+.compl small{color:var(--g500);display:block;font-size:12px}
+.compl b{font-size:13px;color:var(--g700)}
+.compl .big{font-size:20px;font-weight:700;color:var(--azul)}
+.compl.err{background:#fef2f2;border-color:var(--red200)}.compl.err .big{color:var(--red600)}
+
+/* ---- Pantalla del plan ---- */
+.fila-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.fila-h h3{margin:0;font-size:14px;font-weight:600;color:var(--g600)}
+.chip{border:1px solid var(--g200);background:#fff;border-radius:8px;padding:8px 12px;font-size:12px}
+.chip.on{border-color:var(--azul);background:rgba(31,42,77,.05)}
+.chip .t1{display:flex;gap:8px;align-items:center;font-weight:500;color:var(--g700)}
+.chip .t2{font-size:11px;color:var(--g400);margin-top:2px}
+.banda{display:flex;justify-content:space-between;align-items:center;border:1px solid;border-radius:12px;padding:8px 16px;font-size:12px}
+.banda.azl{background:#eef3fb;border-color:#c9d6ee;color:var(--azul)}
+.banda.grn{background:var(--grn50);border-color:var(--grn200);color:var(--grn800)}
+.banda a{color:var(--link);font-weight:500;text-decoration:none;cursor:default}
+.corr{display:flex;gap:12px;align-items:stretch}
+.corr .tb{flex:1;min-width:0;border:1px solid var(--g200);border-radius:12px;background:#fff;overflow:hidden}
+.corr .pn{width:260px;flex:none;border:1px dashed var(--g300);border-radius:12px;background:#fff;color:var(--g400);font-size:11px;display:flex;align-items:center;justify-content:center;text-align:center;padding:10px}
+.cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.card{border:1px solid var(--g200);border-radius:12px;padding:8px 12px;background:#fff}
+.card small{display:block;color:var(--g500);font-size:11px}
+.card b{font-size:17px;color:var(--azul)}
+.card.hl{border-color:var(--azul);background:#eef2ff}
+.nota-g{font-size:12px;color:var(--g500);background:var(--g100);border-radius:8px;padding:6px 10px}
+
+/* ---- Panel Notas/Historial (PanelNotas.tsx: 360px) ---- */
+.pnl{width:360px;max-width:100%;border:1px solid var(--g200);border-radius:12px;background:#fff;overflow:hidden;margin:0 auto}
+.pnl .tabs{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--g200);padding-right:10px}
+.pnl .tab{padding:12px 14px;font-size:13px;color:var(--g500);font-weight:500;border-bottom:2px solid transparent;display:flex;gap:6px;align-items:center}
+.pnl .tab.on{border-bottom-color:var(--azul);color:var(--g800);font-weight:700}
+.pnl .tab i{font-style:normal;background:var(--g200);color:var(--g500);border-radius:999px;padding:0 6px;font-size:11px;font-weight:700}
+.pnl .tab.on i{background:var(--azul);color:#fff}
+.pnl .bd{padding:14px;display:flex;flex-direction:column;gap:12px}
+.pnl .dia{display:flex;align-items:center;justify-content:center;gap:8px;font-size:11px;font-weight:600;color:var(--g500)}
+.pnl .dia span{display:inline-block;width:56px;height:1px;background:var(--g200)}
+.ev{display:flex;gap:10px}
+.ev .ic{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none;margin-top:2px;font-size:14px}
+.ev .tt{font-size:12px;font-weight:700;color:var(--g800)}
+.ev .dt{font-size:11px;color:var(--g600);line-height:1.35}
+.ev .hr{font-size:11px;color:var(--g500)}
+.pnl .pp{border-top:1px solid var(--g200);background:var(--g50);padding:10px 14px;font-size:11px;color:var(--g500)}
+
+/* ---- Aplicar pago (AplicarPagoModal.tsx: max-w-4xl, 2 columnas) ---- */
+.ap{background:#fff;border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.28);overflow:hidden;max-width:896px;margin:0 auto}
+.ap .h{background:var(--azul);color:#fff;padding:12px 20px;display:flex;justify-content:space-between}
+.ap .h b{font-size:16px;font-weight:600}
+.ap .cols{display:grid;grid-template-columns:1fr 1fr}
+.ap .col{padding:16px;display:flex;flex-direction:column;gap:8px}
+.ap .col+.col{border-left:1px solid var(--g200)}
+.ap .et{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--g500)}
+.ap .et small{font-weight:400;text-transform:none;color:var(--g400)}
+.ap .inp{border:1px solid var(--g300);border-radius:4px;padding:6px 8px;font-size:14px;color:var(--g400);background:#fff}
+.ap .sel{border:1px solid var(--g300);border-radius:4px;padding:4px 8px;font-size:12px;color:var(--azul);background:#fff}
+.dep{border:1px solid var(--g200);border-radius:8px;padding:8px 12px;font-size:12px}
+.dep.on{border-color:var(--amb500);background:var(--amb50)}
+.dep .a{display:flex;justify-content:space-between;gap:8px}
+.dep .a b{font-weight:600;color:var(--g700)}
+.dep .a strong{color:var(--azul)}
+.dep .c{color:var(--g500)}.dep .d{color:var(--g400)}
+.grp{border:1px solid var(--g200);border-radius:8px}
+.grp .gh{display:flex;justify-content:space-between;align-items:center;background:var(--g50);padding:6px 12px;border-radius:8px 8px 0 0}
+.grp .gh .l{display:flex;gap:8px;align-items:center}
+.grp .gh .l b{font-size:12px;color:var(--azul)}
+.grp .gh .tot{font-size:12px;font-weight:700;color:var(--red600)}
+.grp .nv{display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:12px;border-top:1px solid var(--g200)}
+.grp .nv .nm{flex:1;display:flex;justify-content:space-between}
+.grp .nv .nm b{color:var(--azul)}.grp .nv .nm em{font-style:normal;color:var(--g400)}
+.grp .nv .nm strong{color:var(--red600);font-weight:600}
+.grp .cp{background:rgba(249,250,251,.6);border-top:1px solid var(--g200)}
+.grp .cp .it{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 36px;font-size:12px;border-bottom:1px solid var(--g200)}
+.grp .cp .it span.n{flex:1;color:var(--g600)}.grp .cp .it span.m{color:var(--g600)}
+.grp .cp .ag{padding:4px 12px 4px 36px;font-size:12px;font-weight:500;color:var(--link)}
+.ap .res{display:flex;gap:24px;align-items:center;border-top:1px solid var(--g200);background:var(--g50);padding:12px 20px;flex-wrap:wrap}
+.ap .res small{display:block;font-size:10px;text-transform:uppercase;color:var(--g400)}
+.ap .res b{font-size:14px;color:var(--azul)}
+.ap .res b.v{color:var(--grn700)}
+.ap .pieap{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--g200);padding:12px 20px}
+.ap .pieap p{margin:0;font-size:11px;color:var(--g400);max-width:430px}
+
+/* ---- Estado de cuenta (ReportesArrePage.tsx) ---- */
+.cab{display:flex;gap:16px;border:1px solid var(--g200);border-radius:12px;background:#fff;padding:16px}
+.cab .gr{flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:6px 24px;font-size:14px}
+.cab .gr small{display:block;font-size:11px;color:var(--g500)}
+.cab .gr b{font-weight:600;color:var(--g800)}
+.est{align-self:stretch;border-radius:10px;background:var(--grn100);color:var(--grn700);font-weight:700;font-size:13px;padding:8px 16px;display:flex;align-items:center}
+.tfoot td{background:var(--azul)!important;color:#fff;font-weight:700;font-size:13px;padding:8px 12px}
+
+.fin{background:#fff;border:1px solid var(--g200);border-radius:12px;padding:14px 18px}
+.fin ol{margin:6px 0 0 18px;padding:0}
+@media (max-width:1000px){.wrap{flex-direction:column}nav.idx{position:static;max-width:none}.grid3,.cards3{grid-template-columns:1fr}.ap .cols{grid-template-columns:1fr}.cab .gr{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Traspaso de depósito de garantía — wireframe v2 (pantallas reales + lo nuevo marcado)</h1>
+  <p>ERP SPH Bienes Raíces · Arrendatarios · basado en 00-brief v2.1 y en los componentes reales del código · 2026-10-20</p>
+</header>
+<div class="wrap">
+<nav class="idx">
+  <b>Pantallas</b>
+  <a href="#f1">1 · Renovar: sección nueva</a>
+  <a href="#f2">2 · Renovar: complemento y error</a>
+  <a href="#f3">3 · Renovar: resultado y reintento</a>
+  <a href="#f4">4 · Botón y modal «Traspasar»</a>
+  <a href="#f5">5 · Candidatos bloqueados</a>
+  <a href="#f6">6 · Franja de depósito en el plan</a>
+  <a href="#f7">7 · Revertir traspaso</a>
+  <a href="#f8">8 · Historial del plan</a>
+  <a href="#f9">9 · Aplicar pago</a>
+  <a href="#f10">10 · Estado de cuenta</a>
+  <a href="#f11">11 · Errores 409 / ocupado</a>
+  <a href="#aprobar">Qué debes aprobar</a>
+</nav>
+<main>
+
+<div class="leyenda">
+  <span class="k"><span class="sw" style="border:2px dashed var(--nuevo);background:#fff"></span><b>Borde verde punteado + «NUEVO»</b> = lo que se agrega.</span>
+  <span class="k"><span class="sw" style="background:#fff;border:1px dashed var(--g300)"></span>Recuadro gris = pantalla existente <b>sin cambios</b> (se resume).</span>
+  <span class="k">Todo lo demás es la pantalla actual, replicada de su código (<code>RenovarPlanModal</code>, <code>AplicarPagoModal</code>, <code>PanelNotas</code>, <code>ArrendatariosPage</code>, <code>ReportesArrePage</code>, <code>Modal</code>).</span>
+</div>
+<div class="aviso">
+  <b>Corrección de la v1 de este wireframe:</b> en la primera versión dibujé varias pantallas de memoria y no se parecían a las reales (Aplicar pago, Historial, estado de cuenta, barra de planes). Esta versión las replica del código y marca solo lo nuevo. Sigue siendo un wireframe HTML (excepción «continúa sin Pencil», 2026-10-20); los <b>datos son ilustrativos</b> salvo las cifras de Deumex (474,005.91 · 26,639.11 · 500,645.02).
+</div>
+
+<!-- ============ 1 ============ -->
+<section class="frame" id="f1">
+  <h2>1 · Renovar — se agrega la sección «Traspasar depósito de contratos anteriores»</h2>
+  <p class="meta">Archivo: RenovarPlanModal.tsx. <b>El modal queda idéntico a hoy</b> (mismo contenedor, campos y botones); solo se inserta la sección nueva. Se muestra con permisos 23 y 25, depósito nuevo &gt; 0 y candidatos.</p>
+  <div class="variants"><figure style="flex-basis:780px"><div class="scrim">
+    <div class="rn">
+      <div class="h"><b>Renovar plan · DEUMEX TRADING SA DE CV · Ocupar 2 · Nave 12</b><span>✕</span></div>
+      <div class="f">
+        <div class="msg sky">La renovación inicia el <b>17/10/2026</b> (día siguiente al fin del plan vigente, 16/10/2026). Datos precargados con el último mes del plan anterior; ajústalos si es necesario.</div>
+        <div class="grid3">
+          <div class="fld">Fecha inicio<div class="in ro">17/10/2026</div></div>
+          <div class="fld">Plazo (meses)<div class="in">12</div></div>
+          <div class="fld">m² construcción<div class="in">1,150</div></div>
+          <div class="fld">INPC adicional (%)<div class="in" style="color:var(--g400)">0</div></div>
+          <div class="fld">Depósito garantía<div class="in">500645.02</div></div>
+          <div class="fld">Moneda<div class="in l">MXN</div></div>
+        </div>
+
+        <div class="nuevo" style="padding:12px;background:#fff;display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:13px;font-weight:600;color:var(--g700)">Traspasar depósito de contratos anteriores</div>
+          <div style="font-size:12px;color:var(--g500);margin-top:-6px">Elige de dónde viene el depósito que SPH ya tiene de este arrendatario. No tecleas montos: se traspasa el disponible completo de cada contrato elegido.</div>
+          <table class="t s"><thead><tr><th></th><th>Nave / contrato</th><th>Periodo</th><th>Etiqueta</th><th class="r">Disponible</th></tr></thead><tbody>
+            <tr><td><span class="cbx on"></span></td><td>Nave 12</td><td class="num">17/10/2025 – 16/10/2026</td><td><span class="pill g">Mismo contrato (renovado)</span></td><td class="r num">$237,002.955</td></tr>
+            <tr><td><span class="cbx"></span></td><td>Nave 13</td><td class="num">17/10/2025 – 16/10/2026</td><td><span class="pill am">Posible adicional</span> <span class="pill gy">Nave hermana · vence el mismo día</span></td><td class="r num">$237,002.955</td></tr>
+            <tr class="blq"><td><span class="cbx off"></span></td><td>Nave 12</td><td class="num">17/10/2023 – 16/10/2025</td><td><span class="pill gy">Ya incluido en el contrato siguiente de esta nave</span></td><td class="r num">$218,283.70</td></tr>
+          </tbody></table>
+          <div class="compl"><div><small>Depósito del nuevo contrato $500,645.02 − traspaso elegido $237,002.955</small><b>Por cobrar en efectivo</b></div><div class="big num">$263,642.065 MXN</div></div>
+          <div class="msg warn">💡 La nave 13 vence el mismo día. Si los $500,645.02 cubren las dos naves, márcala: el complemento bajaría a <b>$26,639.11</b>.</div>
+          <div class="fld">Nota (obligatoria, mín. 10 caracteres) — folio o número de contrato del depósito anterior<div class="in l" style="color:var(--g400)">Ej.: Contrato SPH-2025-12, cláusula de depósito</div></div>
+          <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;align-items:end"><div class="fld">Fecha del traspaso<div class="in l">20/10/2026</div></div><div class="fld"><span class="cbx"></span> Confirmo que el depósito del contrato anterior fue recibido</div></div>
+        </div>
+
+        <div class="sin-cambio">… renglones de Renta base, Administración, Mantenimiento y Vigilancia (con Gracia) y «Total Mes» — sin cambios …</div>
+        <div class="acc"><span class="bt">Cancelar</span><span class="bt pri dis">Registrar renovación</span></div>
+      </div>
+    </div>
+  </div><figcaption>Estado inicial. «Registrar renovación» queda deshabilitado solo si hay orígenes marcados pero falta nota o confirmación. Sin orígenes marcados, la renovación se registra exactamente como hoy.</figcaption></figure></div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section class="frame" id="f2">
+  <h2>2 · Renovar — complemento resultante y error «supera el depósito nuevo»</h2>
+  <p class="meta">Solo la sección nueva (el resto del modal no cambia). El complemento se recalcula al marcar orígenes, cambiar el depósito o la moneda.</p>
+  <div class="variants">
+    <figure><div class="scrim"><div class="rn" style="max-width:560px"><div class="f">
+      <div class="nuevo" style="padding:12px;background:#fff;display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;color:var(--g500)"><b>A · Dos naves marcadas (caso Deumex)</b></div>
+        <table class="t s"><tbody>
+          <tr><td><span class="cbx on"></span> Nave 12 · 17/10/2025 – 16/10/2026</td><td class="r num">$237,002.955</td></tr>
+          <tr><td><span class="cbx on"></span> Nave 13 · 17/10/2025 – 16/10/2026</td><td class="r num">$237,002.955</td></tr>
+        </tbody></table>
+        <div class="compl"><div><small>Traspaso $474,005.91 · Depósito nuevo $500,645.02</small><b>Por cobrar en efectivo</b></div><div class="big num">$26,639.11 MXN</div></div>
+        <div class="msg ok">Coincide con lo que dice el contrato: «solo nos pagaron $26,639».</div>
+      </div>
+    </div></div></div><figcaption>A · cuadra con el contrato de Deumex.</figcaption></figure>
+    <figure><div class="scrim"><div class="rn" style="max-width:560px"><div class="f">
+      <div class="nuevo" style="padding:12px;background:#fff;display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;color:var(--g500)"><b>B · Depósito nuevo menor a lo elegido</b> (Depósito garantía = 400,000.00)</div>
+        <table class="t s"><tbody>
+          <tr><td><span class="cbx on"></span> Nave 12 · 17/10/2025 – 16/10/2026</td><td class="r num">$237,002.955</td></tr>
+          <tr><td><span class="cbx on"></span> Nave 13 · 17/10/2025 – 16/10/2026</td><td class="r num">$237,002.955</td></tr>
+        </tbody></table>
+        <div class="compl err"><div><small>Lo elegido ($474,005.91) &gt; depósito nuevo ($400,000.00)</small><b>Por cobrar en efectivo</b></div><div class="big num">—</div></div>
+        <div class="msg err">Lo que eliges ($474,005.91) supera el depósito del nuevo contrato ($400,000.00). Quita un origen o ajusta el depósito nuevo.</div>
+      </div>
+    </div></div></div><figcaption>B · se bloquea «Registrar renovación». En esta versión no hay devolución de excedentes.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section class="frame" id="f3">
+  <h2>3 · Renovar — resultado ✓/✓ y ✓/✗ con «Reintentar»</h2>
+  <p class="meta">Hoy el modal se cierra solo al guardar y el aviso se pierde. Con traspaso, el modal se queda en una vista de resultado (mismo contenedor y cabecera). Reintentar NO vuelve a crear el plan.</p>
+  <div class="variants">
+    <figure><div class="scrim"><div class="rn" style="max-width:520px"><div class="h"><b>Renovar plan · Nave 12</b><span>✕</span></div><div class="f nuevo" style="margin:12px;background:#fff">
+      <div class="msg ok"><b>Renovación registrada</b> · inicia el 17/10/2026 (plazo 12 meses).</div>
+      <div class="msg ok"><b>Depósito traspasado $474,005.91</b> desde 2 contratos · <b>Por cobrar $26,639.11 MXN</b></div>
+      <div class="acc"><span class="bt pri">Cerrar</span></div>
+    </div></div></div><figcaption>✓ plan creado y ✓ traspaso aplicado.</figcaption></figure>
+    <figure><div class="scrim"><div class="rn" style="max-width:520px"><div class="h"><b>Renovar plan · Nave 12</b><span>✕</span></div><div class="f nuevo" style="margin:12px;background:#fff">
+      <div class="msg ok"><b>Renovación registrada</b> ✓ · inicia el 17/10/2026 (plazo 12 meses).</div>
+      <div class="msg err"><b>El traspaso no se aplicó.</b> Otro usuario está modificando este depósito. Puedes reintentarlo ahora o hacerlo después con el botón «Traspasar depósito» del plan.</div>
+      <div class="acc"><span class="bt pri">Reintentar traspaso</span><span class="bt">Cerrar</span></div>
+    </div></div></div><figcaption>✓ plan creado y ✗ traspaso fallido: el plan queda creado y el aviso no se pierde.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section class="frame" id="f4">
+  <h2>4 · Botón «Traspasar depósito» en el plan y su modal</h2>
+  <p class="meta">Archivo: ArrendatariosPage.tsx (barra «Planes de esta propiedad», junto a 🔄 Renovar) + modal con el componente compartido <code>Modal</code> (rounded-xl, cabecera azul, pie gris). Solo con permiso 25 y un plan con depósito por cobrar sin pagar.</p>
+  <div class="pagina" style="margin-bottom:14px">
+    <div class="sin-cambio" style="margin-bottom:10px">… filtros de arrendatario · propiedad/nave · estado del contrato — sin cambios …</div>
+    <div class="fila-h"><h3>Planes de esta propiedad</h3>
+      <span style="display:flex;gap:8px"><span class="bt xs sky">🔄 Renovar</span><span class="bt xs azl nuevo">⇄ Traspasar depósito</span><span class="bt xs red">🛑 Cancelación anticipada</span></span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <div class="chip"><div class="t1">17/10/2023 → 16/10/2025 <span class="pill gy">No</span></div><div class="t2">Plazo 24 m · MXN</div></div>
+      <div class="chip"><div class="t1">17/10/2025 → 16/10/2026 <span class="pill gy">No</span></div><div class="t2">Plazo 12 m · MXN</div></div>
+      <div class="chip on"><div class="t1">17/10/2026 → 16/10/2027 <span class="pill g">Si</span></div><div class="t2">Plazo 12 m · MXN</div></div>
+    </div>
+    <div style="font-size:11px;color:var(--g400);margin-top:6px">Tooltip del botón nuevo: «Mueve el depósito de contratos anteriores a este contrato».</div>
+  </div>
+  <div class="variants">
+    <figure><div class="scrim"><div class="mc">
+      <div class="h"><b>Traspasar depósito · DEUMEX TRADING SA DE CV · Nave 12</b><span>✕</span></div>
+      <div class="b">
+        <div class="cards3">
+          <div class="card"><small>Depósito contractual</small><b class="num">$500,645.02</b></div>
+          <div class="card"><small>Traspasado</small><b class="num">$0.00</b></div>
+          <div class="card hl"><small>Por cobrar</small><b class="num">$500,645.02</b></div>
+        </div>
+        <table class="t s"><thead><tr><th></th><th>Nave / contrato</th><th>Periodo</th><th>Etiqueta</th><th class="r">Disponible</th></tr></thead><tbody>
+          <tr><td><span class="cbx"></span></td><td>Nave 12</td><td class="num">17/10/2025 – 16/10/2026</td><td><span class="pill g">Misma nave</span></td><td class="r num">$237,002.955</td></tr>
+          <tr><td><span class="cbx"></span></td><td>Nave 13</td><td class="num">17/10/2025 – 16/10/2026</td><td><span class="pill gy">Nave hermana · vence el día anterior</span></td><td class="r num">$237,002.955</td></tr>
+        </tbody></table>
+        <div class="compl"><div><small>Elige al menos un contrato de origen</small><b>Por cobrar en efectivo</b></div><div class="big num">$500,645.02 MXN</div></div>
+        <div class="fld">Nota (obligatoria, mín. 10 caracteres)<div class="in l" style="color:var(--g400)">Folio o número de contrato del depósito anterior</div></div>
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;align-items:end"><div class="fld">Fecha del traspaso<div class="in l">20/10/2026</div></div><div class="fld"><span class="cbx"></span> Confirmo que el depósito del contrato anterior fue recibido</div></div>
+      </div>
+      <div class="pie"><span class="bt">Cancelar</span><span class="bt pri dis">Traspasar depósito</span></div>
+    </div></div><figcaption>A · Vacío. El botón se habilita con selección válida, nota, casilla y complemento ≥ 0.</figcaption></figure>
+
+    <figure><div class="scrim"><div class="mc">
+      <div class="h"><b>Traspasar depósito · DEUMEX TRADING SA DE CV · Nave 12</b><span>✕</span></div>
+      <div class="b">
+        <div class="cards3">
+          <div class="card"><small>Depósito contractual</small><b class="num">$500,645.02</b></div>
+          <div class="card"><small>Traspasado (esta operación)</small><b class="num">$474,005.91</b></div>
+          <div class="card hl"><small>Por cobrar</small><b class="num">$26,639.11</b></div>
+        </div>
+        <table class="t s"><thead><tr><th></th><th>Nave / contrato</th><th>Periodo</th><th>Etiqueta</th><th class="r">Disponible</th></tr></thead><tbody>
+          <tr><td><span class="cbx on"></span></td><td>Nave 12</td><td class="num">17/10/2025 – 16/10/2026</td><td><span class="pill g">Misma nave</span></td><td class="r num">$237,002.955</td></tr>
+          <tr><td><span class="cbx on"></span></td><td>Nave 13</td><td class="num">17/10/2025 – 16/10/2026</td><td><span class="pill gy">Nave hermana · vence el día anterior</span></td><td class="r num">$237,002.955</td></tr>
+        </tbody></table>
+        <div class="compl"><div><small>$500,645.02 − $474,005.91</small><b>Por cobrar en efectivo</b></div><div class="big num">$26,639.11 MXN</div></div>
+        <div class="fld">Nota<div class="in l">Contrato de renovación SPH-2025-12: «el arrendador reconoce haber recibido $474,000»</div></div>
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;align-items:end"><div class="fld">Fecha del traspaso<div class="in l">20/10/2026</div></div><div class="fld"><span class="cbx on"></span> Confirmo que el depósito del contrato anterior fue recibido</div></div>
+      </div>
+      <div class="pie"><span class="bt">Cancelar</span><span class="bt pri">Traspasar depósito</span></div>
+    </div></div><figcaption>B · Selección válida. Un solo paso: el formulario ya es la confirmación.</figcaption></figure>
+
+    <figure><div class="scrim"><div class="mc sm">
+      <div class="h"><b>Traspasar depósito · Nave 12</b><span>✕</span></div>
+      <div class="b">
+        <div class="msg warn">No hay contratos anteriores de este arrendatario con depósito disponible para este contrato.</div>
+        <div style="font-size:12px;color:var(--g500)">Si debería haberlos, revisa que el contrato anterior esté terminado, sea del mismo arrendatario y de la misma moneda.</div>
+      </div>
+      <div class="pie"><span class="bt pri">Cerrar</span></div>
+    </div></div><figcaption>C · Sin candidatos.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section class="frame" id="f5">
+  <h2>5 · Candidatos bloqueados — siempre se explica el porqué</h2>
+  <p class="meta">El servidor decide el bloqueo; la pantalla solo lo muestra (casilla deshabilitada + motivo). Mismo formato de tabla en Renovar y en el modal manual.</p>
+  <div class="variants"><figure style="flex-basis:880px"><div class="scrim"><div class="mc" style="max-width:860px"><div class="h"><b>Traspasar depósito · DEUMEX TRADING SA DE CV · Nave 12</b><span>✕</span></div><div class="b">
+    <table class="t s"><thead><tr><th></th><th>Nave / contrato</th><th>Periodo</th><th>Motivo del bloqueo</th><th class="r">Disponible</th></tr></thead><tbody>
+      <tr class="blq"><td><span class="cbx off"></span></td><td>Nave 12</td><td class="num">17/10/2023 – 16/10/2025</td><td><span class="pill gy">Ya incluido en el contrato siguiente de esta nave</span><br><small>Su depósito normalmente ya está en el contrato 2025. Para limpiar el historial, traspásalo desde el 2025.</small></td><td class="r num">$218,283.70</td></tr>
+      <tr class="blq"><td><span class="cbx off"></span></td><td>Nave 18</td><td class="num">17/10/2024 – 16/10/2026</td><td><span class="pill r">Otra moneda</span><br><small>Este contrato es MXN; ese depósito es USD. No se mezclan sin tipo de cambio.</small></td><td class="r num">US$12,000.00</td></tr>
+      <tr class="blq"><td><span class="cbx off"></span></td><td>Nave 9</td><td class="num">01/01/2025 – 31/12/2025</td><td><span class="pill r">Depósito en 0 en la corrida</span><br><small>El plan dice $97,710.00 pero la partida está en $0.00. Revisa el plan antes de traspasar. <b>Se muestran ambos montos.</b></small></td><td class="r num">$0.00<br><small>(plan: $97,710.00)</small></td></tr>
+      <tr class="blq"><td><span class="cbx off"></span></td><td>Nave 13</td><td class="num">17/10/2024 – 16/10/2025</td><td><span class="pill gy">Ya traspasado</span><br><small>Se traspasó a Nave 12 · 17/10/2026 – 16/10/2027 el 20/10/2026.</small></td><td class="r num">$0.00</td></tr>
+      <tr class="blq"><td><span class="cbx off"></span></td><td>Nave 4</td><td class="num">01/03/2024 – 28/02/2025</td><td><span class="pill r">Estructura no estándar</span><br><small>La partida de depósito no tiene el formato esperado. Pide apoyo a soporte.</small></td><td class="r num">—</td></tr>
+    </tbody></table>
+  </div></div></div><figcaption>Cinco razones (nombres y periodos de ejemplo). En los datos reales hay 25 depósitos con moneda vacía o 'null' y 1 con estructura no estándar.</figcaption></figure></div>
+</section>
+
+<!-- ============ 6 ============ -->
+<section class="frame" id="f6">
+  <h2>6 · Franja «Depósito de garantía» sobre la corrida del plan</h2>
+  <p class="meta">Archivo: ArrendatariosPage.tsx (<code>CorridaPlan</code>). La franja usa el mismo patrón que la franja verde de «incrementos INPC» que ya existe encima de la corrida. La tabla y el panel de notas quedan como hoy; la partida 0 solo baja su monto y lleva una etiqueta.</p>
+  <div class="variants">
+    <figure style="flex-basis:900px"><div class="pagina">
+      <div style="font-size:12px;color:var(--g500);margin-bottom:6px">A · <b>Destino</b> — plan 17/10/2026 → 16/10/2027 (Nave 12)</div>
+      <div class="banda grn" style="margin-bottom:8px"><span>✅ 2 incremento(s) INPC aplicado(s) · último: año 2 con 3.37% el 20/10/2026</span><a>Historial</a></div>
+      <div class="nuevo" style="margin:10px 0 12px"><div class="banda azl"><span>💼 <b>Depósito de garantía:</b> contractual <b>$500,645.02</b> · traspasado <b>$474,005.91</b> · por cobrar <b>$26,639.11</b></span><a>Ver traspasos ▾</a></div></div>
+      <div class="nuevo" style="margin-bottom:12px;background:#fff;border:1px solid var(--g200);border-radius:12px;padding:8px">
+        <table class="t s"><thead><tr><th>Recibido de</th><th class="r">Monto</th><th>Fecha</th><th>Nota</th><th>Registró</th><th>Estado</th><th></th></tr></thead><tbody>
+          <tr><td>Nave 12 · 17/10/2025 – 16/10/2026</td><td class="r num">$237,002.955</td><td class="num">20/10/2026</td><td>Contrato SPH-2025-12</td><td>Mónica Echeverry</td><td><span class="pill g">Aplicado</span></td><td><span class="bt sm red">Revertir</span></td></tr>
+          <tr><td>Nave 13 · 17/10/2025 – 16/10/2026</td><td class="r num">$237,002.955</td><td class="num">20/10/2026</td><td>Contrato SPH-2025-12</td><td>Mónica Echeverry</td><td><span class="pill g">Aplicado</span></td><td><span class="bt sm red">Revertir</span></td></tr>
+        </tbody></table>
+      </div>
+      <div class="corr"><div class="tb"><table class="t"><thead><tr><th class="c">#</th><th class="c">Ciclo</th><th class="c">Año</th><th>Fecha</th><th class="r">$ × m²</th><th class="r">const m²</th><th class="r">INPC</th><th class="r">Monto</th><th></th></tr></thead><tbody>
+        <tr><td class="c">0</td><td class="c">2026</td><td class="c">0</td><td>17/10/2026</td><td class="r num">26,639.11</td><td class="r num">1.00</td><td class="r num">0.00</td><td class="r num"><b>$26,639.11</b> <span class="pill bl nuevo" style="margin-left:4px">⇄ traspaso</span></td><td class="c" style="color:var(--link)">▼</td></tr>
+        <tr><td class="c">1</td><td class="c">2026</td><td class="c">1</td><td>17/10/2026</td><td class="r num">62.50</td><td class="r num">1,150.00</td><td class="r num">0.00</td><td class="r num"><b>$71,875.00</b></td><td class="c" style="color:var(--link)">▼</td></tr>
+        <tr><td class="c">2</td><td class="c">2026</td><td class="c">1</td><td>17/11/2026</td><td class="r num">62.50</td><td class="r num">1,150.00</td><td class="r num">0.00</td><td class="r num"><b>$71,875.00</b></td><td class="c" style="color:var(--link)">▼</td></tr>
+      </tbody></table></div><div class="pn">Panel Notas / Historial<br>(sin cambios; ver pantalla 8)</div></div>
+    </div><figcaption>A · Destino con 2 traspasos. «Ver traspasos» despliega la lista; «Revertir» exige permiso 25 y abre la pantalla 7. La partida 0 muestra el complemento.</figcaption></figure>
+
+    <figure><div class="pagina">
+      <div style="font-size:12px;color:var(--g500);margin-bottom:8px">B · <b>Origen</b> — plan 17/10/2025 → 16/10/2026 (Nave 12)</div>
+      <div class="nuevo"><div class="banda azl"><span>💼 <b>Depósito de garantía:</b> contractual <b>$237,002.955</b> · traspasado a otro contrato <b>$237,002.955</b> · por cobrar <b>$0.00</b></span><a>Ver ▾</a></div></div>
+      <div class="nota-g nuevo" style="margin-top:14px">Este depósito se traspasó a <b>Nave 12 · 17/10/2026 → 16/10/2027</b>: $237,002.955. Sin acción aquí; se revierte desde el contrato destino. Sus datos originales no cambian.</div>
+    </div><figcaption>B · Origen: solo informa.</figcaption></figure>
+
+    <figure><div class="pagina">
+      <div style="font-size:12px;color:var(--g500);margin-bottom:8px">C · <b>Pagado por traspaso</b> — plan 17/10/2025 → 16/10/2028 (Nave 18)</div>
+      <div class="nuevo"><div class="banda azl"><span>💼 <b>Depósito de garantía:</b> contractual <b>$97,710.00</b> · traspasado <b>$97,710.00</b> · por cobrar <b>$0.00</b> <span class="pill g">Pagado por traspaso el 20/10/2026</span></span><a>Ver ▾</a></div></div>
+      <div style="font-size:11px;color:var(--g500);margin-top:8px">Sin pago bancario: el traspaso cubrió el 100 %; la partida 0 queda en $0.00.</div>
+    </div><figcaption>C · Cubierto al 100 %.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section class="frame" id="f7">
+  <h2>7 · Modal «Revertir traspaso»</h2>
+  <p class="meta">Componente compartido <code>Modal</code>. Motivo obligatorio (5–400 caracteres). Reversa aditiva: devuelve ese monto al «por cobrar» del destino y reabre el disponible del origen.</p>
+  <div class="variants">
+    <figure><div class="scrim"><div class="mc md"><div class="h"><b>Revertir traspaso</b><span>✕</span></div><div class="b">
+      <table class="t s"><tbody>
+        <tr><td>Monto</td><td class="r num"><b>$237,002.955</b></td></tr>
+        <tr><td>Origen</td><td class="r">Nave 13 · 17/10/2025 – 16/10/2026</td></tr>
+        <tr><td>Fecha / nota</td><td class="r">20/10/2026 · Contrato SPH-2025-12</td></tr>
+      </tbody></table>
+      <div class="msg warn">El contrato destino volverá a tener por cobrar <b>$237,002.955 más</b> (quedaría en $263,642.065). El depósito del origen quedará disponible de nuevo.</div>
+      <div class="fld">Motivo (obligatorio, mín. 5 caracteres)<div class="in l">Se eligió la nave equivocada</div></div>
+    </div><div class="pie"><span class="bt">Cancelar</span><span class="bt pri">Revertir</span></div></div></div><figcaption>A · Flujo normal.</figcaption></figure>
+    <figure><div class="scrim"><div class="mc md"><div class="h"><b>Revertir traspaso</b><span>✕</span></div><div class="b">
+      <div class="msg err"><b>No se puede revertir todavía.</b> Primero desaplica el pago del depósito en «Registro de movimientos».</div>
+      <div style="font-size:12px;color:var(--g500)">Otros avisos posibles:<br>• «Revierte primero el traspaso que el destino hizo a otro contrato».<br>• «Revierte primero el traspaso del 20/10/2026 que dejó el depósito en 0».</div>
+    </div><div class="pie"><span class="bt pri">Entendido</span></div></div></div><figcaption>B · <code>PAGO_APLICADO</code> (y variantes) con texto claro.</figcaption></figure>
+  </div>
+</section>
+
+<!-- ============ 8 ============ -->
+<section class="frame" id="f8">
+  <h2>8 · Historial del plan — renglones nuevos en el panel existente</h2>
+  <p class="meta">Archivo: PanelNotas.tsx (panel de 360 px, pestañas Notas/Historial). Mismo formato de renglón: círculo de 28 px, título en negrita, detalle gris, hora y autor. Solo se agregan dos tipos de evento, con la misma paleta que «pago aplicado» (verde) y «pago desaplicado» (ámbar).</p>
+  <div class="variants"><figure style="flex-basis:420px"><div class="pnl">
+    <div class="tabs"><div style="display:flex"><div class="tab">💬 Notas <i>0</i></div><div class="tab on">🕘 Historial <i>6</i></div></div><span class="bt xs" style="padding:2px 8px">»</span></div>
+    <div class="bd">
+      <div class="dia"><span></span>20 oct 2026<span></span></div>
+      <div class="ev nuevo" style="padding:4px"><span class="ic" style="background:var(--amb100);color:var(--amb700)">↺</span><div><div class="tt">Traspaso revertido</div><div class="dt">Se eligió la nave equivocada. $237,002.955 desde Nave 13 · 17/10/2025 – 16/10/2026.</div><div class="hr">12:55 p. m. · por Mónica Echeverry</div></div></div>
+      <div class="ev nuevo" style="padding:4px"><span class="ic" style="background:var(--grn100);color:var(--grn700)">⇄</span><div><div class="tt">Depósito traspasado</div><div class="dt">$474,005.91 MXN desde Nave 12 · 17/10/2025 – 16/10/2026 y Nave 13 · 17/10/2025 – 16/10/2026. Nota: Contrato SPH-2025-12.</div><div class="hr">12:41 p. m. · por Mónica Echeverry</div></div></div>
+      <div class="ev"><span class="ic" style="background:#e8edf8;color:var(--azul)">📄</span><div><div class="tt">Plan creado</div><div class="dt">Renovación 17/10/2026 – 16/10/2027.</div><div class="hr">12:38 p. m. · por Mónica Echeverry</div></div></div>
+      <div class="ev"><span class="ic" style="background:var(--grn100);color:var(--grn700)">💳</span><div><div class="tt">Pago aplicado</div><div class="dt">Renta 17/10/2026 · $83,000.00.</div><div class="hr">11:02 a. m. · por Mónica Echeverry</div></div></div>
+    </div>
+    <div class="pp">🔒 Solo lectura · registrado desde junio de 2026</div>
+  </div><figcaption>El Historial se reconstruye de la auditoría: el actor sale del usuario autenticado, no del texto del formulario. Los eventos de abajo son los de hoy.</figcaption></figure></div>
+</section>
+
+<!-- ============ 9 ============ -->
+<section class="frame" id="f9">
+  <h2>9 · Aplicar pago — el complemento y lo que ya no aparece</h2>
+  <p class="meta">Archivo: AplicarPagoModal.tsx. <b>La pantalla es la de hoy</b> (2 columnas, partidas agrupadas por mes y nave, botón ámbar). Cambia solo: (1) la partida de depósito muestra el monto del complemento con una etiqueta; (2) los depósitos ya traspasados <b>desaparecen</b> de la lista.</p>
+  <div class="variants"><figure style="flex-basis:920px"><div class="scrim"><div class="ap">
+    <div class="h"><b>Aplicar pago — DEUMEX TRADING SA DE CV</b><span>✕</span></div>
+    <div class="cols">
+      <div class="col">
+        <div style="display:flex;justify-content:space-between"><span class="et">Depósito bancario</span><span style="font-size:10px;color:var(--g400)">1 con saldo</span></div>
+        <div class="inp">Buscar por ordenante o concepto…</div>
+        <div style="display:flex;gap:6px"><div class="sel" style="flex:1">Todos los meses</div><div class="sel">Todos</div></div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--amb600)">⭐ Sugeridos <span style="background:var(--amb100);color:var(--amb700);border-radius:999px;padding:0 6px">1</span></div>
+        <div class="dep on"><div class="a"><b>⭐ DEUMEX TRADING SA DE CV</b><span><strong>26,639.11</strong> <small style="opacity:.6">MXN</small></span></div><div class="c">SPEI recibido · PAGO COMPLEMENTO DEPOSITO</div><div class="d">20/10/2026 · 20261020BNET01...</div></div>
+      </div>
+      <div class="col">
+        <div style="display:flex;justify-content:space-between;align-items:center"><span class="et">Partidas pendientes <small>(con IVA)</small></span><div class="sel">Todos los años</div></div>
+        <div class="grp">
+          <div class="gh"><span class="l"><span class="cbx amb on"></span><b>Octubre 2026</b><span class="pill gy" style="font-size:9px;text-transform:uppercase">Actual</span></span><span class="tot num">26,639.11</span></div>
+          <div class="nv"><span class="cbx amb on"></span><span class="nm"><span><span style="color:var(--g400)">▾</span> <b>Nave 12</b> <em>Ocupar 2</em> <em>(1)</em></span><strong class="num">26,639.11</strong></span></div>
+          <div class="cp">
+            <div class="it nuevo" style="margin:8px 12px 8px 24px;padding:4px 8px;background:#fff"><span class="cbx amb on"></span><span class="n">Deposito Garantia <span class="pill am">complemento · $474,005.91 traspasados</span></span><span class="m num">26,639.11</span></div>
+            <div class="ag">+ Agregar concepto</div>
+          </div>
+        </div>
+        <div class="grp">
+          <div class="gh"><span class="l"><span class="cbx amb"></span><b>Noviembre 2026</b><span class="pill sk" style="font-size:9px;text-transform:uppercase">Adelantado</span></span><span class="tot num">165,750.00</span></div>
+          <div class="nv"><span class="cbx amb"></span><span class="nm"><span><span style="color:var(--g400)">▸</span> <b>Nave 12</b> <em>Ocupar 2</em> <em>(4)</em></span><strong class="num">82,875.00</strong></span></div>
+          <div class="nv"><span class="cbx amb"></span><span class="nm"><span><span style="color:var(--g400)">▸</span> <b>Nave 13</b> <em>Ocupar 2</em> <em>(4)</em></span><strong class="num">82,875.00</strong></span></div>
+        </div>
+        <div class="sin-cambio" style="font-size:11px;text-align:left">📝 <b>Nota de diseño (no es parte de la pantalla):</b> los depósitos de garantía de los contratos 2025 (naves 12 y 13), ya traspasados, simplemente <b>no aparecen</b> en esta lista, aunque sigan existiendo en el plan.</div>
+      </div>
+    </div>
+    <div class="res"><div><small>Saldo del depósito</small><b class="num">26,639.11</b></div><div><small>Seleccionado</small><b class="num">26,639.11</b></div><div><small>Saldo a favor</small><b class="v num">0.00</b></div></div>
+    <div class="pieap"><p>El total seleccionado no puede exceder el saldo del depósito. Lo que sobre queda como saldo a favor del mismo depósito.</p><div style="display:flex;gap:8px"><span class="bt">Cancelar</span><span class="bt amb">Aplicar pago</span></div></div>
+  </div></div><figcaption>«Depósito bancario» (dinero que entró) y «depósito de garantía» son cosas distintas: aquí el SPEI de $26,639.11 paga el complemento de la garantía. Los montos de renta son ilustrativos.</figcaption></figure></div>
+</section>
+
+<!-- ============ 10 ============ -->
+<section class="frame" id="f10">
+  <h2>10 · Estado de cuenta — dos datos nuevos y la nota de la partida 0</h2>
+  <p class="meta">Archivo: ReportesArrePage.tsx (cabecera con «Depósito», corrida con columna «Nota», totales azules, botones Export CSV/PDF). Se agrega: «Traspasado» y «Depósito por cobrar» en la cabecera, y el texto en la columna <b>Nota</b> que ya existe (sin columnas nuevas). Excel/CSV y PDF llevan las mismas líneas.</p>
+  <div class="variants"><figure style="flex-basis:980px"><div class="pagina">
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:10px"><span class="bt xs azl">Export CSV</span><span class="bt xs azl">Export PDF</span></div>
+    <div class="cab" style="margin-bottom:12px">
+      <div class="gr">
+        <div><small>Arrendatario</small><b>DEUMEX TRADING SA DE CV</b></div><div><small>Parque</small><b>Ocupar 2</b></div><div><small>Nave</small><b>12</b></div><div><small>Moneda</small><b>MXN</b></div>
+        <div><small>Inicio</small><b>17/10/2026</b></div><div><small>Fin</small><b>16/10/2027</b></div><div><small>Plazo</small><b>12 meses</b></div><div><small>Vigencia</small><b>Si</b></div>
+        <div><small>Depósito</small><b class="num">$500,645.02</b></div><div><small>Renta $×m²</small><b class="num">62.50</b></div><div><small>Const. m²</small><b class="num">1,150.00</b></div><div><small>INPC adic.</small><b class="num">0.00</b></div>
+        <div class="nuevo"><small>Traspasado</small><b class="num">$474,005.91</b></div><div class="nuevo"><small>Depósito por cobrar</small><b class="num">$26,639.11</b></div>
+      </div>
+      <div class="est">VIGENTE</div>
+    </div>
+    <div style="border:1px solid var(--g200);border-radius:12px;background:#fff;overflow:hidden">
+      <table class="t s"><thead><tr><th class="c">#</th><th class="c">Año</th><th>Fecha</th><th class="r">INPC total</th><th class="r">Renta</th><th class="r">Admin</th><th class="r">Mtto</th><th class="r">Vig</th><th class="r">Otros Serv.</th><th>Nota</th><th class="r">Total</th><th class="r">Pagado</th><th>Fecha pago</th><th class="c">Estado</th></tr></thead><tbody>
+        <tr><td class="c"><b>0</b></td><td class="c">0</td><td>17/10/2026</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r num">26,639.11</td><td class="nuevo" style="background:#fff"><span style="color:var(--g500);font-size:12px">Traspaso $474,005.91 (2 contratos)</span></td><td class="r num"><b>26,639.11</b></td><td class="r" style="color:var(--grn700)">—</td><td></td><td class="c"><span class="pill r">Pendiente</span></td></tr>
+        <tr><td class="c"><b>1</b></td><td class="c">1</td><td>17/10/2026</td><td class="r">—</td><td class="r num">71,875.00</td><td class="r num">4,600.00</td><td class="r num">4,025.00</td><td class="r num">2,300.00</td><td class="r">—</td><td style="color:var(--g500)">—</td><td class="r num"><b>82,800.00</b></td><td class="r" style="color:var(--grn700)">—</td><td></td><td class="c"><span class="pill r">Pendiente</span></td></tr>
+        <tr><td colspan="14" style="text-align:center;color:var(--g400);font-size:12px">… siguientes meses …</td></tr>
+        <tr class="tfoot"><td colspan="14">TOTALES — sin cambios de formato</td></tr>
+      </tbody></table>
+    </div>
+    <div class="nota-g" style="margin-top:10px"><b>En el contrato anterior (origen):</b> su partida 0 se muestra con la nota «Traspasado → Nave 12 · 2026» y <u>no suma</u> al pendiente. El PDF conserva su maqueta actual: solo se añaden las dos líneas nuevas de la cabecera.</div>
+  </div><figcaption>La nota es corta a propósito: la columna existente trunca a 16 rem. Hoy la cabecera dice $500,645.02 y la partida 0 $26,639.11 sin explicación; con esto queda cuadrado.</figcaption></figure></div>
+</section>
+
+<!-- ============ 11 ============ -->
+<section class="frame" id="f11">
+  <h2>11 · Errores 409 «Cambió mientras operabas» y «Ocupado»</h2>
+  <p class="meta">Aparecen si alguien más cambió el depósito (o aplicó un pago) entre que abriste el modal y confirmaste. Nunca se pierde dinero: el servidor aborta todo el bloque.</p>
+  <div class="variants">
+    <figure><div class="scrim"><div class="mc">
+      <div class="h"><b>Traspasar depósito · DEUMEX TRADING SA DE CV · Nave 12</b><span>✕</span></div>
+      <div class="b">
+        <div class="msg err"><b>Esto cambió mientras operabas.</b> Otro usuario modificó el depósito de este contrato hace unos segundos. No se aplicó nada. Recarga para ver los datos actuales y vuelve a elegir. <span class="bt sm pri" style="margin-left:6px">Recargar</span></div>
+        <div style="opacity:.45"><table class="t s"><tbody>
+          <tr><td><span class="cbx on"></span> Nave 12 · 17/10/2025 – 16/10/2026</td><td class="r num">$237,002.955</td></tr>
+          <tr><td><span class="cbx on"></span> Nave 13 · 17/10/2025 – 16/10/2026</td><td class="r num">$237,002.955</td></tr>
+        </tbody></table></div>
+      </div>
+      <div class="pie"><span class="bt">Cancelar</span><span class="bt pri dis">Traspasar depósito</span></div>
+    </div></div><figcaption>«Recargar» vuelve a pedir candidatos, estado y clave de envío.</figcaption></figure>
+    <figure><div class="scrim"><div class="mc sm"><div class="h"><b>Traspasar depósito</b><span>✕</span></div><div class="b">
+      <div class="msg warn"><b>Otro usuario está modificando este depósito.</b> Espera unos segundos e inténtalo de nuevo.</div>
+    </div><div class="pie"><span class="bt pri">Reintentar</span><span class="bt">Cerrar</span></div></div></div><figcaption>Variante «ocupado» (bloqueo de 5 s): reintento simple, sin recargar.</figcaption></figure>
+  </div>
+</section>
+
+<section class="frame" id="aprobar">
+  <div class="fin">
+    <h2 style="margin-top:0">Qué debes aprobar</h2>
+    <ol>
+      <li><b>Lo existente no cambia de aspecto:</b> el modal de Renovar, Aplicar pago, el panel de Historial, la corrida y el estado de cuenta se ven como hoy; lo nuevo es lo que lleva borde verde.</li>
+      <li><b>Renovar se queda con su contenedor actual</b> (no se migra al componente <code>Modal</code> en esta entrega, para no cambiar su aspecto). Migrarlo a portal se registra como pendiente del tablero.</li>
+      <li><b>Los modales nuevos</b> («Traspasar depósito» y «Revertir») usan el componente compartido <code>Modal</code> (cabecera azul, pie gris), igual que los demás modales nuevos del sistema.</li>
+      <li><b>Sin teclear montos:</b> eligen contratos y el sistema traspasa el disponible completo de cada uno.</li>
+      <li><b>La franja azul «Depósito de garantía»</b> sobre la corrida (pantalla 6) y las dos líneas nuevas del estado de cuenta (pantalla 10).</li>
+    </ol>
+  </div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

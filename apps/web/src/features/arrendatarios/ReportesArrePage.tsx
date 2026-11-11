@@ -9,6 +9,7 @@ import {
   fechaCorta,
   hoyMexico,
   moneda,
+  montoExacto,
   num,
   type CancelacionReporteRow,
   type EstadoCuentaPartida,
@@ -92,6 +93,12 @@ function EstadoCuentaTab() {
   );
   const mixto = monedas.length > 1;
   const textoMonedas = mixto ? monedas.join(' + ') : (monedas[0] ?? cab?.moneda ?? 'MXN');
+  // D14: «Traspasado» y «Depósito por cobrar» solo si el plan tiene traspasos aplicados (lo recibido o, si
+  // el plan solo emitió, lo emitido). Sin traspasos la cabecera queda como siempre.
+  const traspasoCab =
+    cab && (cab.depositoTraspasado ?? 0) > 0
+      ? { traspasado: cab.depositoTraspasado ?? 0, porCobrar: cab.depositoPorCobrar ?? 0 }
+      : null;
 
   // Totales (pie de la corrida), uno por moneda.
   const totales = useMemo(
@@ -100,6 +107,8 @@ function EstadoCuentaTab() {
         const t = { moneda: mon, renta: 0, admin: 0, mtto: 0, vig: 0, otros: 0, total: 0, pagado: 0 };
         for (const p of partidas) {
           if (p.moneda !== mon) continue;
+          // El depósito traspasado del origen no es pendiente de cobro: no entra en los totales.
+          if (p.traspasado) continue;
           t.renta += p.renta;
           t.admin += p.admin;
           t.mtto += p.mtto;
@@ -174,7 +183,7 @@ function EstadoCuentaTab() {
     fmt(p.total, p.moneda),
     fmt(p.montoPagado, p.moneda),
     fechaCorta(p.fecPago),
-    p.pagado ? 'Pagado' : 'Pendiente',
+    p.traspasado ? 'Traspasado' : p.pagado ? 'Pagado' : 'Pendiente',
   ];
 
   // Renglones de totales por moneda (solo PDF de planes mixtos; el CSV es solo de datos).
@@ -234,6 +243,13 @@ function EstadoCuentaTab() {
           { etiqueta: 'Renta $×m²', valor: num(cab.precioM2) },
           { etiqueta: 'Const. m²', valor: num(cab.construccionM2) },
           { etiqueta: 'INPC adic.', valor: num(cab.inpcPlus) },
+          // D14: solo si el plan recibió traspasos (las mismas dos líneas que la pantalla).
+          ...(traspasoCab
+            ? [
+                { etiqueta: 'Traspasado', valor: montoExacto(traspasoCab.traspasado, divisa) },
+                { etiqueta: 'Depósito por cobrar', valor: montoExacto(traspasoCab.porCobrar, divisa) },
+              ]
+            : []),
         ],
         columnas: COLS_PDF,
         filas: [
@@ -343,6 +359,12 @@ function EstadoCuentaTab() {
               <Dato etq="Renta $×m²" val={num(cab.precioM2)} />
               <Dato etq="Const. m²" val={num(cab.construccionM2)} />
               <Dato etq="INPC adic." val={num(cab.inpcPlus)} />
+              {traspasoCab && (
+                <>
+                  <Dato etq="Traspasado" val={montoExacto(traspasoCab.traspasado, divisa)} />
+                  <Dato etq="Depósito por cobrar" val={montoExacto(traspasoCab.porCobrar, divisa)} />
+                </>
+              )}
             </div>
             <BadgeEstado estado={cab.estado} />
           </div>
@@ -376,7 +398,7 @@ function EstadoCuentaTab() {
                   return (
                   <tr
                     key={`${p.numPartida}|${p.moneda}`}
-                    className={p.pagado ? 'bg-[#F0FAF1]' : 'hover:bg-gray-50'}
+                    className={p.pagado && !p.traspasado ? 'bg-[#F0FAF1]' : 'hover:bg-gray-50'}
                   >
                     <td className={`px-3 py-1.5 text-center font-medium ${repetida ? 'text-gray-300' : ''}`}>
                       {repetida ? '↳' : p.numPartida}
@@ -411,7 +433,11 @@ function EstadoCuentaTab() {
                     </td>
                     <td className="px-3 py-1.5 whitespace-nowrap">{fechaCorta(p.fecPago)}</td>
                     <td className="px-3 py-1.5 text-center">
-                      {p.pagado ? (
+                      {p.traspasado ? (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600">
+                          Traspasado
+                        </span>
+                      ) : p.pagado ? (
                         <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
                           Pagado
                         </span>

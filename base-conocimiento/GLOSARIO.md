@@ -84,6 +84,13 @@ palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parq
 - **Renovación programada (Arrendatarios):** plan de renovación ya registrado cuyo inicio es posterior al fin del plan vigente de la
   nave; se activa solo (cron diario) cuando el vigente vence. En Planes de Renta se ve como chip «Renovación programada».
 
+- **Depósito de garantía (Arrendatarios):** partida `numPartida = 0` («Deposito Garantia») de cada plan de renta; el monto vive en `pm2`. No es el
+  *depósito bancario* (`movbancarios`, dinero que entró al banco), que es el «saldo del depósito» de Aplicar pago.
+- **Traspaso de depósito (Arrendatarios, v2.81.0):** mover, en papel, el depósito de garantía ya recibido de contratos anteriores al contrato nuevo del
+  mismo arrendatario. No entra dinero al banco. Se guarda en `arre_traspasos_deposito`; se hace al renovar o con el botón «Traspasar depósito».
+- **Complemento (del depósito):** lo que sí falta cobrar en efectivo del depósito del contrato nuevo = depósito nuevo − lo traspasado.
+- **Disponible (de un depósito):** lo que un contrato puede traspasar hoy = su depósito + lo recibido por traspaso − lo ya traspasado a otros.
+
 ## Campos y banderas comunes
 
 - **`situacion`** (en `naves`): estado comercial de una nave. Valores: `Disponible`, `Apartado`,

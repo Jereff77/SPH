@@ -11,6 +11,7 @@ import { IncrementosService } from './incrementos.service.js';
 import { IncrementosNotificadorService } from './incrementos-notificador.service.js';
 import { ResponsablesService } from './responsables.service.js';
 import { HistorialPlanService } from './historial-plan.service.js';
+import { TraspasosDepositoService } from './traspasos-deposito.service.js';
 import { SseAuthGuard } from '../cxp/sse-auth.guard.js';
 import { InvitacionesModule } from '../invitaciones/invitaciones.module.js';
 import { ParquesModule } from '../parques/parques.module.js';
@@ -47,6 +48,7 @@ import { NotasModule } from '../notas/notas.module.js';
     IncrementosNotificadorService,
     ResponsablesService,
     HistorialPlanService,
+    TraspasosDepositoService,
     SseAuthGuard,
   ],
 })

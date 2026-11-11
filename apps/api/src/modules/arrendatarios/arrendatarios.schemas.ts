@@ -83,17 +83,64 @@ export type ContratoFirmadoDto = z.infer<typeof contratoFirmadoSchema>;
 export const conceptoFinanciadoSchema = z.object({
   concepto: z.string().trim().min(1, 'El concepto es obligatorio.').max(120),
   monto: z.coerce.number().positive('El monto debe ser mayor a 0.'),
-  mesInicio: z.coerce.number().int().min(0),
+  /** Mes del plan (1..plazo); el tope contra el plazo real lo valida el servicio. */
+  mesInicio: z.coerce.number().int().min(1, 'El mes de inicio debe ser 1 o mayor.'),
   periodo: z.coerce.number().int().positive('El periodo debe ser mayor a 0.'),
   /** Si se divide (prorratea) entre los meses del periodo. */
   dividir: z.coerce.boolean().default(true),
 });
 export type ConceptoFinanciadoDto = z.infer<typeof conceptoFinanciadoSchema>;
 
+/** Fecha yyyy-MM-dd que además existe en el calendario (2026-02-31 no pasa). */
+const FECHA_REAL = FECHA.refine((s) => {
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}, 'Fecha inválida.');
+
+/**
+ * Traspasar el depósito de garantía de uno o más contratos anteriores (orígenes) al
+ * contrato destino (00 D3). **El cliente NO envía montos ni arrendador**: la persona
+ * ELIGE orígenes y la BD traspasa el disponible completo de cada uno; arrendador,
+ * moneda, montos y actor se derivan en SQL. La fecha no futura la valida la BD
+ * (hora de México). `claveIdempotencia`: un UUID por envío (D15).
+ */
+export const traspasarDepositoSchema = z.object({
+  origenes: z
+    .array(z.string().trim().min(1, 'Origen inválido.').max(64, 'Origen inválido.'))
+    .min(1, 'Elige al menos un contrato de origen.')
+    .max(10, 'Máximo 10 contratos de origen por traspaso.')
+    .refine((a) => new Set(a).size === a.length, 'Hay contratos de origen repetidos.'),
+  fecTraspaso: FECHA_REAL,
+  nota: z
+    .string()
+    .trim()
+    .min(10, 'La nota debe tener al menos 10 caracteres (p. ej. el folio del contrato anterior).')
+    .max(400, 'La nota admite máximo 400 caracteres.'),
+  confirmado: z.literal(true, {
+    errorMap: () => ({
+      message: 'Debes confirmar que el depósito del contrato anterior fue recibido.',
+    }),
+  }),
+  claveIdempotencia: z.string().uuid('Clave de idempotencia inválida.'),
+});
+export type TraspasarDepositoDto = z.infer<typeof traspasarDepositoSchema>;
+
+/** Revertir un traspaso aplicado (por fila); el motivo es obligatorio (00 D8). */
+export const revertirTraspasoSchema = z.object({
+  motivo: z
+    .string()
+    .trim()
+    .min(5, 'El motivo debe tener al menos 5 caracteres.')
+    .max(400, 'El motivo admite máximo 400 caracteres.'),
+});
+export type RevertirTraspasoDto = z.infer<typeof revertirTraspasoSchema>;
+
 /**
  * Renovar un plan: crea un plan de renovación que sucede al actual (la
  * `fecInicio` la calcula la BD = fin del actual + 1 día). Los valores se precargan
  * con los del último mes del plan anterior y el usuario puede ajustarlos.
+ * `traspaso` (opcional, SIN valor por defecto): si viene, tras crear el plan se
+ * traspasa el depósito de los orígenes elegidos (exige además el permiso 25).
  */
 export const renovarPlanSchema = z.object({
   plazo: z.coerce.number().int().positive('El plazo debe ser mayor a 0.'),
@@ -109,6 +156,7 @@ export const renovarPlanSchema = z.object({
   cortesiaAdmin: z.coerce.number().min(0).default(0),
   cortesiaMtto: z.coerce.number().min(0).default(0),
   cortesiaVig: z.coerce.number().min(0).default(0),
+  traspaso: traspasarDepositoSchema.optional(),
 });
 export type RenovarPlanDto = z.infer<typeof renovarPlanSchema>;
 

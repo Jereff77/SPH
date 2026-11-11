@@ -11,6 +11,10 @@ import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { IncrementosService } from './incrementos.service.js';
 import { KvasService } from '../parques/kvas.service.js';
 import { monedaEfectiva, monedaValida } from './moneda.util.js';
+import { exigirPermiso } from '../../common/auth/exigir-permiso.js';
+import { fallaBd } from '../../common/utils/db-error.js';
+import { esConceptoDeposito } from './deposito.util.js';
+import { TraspasosDepositoService, type TraspasoRenovacionDto } from './traspasos-deposito.service.js';
 import { NotasService } from '../notas/notas.service.js';
 import { refPlanRenta } from '../notas/notas.config.js';
 import type {
@@ -71,6 +75,8 @@ export class PlanesArreService {
     private readonly kvas: KvasService,
     /** Avisos de MontseAI en el chat del plan (best-effort). */
     private readonly notas: NotasService,
+    /** Traspaso de depósito: guardas D13 y el traspaso encadenado a la renovación (D12). */
+    private readonly traspasos: TraspasosDepositoService,
   ) {}
 
   private generarId(n: number): string {
@@ -557,6 +563,10 @@ export class PlanesArreService {
 
   /** Edita un campo de la corrida desde un año (solo si el plan está vigente). */
   async editarCampo(idArrePdp: string, dto: EditarCampoDto, actorUid: string): Promise<void> {
+    // Guarda D13: el depósito que participa en un traspaso aplicado no se edita a mano.
+    if (esConceptoDeposito(dto.concepto))
+      await this.traspasos.exigirSinTraspasos(idArrePdp, 'editar_deposito');
+
     const { data: plan, error: planErr } = await this.supabase.admin
       .from('arrePdp')
       .select('idArrePdp, arrePdpVigente')
@@ -629,6 +639,11 @@ export class PlanesArreService {
     dto: CambiarMonedaDto,
     actorUid: string,
   ): Promise<{ ok: true; partidasAlcance: number; partidasCambiadas: number }> {
+    // Guarda D13: cambiar la moneda de un depósito con traspaso aplicado re-etiquetaría sin convertir.
+    // (También en la simulación: así el aviso sale en el primer paso de la confirmación.)
+    if (esConceptoDeposito(dto.concepto))
+      await this.traspasos.exigirSinTraspasos(idArrePdp, 'cambiar_moneda');
+
     const db = this.supabase.comoActor(actorUid);
     // RPC nueva v2_ (aún no tipada en @erp/types); cast localizado (igual que renovar).
     const { data, error } = await (
@@ -736,12 +751,30 @@ export class PlanesArreService {
     );
   }
 
-  /** Agrega un concepto financiado (KVA / adecuación) al plan. */
+  /**
+   * Agrega un concepto financiado (KVA / adecuación) al plan.
+   * Guarda: el cargo debe caber dentro del contrato (mesInicio + periodo − 1 ≤ plazo).
+   * Caso N22 (2026-11-09): un plan de 3 meses recibió cargos en los meses 4, 5 y 6.
+   */
   async agregarConcepto(
     idArrePdp: string,
     dto: ConceptoFinanciadoDto,
     actorUid: string,
   ): Promise<void> {
+    const { data: plan, error: planErr } = await this.supabase.admin
+      .from('arrePdp')
+      .select('idArrePdp, plazo')
+      .eq('idArrePdp', idArrePdp)
+      .maybeSingle();
+    if (planErr) fallaBd(this.logger, 'planes.agregarConcepto.plan', planErr);
+    if (!plan) throw new NotFoundException('Plan no encontrado.');
+    const plazo = plan.plazo ?? 0;
+    const ultimoMes = dto.mesInicio + dto.periodo - 1;
+    if (plazo <= 0 || dto.mesInicio > plazo || ultimoMes > plazo)
+      throw new BadRequestException(
+        `El cargo se saldría del contrato: el plan dura ${plazo} meses y el cargo abarcaría del mes ${dto.mesInicio} al ${ultimoMes}.`,
+      );
+
     const { data: rpcData, error } = await this.supabase
       .comoActor(actorUid)
       .rpc('arrepdp_agregar_concepto_financiado', {
@@ -767,6 +800,10 @@ export class PlanesArreService {
 
   /** Elimina (físico) las partidas de un concepto del plan. */
   async eliminarConcepto(idArrePdp: string, concepto: string, actorUid: string): Promise<void> {
+    // Guarda D13: el depósito con traspaso aplicado no se elimina (la FK a la partida también lo impediría).
+    if (esConceptoDeposito(concepto))
+      await this.traspasos.exigirSinTraspasos(idArrePdp, 'eliminar_concepto');
+
     const { error, count } = await this.supabase
       .comoActor(actorUid)
       .from('arrePdpDetalle')
@@ -831,8 +868,25 @@ export class PlanesArreService {
     );
   }
 
+  /**
+   * `exito:false` de las RPC `arrepdp_*` / `v2_arrepdp_*` heredadas: `ERROR_GENERAL` y
+   * `ERROR_INTERNO` traen el `SQLERRM` crudo (tablas, constraints) → solo al log y al
+   * cliente un genérico (regla 4b). Los rechazos de negocio conservan su mensaje (como hoy).
+   */
+  private rechazarRpc(res: RpcResultado, contexto: string, mensajeGenerico: string): never {
+    if (res.codigo === 'ERROR_GENERAL' || res.codigo === 'ERROR_INTERNO') {
+      this.logger.error(`RPC ${contexto} ${res.codigo}: ${res.mensaje ?? 'sin detalle'}`);
+      throw new InternalServerErrorException(mensajeGenerico);
+    }
+    throw new BadRequestException(res.mensaje ?? mensajeGenerico);
+  }
+
   /** Elimina un plan con restricciones (RPC) y registra la actividad. */
   async eliminarPlan(idArrePdp: string, actorUid: string): Promise<{ mensaje: string }> {
+    // Guarda D13: un plan con traspasos (aplicados O revertidos) no se elimina; la FK RESTRICT
+    // lo bloquearía de todos modos, pero así el mensaje es claro y no se filtra el error de BD.
+    await this.traspasos.exigirSinTraspasos(idArrePdp, 'eliminar_plan');
+
     const db = this.supabase.comoActor(actorUid);
     const { data, error } = await db.rpc('arrepdp_eliminar_plan_con_restricciones', {
       p_id_arre_pdp: idArrePdp,
@@ -842,8 +896,7 @@ export class PlanesArreService {
       throw new InternalServerErrorException('No se pudo eliminar el plan.');
     }
     const res = data as RpcResultado;
-    if (res?.exito === false)
-      throw new BadRequestException(res.mensaje ?? 'No se pudo eliminar el plan.');
+    if (res?.exito === false) this.rechazarRpc(res, 'eliminarPlan', 'No se pudo eliminar el plan.');
 
     await this.registrarActividad(db, {
       pantalla: 'Arrendatarios',
@@ -914,12 +967,22 @@ export class PlanesArreService {
    * Registra el plan de renovación (RPC `v2_arrepdp_renovar`): crea el nuevo plan
    * que sucede al actual (fecInicio = fin + 1 día) sin tocar el vigente, valida que
    * sea renovable (≤3 meses o vencido) y que no exista ya una renovación.
+   *
+   * Traspaso de depósito (D11/D12): si el cuerpo trae `traspaso`, se exige además el
+   * permiso 25 ANTES de crear nada (403 claro, no queda un plan a medias); la RPC de
+   * renovar NO cambia, el traspaso va DESPUÉS de crear el plan y su resultado viaja en
+   * `traspaso` (`omitido` | `aplicado` | `fallido`). Si falla, el plan se queda creado y
+   * la respuesta sigue siendo 200: se reintenta con `POST planes/{idNuevo}/traspasos`
+   * con la misma clave (no se vuelve a llamar a renovar → sin `YA_RENOVADO`).
    */
   async renovar(
     idArrePdp: string,
     dto: RenovarPlanDto,
     actorUid: string,
-  ): Promise<{ idArrePdp: string; mensaje: string }> {
+  ): Promise<{ idArrePdp: string; mensaje: string; traspaso: TraspasoRenovacionDto }> {
+    if (dto.traspaso)
+      await exigirPermiso(this.supabase, this.logger, actorUid, [25], 'PERMISO_REQUERIDO');
+
     const db = this.supabase.comoActor(actorUid);
     // RPC nueva v2_ (aún no tipada en @erp/types); cast localizado.
     const { data, error } = await (
@@ -950,7 +1013,7 @@ export class PlanesArreService {
     }
     const res = data as RpcResultado;
     if (res?.exito === false)
-      throw new BadRequestException(res.mensaje ?? 'No se pudo registrar la renovación.');
+      this.rechazarRpc(res, 'renovar', 'No se pudo registrar la renovación.');
     const idNuevo = res?.detalles?.id_plan;
     if (!idNuevo)
       throw new InternalServerErrorException('La RPC no devolvió el id de la renovación.');
@@ -961,7 +1024,12 @@ export class PlanesArreService {
       comentario: `Se registró la renovación ${idNuevo} del plan ${idArrePdp}.`,
       actorUid,
     });
-    return { idArrePdp: idNuevo, mensaje: res?.mensaje ?? 'Renovación registrada.' };
+
+    // D12: el traspaso nunca deshace el plan; un fallo se informa en `traspaso` (HTTP 200).
+    const traspaso: TraspasoRenovacionDto = dto.traspaso
+      ? await this.traspasos.traspasarTrasRenovar(idNuevo, dto.traspaso, actorUid)
+      : { estado: 'omitido' };
+    return { idArrePdp: idNuevo, mensaje: res?.mensaje ?? 'Renovación registrada.', traspaso };
   }
 
   // ----------------------------- Cancelación anticipada -----------------------------

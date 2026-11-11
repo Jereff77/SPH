@@ -40,6 +40,8 @@ export type TipoEventoHistorial =
   | 'inpc'
   | 'pago_aplicado'
   | 'pago_desaplicado'
+  | 'traspaso_deposito'
+  | 'traspaso_revertido'
   | 'cambio_manual';
 
 /** Renglón del Historial de una entidad (espejo de `EventoHistorial` en la API). */

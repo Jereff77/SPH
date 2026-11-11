@@ -5,6 +5,7 @@ import {
   arrendatariosApi,
   nombreArrendatario,
   moneda,
+  montoExacto,
   num,
   fechaCorta,
   type ArrendatarioOpt,
@@ -17,6 +18,8 @@ import { DetallePartida } from './DetallePartida';
 import { ConfigArrendatarioModal } from './ConfigArrendatarioModal';
 import { ConsultaInpcModal } from './ConsultaInpcModal';
 import { RenovarPlanModal } from './RenovarPlanModal';
+import { TraspasarDepositoModal } from './TraspasarDepositoModal';
+import { ResumenDeposito } from './ResumenDeposito';
 import { CancelarAnticipadoModal } from './CancelarAnticipadoModal';
 import { incrementosApi } from './incrementos.api';
 import { IncrementosBitacoraModal } from './IncrementosBitacora';
@@ -49,6 +52,7 @@ export function ArrendatariosPage() {
   const [liberando, setLiberando] = useState(false);
   const [renovarDe, setRenovarDe] = useState<string | null>(null);
   const [cancelarDe, setCancelarDe] = useState<string | null>(null);
+  const [traspasarDe, setTraspasarDe] = useState<string | null>(null);
 
   const { data: arrendatarios = [] } = useQuery({
     queryKey: ['arre-lista'],
@@ -90,6 +94,19 @@ export function ArrendatariosPage() {
 
   const planSel = planes.find((p) => p.idArrePdp === idArrePdp) ?? null;
   const propSel = propiedades.find((p) => p.idNavArrend === idNavArrend) ?? null;
+
+  // Depósito del plan seleccionado (misma consulta que la franja de la corrida): decide si
+  // el botón «Traspasar depósito» tiene algo que hacer (depósito por cobrar, sin pagar).
+  const { data: depositoSel } = useQuery({
+    queryKey: ['arre-deposito', idArrePdp],
+    queryFn: () => arrendatariosApi.depositoPlan(idArrePdp),
+    enabled: !!planSel,
+  });
+  const puedeTraspasarDeposito =
+    tienePermiso(25) &&
+    !!depositoSel?.deposito &&
+    !depositoSel.deposito.pagada &&
+    depositoSel.deposito.porCobrar > 0;
 
   // En esta pantalla solo se muestran planes **activos** (el vinculado con
   // pdpActivo) o **finalizados** (vencidos, arrePdpVigente='No'). Los planes "en
@@ -273,6 +290,16 @@ export function ArrendatariosPage() {
                   🔄 Renovar
                 </button>
               )}
+              {puedeTraspasarDeposito && planSel && (
+                <button
+                  type="button"
+                  onClick={() => setTraspasarDe(planSel.idArrePdp)}
+                  title="Mueve el depósito de contratos anteriores a este contrato"
+                  className="rounded-lg border border-[#1f2a4d] px-3 py-1.5 text-xs font-medium text-[#1f2a4d] hover:bg-[#1f2a4d]/5"
+                >
+                  ⇄ Traspasar depósito
+                </button>
+              )}
               {cancelable && tienePermiso(22) && (
                 <button
                   type="button"
@@ -347,6 +374,14 @@ export function ArrendatariosPage() {
             void queryClient.invalidateQueries({ queryKey: ['arre-planes'] });
             void queryClient.invalidateQueries({ queryKey: ['arre-propiedades', idArrendador] });
           }}
+        />
+      )}
+      {traspasarDe && (
+        <TraspasarDepositoModal
+          idArrePdp={traspasarDe}
+          nombre={`${arreSel ? nombreArrendatario(arreSel) : ''} · ${propSel?.nomDescriptivo ?? ''}`}
+          divisaPlan={planSel?.Moneda}
+          onClose={() => setTraspasarDe(null)}
         />
       )}
       {cancelarDe && (
@@ -593,6 +628,22 @@ function CorridaPlan({ plan }: { plan: PlanRenta }) {
   });
   const aplicados = incrementos.filter((i) => i.estado === 'aplicado');
   const ultimo = aplicados[0];
+  // Depósito de garantía del plan (comparte la consulta con la franja y con el botón de traspaso):
+  // la partida 0 lleva el chip «⇄ traspaso» si el plan recibió o emitió un traspaso.
+  const { data: depositoPlan } = useQuery({
+    queryKey: ['arre-deposito', plan.idArrePdp],
+    queryFn: () => arrendatariosApi.depositoPlan(plan.idArrePdp),
+  });
+  const dep = depositoPlan?.deposito ?? null;
+  const monDep = dep?.moneda === 'USD' ? 'USD' : 'MXN';
+  // Mismo criterio que la franja: solo con traspasos aplicados.
+  const hayAplicados = !!depositoPlan?.traspasos.some((t) => t.estado === 'aplicado');
+  const chipTraspaso =
+    hayAplicados && dep && dep.recibido > 0
+      ? `Recibió ${montoExacto(dep.recibido, monDep)} por traspaso de otros contratos`
+      : hayAplicados && dep && dep.emitido > 0
+        ? `Traspasó ${montoExacto(dep.emitido, monDep)} a otro contrato`
+        : null;
 
   if (!isLoading && data.length === 0) {
     return (
@@ -651,6 +702,8 @@ function CorridaPlan({ plan }: { plan: PlanRenta }) {
           onClose={() => setVerIncrementos(false)}
         />
       )}
+      {/* Franja «Depósito de garantía» (contractual · traspasado · por cobrar) con la lista de traspasos */}
+      <ResumenDeposito idArrePdp={plan.idArrePdp} divisa={divisa} />
     {/* Corrida (izquierda) + notas del plan (derecha, misma altura que la tabla) */}
     <div className="flex items-stretch gap-3">
     <div className="min-w-0 flex-1 overflow-auto rounded-xl border bg-white" style={{ maxHeight: '60vh' }}>
@@ -686,6 +739,7 @@ function CorridaPlan({ plan }: { plan: PlanRenta }) {
                   abierta={open}
                   modificable={modificable}
                   idArrePdp={plan.idArrePdp}
+                  chipTraspaso={r.numPartida === 0 ? chipTraspaso : null}
                   onToggle={() => setAbierta(open ? null : r.numPartida)}
                 />
               );
@@ -716,6 +770,7 @@ function PartidaFila({
   abierta,
   modificable,
   idArrePdp,
+  chipTraspaso,
   onToggle,
 }: {
   fila: ResumenPartida;
@@ -723,6 +778,8 @@ function PartidaFila({
   abierta: boolean;
   modificable: boolean;
   idArrePdp: string;
+  /** Solo la partida 0 de un plan con traspasos: texto del tooltip del chip «⇄ traspaso». */
+  chipTraspaso: string | null;
   onToggle: () => void;
 }) {
   return (
@@ -739,6 +796,14 @@ function PartidaFila({
           {fila.montos && fila.montos.length > 1
             ? fila.montos.map((m) => <div key={m.moneda}>{moneda(m.total, m.moneda)}</div>)
             : moneda(fila.total_cantidad, divisa)}
+          {chipTraspaso && (
+            <span
+              title={chipTraspaso}
+              className="ml-1 inline-block rounded-full bg-[#e8ecf7] px-2 py-0.5 align-middle text-[11px] font-semibold text-[#1f2a4d]"
+            >
+              ⇄ traspaso
+            </span>
+          )}
         </td>
         <td className="px-3 py-2 text-center">
           <button

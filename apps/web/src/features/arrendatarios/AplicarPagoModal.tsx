@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   arrendatariosApi,
   hoyMexico,
+  montoExacto,
   num,
   fechaCorta,
   MESES,
@@ -477,7 +478,18 @@ export function AplicarPagoModal({
                                       onChange={() => toggleDet(p.id_detalle)}
                                       className="h-4 w-4 accent-amber-500"
                                     />
-                                    <span className="flex-1 text-gray-600">{p.concepto ?? '—'}</span>
+                                    <span className="flex-1 text-gray-600">
+                                      {p.concepto ?? '—'}
+                                      {(p.traspasoRecibido ?? 0) > 0 && (
+                                        <span
+                                          className="ml-1 inline-block rounded-full bg-amber-100 px-2 py-px text-[11px] font-semibold text-amber-700"
+                                          title="Parte del depósito de garantía ya se cubrió por traspaso de contratos anteriores; esto es lo que falta cobrar."
+                                        >
+                                          complemento · {montoExacto(p.traspasoRecibido, p.divisa ?? 'MXN')}{' '}
+                                          traspasados
+                                        </span>
+                                      )}
+                                    </span>
                                     <span className="tabular-nums text-gray-600">{num(p.monto)}</span>
                                   </label>
                                 ))}

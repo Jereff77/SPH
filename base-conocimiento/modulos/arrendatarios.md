@@ -1,14 +1,14 @@
 ---
 modulo: Arrendatarios
 estado: desarrollado
-version_doc: 2.2
-ultima_actualizacion: 2026-10-14
+version_doc: 2.3
+ultima_actualizacion: 2026-11-11
 rutas_v2: [/arrendatarios, /arrendatarios/planes, /arrendatarios/reportes]
 rutas_v1: [i02_arrendatarios]
 claves_permiso: [10, 20, 21, 22, 23, 24, 25]
-tablas: [inversionista, arrenPropiedades, arrePdp, arrePdpDetalle, arreConceptos, inversionista_docs, naves, parques, inpc, movbancarios, v_arrendadasNaves, catUsers, segModulos, auditoria, notasEntidad]
-rpcs: [arrepdp_crear_plan_simple_rpc, arrepdp_generar_corrida_desde_plan_simple, arrepdpdetalle_aplicar_meses_gracia, arrepdpdetalle_obtener_resumen_por_plan, arrepdpdetalle_actualizar_campo_manual, arrepdpdetalle_calcular_anio_por_plan, arrepdpdetalle_recalcular_anos_contrato, actualizar_anios_planes_nuevos, actualizar_ciclo_plan_pago, actualizar_inpc_por_ciclo, arrepdp_agregar_concepto_financiado, arrepdp_eliminar_plan_con_restricciones, aplicar_pago_arrendatario, pagos_arrendatarios, contratos_por_vencer, contratos_vencidos_sin_renovacion, movbancarios_sin_aplicar, v2_arrepdp_renovar, v2_arrepdp_activar_renovaciones, v2_arrepdp_cancelar_anticipado, v2_arrepdpdetalle_cambiar_moneda]
-palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo, arrendatario no aparece, no aparece en arrendatarios, no aparece en el selector, nave no disponible, nave disponible para rentar, sin clasificar, plan de renta huérfano, arrePdp huérfano, el plan no tiene parcialidades, con plan pero vacío, no me aparece el plan, no puedo liberar la nave, no puedo desvincular la nave, motivo de la desvinculación, motivo de baja, motivoBaja, por qué se liberó la nave, historial de la nave, papelera, cliente en papelera no sale, no aparece un arrendatario en el selector, contrato firmado, contratoFirmado, idContratoDoc, switch contrato, ya tenemos el contrato, subir el contrato, documento del contrato, contrato no firmado, file too large, archivo muy grande, no me deja subir el contrato, tope de tamaño, 50 MB, notas del plan, chat del plan, MontseAI, nota, comentario del plan, avisos automáticos, panel de notas, borrar una nota, "moneda null", "moneda vacía", "sin moneda", "cambiar la moneda", "cambiar moneda de un concepto", "moneda editable", "Datos de entrada inválidos al renovar", "no me deja renovar", "error al renovar el plan", "renovación programada", "no veo la renovación", "ya renové y no aparece", "renovación registrada", "estado de cuenta por moneda", "plan en dólares y pesos", "mezcla de monedas", "Mtto BQ", "no se puede cambiar la moneda", "pago aplicado moneda", "el depósito es USD", "sin tipo de cambio"]
+tablas: [inversionista, arrenPropiedades, arrePdp, arrePdpDetalle, arreConceptos, inversionista_docs, naves, parques, inpc, movbancarios, v_arrendadasNaves, catUsers, segModulos, auditoria, notasEntidad, arre_traspasos_deposito, arre_pagos]
+rpcs: [arrepdp_crear_plan_simple_rpc, arrepdp_generar_corrida_desde_plan_simple, arrepdpdetalle_aplicar_meses_gracia, arrepdpdetalle_obtener_resumen_por_plan, arrepdpdetalle_actualizar_campo_manual, arrepdpdetalle_calcular_anio_por_plan, arrepdpdetalle_recalcular_anos_contrato, actualizar_anios_planes_nuevos, actualizar_ciclo_plan_pago, actualizar_inpc_por_ciclo, arrepdp_agregar_concepto_financiado, arrepdp_eliminar_plan_con_restricciones, aplicar_pago_arrendatario, pagos_arrendatarios, contratos_por_vencer, contratos_vencidos_sin_renovacion, movbancarios_sin_aplicar, v2_arrepdp_renovar, v2_arrepdp_activar_renovaciones, v2_arrepdp_cancelar_anticipado, v2_arrepdpdetalle_cambiar_moneda, arre_traspaso_candidatos, arre_traspasar_deposito, arre_revertir_traspaso, arre_aplicar_pago_atomico]
+palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo, arrendatario no aparece, no aparece en arrendatarios, no aparece en el selector, nave no disponible, nave disponible para rentar, sin clasificar, plan de renta huérfano, arrePdp huérfano, el plan no tiene parcialidades, con plan pero vacío, no me aparece el plan, no puedo liberar la nave, no puedo desvincular la nave, motivo de la desvinculación, motivo de baja, motivoBaja, por qué se liberó la nave, historial de la nave, papelera, cliente en papelera no sale, no aparece un arrendatario en el selector, contrato firmado, contratoFirmado, idContratoDoc, switch contrato, ya tenemos el contrato, subir el contrato, documento del contrato, contrato no firmado, file too large, archivo muy grande, no me deja subir el contrato, tope de tamaño, 50 MB, notas del plan, chat del plan, MontseAI, nota, comentario del plan, avisos automáticos, panel de notas, borrar una nota, "moneda null", "moneda vacía", "sin moneda", "cambiar la moneda", "cambiar moneda de un concepto", "moneda editable", "Datos de entrada inválidos al renovar", "no me deja renovar", "error al renovar el plan", "renovación programada", "no veo la renovación", "ya renové y no aparece", "renovación registrada", "estado de cuenta por moneda", "plan en dólares y pesos", "mezcla de monedas", "Mtto BQ", "no se puede cambiar la moneda", "pago aplicado moneda", "el depósito es USD", "sin tipo de cambio", traspaso de depósito, traspasar depósito, depósito de garantía, depósito en garantía, complemento del depósito, revertir traspaso, traspasado, nave hermana, depósito por cobrar, el depósito bajó, Deumex]
 relacionado_con: [parques, clientes, inversionistas, cxp, notas]
 ---
 
@@ -650,6 +650,65 @@ Pantalla Arrendatarios · Gestión de Pagos (clave 10), columna derecha, de arri
 - Hoy hay **100** contratos vigentes sin firma. Es un conteo de **planes**: una nave con dos planes vigentes aparece dos veces (ver abajo).
 - ⚠️ **Naves con 2 planes vigentes activos** (hallazgo 2026-10-14, incrementos INPC de octubre): 09, 12, 43, 44, 79, 80, 86 y 111. En KMEX nave 111 los dos planes recibieron su incremento y el correo trae dos renglones por la misma nave; **no es un fallo del incremento**, es el dato. Decide Arrendatarios si son contratos distintos o un duplicado (uno suele tener id sin prefijo `PDP_`).
 
+## Traspaso de depósito de garantía (v2.81.0, 2026-11-11)
+
+> Paquete de diseño completo: `docs/traspaso-deposito/` (00 brief → 07 verificación adversarial, `mockup.html`). Migración:
+> `base-conocimiento/migraciones/2026-10-21-traspaso-deposito.sql` (aplicada en producción el 2026-10-21).
+
+**Qué resuelve.** Al renovar un contrato el sistema crea un depósito de garantía **nuevo y completo** que queda «por cobrar», aunque el
+inquilino ya tiene uno en poder de SPH. El **traspaso** mueve, en papel, el depósito ya recibido de contratos anteriores al contrato nuevo;
+solo se cobra en efectivo la diferencia (el **complemento**). Caso real (Deumex): depósito nuevo $500,645.02 − traspaso $474,005.91 (dos
+naves de $237,002.955) = **$26,639.11** por cobrar. **No entra dinero al banco**: por eso no es un pago ni toca `movbancarios`.
+
+> ⚠️ **Dos «depósitos» distintos.** *Depósito de garantía* = la partida `numPartida = 0`, concepto «Deposito Garantia» de cada plan (el monto
+> vive en `pm2`; `cantidad` es una columna **generada** `pm2 × constM2`). *Depósito bancario* = fila de `movbancarios` (dinero que entró); es el
+> «saldo del depósito» de la pantalla Aplicar pago. No mezclarlos.
+
+**Cómo se usa.**
+- **Renovar** (claves 23 **y** 25): el modal trae la sección «Traspasar depósito de contratos anteriores». Se **eligen contratos** (nunca se
+  teclean montos): el sistema traspasa el disponible completo de cada uno. Pide nota (≥10 caracteres), fecha (no futura) y la casilla
+  «Confirmo que el depósito del contrato anterior fue recibido». Si el traspaso falla, el plan **queda creado** y el modal ofrece «Reintentar»
+  (misma clave; no recrea el plan).
+- **Botón «⇄ Traspasar depósito»** (clave 25) junto a Renovar: para contratos ya renovados; solo si el plan tiene depósito por cobrar sin pagar.
+- **Revertir** (clave 25, motivo ≥5 caracteres): desde la franja del plan.
+- **Franja «Depósito de garantía»** sobre la corrida: solo aparece si el plan tiene traspasos aplicados (contractual · traspasado · por cobrar).
+  El Historial del plan registra `traspaso_deposito` y `traspaso_revertido`. El estado de cuenta muestra el origen como «Traspasado» (no suma al
+  pendiente) y la cabecera suma «Traspasado» y «Depósito por cobrar».
+- **Aplicar pago / cobranza**: los depósitos ya traspasados **dejan de aparecer** «por cobrar»; la partida del destino muestra solo el complemento.
+
+**Reglas.**
+- **Candidatos** a origen: mismo arrendador y misma moneda efectiva; contratos ya terminados antes del inicio del destino; de la **misma nave** solo
+  el **más reciente** (los anteriores salen bloqueados «Ya incluido en el contrato siguiente de esta nave»); de **naves hermanas**, solo los que
+  vencen el día anterior al inicio del destino.
+- **Disponible** de un plan = `cantidad de su partida + Σ traspasos recibidos − Σ traspasos emitidos` (soporta cadenas 2023→2025→2026).
+  Σ lo traspasado ≤ depósito del destino (sin devolución de excedente en esta versión).
+- El **origen no se modifica** en `arrePdpDetalle`; el **destino** baja su `pm2` en lo traspasado y, si queda en 0, se marca pagado por traspaso
+  (`fecPago`, sin `arre_pagos`). `arrePdp.deposito` (el total del contrato) no cambia.
+- **Reversa aditiva** (`pm2 += monto`), en orden inverso; se bloquea si el destino ya emitió otro traspaso o si tiene un pago aplicado (primero
+  *Desaplicar pago*).
+- **Motivos de bloqueo** (`detalles.bloq`): `MONEDA_DISTINTA`, `DEPOSITO_EN_CERO`, `YA_TRASPASADO`, `DEPOSITO_NO_ESTANDAR`, `DEPOSITO_AMBIGUO`,
+  `INCLUIDO_EN_SIGUIENTE`, `SUCESOR_SIN_DEPOSITO`.
+- **Guardas** en flujos existentes, solo si hay traspaso aplicado: eliminar plan (cualquier fila, aplicada o revertida) → `PLAN_CON_TRASPASOS`;
+  cambiar moneda → `TRASPASO_APLICADO`; editar o eliminar el concepto de depósito; **Desaplicar pago** del depósito de un origen ya traspasado → 409.
+- Decisiones de Jereff (2026-10-20): sin segundo aprobador en esta versión (controles: nota, orígenes acotados, doble permiso, auditoría);
+  Aplicar pago se endurece; `RenovarPlanModal` conserva su contenedor y aspecto.
+
+**Técnico.**
+- **Tabla** `arre_traspasos_deposito` (una fila por par origen→destino; nunca se borra, la reversa cambia `estado`): `idArrePdpOrigen/Destino`,
+  `idDetOrigen/Destino`, `monto numeric(15,8)`, `pm2Antes` (solo auditoría), `marcoPagada`, `fecTraspaso`, `nota`, `claveIdempotencia`, `uid`
+  (actor = `auth.uid()`), reversión. RLS activa **sin políticas** y `REVOKE` a anon/authenticated (solo `service_role`); `trg_auditoria`; FKs
+  `ON DELETE RESTRICT`.
+- **4 funciones** (`SECURITY INVOKER`, `search_path` fijo, `lock_timeout 3s`, solo `service_role`): `arre_traspaso_candidatos` (solo lectura, fuente única de
+  las reglas), `arre_traspasar_deposito`, `arre_revertir_traspaso`, **`arre_aplicar_pago_atomico`** (Aplicar pago ahora hace **una** llamada atómica: bloquea
+  partidas y movimiento, verifica los montos leídos y escribe `arre_pagos`; si algo cambió → 409 `PARTIDA_CAMBIO`). Todas devuelven JSON `{exito, codigo, mensaje, detalles}`.
+- **API** (`apps/api/src/modules/arrendatarios/`): `traspasos-deposito.service.ts` (nuevo), rutas `GET planes/:id/deposito` (20), `GET planes/:id/traspaso-origenes` (25),
+  `GET planes/:id/renovacion-traspaso-origenes` (23+25), `POST planes/:id/traspasos` (25), `POST traspasos/:id/revertir` (25), `POST planes/:id/renovar` (con `traspaso?`).
+  Los errores llevan `codigo` en el cuerpo (el filtro global lo propaga); nunca se reenvía el mensaje de la RPC. `common/auth/exigir-permiso.ts` es ahora la única
+  implementación de la regla de permisos (`PermisoGuard` delega en ella).
+- **Web**: `TraspasoDepositoForm`, `TraspasarDepositoModal`, `ResumenDeposito`, `traspaso-deposito.util.ts`; cambios en `RenovarPlanModal`, `ArrendatariosPage`,
+  `AplicarPagoModal` (etiqueta «complemento»), `ReportesArrePage`, `PanelNotas`/`notas.api`.
+- **Datos al 2026-10-20**: 234 partidas de depósito (una por plan), 145 con monto y **ninguna marcada como pagada** en la plataforma (los depósitos se cobraban fuera).
+
 ## Para el agente de soporte
 - **"En el dashboard no veo la tarjeta de 2 meses"** → se quitó en v2.80.0; las tarjetas son 1, 3 y 6 meses (rangos sin traslape).
 - **"Un contrato no sale en Sin contrato firmado"** → la tarjeta solo lista planes vigentes con `contratoFirmado=false` y vínculo activo; si ya se marcó firmado, está vencido, desvinculado o es de prueba/Tickets, no aparece.
@@ -746,3 +805,20 @@ Pantalla Arrendatarios · Gestión de Pagos (clave 10), columna derecha, de arri
   `arrenPropiedades` sin plan activo, `idArrePdp` NULL): se corrige re-apuntando el vínculo al plan de la
   renovación (`pdpActivo=true`). El plan futuro **no** se ve en Planes de Renta hasta que es el activo (la
   pantalla solo lista vencidos y el activo).
+
+- **"¿Por qué el depósito de este contrato ya no es el del contrato (p. ej. $26,639.11 en vez de $500,645.02)?"** → se **traspasó** depósito de contratos
+  anteriores; el plan muestra la franja «Depósito de garantía» (contractual · traspasado · por cobrar) y el Historial dice quién, cuánto y con qué nota.
+  Lo que falta por cobrar es el **complemento**. Diagnóstico: `consultar_datos` sobre `arre_traspasos_deposito` por `idArrePdpDestino`/`idArrePdpOrigen`.
+- **"No encuentro el botón «Traspasar depósito»"** → exige la clave **25** y que el plan seleccionado tenga el depósito **por cobrar y sin pagar**; en Renovar la sección exige 23 **y** 25.
+- **"Me dice que lo que elijo supera el depósito del nuevo contrato"** (`EXCEDE_DESTINO`) → la suma de lo disponible de los contratos elegidos es mayor al depósito
+  nuevo: quitar un origen o ajustar el depósito nuevo. No hay devolución de excedente en esta versión.
+- **"Un contrato anterior sale bloqueado y no puedo elegirlo"** → el motivo viene en la fila: otra moneda, depósito en 0 (se muestran el de la partida y el del plan),
+  ya traspasado, estructura no estándar, «ya incluido en el contrato siguiente de esta nave» (de cada nave solo cuenta el contrato terminado más reciente) o
+  «el contrato siguiente tiene depósito en 0» (probablemente se consolidó en otra nave: revisar los planes).
+- **"Me equivoqué en un traspaso"** → **Revertir** (clave 25, con motivo). Si dice que hay un pago aplicado: primero *Desaplicar pago* del depósito (Registro de movimientos);
+  si dice que el destino ya traspasó a otro contrato: revertir primero ese traspaso (orden inverso).
+- **"Aplicar pago dice «La partida cambió mientras aplicabas el pago; recarga»"** (409 `PARTIDA_CAMBIO`) → otra persona modificó la partida (o hizo un traspaso) en ese instante;
+  recargar la pantalla y repetir. Ya no se pierde saldo del depósito bancario.
+- **"El depósito de 2025 ya no aparece por cobrar en Aplicar pago / en la cobranza"** → se traspasó al contrato nuevo (es lo esperado). El origen queda como «Traspasado» en el estado de cuenta.
+- **"No me deja eliminar el plan / cambiar la moneda / desaplicar el pago del depósito"** → el plan o ese depósito participa en traspasos (`PLAN_CON_TRASPASOS`, `TRASPASO_APLICADO`): revertir primero el traspaso.
+- **"El traspaso falló pero la renovación sí se creó"** → es lo esperado (el plan nunca se revierte por un fallo del traspaso): usar «Reintentar traspaso» del modal o el botón «Traspasar depósito» del plan.

@@ -232,6 +232,147 @@ export interface RenovarInput {
   cortesiaAdmin: number;
   cortesiaMtto: number;
   cortesiaVig: number;
+  /** Traspaso de depósito de contratos anteriores (opcional; sin él no hay traspaso). */
+  traspaso?: TraspasarInput;
+}
+
+/**
+ * Respuesta de `POST planes/:id/renovar` (02-TRD §2): el plan se crea siempre (HTTP 200);
+ * el traspaso va después y puede salir `omitido`, `aplicado` (con sus totales) o `fallido`.
+ */
+export interface RenovarResultado {
+  idArrePdp: string;
+  mensaje: string;
+  traspaso:
+    | { estado: 'omitido' }
+    | ({ estado: 'aplicado' } & TraspasarResultado)
+    | { estado: 'fallido'; codigo: string; mensaje: string };
+}
+
+// ====================== Traspaso de depósito de garantía (02-TRD §2) ======================
+// Tipos espejo de los DTO de `apps/api/.../traspasos-deposito.service.ts`.
+
+/**
+ * Motivo por el que un candidato a origen no se puede elegir (lo decide la BD:
+ * `arre_traspaso_candidatos`; la pantalla solo lo muestra).
+ */
+export type BloqueoTraspaso =
+  | 'DEPOSITO_AMBIGUO'
+  | 'MONEDA_DISTINTA'
+  | 'DEPOSITO_NO_ESTANDAR'
+  | 'DEPOSITO_EN_CERO'
+  | 'YA_TRASPASADO'
+  | 'INCLUIDO_EN_SIGUIENTE'
+  | 'SUCESOR_SIN_DEPOSITO';
+
+/** Cómo se relaciona el candidato con el destino (la API lo calcula). */
+export type TipoCandidato = 'RENOVADO' | 'MISMA_NAVE' | 'HERMANA';
+
+/**
+ * Candidato a origen de un traspaso: fila de `arre_traspaso_candidatos` (05 §3-B) más la
+ * nave y el parque que añade la API. Los importes del depósito llegan con hasta 4
+ * decimales (p. ej. 237,002.955): mostrar con `montoExacto`, nunca con `moneda`.
+ */
+export interface TraspasoCandidato {
+  idArrePdp: string;
+  idNavArrend: string;
+  idArrePdpDet: string;
+  fecInicio: string | null;
+  fecFin: string | null;
+  /** Fin real del contrato (la cancelación anticipada, si existe, o el fin). */
+  finEfectivo: string | null;
+  /** true = misma nave que el destino; false = nave hermana (vence el día anterior). */
+  mismaNave: boolean;
+  tipo: TipoCandidato;
+  /** Número/nombre de la nave sin el prefijo («12»); se muestra como «Nave 12». */
+  nave: string | null;
+  parque: string | null;
+  /** Moneda efectiva de la partida de depósito ('MXN' | 'USD'). */
+  moneda: string | null;
+  cantidad: number;
+  recibido: number;
+  emitido: number;
+  /** `cantidad + recibido − emitido` (D5): lo que este plan puede traspasar hoy. */
+  disponible: number;
+  /** Depósito que dice el plan (`arrePdp.deposito`); distinto de `cantidad` si la corrida está en 0. */
+  depositoPlan: number | null;
+  bloqueo: BloqueoTraspaso | null;
+  /** Texto del bloqueo escrito por la API (respaldo si el código no se conoce). */
+  bloqueoTexto: string | null;
+}
+
+/** Cuerpo de `POST planes/:id/traspasos` (el cliente NO envía montos, D3). */
+export interface TraspasarInput {
+  origenes: string[];
+  /** yyyy-MM-dd, no futura. */
+  fecTraspaso: string;
+  /** 10–400 caracteres (folio o número de contrato del depósito anterior). */
+  nota: string;
+  confirmado: true;
+  /** UUID por envío (D15): el mismo valor en un reintento evita duplicar. */
+  claveIdempotencia: string;
+}
+
+/** Respuesta de `POST planes/:id/traspasos`. */
+export interface TraspasarResultado {
+  total: number;
+  cantidadRestante: number;
+  pagadaPorTraspaso: boolean;
+  /** true si era un reintento del mismo envío (idempotencia): no se duplicó nada. */
+  yaAplicado: boolean;
+  traspasos: Array<{ id: string; idArrePdpOrigen: string; monto: number }>;
+}
+
+/** Partida de depósito del plan con sus cifras (`GET planes/:id/deposito`). */
+export interface DepositoPlanResumen {
+  idArrePdpDet: string;
+  moneda: string | null;
+  /** Monto actual de la partida (ya descontados los traspasos recibidos). */
+  cantidad: number;
+  recibido: number;
+  emitido: number;
+  /** `cantidad + recibido`: lo que valía la partida antes de recibir traspasos. */
+  contractual: number;
+  porCobrar: number;
+  /** `cantidad + recibido − emitido` (D5): lo que el plan puede emitir hoy. */
+  disponible: number;
+  /** La partida tiene `fecPago` (pago bancario real o pagada por traspaso). */
+  pagada: boolean;
+  fecPago: string | null;
+  /** Una fila recibida aplicada dejó la partida en 0 → «Pagado por traspaso». */
+  pagadaPorTraspaso: boolean;
+}
+
+/** Identificación legible de un plan (la contraparte de un traspaso). */
+export interface PlanEtiqueta {
+  idArrePdp: string;
+  nave: string | null;
+  parque: string | null;
+  fecInicio: string | null;
+  fecFin: string | null;
+}
+
+/** Una fila de traspaso vista desde el plan consultado (`direccion`). */
+export interface TraspasoDto {
+  id: string;
+  /** `recibido` = el plan consultado es el destino; `emitido` = es el origen. */
+  direccion: 'recibido' | 'emitido';
+  estado: 'aplicado' | 'revertido';
+  monto: number;
+  moneda: string | null;
+  fecTraspaso: string;
+  nota: string;
+  /** Esta fila dejó el destino en 0 (pagado por traspaso, sin pago bancario). */
+  marcoPagada: boolean;
+  /** El otro plan del par (origen si `recibido`, destino si `emitido`). */
+  contraparte: PlanEtiqueta | null;
+  registro: { uid: string; autor: string | null; fecha: string };
+  reversion: { uid: string | null; autor: string | null; fecha: string; motivo: string | null } | null;
+}
+
+export interface DepositoPlanRespuesta {
+  deposito: DepositoPlanResumen | null;
+  traspasos: TraspasoDto[];
 }
 
 /** Partida candidata a cancelación (mes de la corrida). */
@@ -323,6 +464,10 @@ export interface EstadoCuentaCabecera {
   pm2Mtto: number;
   pm2Vig: number;
   inpcPlus: number;
+  /** Depósito recibido por traspaso de otros contratos (D14). Ausente si el plan no tiene traspasos. */
+  depositoTraspasado?: number;
+  /** Depósito que aún falta cobrar en efectivo (D14). */
+  depositoPorCobrar?: number;
 }
 
 /** Partida (mes) de la corrida desglosada por concepto. */
@@ -347,6 +492,8 @@ export interface EstadoCuentaPartida {
   montoPagado: number;
   fecPago: string | null;
   pagado: boolean;
+  /** Renglón 0 de un plan ORIGEN cuyo depósito se traspasó: sale «Traspasado» y no suma al pendiente. */
+  traspasado?: boolean;
 }
 
 /** Estado de cuenta de un plan: cabecera + corrida. */
@@ -382,6 +529,8 @@ export interface PagoArreRow {
   fec_pago: string | null;
   id_arrepdp: string | null;
   num_partida: number | null;
+  /** Solo depósito de garantía que recibió traspasos (D16): lo ya traspasado, para etiquetar «complemento». */
+  traspasoRecibido?: number | null;
 }
 
 export interface ContratoPorVencer {
@@ -529,10 +678,24 @@ export const arrendatariosApi = {
   renovacionPrecarga: (idArrePdp: string) =>
     api.get<RenovacionPrecarga>(`/arrendatarios/planes/${idArrePdp}/renovacion-precarga`),
   renovar: (idArrePdp: string, dto: RenovarInput) =>
-    api.post<{ idArrePdp: string; mensaje: string }>(
-      `/arrendatarios/planes/${idArrePdp}/renovar`,
-      dto,
+    api.post<RenovarResultado>(`/arrendatarios/planes/${idArrePdp}/renovar`, dto),
+
+  // Traspaso de depósito de garantía
+  /** Depósito del plan (contractual · traspasado · por cobrar) y sus traspasos (permiso 20). */
+  depositoPlan: (idArrePdp: string) =>
+    api.get<DepositoPlanRespuesta>(`/arrendatarios/planes/${idArrePdp}/deposito`),
+  /** Candidatos a origen para el destino `idArrePdp` (permiso 25). */
+  traspasoOrigenes: (idArrePdp: string) =>
+    api.get<TraspasoCandidato[]>(`/arrendatarios/planes/${idArrePdp}/traspaso-origenes`),
+  /** Candidatos para la renovación de `idArrePdp` (el destino aún no existe; permisos 23 y 25). */
+  renovacionTraspasoOrigenes: (idArrePdp: string, moneda: string) =>
+    api.get<TraspasoCandidato[]>(
+      `/arrendatarios/planes/${idArrePdp}/renovacion-traspaso-origenes${dq({ moneda })}`,
     ),
+  traspasarDeposito: (idArrePdpDestino: string, dto: TraspasarInput) =>
+    api.post<TraspasarResultado>(`/arrendatarios/planes/${idArrePdpDestino}/traspasos`, dto),
+  revertirTraspaso: (idTraspaso: string, motivo: string) =>
+    api.post<{ ok: true }>(`/arrendatarios/traspasos/${idTraspaso}/revertir`, { motivo }),
   cancelacionPrecarga: (idArrePdp: string) =>
     api.get<CancelacionPrecarga>(`/arrendatarios/planes/${idArrePdp}/cancelacion-precarga`),
   cancelarAnticipado: (idArrePdp: string, dto: CancelarAnticipadoInput) =>
@@ -661,6 +824,19 @@ export const moneda = (n: number | null | undefined, divisa: string = 'MXN'): st
     currency: divisa === 'USD' ? 'USD' : 'MXN',
   });
 
+/**
+ * Importe del depósito de garantía con su divisa: mínimo 2 y **máximo 4 decimales**
+ * (los depósitos guardan hasta 4: 237,002.955). Así 2 × 237,002.955 se ve cuadrado
+ * (474,005.91) y no 474,005.92 como lo mostraría `moneda()` (2 decimales).
+ */
+export const montoExacto = (n: number | null | undefined, divisa: string = 'MXN'): string =>
+  (n ?? 0).toLocaleString('es-MX', {
+    style: 'currency',
+    currency: divisa === 'USD' ? 'USD' : 'MXN',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  });
+
 export const num = (n: number | null | undefined): string =>
   (n ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -668,4 +844,11 @@ export const fechaCorta = (iso: string | null): string => {
   if (!iso) return '—';
   const p = (iso.split('T')[0] ?? iso).split('-');
   return p.length === 3 ? `${Number(p[2])}/${Number(p[1])}/${p[0]}` : iso;
+};
+
+/** dd/mm/aaaa con ceros (regla 7b) para las pantallas del traspaso; `fechaCorta` no los rellena. */
+export const fechaDMA = (iso: string | null | undefined): string => {
+  if (!iso) return '—';
+  const p = (iso.split('T')[0] ?? iso).split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : iso;
 };

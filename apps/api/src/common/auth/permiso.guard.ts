@@ -1,13 +1,13 @@
 import {
   CanActivate,
   ExecutionContext,
-  ForbiddenException,
   Injectable,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { SupabaseService } from '../supabase/supabase.service.js';
+import { exigirPermiso } from './exigir-permiso.js';
 import { PERMISO_KEY } from './permisos.decorator.js';
 import type { AuthenticatedRequest } from './auth.types.js';
 
@@ -47,36 +47,9 @@ export class PermisoGuard implements CanActivate {
       throw new UnauthorizedException('No autenticado.');
     }
 
-    // Soporte (super-admin) tiene acceso total: evita el bloqueo de quien
-    // administra el sistema y el "catch-22" de no poder darse permisos.
-    const { data: perfil } = await this.supabase.admin
-      .from('catUsers')
-      .select('isSupport')
-      .eq('uid', user.uid)
-      .maybeSingle();
-    if (perfil?.isSupport === true) return true;
-
-    // any-of: basta con tener acceso a UNA de las claves declaradas.
-    const { data, error } = await this.supabase.admin
-      .from('segModulosUsuarios')
-      .select('acceso')
-      .eq('uid', user.uid)
-      .in('clave', claves)
-      .eq('acceso', true)
-      .limit(1);
-
-    if (error) {
-      this.logger.error(
-        `Error verificando permiso ${claves.join('/')} para ${user.uid}: ${error.message}`,
-      );
-      throw new ForbiddenException('No se pudo verificar el permiso.');
-    }
-
-    if (!data || data.length === 0) {
-      throw new ForbiddenException(
-        `Acceso denegado (permiso ${claves.join(' o ')}).`,
-      );
-    }
+    // Regla de soporte + any-of: vive en `exigirPermiso` (única implementación,
+    // reutilizable desde servicios). Mismas respuestas y mismo log que antes.
+    await exigirPermiso(this.supabase, this.logger, user.uid, claves);
     return true;
   }
 }

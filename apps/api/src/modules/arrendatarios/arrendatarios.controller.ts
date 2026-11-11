@@ -4,19 +4,23 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
   Query,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { PlanesArreService } from './planes-arre.service.js';
 import { CobranzaService } from './cobranza.service.js';
 import { ReportesArreService } from './reportes-arre.service.js';
 import { HistorialPlanService } from './historial-plan.service.js';
+import { TraspasosDepositoService } from './traspasos-deposito.service.js';
 import {
   aplicarPagoSchema,
   cancelarAnticipadoSchema,
@@ -30,6 +34,8 @@ import {
   cambiarMonedaSchema,
   quitarSugerenciaSchema,
   renovarPlanSchema,
+  revertirTraspasoSchema,
+  traspasarDepositoSchema,
   vincularNaveArreSchema,
   liberarNaveArreSchema,
   type AgregarConceptoPartidaDto,
@@ -44,6 +50,8 @@ import {
   type CambiarMonedaDto,
   type QuitarSugerenciaDto,
   type RenovarPlanDto,
+  type RevertirTraspasoDto,
+  type TraspasarDepositoDto,
   type VincularNaveArreDto,
   type LiberarNaveArreDto,
 } from './arrendatarios.schemas.js';
@@ -95,6 +103,7 @@ export class ArrendatariosController {
     private readonly cobranza: CobranzaService,
     private readonly reportes: ReportesArreService,
     private readonly historialPlan: HistorialPlanService,
+    private readonly traspasos: TraspasosDepositoService,
   ) {}
 
   // ============================ Planes de Renta (20) ============================
@@ -232,6 +241,62 @@ export class ArrendatariosController {
   @RequierePermiso(25)
   eliminarPlan(@CurrentUser() actor: AuthUser, @Param('idArrePdp') idArrePdp: string) {
     return this.planes.eliminarPlan(idArrePdp, actor.uid);
+  }
+
+  // ----- Traspaso de depósito de garantía -----
+
+  /** Tarjeta «Depósito contractual · Traspasado · Por cobrar» + traspasos del plan. Clave 20. */
+  @Get('planes/:idArrePdp/deposito')
+  @RequierePermiso(20)
+  deposito(@Param('idArrePdp') idArrePdp: string) {
+    return this.traspasos.estadoPlan(idArrePdp);
+  }
+
+  /** Candidatos a origen (con bloqueo y motivo) para un destino que ya existe. Clave 25. */
+  @Get('planes/:idArrePdp/traspaso-origenes')
+  @RequierePermiso(25)
+  traspasoOrigenes(@CurrentUser() actor: AuthUser, @Param('idArrePdp') idArrePdp: string) {
+    return this.traspasos.candidatos(idArrePdp, actor.uid);
+  }
+
+  /** Candidatos para la renovación de `:idArrePdp` (el destino aún no existe). Clave 23; el servicio exige además la 25. */
+  @Get('planes/:idArrePdp/renovacion-traspaso-origenes')
+  @RequierePermiso(23)
+  renovacionTraspasoOrigenes(
+    @CurrentUser() actor: AuthUser,
+    @Param('idArrePdp') idArrePdp: string,
+    @Query('moneda') moneda?: string,
+  ) {
+    return this.traspasos.candidatosRenovacion(idArrePdp, moneda || undefined, actor.uid);
+  }
+
+  /**
+   * Traspasa el depósito disponible de los orígenes elegidos al plan destino. Clave 25.
+   * 201 al aplicar; 200 si es un reintento del mismo envío (`yaAplicado`, idempotente).
+   */
+  @Post('planes/:idArrePdp/traspasos')
+  @RequierePermiso(25)
+  async traspasar(
+    @CurrentUser() actor: AuthUser,
+    @Param('idArrePdp') idArrePdp: string,
+    @Body(new ZodValidationPipe(traspasarDepositoSchema, 'DATOS_INVALIDOS')) dto: TraspasarDepositoDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const r = await this.traspasos.traspasar(idArrePdp, dto, actor.uid);
+    if (r.yaAplicado) res.status(200);
+    return r;
+  }
+
+  /** Revierte UNA fila de traspaso (reversa aditiva), con motivo. Clave 25. */
+  @Post('traspasos/:id/revertir')
+  @RequierePermiso(25)
+  @HttpCode(200)
+  revertirTraspaso(
+    @CurrentUser() actor: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(revertirTraspasoSchema, 'DATOS_INVALIDOS')) dto: RevertirTraspasoDto,
+  ) {
+    return this.traspasos.revertir(id, dto, actor.uid);
   }
 
   // ----- Renovación (clave 23) -----

@@ -9,6 +9,17 @@ import { randomUUID } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { AplicarPagoDto } from './arrendatarios.schemas.js';
 import { monedaDeposito, monedaValida } from './moneda.util.js';
+import {
+  aMicro,
+  deMicro,
+  esConceptoDeposito,
+  excepcionConCodigo,
+  navePorPlan as navePorPlanDe,
+  num,
+  rpcSinTipar,
+  type RpcPaquete,
+} from './deposito.util.js';
+import { TraspasosDepositoService } from './traspasos-deposito.service.js';
 import { parsearEstadoCuentaBanBajio } from './estado-cuenta.parser.js';
 import type { TablesInsert } from '@erp/types';
 
@@ -75,13 +86,58 @@ const TASA_IVA_DEFAULT = 0.16;
  * de `catParametros` (idCorto='iva'). Aplica igual a MXN y USD.
  */
 function ivaDePartida(cantidad: number, concepto: string | null, tasa: number): number {
-  const c = (concepto ?? '')
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .trim();
-  if (/^deposito.*garantia/.test(c)) return 0;
+  if (esConceptoDeposito(concepto)) return 0;
   return Math.round((cantidad || 0) * tasa * 100) / 100;
+}
+
+/**
+ * Códigos de `arre_aplicar_pago_atomico` → HTTP + texto escrito a mano (regla 4b: jamás se
+ * reenvía el `mensaje` de la RPC). Los textos repiten los de las validaciones previas en TS.
+ * `null` = imprevisto (ERROR_INTERNO, SIN_ACTOR o desconocido) → log + genérico.
+ */
+export function respuestaDeCodigoPago(
+  codigo: string,
+  d: Record<string, unknown> = {},
+): { status: 400 | 404 | 409; mensaje: string } | null {
+  switch (codigo) {
+    case 'PARTIDA_CAMBIO':
+      return {
+        status: 409,
+        mensaje: 'La partida cambió mientras aplicabas el pago; recarga la pantalla e inténtalo de nuevo.',
+      };
+    case 'DEPOSITO_TRASPASADO':
+      return {
+        status: 409,
+        mensaje:
+          'Un depósito de garantía seleccionado ya fue traspasado a otro contrato y no se puede cobrar. Recarga la pantalla.',
+      };
+    case 'OCUPADO':
+      return {
+        status: 409,
+        mensaje: 'Otro usuario está aplicando pagos a estas partidas. Espera unos segundos e inténtalo de nuevo.',
+      };
+    case 'PARTIDA_PAGADA':
+      return { status: 400, mensaje: 'Alguna partida seleccionada ya estaba pagada.' };
+    case 'PARTIDA_NO_ENCONTRADA':
+      return { status: 400, mensaje: 'Alguna partida seleccionada no existe.' };
+    case 'MOV_NO_ENCONTRADO':
+      return { status: 404, mensaje: 'Movimiento bancario no encontrado.' };
+    case 'MOV_AGOTADO':
+      return { status: 400, mensaje: 'El depósito ya fue aplicado por completo (sin saldo disponible).' };
+    case 'MOV_SIN_SALDO':
+      return { status: 400, mensaje: 'El depósito ya no tiene saldo disponible.' };
+    case 'SIN_MONTO':
+      return { status: 400, mensaje: 'Selecciona al menos una partida con monto.' };
+    case 'SALDO_INSUFICIENTE':
+      return {
+        status: 400,
+        mensaje: `El total seleccionado (${num(d.total).toFixed(2)}) excede el saldo disponible del depósito (${num(d.saldo).toFixed(2)}) por más del margen permitido (${num(d.tolerancia).toFixed(2)}).`,
+      };
+    case 'PARAMETRO_INVALIDO':
+      return { status: 400, mensaje: 'Los datos de la aplicación del pago no son válidos.' };
+    default:
+      return null;
+  }
 }
 
 /** Normaliza el nombre del ordenante para el mapeo aprendido (mismo criterio que el
@@ -105,7 +161,11 @@ export class CobranzaService {
   /** Caché breve de la tolerancia de centavos (SPHConfiguraciones). */
   private toleranciaCache: { valor: number; ts: number } | null = null;
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    /** Traspaso de depósito: lo traspasado por partida (D6 en `pagos()`). */
+    private readonly traspasos: TraspasosDepositoService,
+  ) {}
 
   /**
    * Tasa de IVA vigente desde `catParametros` (idCorto='iva', status=true). Se cachea
@@ -267,13 +327,64 @@ export class CobranzaService {
         })
       : filasCrudas;
 
-    return filtradas
+    const filas = filtradas
       .filter((r) => !r.parque || !ticket.has(r.parque))
       .map((r) => {
         const base = Number(r.monto) || 0;
         const iva = ivaDePartida(base, r.concepto, tasa);
         return { ...r, base, iva, monto: base + iva };
       });
+    return this.ocultarTraspasado(filas);
+  }
+
+  /**
+   * D6/D16 — la cobranza oculta lo ya traspasado (capa API; no se toca el RPC
+   * `pagos_arrendatarios`). Solo para la partida de depósito (`num_partida = 0` y concepto
+   * «Depósito Garantía») de un plan que EMITIÓ traspasos: `monto = max(0, cantidad − Σ
+   * emitido)` y la fila se omite si queda en 0 (ya no se ofrece cobrarla en *Aplicar pago*
+   * ni cuenta en el dashboard). SOLO si el depósito está POR COBRAR (sin `fec_pago`): uno ya
+   * pagado sigue contando como «Cobrado» tal cual. Al destino que RECIBIÓ traspasos se le añade
+   * `traspasoRecibido` (D16: «Depósito (complemento; $X traspasados)»); su `monto` ya viene
+   * rebajado de la BD. Con 0 traspasos las filas se devuelven EXACTAMENTE como antes (y si
+   * no hay filas de depósito ni se consulta la tabla).
+   */
+  private async ocultarTraspasado<
+    T extends {
+      id_detalle: string;
+      num_partida: number;
+      concepto: string;
+      fec_pago?: string | null;
+      base: number;
+      iva: number;
+      monto: number;
+    },
+  >(filas: T[]): Promise<Array<T & { traspasoRecibido?: number }>> {
+    const esDeposito = (r: T): boolean =>
+      Number(r.num_partida) === 0 && esConceptoDeposito(r.concepto);
+    if (!filas.some(esDeposito)) return filas;
+    const { emitido, recibido } = await this.traspasos.traspasosPorPartida();
+    if (emitido.size === 0 && recibido.size === 0) return filas;
+
+    const out: Array<T & { traspasoRecibido?: number }> = [];
+    for (const r of filas) {
+      if (!esDeposito(r)) {
+        out.push(r);
+        continue;
+      }
+      const emi = aMicro(emitido.get(r.id_detalle));
+      const rec = aMicro(recibido.get(r.id_detalle));
+      let fila: T & { traspasoRecibido?: number } = r;
+      // D6 solo aplica a lo POR COBRAR: un depósito de origen ya pagado no se oculta ni se rebaja.
+      if (emi > 0 && !r.fec_pago) {
+        const resto = aMicro(r.base) - emi;
+        if (resto <= 0) continue; // todo el depósito se traspasó: no se cobra, no aparece
+        const base = deMicro(resto);
+        fila = { ...r, base, iva: 0, monto: base };
+      }
+      if (rec > 0) fila = { ...fila, traspasoRecibido: deMicro(rec) };
+      out.push(fila);
+    }
+    return out;
   }
 
   /** Contratos por vencer en un rango de fechas (RPC `contratos_por_vencer`). Excluye Tickets. */
@@ -477,11 +588,11 @@ export class CobranzaService {
    * favor del mismo depósito**, disponible para aplicarlo después a otras partidas
    * (de cualquier mes: adelantos o atrasos). Cada partida se paga **completa**.
    *
-   * Implementación SIN tocar la BD: reutiliza la RPC `aplicar_pago_arrendatario`
-   * (que marca `arrePdpDetalle` + `movbancarios.aplicado=true`) y, si tras la
-   * aplicación el depósito conserva saldo, lo **vuelve a dejar disponible**
-   * (`aplicado=false`) desde el backend. El depósito solo queda `aplicado=true`
-   * cuando se agota.
+   * Las validaciones de moneda y tolerancia se hacen aquí (mismos mensajes de siempre) y
+   * la escritura es UNA llamada atómica a `arre_aplicar_pago_atomico` (traspaso de depósito,
+   * D9): marca `arrePdpDetalle`, registra `arre_pagos` y deja `movbancarios.aplicado` en
+   * `true` solo cuando el depósito se agota — todo o nada, con las partidas y el movimiento
+   * bloqueados. Si alguna partida cambió desde que se leyó → 409 `PARTIDA_CAMBIO`.
    */
   async aplicarPago(
     dto: AplicarPagoDto,
@@ -493,16 +604,16 @@ export class CobranzaService {
       .select('idmov, importe, aplicado, ordenante, moneda')
       .eq('idmov', dto.idmov)
       .maybeSingle();
-    if (movErr) throw new InternalServerErrorException(movErr.message);
-    if (!mov) throw new NotFoundException('Movimiento bancario no encontrado.');
+    if (movErr) this.fallaPago('aplicarPago.mov', movErr);
+    if (!mov) throw excepcionConCodigo(404, 'Movimiento bancario no encontrado.', 'MOV_NO_ENCONTRADO');
     if (mov.aplicado)
-      throw new BadRequestException('El depósito ya fue aplicado por completo (sin saldo disponible).');
+      throw excepcionConCodigo(400, 'El depósito ya fue aplicado por completo (sin saldo disponible).', 'MOV_AGOTADO');
 
     const importe = Number(mov.importe) || 0;
     const aplicadoPrevio = (await this.aplicadoPorDeposito([dto.idmov])).get(dto.idmov) ?? 0;
     const saldo = Math.round((importe - aplicadoPrevio) * 100) / 100;
     if (saldo <= 0.005)
-      throw new BadRequestException('El depósito ya no tiene saldo disponible.');
+      throw excepcionConCodigo(400, 'El depósito ya no tiene saldo disponible.', 'MOV_SIN_SALDO');
 
     // Partidas seleccionadas (cantidad **con IVA**): deben existir y estar pendientes.
     const tasa = await this.tasaIva();
@@ -510,20 +621,22 @@ export class CobranzaService {
       .from('arrePdpDetalle')
       .select('idArrePdpDet, cantidad, concepto, idArrePdp, fecPago, moneda')
       .in('idArrePdpDet', dto.idsDetalle);
-    if (parErr) throw new InternalServerErrorException(parErr.message);
+    if (parErr) this.fallaPago('aplicarPago.partidas', parErr);
     if (!partidas || partidas.length !== dto.idsDetalle.length)
-      throw new BadRequestException('Alguna partida seleccionada no existe.');
+      throw excepcionConCodigo(400, 'Alguna partida seleccionada no existe.', 'PARTIDA_NO_ENCONTRADA');
     if (partidas.some((p) => p.fecPago))
-      throw new BadRequestException('Alguna partida seleccionada ya estaba pagada.');
+      throw excepcionConCodigo(400, 'Alguna partida seleccionada ya estaba pagada.', 'PARTIDA_PAGADA');
 
     // Moneda: es OBLIGATORIA en el depósito y en las partidas/plan, y deben coincidir (sin
     // tipo de cambio no se mezclan). Nunca se omite en silencio: si falta, se dice la causa.
     // Datos heredados: 'MNX' (typo) = MXN; partida con moneda vacía/'null' usa la de su plan.
     const monedaMov = monedaDeposito(mov.moneda);
     if (!monedaMov)
-      throw new BadRequestException(
+      throw excepcionConCodigo(
+        400,
         `El depósito no tiene una moneda válida (dice «${(mov.moneda ?? '').trim() || 'vacía'}»; debe ser MXN o USD). ` +
           'Corrige la moneda del movimiento bancario antes de aplicar el pago.',
+        'MOV_MONEDA_INVALIDA',
       );
 
     const idsPlan = [...new Set(partidas.map((p) => p.idArrePdp).filter((x): x is string => !!x))];
@@ -531,26 +644,30 @@ export class CobranzaService {
       .from('arrePdp')
       .select('idArrePdp, Moneda')
       .in('idArrePdp', idsPlan);
-    if (plErr) throw new InternalServerErrorException(plErr.message);
+    if (plErr) this.fallaPago('aplicarPago.planes', plErr);
     const monedaPlan = new Map((planes ?? []).map((pl) => [pl.idArrePdp, monedaValida(pl.Moneda)]));
 
     const sinMoneda = partidas.find(
       (p) => !(monedaValida(p.moneda) ?? monedaPlan.get(p.idArrePdp ?? '')),
     );
     if (sinMoneda)
-      throw new BadRequestException(
+      throw excepcionConCodigo(
+        400,
         `La partida «${sinMoneda.concepto ?? 'sin concepto'}» no tiene moneda válida ni su plan tampoco ` +
           '(debe ser MXN o USD). Defínela en Planes de Renta → columna Moneda antes de aplicar el pago.',
+        'PARTIDA_SIN_MONEDA',
       );
 
     const distinta = partidas.find(
       (p) => (monedaValida(p.moneda) ?? monedaPlan.get(p.idArrePdp ?? '')) !== monedaMov,
     );
     if (distinta)
-      throw new BadRequestException(
+      throw excepcionConCodigo(
+        400,
         `El depósito es ${monedaMov} y la partida «${distinta.concepto ?? 'sin concepto'}» está en ${
           monedaValida(distinta.moneda) ?? monedaPlan.get(distinta.idArrePdp ?? '')
         }: no se puede aplicar sin tipo de cambio.`,
+        'MONEDA_DISTINTA',
       );
 
     // Monto (con IVA) por partida; se guarda por idArrePdpDet para arre_pagos.
@@ -566,74 +683,84 @@ export class CobranzaService {
       ) / 100;
 
     if (total <= 0.005)
-      throw new BadRequestException('Selecciona al menos una partida con monto.');
+      throw excepcionConCodigo(400, 'Selecciona al menos una partida con monto.', 'SIN_MONTO');
     // Regla: el total seleccionado puede exceder el saldo del depósito hasta el
     // **margen de tolerancia** (configurable; absorbe diferencias de redondeo de
     // centavos). Más allá del margen, se rechaza.
     const tolerancia = await this.toleranciaPago();
     if (total - saldo > tolerancia + 0.0001)
-      throw new BadRequestException(
+      throw excepcionConCodigo(
+        400,
         `El total seleccionado (${total.toFixed(2)}) excede el saldo disponible del depósito (${saldo.toFixed(2)}) por más del margen permitido (${tolerancia.toFixed(2)}).`,
+        'SALDO_INSUFICIENTE',
       );
 
+    // UNA sola llamada transaccional (D9): `arre_aplicar_pago_atomico` bloquea las partidas
+    // y el movimiento, verifica que las cantidades siguen como se leyeron (si no,
+    // `PARTIDA_CAMBIO` y NO se consume saldo), rechaza depósitos ya traspasados, marca las
+    // partidas, registra `arre_pagos` (uidPago agrupa esta aplicación) y deja el depósito
+    // agotado o con saldo a favor — todo o nada. Sustituye a las tres escrituras sueltas
+    // (aplicar_pago_arrendatario + insert arre_pagos + update movbancarios).
     const db = this.supabase.comoActor(actorUid);
-    const { error } = await db.rpc('aplicar_pago_arrendatario', {
+    const uidPago = randomUUID();
+    const { data: rpcData, error } = await rpcSinTipar(db, 'arre_aplicar_pago_atomico', {
       p_idmov: dto.idmov,
-      p_ids_detalle: dto.idsDetalle,
+      p_lineas: partidas.map((p) => ({
+        idArrePdpDet: p.idArrePdpDet,
+        cantidadEsperada: Number(p.cantidad) || 0,
+        monto: montoPorDet.get(p.idArrePdpDet) ?? 0,
+      })),
       p_fec_pago: dto.fecPago,
+      p_uid_pago: uidPago,
+      p_tolerancia: tolerancia,
     });
     if (error) {
       this.logger.error(`Error aplicando pago arrendatario (${dto.idmov}): ${error.message}`);
-      throw new InternalServerErrorException('No se pudo aplicar el pago.');
+      throw excepcionConCodigo(500, 'No se pudo aplicar el pago.', 'ERROR_INTERNO');
     }
+    const res = rpcData as RpcPaquete | null;
+    if (res?.exito !== true) throw this.rechazoPago(res, dto.idmov);
 
     const idArrePdp = partidas.find((p) => p.idArrePdp)?.idArrePdp ?? null;
     const idArrendador = await this.idArrendadorDePlan(db, idArrePdp);
 
-    // Registro del pago en `arre_pagos` (1 fila por partida; `uidPago` agrupa esta
-    // aplicación). Es la fuente de verdad del saldo aplicado del depósito.
-    const uidPago = randomUUID();
-    try {
-      const filas: TablesInsert<'arre_pagos'>[] = partidas.map((p) => ({
-        idArrePdpDet: p.idArrePdpDet,
-        idArrePdp: p.idArrePdp ?? null,
-        idArrendador,
-        idmov: dto.idmov,
-        uidPago,
-        monto: montoPorDet.get(p.idArrePdpDet) ?? 0,
-        fecPago: dto.fecPago,
-        uid: actorUid,
-        estado: 'aplicado',
-      }));
-      const { error: pagErr } = await db.from('arre_pagos').insert(filas);
-      if (pagErr) this.logger.warn(`No se pudo registrar en arre_pagos: ${pagErr.message}`);
-    } catch (e) {
-      this.logger.warn(`No se pudo registrar en arre_pagos: ${(e as Error).message}`);
-    }
-
     // Saldo a favor: el remanente real (saldo − total). Si la diferencia cae
     // **dentro de la tolerancia** (remanente o exceso de centavos), el depósito se
     // da por **AGOTADO** (se absorbe la diferencia, sin saldo a favor residual).
-    // Solo si el remanente supera la tolerancia se deja el depósito disponible.
+    // Solo si el remanente supera la tolerancia queda disponible. La función lo decide
+    // bajo candado; si no devolviera la cifra, se usa la calculada aquí (misma regla).
+    const d = res.detalles ?? {};
     const remanente = Math.round((saldo - total) * 100) / 100;
-    const agotado = remanente <= tolerancia + 0.0001;
-    const saldoAFavor = agotado ? 0 : remanente;
-    if (!agotado) {
-      const { error: updErr } = await db
-        .from('movbancarios')
-        .update({ aplicado: false })
-        .eq('idmov', dto.idmov);
-      if (updErr) this.logger.warn(`No se pudo dejar el depósito disponible: ${updErr.message}`);
-    }
+    const agotado = typeof d.agotado === 'boolean' ? d.agotado : remanente <= tolerancia + 0.0001;
+    const saldoAFavor = d.saldoAFavor != null ? num(d.saldoAFavor) : agotado ? 0 : remanente;
+    const aplicado = d.aplicado != null ? num(d.aplicado) : total;
 
     await this.registrarActividad(db, {
-      comentario: `Se aplicó ${total.toFixed(2)} del depósito ${dto.idmov} (importe ${importe.toFixed(2)}) a ${dto.idsDetalle.length} partida(s). Saldo a favor restante: ${Math.max(0, saldoAFavor).toFixed(2)}.`,
+      comentario: `Se aplicó ${aplicado.toFixed(2)} del depósito ${dto.idmov} (importe ${importe.toFixed(2)}) a ${dto.idsDetalle.length} partida(s). Saldo a favor restante: ${Math.max(0, saldoAFavor).toFixed(2)}.`,
       actorUid,
     });
 
     await this.aprenderOrdenante(db, idArrendador, mov.ordenante, importe);
 
-    return { importe, aplicado: total, saldoAFavor: Math.max(0, saldoAFavor), agotado };
+    return { importe, aplicado, saldoAFavor: Math.max(0, saldoAFavor), agotado };
+  }
+
+  /** Código de `arre_aplicar_pago_atomico` → excepción HTTP con texto a mano (nunca el `mensaje` de la RPC). */
+  private rechazoPago(res: RpcPaquete | null, idmov: string): Error {
+    const codigo = res?.codigo ?? 'ERROR_INTERNO';
+    const r = respuestaDeCodigoPago(codigo, res?.detalles ?? {});
+    if (r) return excepcionConCodigo(r.status, r.mensaje, codigo);
+    const det = res?.detalles ?? {};
+    this.logger.error(
+      `Error aplicando pago arrendatario (${idmov}): ${codigo}${det.sqlstate ? ` [${String(det.sqlstate)}]` : ''}${det.detalle ? ` — ${String(det.detalle)}` : ''}`,
+    );
+    return excepcionConCodigo(500, 'No se pudo aplicar el pago.', 'ERROR_INTERNO');
+  }
+
+  /** Falla de lectura dentro de `aplicarPago`: el detalle al log y al cliente un 500 genérico con código (regla 4b). */
+  private fallaPago(contexto: string, error: { message: string }): never {
+    this.logger.error(`${contexto}: ${error.message}`);
+    throw excepcionConCodigo(500, 'No se pudo aplicar el pago.', 'ERROR_INTERNO');
   }
 
   /**
@@ -762,62 +889,12 @@ export class CobranzaService {
       );
   }
 
-  /** Mapa idArrePdp → {nave, parque} (arrePdp→arrenPropiedades→naves→parques). */
-  private async navePorPlan(
-    idArrePdps: string[],
-  ): Promise<Map<string, { nave: string | null; parque: string | null }>> {
-    const out = new Map<string, { nave: string | null; parque: string | null }>();
-    if (idArrePdps.length === 0) return out;
-    const { data: planes } = await this.supabase.admin
-      .from('arrePdp')
-      .select('idArrePdp, idNavArrend')
-      .in('idArrePdp', idArrePdps);
-    const navArrends = [
-      ...new Set((planes ?? []).map((p) => p.idNavArrend).filter((x): x is string => !!x)),
-    ];
-    const { data: props } = navArrends.length
-      ? await this.supabase.admin
-          .from('arrenPropiedades')
-          .select('idNavArrend, idNave')
-          .in('idNavArrend', navArrends)
-      : { data: [] as { idNavArrend: string; idNave: string | null }[] };
-    const idNaves = [
-      ...new Set((props ?? []).map((p) => p.idNave).filter((x): x is string => !!x)),
-    ];
-    const { data: naves } = idNaves.length
-      ? await this.supabase.admin
-          .from('naves')
-          .select('idNave, numNave, numNaveNAME, idParque')
-          .in('idNave', idNaves)
-      : { data: [] as { idNave: string; numNave: number | null; numNaveNAME: string | null; idParque: string | null }[] };
-    const idParques = [
-      ...new Set((naves ?? []).map((n) => n.idParque).filter((x): x is string => !!x)),
-    ];
-    const { data: parques } = idParques.length
-      ? await this.supabase.admin.from('parques').select('idParque, nomParque').in('idParque', idParques)
-      : { data: [] as { idParque: string; nomParque: string | null }[] };
-
-    const parqueNom = new Map((parques ?? []).map((p) => [p.idParque, p.nomParque]));
-    const naveInfo = new Map(
-      (naves ?? []).map((n) => [
-        n.idNave,
-        {
-          nave: n.numNaveNAME ?? (n.numNave != null ? String(n.numNave) : null),
-          parque: n.idParque ? parqueNom.get(n.idParque) ?? null : null,
-        },
-      ]),
-    );
-    const porNavArrend = new Map(
-      (props ?? []).map((p) => [
-        p.idNavArrend,
-        p.idNave ? naveInfo.get(p.idNave) ?? null : null,
-      ]),
-    );
-    for (const pl of planes ?? []) {
-      const nv = pl.idNavArrend ? porNavArrend.get(pl.idNavArrend) : null;
-      out.set(pl.idArrePdp, nv ?? { nave: null, parque: null });
-    }
-    return out;
+  /**
+   * Mapa idArrePdp → {nave, parque} (arrePdp→arrenPropiedades→naves→parques). La lógica vive en
+   * `deposito.util.ts` (archivo hoja) para reutilizarla en el traspaso de depósito sin ciclos.
+   */
+  navePorPlan(idArrePdps: string[]): Promise<Map<string, { nave: string | null; parque: string | null }>> {
+    return navePorPlanDe(this.supabase, idArrePdps);
   }
 
   /**
@@ -842,6 +919,11 @@ export class CobranzaService {
       throw new NotFoundException('No se encontró un pago activo con ese identificador.');
 
     const idsDetalle = filas.map((f) => f.idArrePdpDet);
+
+    // Guarda D13: el pago del depósito de un ORIGEN con traspaso emitido aplicado no se desaplica
+    // (la partida volvería a «sin pagar», D6 la ocultaría y ya no se podría cobrar, dejando al destino
+    // con crédito sin respaldo). El pago del complemento de un DESTINO sí se puede desaplicar.
+    await this.traspasos.exigirDepositosSinEmision(idsDetalle);
 
     const db = this.supabase.comoActor(actorUid);
     const { error: revErr } = await db.rpc('desaplicar_pago_arrendatario', {
