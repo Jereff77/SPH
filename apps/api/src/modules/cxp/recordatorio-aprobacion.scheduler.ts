@@ -176,6 +176,14 @@ export class RecordatorioAprobacionScheduler {
       /\/$/,
       '',
     );
+    // Sin una base absoluta el botón saldría como "/cxp/aprobar" y Gmail lo trata como
+    // archivo adjunto («Descargar / Agregar a Drive»). Mejor no enviar que enviar roto.
+    if (!/^https?:\/\/[^/\s]+/i.test(baseUrl)) {
+      this.logger.error(
+        'APP_WEB_URL vacía o sin http(s)://; no se envían recordatorios (el enlace saldría roto).',
+      );
+      return { habilitado: true, aprobadores: porGerente.size, enviados: 0 };
+    }
     const enlace = `${baseUrl}/cxp/aprobar`;
 
     // 5) Un correo por aprobador ACTIVO con pendientes.
