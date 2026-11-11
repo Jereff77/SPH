@@ -177,14 +177,14 @@ export class RecordatorioAprobacionScheduler {
       '',
     );
     // Sin una base absoluta el botón saldría como "/cxp/aprobar" y Gmail lo trata como
-    // archivo adjunto («Descargar / Agregar a Drive»). Mejor no enviar que enviar roto.
-    if (!/^https?:\/\/[^/\s]+/i.test(baseUrl)) {
+    // archivo adjunto («Descargar / Agregar a Drive»). El correo SIEMPRE se envía (frenarlo
+    // detiene la operación de aprobación); lo que se omite es el botón/enlace roto.
+    const baseValida = /^https?:\/\/[^/\s]+/i.test(baseUrl);
+    if (!baseValida)
       this.logger.error(
-        'APP_WEB_URL vacía o sin http(s)://; no se envían recordatorios (el enlace saldría roto).',
+        'APP_WEB_URL vacía o sin http(s)://; los recordatorios se envían SIN botón de enlace. Definir la variable.',
       );
-      return { habilitado: true, aprobadores: porGerente.size, enviados: 0 };
-    }
-    const enlace = `${baseUrl}/cxp/aprobar`;
+    const enlace = baseValida ? `${baseUrl}/cxp/aprobar` : null;
 
     // 5) Un correo por aprobador ACTIVO con pendientes.
     let enviados = 0;
@@ -256,8 +256,24 @@ export class RecordatorioAprobacionScheduler {
   private plantilla(
     nombre: string,
     solicitudes: SolicitudPendiente[],
-    enlace: string,
+    enlace: string | null,
   ): string {
+    // Con enlace válido: botón + URL en texto. Sin él: instrucción de ingreso manual.
+    const accion = enlace
+      ? `<p style="text-align:center;margin:0 0 8px">
+      <a href="${escapar(enlace)}"
+         style="display:inline-block;background:#1f2a4d;color:#ffffff;text-decoration:none;
+                padding:12px 28px;border-radius:8px;font-size:15px;font-weight:bold">
+        Revisar solicitudes
+      </a>
+    </p>
+    <p style="font-size:12px;word-break:break-all;color:#3f5b87;margin:0">
+      ${escapar(enlace)}
+    </p>`
+      : `<p style="font-size:14px;line-height:1.6;color:#374151;margin:0">
+      Ingresa al portal y entra a <strong>Cuentas por Pagar ▸ Aprobar solicitudes</strong>
+      para revisarlas.
+    </p>`;
     const n = solicitudes.length;
     const filas = solicitudes
       .map(
@@ -288,16 +304,7 @@ export class RecordatorioAprobacionScheduler {
       </thead>
       <tbody>${filas}</tbody>
     </table>
-    <p style="text-align:center;margin:0 0 8px">
-      <a href="${escapar(enlace)}"
-         style="display:inline-block;background:#1f2a4d;color:#ffffff;text-decoration:none;
-                padding:12px 28px;border-radius:8px;font-size:15px;font-weight:bold">
-        Revisar solicitudes
-      </a>
-    </p>
-    <p style="font-size:12px;word-break:break-all;color:#3f5b87;margin:0">
-      ${escapar(enlace)}
-    </p>
+    ${accion}
   </div>
   <p style="text-align:center;font-size:11px;color:#9ca3af;margin:18px 0">
     SPH Bienes Raíces — Mensaje automático, no respondas a este correo.

@@ -96,14 +96,17 @@ no tienen ninguna solicitud pendiente. Las solicitudes **sin aprobador asignado*
 - Si `SMTP_INVITACIONES_*` no está configurado, la tarea registra y sale **sin enviar**
   (no rompe). Verificar esas envs + `APP_WEB_URL` en el entorno.
 - 📌 **`APP_WEB_URL` es obligatoria y debe ser absoluta** (`https://portal.gruposph.mx`, sin `/` final).
-  **Incidente 2026-11-08 (v2.80.1):** `APP_WEB_URL` no estaba definida en EasyPanel (servicio
+  **Incidente 2026-11-08 (corregido en v2.80.1 y refinado en v2.80.2):** `APP_WEB_URL` no estaba definida en EasyPanel (servicio
   `erp_v2_api`), el botón «Revisar solicitudes» salió con el enlace relativo `/cxp/aprobar` y **Gmail lo
   trató como adjunto** («Descargar / Agregar a Drive / Guardar en Fotos»): ningún aprobador podía abrir
   la pantalla desde el correo (reportó Paul-Henri Gauvin). **Arreglo:** (1) se definió la variable en
   EasyPanel y se reimplementó la API; (2) **guarda en código** (`recordatorio-aprobacion.scheduler.ts`):
-  si la base no empieza con `http(s)://`, la tarea **no envía** y registra un error claro en logs
-  (`APP_WEB_URL vacía o sin http(s)://…`). **Síntoma para soporte:** si «no llegan recordatorios» o el
-  botón no abre nada, revisar primero esa variable. La misma variable arma los enlaces de invitación
+  si la base no empieza con `http(s)://`, **el correo SIEMPRE se envía** (frenarlo detendría la
+  operación de aprobación; decisión de Jereff, 2026-11-11, que corrigió la v2.80.1 donde se cancelaba
+  el envío) pero **sin botón ni enlace**: en su lugar dice «Ingresa al portal y entra a Cuentas por
+  Pagar ▸ Aprobar solicitudes», y se registra el error en logs (`APP_WEB_URL vacía o sin http(s)://…`).
+  **Síntoma para soporte:** si el correo llega sin botón (solo con la instrucción de ingresar al
+  portal), revisar primero esa variable. La misma variable arma los enlaces de invitación
   (`/registro?token=`) y de recuperar contraseña (`/restablecer`).
 - La tabla `mail_recordatorios_aprobacion` se accede sin tipar (`as any`/cliente genérico)
   hasta regenerar `@erp/types`, igual que `v2_cron_ejecuciones`/`v2_soporte_*`.
