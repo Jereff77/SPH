@@ -607,7 +607,9 @@ function ContratoFirmadoBox({
 }
 
 function CorridaPlan({ plan }: { plan: PlanRenta }) {
-  const modificable = plan.arrePdpVigente !== 'No';
+  const { tienePermiso } = useAuth();
+  // Editar la corrida exige el permiso 25 (editar planes), igual que el servidor: sin él no se ofrece la acción.
+  const modificable = plan.arrePdpVigente !== 'No' && tienePermiso(25);
   const divisa = plan.Moneda ?? 'MXN';
   // Pestaña «Historial» del panel: avisos de MontseAI + eventos de trazabilidad (solo lectura).
   const historial = {

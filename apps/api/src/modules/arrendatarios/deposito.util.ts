@@ -56,6 +56,23 @@ export function esConceptoDeposito(concepto: string | null | undefined): boolean
   return /^deposito.*garantia/.test(c);
 }
 
+/**
+ * Conceptos base del plan (no son cargos KVA): no se pueden eliminar de la corrida. Misma regla
+ * que `CONCEPTOS_BASE`/`esCargoKva` de `PlanPagoForm.tsx` (la web la usa para ocultar el botón;
+ * aquí se hace cumplir en el servidor): el concepto «empieza con» un base, sin acentos ni
+ * mayúsculas, lo que cubre «Renta (Cortesia)», «Renta (Cortesía)», etc.
+ */
+const CONCEPTOS_BASE = ['renta', 'administracion', 'mantenimiento', 'vigilancia', 'deposito garantia'];
+
+export function esConceptoBase(concepto: string | null | undefined): boolean {
+  const c = (concepto ?? '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
+  return CONCEPTOS_BASE.some((b) => c.startsWith(b));
+}
+
 // ----------------------------- RPC nuevas (sin tipar) -----------------------------
 
 /** Forma común del jsonb que devuelven las funciones del paquete. */

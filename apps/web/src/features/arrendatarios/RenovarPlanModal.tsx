@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/useAuth';
+import { Modal } from '@/components/ui/Modal';
 import {
   arrendatariosApi,
   moneda,
@@ -22,6 +23,7 @@ import {
 } from './traspaso-deposito.util';
 
 /** Lista vacía estable (evita un arreglo nuevo por render mientras no han llegado los candidatos). */
+const FORM_ID = 'renovar-plan-form';
 const SIN_CANDIDATOS: TraspasoCandidato[] = [];
 
 /** Vista de resultado tras crear el plan (D12): el plan queda siempre; el traspaso puede fallar aparte. */
@@ -33,7 +35,13 @@ interface ResultadoRenovar {
   divisa: string;
   traspaso:
     | { estado: 'omitido' }
-    | { estado: 'aplicado'; total: number; restante: number; contratos: number; pagada: boolean }
+    | {
+        estado: 'aplicado';
+        total: number;
+        restante: number;
+        contratos: number;
+        pagada: boolean;
+      }
     | { estado: 'fallido'; mensaje: string };
   /** Cuerpo del traspaso, con su clave de idempotencia, para «Reintentar traspaso» (no recrea el plan). */
   payload: TraspasarInput | null;
@@ -51,9 +59,18 @@ function aplicado(r: TraspasarResultado, payload: TraspasarInput | null) {
 }
 
 type FormStr = Record<
-  | 'plazo' | 'm2Construccion' | 'inpcPlus' | 'deposito' | 'precioM2'
-  | 'pm2Admin' | 'pm2Mtto' | 'pm2Vig'
-  | 'cortesiaRenta' | 'cortesiaAdmin' | 'cortesiaMtto' | 'cortesiaVig',
+  | 'plazo'
+  | 'm2Construccion'
+  | 'inpcPlus'
+  | 'deposito'
+  | 'precioM2'
+  | 'pm2Admin'
+  | 'pm2Mtto'
+  | 'pm2Vig'
+  | 'cortesiaRenta'
+  | 'cortesiaAdmin'
+  | 'cortesiaMtto'
+  | 'cortesiaVig',
   string
 > & { moneda: 'MXN' | 'USD' };
 
@@ -263,12 +280,7 @@ export function RenovarPlanModal({
     </label>
   );
 
-  const concepto = (
-    label: string,
-    kPm2: keyof FormStr,
-    kCort: keyof FormStr,
-    subtotal: number,
-  ) => (
+  const concepto = (label: string, kPm2: keyof FormStr, kCort: keyof FormStr, subtotal: number) => (
     <div className="grid grid-cols-12 items-end gap-2 border-t pt-2">
       <span className="col-span-3 text-xs font-medium text-gray-600">{label}</span>
       <label className="col-span-3 text-[11px] text-gray-500">
@@ -304,164 +316,169 @@ export function RenovarPlanModal({
     </div>
   );
 
+  // Pie de botones (prop `pie` del Modal): según la vista (resultado / formulario / cargando).
+  const pie = resultado ? (
+    resultado.traspaso.estado === 'fallido' ? (
+      <>
+        <button
+          type="button"
+          onClick={() => void reintentarTraspaso()}
+          disabled={reintentando}
+          className="rounded-lg bg-[#1f2a4d] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#2a376a] disabled:opacity-50"
+        >
+          {reintentando ? 'Reintentando…' : 'Reintentar traspaso'}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={reintentando}
+          className="rounded-lg border px-4 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+        >
+          Cerrar
+        </button>
+      </>
+    ) : (
+      <button
+        type="button"
+        onClick={onClose}
+        className="rounded-lg bg-[#1f2a4d] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#2a376a]"
+      >
+        Cerrar
+      </button>
+    )
+  ) : isLoading || !form ? undefined : (
+    <>
+      <button
+        type="button"
+        onClick={onClose}
+        className="rounded-lg border px-4 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        form={FORM_ID}
+        disabled={guardando || traspasoIncompleto || actualizandoCandidatos}
+        title={
+          actualizandoCandidatos
+            ? 'Actualizando los contratos de origen para la moneda elegida…'
+            : traspasoIncompleto
+              ? 'Escribe la nota y confirma que el depósito fue recibido, o desmarca los contratos de origen.'
+              : undefined
+        }
+        className="rounded-lg bg-[#1f2a4d] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#2a376a] disabled:opacity-50"
+      >
+        {guardando ? 'Registrando…' : 'Registrar renovación'}
+      </button>
+    </>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[92vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between bg-[#1f2a4d] px-5 py-3 text-white">
-          <h2 className="text-base font-semibold">Renovar plan · {nombre}</h2>
-          <button onClick={onClose} className="text-white/80 hover:text-white" aria-label="Cerrar">
-            ✕
-          </button>
-        </div>
-
-        {resultado ? (
-          // Vista de resultado: el plan ya está creado (los datos del formulario quedan bloqueados).
-          <div className="space-y-3 p-5">
+    <Modal
+      abierto
+      onCerrar={onClose}
+      titulo={`Renovar plan · ${nombre}`}
+      ancho="lg"
+      cabeceraAzul
+      bloqueado={guardando || reintentando}
+      pie={pie}
+    >
+      {resultado ? (
+        // Vista de resultado: el plan ya está creado (los datos del formulario quedan bloqueados).
+        <div className="space-y-3">
+          <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
+            <b>Renovación registrada</b>
+            {resultado.traspaso.estado === 'fallido' ? ' ✓' : ''} · {resultado.inicio}.
+          </p>
+          {resultado.traspaso.estado === 'aplicado' && (
             <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
-              <b>Renovación registrada</b>
-              {resultado.traspaso.estado === 'fallido' ? ' ✓' : ''} · {resultado.inicio}.
-            </p>
-            {resultado.traspaso.estado === 'aplicado' && (
-              <p className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
-                <b>
-                  Depósito traspasado {montoExacto(resultado.traspaso.total, resultado.divisa)}
-                </b>{' '}
-                desde {resultado.traspaso.contratos}{' '}
-                {resultado.traspaso.contratos === 1 ? 'contrato' : 'contratos'} ·{' '}
-                <b>
-                  Por cobrar {montoExacto(resultado.traspaso.restante, resultado.divisa)} {resultado.divisa}
-                </b>
-                {resultado.traspaso.pagada && (
-                  <> · el depósito del nuevo contrato quedó pagado por traspaso.</>
-                )}
-              </p>
-            )}
-            {resultado.traspaso.estado === 'fallido' && (
-              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800" role="alert">
-                <b>El traspaso no se aplicó.</b> {resultado.traspaso.mensaje} Puedes reintentarlo ahora
-                o hacerlo después con el botón «Traspasar depósito» del plan.
-              </p>
-            )}
-            <div className="flex justify-end gap-2">
-              {resultado.traspaso.estado === 'fallido' ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void reintentarTraspaso()}
-                    disabled={reintentando}
-                    className="rounded-lg bg-[#1f2a4d] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#2a376a] disabled:opacity-50"
-                  >
-                    {reintentando ? 'Reintentando…' : 'Reintentar traspaso'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    disabled={reintentando}
-                    className="rounded-lg border px-4 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
-                  >
-                    Cerrar
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-lg bg-[#1f2a4d] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#2a376a]"
-                >
-                  Cerrar
-                </button>
+              <b>Depósito traspasado {montoExacto(resultado.traspaso.total, resultado.divisa)}</b>{' '}
+              desde {resultado.traspaso.contratos}{' '}
+              {resultado.traspaso.contratos === 1 ? 'contrato' : 'contratos'} ·{' '}
+              <b>
+                Por cobrar {montoExacto(resultado.traspaso.restante, resultado.divisa)}{' '}
+                {resultado.divisa}
+              </b>
+              {resultado.traspaso.pagada && (
+                <> · el depósito del nuevo contrato quedó pagado por traspaso.</>
               )}
-            </div>
-          </div>
-        ) : isLoading || !form ? (
-          <p className="px-5 py-10 text-center text-sm text-gray-400">Cargando datos del plan…</p>
-        ) : (
-          <form onSubmit={registrar} className="space-y-3 p-5">
-            <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
-              La renovación inicia el <b>{fechaCorta(pre?.fecInicio ?? null)}</b> (día siguiente al fin
-              del plan vigente, {fechaCorta(pre?.fecFinActual ?? null)}). Datos precargados con el
-              último mes del plan anterior; ajústalos si es necesario.
             </p>
+          )}
+          {resultado.traspaso.estado === 'fallido' && (
+            <p
+              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800"
+              role="alert"
+            >
+              <b>El traspaso no se aplicó.</b> {resultado.traspaso.mensaje} Puedes reintentarlo
+              ahora o hacerlo después con el botón «Traspasar depósito» del plan.
+            </p>
+          )}
+        </div>
+      ) : isLoading || !form ? (
+        <p className="py-10 text-center text-sm text-gray-400">Cargando datos del plan…</p>
+      ) : (
+        <form id={FORM_ID} onSubmit={registrar} className="space-y-3">
+          <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+            La renovación inicia el <b>{fechaCorta(pre?.fecInicio ?? null)}</b> (día siguiente al
+            fin del plan vigente, {fechaCorta(pre?.fecFinActual ?? null)}). Datos precargados con el
+            último mes del plan anterior; ajústalos si es necesario.
+          </p>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <label className="text-xs text-gray-600">
-                Fecha inicio
-                <input
-                  type="text"
-                  readOnly
-                  value={fechaCorta(pre?.fecInicio ?? null)}
-                  className="mt-1 block w-full rounded border bg-gray-100 px-2 py-1.5 text-sm text-gray-600"
-                />
-              </label>
-              {numField('Plazo (meses)', 'plazo', '1')}
-              {numField('m² construcción', 'm2Construccion')}
-              {numField('INPC adicional (%)', 'inpcPlus')}
-              {numField('Depósito garantía', 'deposito')}
-              <label className="text-xs text-gray-600">
-                Moneda
-                <select
-                  value={form.moneda}
-                  onChange={(e) => set('moneda', e.target.value as 'MXN' | 'USD')}
-                  className="mt-1 block w-full rounded border px-2 py-1.5 text-sm"
-                >
-                  <option value="MXN">MXN</option>
-                  <option value="USD">USD</option>
-                </select>
-              </label>
-            </div>
-
-            {seccionTraspaso && (
-              <TraspasoDepositoForm
-                modo="renovar"
-                candidatos={candidatos}
-                depositoDestino={{ cantidad: depositoNuevo, divisa: form.moneda }}
-                valor={traspaso}
-                onChange={setTraspaso}
-                deshabilitado={guardando || candidatosPrevios}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <label className="text-xs text-gray-600">
+              Fecha inicio
+              <input
+                type="text"
+                readOnly
+                value={fechaCorta(pre?.fecInicio ?? null)}
+                className="mt-1 block w-full rounded border bg-gray-100 px-2 py-1.5 text-sm text-gray-600"
               />
-            )}
-
-            <div className="space-y-1">
-              {concepto('Renta base', 'precioM2', 'cortesiaRenta', subRenta)}
-              {concepto('Administración', 'pm2Admin', 'cortesiaAdmin', subAdmin)}
-              {concepto('Mantenimiento', 'pm2Mtto', 'cortesiaMtto', subMtto)}
-              {concepto('Vigilancia', 'pm2Vig', 'cortesiaVig', subVig)}
-            </div>
-
-            <div className="flex items-center justify-between border-t pt-2">
-              <span className="text-sm font-semibold text-gray-700">Total Mes</span>
-              <span className="rounded bg-[#1f2a4d] px-3 py-1 text-sm font-bold text-white tabular-nums">
-                {moneda(totalMes, form.moneda)}
-              </span>
-            </div>
-
-            {error && <p className="text-xs text-red-600">{error}</p>}
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-lg border px-4 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+            </label>
+            {numField('Plazo (meses)', 'plazo', '1')}
+            {numField('m² construcción', 'm2Construccion')}
+            {numField('INPC adicional (%)', 'inpcPlus')}
+            {numField('Depósito garantía', 'deposito')}
+            <label className="text-xs text-gray-600">
+              Moneda
+              <select
+                value={form.moneda}
+                onChange={(e) => set('moneda', e.target.value as 'MXN' | 'USD')}
+                className="mt-1 block w-full rounded border px-2 py-1.5 text-sm"
               >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={guardando || traspasoIncompleto || actualizandoCandidatos}
-                title={
-                  actualizandoCandidatos
-                    ? 'Actualizando los contratos de origen para la moneda elegida…'
-                    : traspasoIncompleto
-                      ? 'Escribe la nota y confirma que el depósito fue recibido, o desmarca los contratos de origen.'
-                      : undefined
-                }
-                className="rounded-lg bg-[#1f2a4d] px-4 py-1.5 text-sm font-medium text-white hover:bg-[#2a376a] disabled:opacity-50"
-              >
-                {guardando ? 'Registrando…' : 'Registrar renovación'}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
+                <option value="MXN">MXN</option>
+                <option value="USD">USD</option>
+              </select>
+            </label>
+          </div>
+
+          {seccionTraspaso && (
+            <TraspasoDepositoForm
+              modo="renovar"
+              candidatos={candidatos}
+              depositoDestino={{ cantidad: depositoNuevo, divisa: form.moneda }}
+              valor={traspaso}
+              onChange={setTraspaso}
+              deshabilitado={guardando || candidatosPrevios}
+            />
+          )}
+
+          <div className="space-y-1">
+            {concepto('Renta base', 'precioM2', 'cortesiaRenta', subRenta)}
+            {concepto('Administración', 'pm2Admin', 'cortesiaAdmin', subAdmin)}
+            {concepto('Mantenimiento', 'pm2Mtto', 'cortesiaMtto', subMtto)}
+            {concepto('Vigilancia', 'pm2Vig', 'cortesiaVig', subVig)}
+          </div>
+
+          <div className="flex items-center justify-between border-t pt-2">
+            <span className="text-sm font-semibold text-gray-700">Total Mes</span>
+            <span className="rounded bg-[#1f2a4d] px-3 py-1 text-sm font-bold text-white tabular-nums">
+              {moneda(totalMes, form.moneda)}
+            </span>
+          </div>
+
+          {error && <p className="text-xs text-red-600">{error}</p>}
+        </form>
+      )}
+    </Modal>
   );
 }

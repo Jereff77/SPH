@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { fallaBd } from '../../common/utils/db-error.js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { AplicarPagoDto } from './arrendatarios.schemas.js';
 import { monedaDeposito, monedaValida } from './moneda.util.js';
@@ -759,8 +760,7 @@ export class CobranzaService {
 
   /** Falla de lectura dentro de `aplicarPago`: el detalle al log y al cliente un 500 genérico con código (regla 4b). */
   private fallaPago(contexto: string, error: { message: string }): never {
-    this.logger.error(`${contexto}: ${error.message}`);
-    throw excepcionConCodigo(500, 'No se pudo aplicar el pago.', 'ERROR_INTERNO');
+    return fallaBd(this.logger, contexto, error, 'No se pudo aplicar el pago.', 'ERROR_INTERNO');
   }
 
   /**

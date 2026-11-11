@@ -840,15 +840,16 @@ export const montoExacto = (n: number | null | undefined, divisa: string = 'MXN'
 export const num = (n: number | null | undefined): string =>
   (n ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export const fechaCorta = (iso: string | null): string => {
+/**
+ * dd/mm/aaaa con ceros (regla 7b); con `conHora`, `dd/mm/aaaa HH:mm`. Único helper de fecha del
+ * módulo. Se lee el texto `aaaa-mm-dd[Thh:mm…]` de forma LITERAL (sin pasar por `Date`), así que
+ * nunca se desfasa un día por la zona horaria; la hora, si se pide, se muestra tal como viene
+ * en el texto, SIN convertirla de zona.
+ */
+export const fechaCorta = (iso: string | null | undefined, conHora = false): string => {
   if (!iso) return '—';
-  const p = (iso.split('T')[0] ?? iso).split('-');
-  return p.length === 3 ? `${Number(p[2])}/${Number(p[1])}/${p[0]}` : iso;
-};
-
-/** dd/mm/aaaa con ceros (regla 7b) para las pantallas del traspaso; `fechaCorta` no los rellena. */
-export const fechaDMA = (iso: string | null | undefined): string => {
-  if (!iso) return '—';
-  const p = (iso.split('T')[0] ?? iso).split('-');
-  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : iso;
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(iso);
+  if (!m) return iso;
+  const fecha = `${m[3]}/${m[2]}/${m[1]}`;
+  return conHora && m[4] ? `${fecha} ${m[4]}:${m[5]}` : fecha;
 };

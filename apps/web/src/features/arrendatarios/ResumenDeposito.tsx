@@ -5,7 +5,7 @@ import { THEAD_STICKY, THEAD_TR } from '@/components/tabla/SortableTh';
 import { useAuth } from '@/features/auth/useAuth';
 import {
   arrendatariosApi,
-  fechaDMA,
+  fechaCorta,
   montoExacto,
   type DepositoPlanResumen,
   type TraspasoDto,
@@ -72,7 +72,7 @@ export function ResumenDeposito({ idArrePdp, divisa }: { idArrePdp: string; divi
           por cobrar <b>{montoExacto(d.porCobrar, mon)}</b>
           {d.pagadaPorTraspaso && marcoPagada && (
             <span className="ml-2 inline-block rounded-full bg-green-100 px-2 py-px text-[11px] font-semibold text-green-700">
-              Pagado por traspaso el {fechaDMA(marcoPagada.fecTraspaso)}
+              Pagado por traspaso el {fechaCorta(marcoPagada.fecTraspaso)}
             </span>
           )}
         </span>
@@ -114,7 +114,7 @@ export function ResumenDeposito({ idArrePdp, divisa }: { idArrePdp: string; divi
                           {montoExacto(t.monto, t.moneda === 'USD' ? 'USD' : mon)}
                         </td>
                         <td className="whitespace-nowrap px-3 py-1.5 tabular-nums">
-                          {fechaDMA(t.fecTraspaso)}
+                          {fechaCorta(t.fecTraspaso)}
                         </td>
                         <td className="max-w-[16rem] truncate px-3 py-1.5" title={t.nota}>
                           {t.nota}
@@ -272,7 +272,7 @@ function RevertirTraspasoModal({
             <tr>
               <td className="px-3 py-1.5">Fecha / nota</td>
               <td className="px-3 py-1.5 text-right">
-                {fechaDMA(traspaso.fecTraspaso)} · {traspaso.nota}
+                {fechaCorta(traspaso.fecTraspaso)} · {traspaso.nota}
               </td>
             </tr>
           </tbody>

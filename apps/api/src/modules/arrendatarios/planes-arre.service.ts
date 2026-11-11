@@ -13,7 +13,7 @@ import { KvasService } from '../parques/kvas.service.js';
 import { monedaEfectiva, monedaValida } from './moneda.util.js';
 import { exigirPermiso } from '../../common/auth/exigir-permiso.js';
 import { fallaBd } from '../../common/utils/db-error.js';
-import { esConceptoDeposito } from './deposito.util.js';
+import { esConceptoBase, esConceptoDeposito, excepcionConCodigo } from './deposito.util.js';
 import { TraspasosDepositoService, type TraspasoRenovacionDto } from './traspasos-deposito.service.js';
 import { NotasService } from '../notas/notas.service.js';
 import { refPlanRenta } from '../notas/notas.config.js';
@@ -761,6 +761,14 @@ export class PlanesArreService {
     dto: ConceptoFinanciadoDto,
     actorUid: string,
   ): Promise<void> {
+    // Un cargo libre no puede llamarse como un concepto base (renta, administración, etc.).
+    if (esConceptoBase(dto.concepto))
+      throw excepcionConCodigo(
+        400,
+        'Ese nombre está reservado para un concepto base del plan (renta, administración, mantenimiento, vigilancia o depósito). Usa otro nombre para el cargo.',
+        'CONCEPTO_RESERVADO',
+      );
+
     const { data: plan, error: planErr } = await this.supabase.admin
       .from('arrePdp')
       .select('idArrePdp, plazo')
@@ -800,6 +808,15 @@ export class PlanesArreService {
 
   /** Elimina (físico) las partidas de un concepto del plan. */
   async eliminarConcepto(idArrePdp: string, concepto: string, actorUid: string): Promise<void> {
+    // Los conceptos base (renta, administración, mantenimiento, vigilancia, depósito y sus
+    // cortesías) no se eliminan: la web ya no ofrece el botón, y aquí se hace cumplir.
+    if (esConceptoBase(concepto))
+      throw excepcionConCodigo(
+        400,
+        'Los conceptos base del plan (renta, administración, mantenimiento, vigilancia y depósito) no se pueden eliminar.',
+        'CONCEPTO_BASE_PROTEGIDO',
+      );
+
     // Guarda D13: el depósito con traspaso aplicado no se elimina (la FK a la partida también lo impediría).
     if (esConceptoDeposito(concepto))
       await this.traspasos.exigirSinTraspasos(idArrePdp, 'eliminar_concepto');

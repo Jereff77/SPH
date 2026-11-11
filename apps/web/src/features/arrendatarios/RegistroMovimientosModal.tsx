@@ -4,14 +4,6 @@ import { arrendatariosApi, num, fechaCorta, MESES, type MovimientoPago } from '.
 import { FiltroColumnaOpciones } from '@/components/tabla/FiltroColumnaOpciones';
 import { exportarCSV } from './csv-export';
 
-/** Fecha + hora corta (dd/mm/aaaa hh:mm) a partir de un ISO. */
-function fechaHora(iso: string | null): string {
-  if (!iso) return '—';
-  const d = fechaCorta(iso);
-  const t = iso.includes('T') ? iso.split('T')[1]?.slice(0, 5) : '';
-  return t ? `${d} ${t}` : d;
-}
-
 /** Mes(es) al que se aplicó el pago, a partir de los periodos (yyyy-MM). */
 function periodoMes(periodos: string[] | undefined): string {
   const meses = [...new Set((periodos ?? []).map((p) => Number(p.slice(5, 7))))];
@@ -152,8 +144,8 @@ export function RegistroMovimientosModal({
       m.monto,
       m.partidas,
       m.estado === 'aplicado' ? 'Aplicado' : 'Desaplicado',
-      fechaHora(m.aplicadoEn),
-      m.estado !== 'aplicado' ? fechaHora(m.desaplicadoEn) : '',
+      fechaCorta(m.aplicadoEn, true),
+      m.estado !== 'aplicado' ? fechaCorta(m.desaplicadoEn, true) : '',
       m.motivo ?? '',
     ]);
     exportarCSV('registro-movimientos', cols, filas);
@@ -313,9 +305,9 @@ export function RegistroMovimientosModal({
                           )}
                         </td>
                         <td className="whitespace-nowrap px-3 py-1.5 text-gray-500">
-                          {fechaHora(m.aplicadoEn)}
+                          {fechaCorta(m.aplicadoEn, true)}
                           {!aplicado && (
-                            <span className="block text-[10px] text-gray-400">✗ {fechaHora(m.desaplicadoEn)}</span>
+                            <span className="block text-[10px] text-gray-400">✗ {fechaCorta(m.desaplicadoEn, true)}</span>
                           )}
                         </td>
                         <td className="px-3 py-1.5 text-right">

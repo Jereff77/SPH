@@ -307,17 +307,63 @@ describe('PlanesArreService.editarCampo / eliminarConcepto (D13)', () => {
     expect(avisos).toHaveLength(1);
   });
 
-  it('eliminar el concepto de depósito con traspaso aplicado → 409 sin borrar nada', async () => {
+  it('eliminar el depósito CON traspaso aplicado → 400 CONCEPTO_BASE_PROTEGIDO (la protección base va primero), sin borrar', async () => {
     const { svc, ctx } = servicio({ tablas: { arre_traspasos_deposito: [traspasoAplicado()] } });
     const e = await rechazo(svc.eliminarConcepto('PDP_2026', 'Depósito Garantía', UID));
-    expect(e).toBeInstanceOf(ConflictException);
-    expect(codigoDe(e)).toBe('TRASPASO_APLICADO');
+    expect(e).toBeInstanceOf(BadRequestException);
+    expect(codigoDe(e)).toBe('CONCEPTO_BASE_PROTEGIDO');
+    expect(ctx.escrituras).toHaveLength(0);
+    expect(ctx.rpcs).toHaveLength(0);
+  });
+
+  it('eliminar el depósito SIN traspasos: ahora es concepto base → 400 CONCEPTO_BASE_PROTEGIDO, sin borrar', async () => {
+    const { svc, ctx } = servicio({});
+    const e = await rechazo(svc.eliminarConcepto('PDP_2026', 'Depósito Garantía', UID));
+    expect(e).toBeInstanceOf(BadRequestException);
+    expect(codigoDe(e)).toBe('CONCEPTO_BASE_PROTEGIDO');
+    expect(ctx.escrituras).toHaveLength(0);
+    expect(ctx.rpcs).toHaveLength(0);
+  });
+
+  it.each([
+    'Renta',
+    'Administración',
+    'Administracion',
+    'Mantenimiento',
+    'Vigilancia',
+    'Deposito Garantia',
+    'Renta (Cortesia)',
+    'Renta (Cortesía)',
+    'administración (cortesía)',
+    '  MANTENIMIENTO  ',
+  ])('eliminar el concepto base «%s» → 400 y no se borra nada (regla en el servidor)', async (c) => {
+    const { svc, ctx } = servicio({});
+    const e = await rechazo(svc.eliminarConcepto('PDP_2026', c, UID));
+    expect(e).toBeInstanceOf(BadRequestException);
+    expect(codigoDe(e)).toBe('CONCEPTO_BASE_PROTEGIDO');
+    expect(textoDe(e)).not.toMatch(/arrePdpDetalle|violates|constraint/i);
     expect(ctx.escrituras).toHaveLength(0);
   });
 
-  it('eliminar el depósito SIN traspasos: borra como siempre', async () => {
+  it('eliminar un cargo KVA (no base) sigue borrando como siempre', async () => {
     const { svc, ctx } = servicio({});
-    await svc.eliminarConcepto('PDP_2026', 'Depósito Garantía', UID);
+    await svc.eliminarConcepto('PDP_2026', 'KVA Subestación Nave 5', UID);
     expect(ctx.escrituras.map((w) => w.tipo)).toEqual(['delete']);
   });
+});
+
+describe('PlanesArreService.agregarConcepto: nombres reservados', () => {
+  const dto = (concepto: string) => ({ concepto, monto: 1000, mesInicio: 1, periodo: 1, dividir: true });
+
+  it.each(['Renta', 'renta (cortesía)', 'Deposito Garantia', ' Vigilancia '])(
+    'un cargo llamado «%s» → 400 CONCEPTO_RESERVADO sin llamar a la RPC',
+    async (c) => {
+      const { svc, ctx } = servicio({});
+      const e = await rechazo(svc.agregarConcepto('PDP_2026', dto(c), UID));
+      expect(e).toBeInstanceOf(BadRequestException);
+      expect(codigoDe(e)).toBe('CONCEPTO_RESERVADO');
+      expect(ctx.rpcs).toHaveLength(0);
+      expect(ctx.escrituras).toHaveLength(0);
+    },
+  );
 });

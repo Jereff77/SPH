@@ -13,6 +13,7 @@ import {
   type PropiedadArrendada,
 } from './arrendatarios.api';
 import { InputFecha } from '@/components/InputFecha';
+import { esConceptoBase } from './conceptos-base';
 
 /** Conceptos financiados predefinidos de v1 (1/2) + texto libre. */
 const CONCEPTOS_PRESET = [
@@ -21,12 +22,8 @@ const CONCEPTOS_PRESET = [
   { value: '__libre__', label: 'Otro (texto libre)…' },
 ];
 
-/** Conceptos base del plan (no son cargos KVA): no se pueden eliminar de la corrida. */
-const CONCEPTOS_BASE = ['Renta', 'Administración', 'Mantenimiento', 'Vigilancia', 'Deposito Garantia'];
-
 /** Un concepto es un cargo KVA (eliminable) si NO empieza con un concepto base. */
-const esCargoKva = (concepto: string): boolean =>
-  !CONCEPTOS_BASE.some((b) => concepto.trim().startsWith(b));
+const esCargoKva = (concepto: string): boolean => !esConceptoBase(concepto);
 
 /** Resalta los meses de cortesía (gracia) en la previsualización, como v1. */
 const filaGracia = (g: DetallePartida['tieneMesGratis']): string =>
@@ -604,6 +601,7 @@ function ConceptosList({ idArrePdp, onCambio }: { idArrePdp: string; onCambio: (
     queryFn: () => arrendatariosApi.detalle(idArrePdp),
   });
   const [borrando, setBorrando] = useState<string | null>(null);
+  const [errorBorrar, setErrorBorrar] = useState<string | null>(null);
 
   // Agrupar por concepto (suma de cantidad).
   const conceptos = useMemo(() => {
@@ -618,10 +616,13 @@ function ConceptosList({ idArrePdp, onCambio }: { idArrePdp: string; onCambio: (
   async function eliminar(concepto: string) {
     if (!window.confirm(`¿Eliminar el cargo "${concepto}" del plan?`)) return;
     setBorrando(concepto);
+    setErrorBorrar(null);
     try {
       await arrendatariosApi.eliminarConcepto(idArrePdp, concepto);
       await queryClient.invalidateQueries({ queryKey: ['arre-detalle', idArrePdp] });
       onCambio();
+    } catch (err) {
+      setErrorBorrar(err instanceof Error ? err.message : 'No se pudo eliminar el concepto.');
     } finally {
       setBorrando(null);
     }
@@ -634,6 +635,7 @@ function ConceptosList({ idArrePdp, onCambio }: { idArrePdp: string; onCambio: (
       <p className="border-l-4 border-emerald-500 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
         Conceptos
       </p>
+      {errorBorrar && <p className="px-3 py-1 text-xs text-red-600">{errorBorrar}</p>}
       <table className="min-w-full text-sm">
         <tbody className="divide-y">
           {conceptos.map((c) => (

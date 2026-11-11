@@ -160,7 +160,7 @@ export class ArrendatariosController {
   }
 
   @Patch('planes/:idArrePdp/detalle')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   async editarCampo(
     @CurrentUser() actor: AuthUser,
     @Param('idArrePdp') idArrePdp: string,
@@ -171,7 +171,7 @@ export class ArrendatariosController {
   }
 
   @Patch('planes/:idArrePdp/detalle/moneda')
-  @RequierePermiso(20)
+  @RequierePermiso(25)
   async cambiarMoneda(
     @CurrentUser() actor: AuthUser,
     @Param('idArrePdp') idArrePdp: string,

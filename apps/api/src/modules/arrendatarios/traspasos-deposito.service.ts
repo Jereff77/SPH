@@ -1,6 +1,7 @@
 import { type HttpException, Injectable, Logger } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { exigirPermiso } from '../../common/auth/exigir-permiso.js';
+import { fallaBd } from '../../common/utils/db-error.js';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { RevertirTraspasoDto, TraspasarDepositoDto } from './arrendatarios.schemas.js';
 import {
@@ -311,12 +312,7 @@ export class TraspasosDepositoService {
 
   /** Falla de la capa de datos: el detalle va al log y al cliente un 500 genérico con `codigo: ERROR_INTERNO` (regla 4b). */
   private falla(contexto: string, error: unknown): never {
-    const detalle =
-      error && typeof error === 'object' && 'message' in error
-        ? String((error as { message?: unknown }).message)
-        : String(error);
-    this.logger.error(`${contexto}: ${detalle}`);
-    throw excepcionConCodigo(500, MSG_GENERICO, 'ERROR_INTERNO');
+    return fallaBd(this.logger, contexto, error, MSG_GENERICO, 'ERROR_INTERNO');
   }
 
   /** `arre_traspasos_deposito` es nueva y aún no está en @erp/types: cliente sin tipar, localizado aquí. */

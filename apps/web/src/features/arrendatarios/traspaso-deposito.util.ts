@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { ApiRequestError } from '@/lib/api';
 import {
-  fechaDMA,
+  fechaCorta,
   hoyMexico,
   montoExacto,
   type PlanEtiqueta,
@@ -129,7 +129,7 @@ export function etiquetaNave(nave: string | null | undefined): string {
 
 /** Periodo `dd/mm/aaaa – dd/mm/aaaa` (usa el fin efectivo: si se canceló, la cancelación). */
 export const periodoCandidato = (c: Pick<TraspasoCandidato, 'fecInicio' | 'fecFin' | 'finEfectivo'>): string =>
-  `${fechaDMA(c.fecInicio)} – ${fechaDMA(c.finEfectivo ?? c.fecFin)}`;
+  `${fechaCorta(c.fecInicio)} – ${fechaCorta(c.finEfectivo ?? c.fecFin)}`;
 
 export interface EtiquetaCandidato {
   texto: string;
@@ -227,7 +227,7 @@ export function motivoBloqueo(c: TraspasoCandidato, divisaDestino: string): Moti
 export function etiquetaPlan(p: PlanEtiqueta | null | undefined): string {
   if (!p) return 'otro contrato';
   const nave = p.nave ? etiquetaNave(p.nave) : 'otro contrato';
-  return p.fecInicio || p.fecFin ? `${nave} · ${fechaDMA(p.fecInicio)} – ${fechaDMA(p.fecFin)}` : nave;
+  return p.fecInicio || p.fecFin ? `${nave} · ${fechaCorta(p.fecInicio)} – ${fechaCorta(p.fecFin)}` : nave;
 }
 
 export interface SugerenciaAdicional {

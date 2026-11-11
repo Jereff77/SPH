@@ -8,6 +8,7 @@ import {
 } from './arrendatarios.api';
 
 import { ApiRequestError } from '@/lib/api';
+import { useAuth } from '@/features/auth/useAuth';
 
 type CampoEditable = 'pm2' | 'constM2' | 'INPC' | 'ptsINPC';
 type Moneda = 'MXN' | 'USD';
@@ -36,6 +37,9 @@ export function DetallePartida({
   modificable: boolean;
 }) {
   const queryClient = useQueryClient();
+  const { tienePermiso } = useAuth();
+  // `modificable` ya incluye el permiso 25: si falta, el texto lo dice en vez de «Plan no editable».
+  const motivoNoEditable = tienePermiso(25) ? 'Plan no editable' : 'Sin permiso para editar';
   const { data = [], isLoading } = useQuery({
     queryKey: ['arre-detalle', idArrePdp, numPartida],
     queryFn: () => arrendatariosApi.detalle(idArrePdp, numPartida),
@@ -193,7 +197,7 @@ export function DetallePartida({
     return (
       <span
         onDoubleClick={() => iniciar(p, campo, actual)}
-        title={modificable ? 'Doble clic para editar' : 'Plan no editable'}
+        title={modificable ? 'Doble clic para editar' : motivoNoEditable}
         className={`tabular-nums ${modificable ? 'cursor-pointer hover:underline' : ''}`}
       >
         {num(actual)}
@@ -233,7 +237,7 @@ export function DetallePartida({
         }}
         title={
           !modificable
-            ? 'Plan no editable'
+            ? motivoNoEditable
             : p.anio == null
               ? 'La partida no tiene año: no se puede cambiar la moneda desde aquí'
               : 'Doble clic para editar'

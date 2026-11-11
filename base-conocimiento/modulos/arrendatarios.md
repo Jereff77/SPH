@@ -1,7 +1,7 @@
 ---
 modulo: Arrendatarios
 estado: desarrollado
-version_doc: 2.3
+version_doc: 2.4
 ultima_actualizacion: 2026-11-11
 rutas_v2: [/arrendatarios, /arrendatarios/planes, /arrendatarios/reportes]
 rutas_v1: [i02_arrendatarios]
@@ -709,6 +709,18 @@ naves de $237,002.955) = **$26,639.11** por cobrar. **No entra dinero al banco**
   `AplicarPagoModal` (etiqueta «complemento»), `ReportesArrePage`, `PanelNotas`/`notas.api`.
 - **Datos al 2026-10-20**: 234 partidas de depósito (una por plan), 145 con monto y **ninguna marcada como pagada** en la plataforma (los depósitos se cobraban fuera).
 
+## Ajustes de seguridad y calidad (v2.81.1, 2026-11-11)
+
+- **Editar la corrida exige la clave 25** (antes bastaba la 20, «ver»): `PATCH planes/:id/detalle` (precio, const m², INPC, depósito) y `PATCH planes/:id/detalle/moneda`.
+  En pantalla, sin la 25 el doble clic de edición y el selector de moneda no se ofrecen (dice «Sin permiso para editar»; «Plan no editable» solo si el plan está vencido).
+- **Conceptos base protegidos también en el servidor**: Renta, Administración, Mantenimiento, Vigilancia, Deposito Garantia y sus «(Cortesía)» no se pueden
+  eliminar (400 `CONCEPTO_BASE_PROTEGIDO`) ni usar como nombre de un cargo libre (400 `CONCEPTO_RESERVADO`). La comparación ignora acentos y mayúsculas, igual en web
+  (`conceptos-base.ts`) y API (`esConceptoBase` en `deposito.util.ts`).
+- **Fechas del módulo con ceros** (`05/03/2026`; con hora `dd/mm/aaaa HH:mm`): `fechaCorta()` lee el texto sin convertir zona horaria (la hora, si se pide, sale tal como viene).
+- **Renovar** usa el modal compartido (`components/ui/Modal`): no se puede cerrar mientras guarda; el botón de registrar está en el pie.
+- **Pruebas del API con Jest** (`pnpm --filter @erp/api test`, `apps/api/jest.config.cjs`; los specs de `modules/cxp/` corren aparte con `node --test`).
+- `fallaBd(logger, contexto, error, codigo?)` acepta un código opcional que viaja en el cuerpo del error.
+
 ## Para el agente de soporte
 - **"En el dashboard no veo la tarjeta de 2 meses"** → se quitó en v2.80.0; las tarjetas son 1, 3 y 6 meses (rangos sin traslape).
 - **"Un contrato no sale en Sin contrato firmado"** → la tarjeta solo lista planes vigentes con `contratoFirmado=false` y vínculo activo; si ya se marcó firmado, está vencido, desvinculado o es de prueba/Tickets, no aparece.
@@ -822,3 +834,7 @@ naves de $237,002.955) = **$26,639.11** por cobrar. **No entra dinero al banco**
 - **"El depósito de 2025 ya no aparece por cobrar en Aplicar pago / en la cobranza"** → se traspasó al contrato nuevo (es lo esperado). El origen queda como «Traspasado» en el estado de cuenta.
 - **"No me deja eliminar el plan / cambiar la moneda / desaplicar el pago del depósito"** → el plan o ese depósito participa en traspasos (`PLAN_CON_TRASPASOS`, `TRASPASO_APLICADO`): revertir primero el traspaso.
 - **"El traspaso falló pero la renovación sí se creó"** → es lo esperado (el plan nunca se revierte por un fallo del traspaso): usar «Reintentar traspaso» del modal o el botón «Traspasar depósito» del plan.
+
+- **"No puedo editar el precio / la moneda de una partida" (dice «Sin permiso para editar»)** → desde v2.81.1 editar la corrida exige la clave **25** (antes bastaba la 20). Pedir la clave en Configuraciones ▸ Permisos.
+- **"No me deja borrar «Renta/Vigilancia/Depósito…» o agregar un cargo con ese nombre"** → son conceptos base del plan (protegidos); un cargo libre debe llevar otro nombre (p. ej. «Mantenimiento de subestación»).
+- **"Las fechas salen distintas (05/03/2026)"** → desde v2.81.1 el módulo muestra siempre día y mes con dos dígitos.
