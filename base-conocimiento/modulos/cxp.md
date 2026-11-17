@@ -2,7 +2,7 @@
 modulo: CxP (Cuentas por Pagar)
 estado: parcial              # Proveedores, Bancos, Solicitudes (alta+listado), Pendientes y Pagar en v2; resto por fases
 version_doc: 1.0
-ultima_actualizacion: 2026-08-26
+ultima_actualizacion: 2026-11-04
 submodulos: [Proveedores, Bancos, Solicitudes, "Pagar solicitudes", Aprobación, Pago/Conciliación, Reportes, "Claves SAT"]
 rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes, /cxp/pagar, /cxp/ppd, /cxp/aprobar, /cxp/reportes, /]
 claves_permiso: [400, 401, 402, 410, 420, 430, 431, 440, 441, 450, 460, 470]
@@ -269,6 +269,7 @@ parametrizadas desde el backend.
 | "**¿Cuándo se manda el aviso?**" / "no me avisaron antes de bloquearme". | Calendario anclado al plazo del proveedor. | Proveedor y solicitante: días **1 al 5**. Gerente: **solo el día 5**. Solicitante otra vez el **día 20** (víspera de su bloqueo). Los otros 22 días del mes **no se envía nada** — es por diseño, no una falla. |
 | "**Tengo un complemento vencido y ya no me avisan**." | El correo solo mira las parcialidades pagadas el **mes anterior**: las que se pasaron de esa ventana no vuelven a generar correo. | Están visibles **en el panel del landing** (pantalla de inicio), marcadas en 🔴 vencido. Ese panel sí incluye las vencidas de meses anteriores. |
 | "**No veo el panel de complementos en el inicio**." | El panel solo se renderiza si **ese usuario** tiene pendientes (donde es `uidr` o `autorizo`). | No es un permiso: `GET /cxp/mis-rep` filtra por el uid del JWT. Si no aparece, esa persona no tiene complementos pendientes. |
+| "**Pagué una urgente / línea de captura y el presupuesto de la cuenta no se movió**" / "no me avisó que me pasaba". | `subtotal = 0` en esos dos tipos: la vista y la RPC de autorización no los ven (ver el gotcha de «Tipos de solicitud especiales»). Defecto conocido (tablero #80), en diseño. | Explicar que es un defecto de la pantalla, no del pago. No editar el subtotal a mano. Escalar a ticket solo si piden un número exacto de presupuesto. |
 
 **Cuándo escalar a ticket:** desaplicar/corregir pagos, inconsistencias de conciliación, solicitudes
 atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
@@ -706,6 +707,20 @@ Total, Monto Aplicado, Balance, Urgente, Acciones) con encabezado fijo azul (reg
 - Sin objetos nuevos en BD: todo se construye sobre `cxp`/`cxpComentarios`/`PresCategorias`/`catProveedores`/
   `inversionista` existentes.
 
+### ⚠️ Gotcha — las urgentes y las líneas de captura NO consumen presupuesto (verificado 2026-11-04; tablero #80)
+- **Síntoma:** una urgente o una línea de captura aprobada y hasta pagada **no baja el disponible** de su
+  cuenta, y su aprobador no ve que "se pase" del presupuesto.
+- **Causa:** `v_resumenPresupuesto` (y la RPC `cxp_autorizar_solicitud_pago`) suman **`cxp.subtotal`**
+  —no `total`—, y estos dos tipos nacen con `subtotal = 0` (los formularios solo piden el TOTAL; la columna
+  tiene `DEFAULT 0`). Para la vista valen cero pesos: ni "comprometido" (estado 4) ni "consumido" (estado 6).
+- **Magnitud al 2026-11-04:** 86 filas afectadas (35 urgentes + 51 líneas de captura). Las solicitudes
+  normales (tipo 1) sí traen subtotal real y sí cuentan.
+- **Qué decirle al usuario hoy:** es un defecto conocido, no un error suyo; el dinero sí sale, pero la
+  pantalla de presupuesto no lo refleja. **No** hay que recapturar nada ni inventar el subtotal a mano.
+- **Estado del arreglo:** **EN DISEÑO, nada construido ni aplicado.** Decisión de Jereff (2026-11-04, A9):
+  que al **autorizar** se aparte el presupuesto y al **aplicar el pago** se consuma. Ver la sección
+  «Presupuesto por año, "solo anual" y Ajuste Presupuestal — EN DISEÑO» al final de este documento.
+
 ## Solicitudes de Pago PPD (facturas en parcialidades) — v2  ✅
 
 **Qué es.** Sección dedicada (`/cxp/ppd`, **clave 420**) para facturas con **MetodoPago = PPD** (Pago en
@@ -936,3 +951,42 @@ les podía subir/dispensar el complemento). Se **regularizaron** creando el maes
   `complementospago` + permiso `403` en `segModulos`. El resto reutiliza `cxp` + `cxp_ppd` (con `trg_auditoria`).
 - El job de avisos requiere **al menos una cuenta de correo activa** en `correo_cuentas` (la del buzón de
   facturas) y `EMAIL_ENCRYPTION_KEY` configurada para descifrar su contraseña.
+
+## Presupuesto por año, «solo anual» y Ajuste Presupuestal — ⏳ EN DISEÑO (2026-11-04) — NADA CONSTRUIDO
+
+> ⛔ **Para el agente de soporte: nada de esto existe todavía en la plataforma.** No le digas a nadie que
+> puede marcar una cuenta «solo anual», capturar un «Ajuste presupuestal» ni ver otro año en Cuentas. El
+> paquete de diseño está **pendiente del visto bueno de Jereff** (gate G3/G4); no hay código ni migraciones
+> aplicadas. Se documenta aquí para que, cuando se construya, esta KB ya traiga el contexto.
+
+- **Paquete:** `version2/docs/presupuesto-anual-y-ajustes/` — `00-brief-conceptual` … `07-VERIFICACION-ADVERSARIAL`,
+  `migraciones-borrador.sql` (M1–M11, **no aplicado**), `presupuesto-ajustes.pen` y `mockups/` (8 pantallas).
+- **Qué se diseñó (tres cosas, y una fase 0 que va primero):**
+  1. **«Solo anual» por cuenta** (`PresCategorias.soloAnual`): el disponible es el presupuesto anual completo
+     desde enero, no el acumulado al mes. Se prende con la clave 213 (la de «Presup.»).
+  2. **Concepto 98 «Ajuste Presupuestal»** (`cxp.tipoOperacion = 98`, permiso **432**): registra un gasto ya
+     ocurrido sin factura; descripción obligatoria, nace ya contado (estado 6), sin IVA, uno por uno,
+     proveedor opcional (proveedor genérico «AJUSTE PRESUPUESTAL (SIN PROVEEDOR)»). Se anula (no se edita).
+  3. **Selector de año** en Configuraciones ▸ Cuentas, con una sola función de cálculo
+     `cxp_resumen_presupuesto_por_anio(p_anio)` que alimenta la vista, la RPC de autorización, el reporte y
+     el agente. Para años distintos al actual el acumulado es el año completo.
+  4. **F0 (decisión A9 de Jereff, 2026-11-04):** urgentes y líneas de captura **consumen presupuesto**: al
+     autorizar se aparta (estado 4, comprometido) y al aplicar el pago se consume (estado 6). Los formularios
+     piden un **Subtotal (sin IVA)** (arranca igual al monto; tope servidor 1.2 × total por las retenciones,
+     con casilla «el pago lleva retenciones»), y un CHECK de BD impide nuevas urgentes/líneas con subtotal 0.
+     Las 86 ya cargadas se rellenan con `subtotal = total` (M10), con excepciones por revisar.
+- **Orden de despliegue (excepción: la BD va después del código en F0):** F0 → F1 → F2, **tres pushes
+  separados**, cada uno por orden explícita de Jereff; cada migración con su autorización y SQL exacto.
+- **Estado de la validación:** adversarial Opus de F0 = **CONDICIONADO (0 ALTA, 4 MEDIA incorporadas)**.
+  **M10 está bloqueada** hasta que Jereff diga si dos cargas manuales del 29-sep (≈23.4 M, ACUPARK II y III,
+  como urgentes «CARGA MANUAL») son gasto de 2026, y hasta que CxP revise 34 urgentes/líneas aprobadas sin
+  pago (≈4.56 M; 2 duplicados confirmados de facturas ya pagadas).
+- **Efecto esperado en 2026 al aplicar F0:** 14 cuentas se mueven, 3 quedan «fuera de presupuesto»; el 91 %
+  del efecto son las dos cargas manuales. Detalle y cifras en `05-BACKEND.md` §7 del paquete.
+- **Aviso al equipo antes de M10** (ya en `06-PLAN.md` §3b): los aprobadores verán «fuera de presupuesto» en
+  solicitudes que antes pasaban; solo el aprobador FP (`SPHConfiguraciones 'Aprobar fuera de presupuesto'`)
+  podrá autorizarlas.
+- **Riesgos abiertos:** Looker/n8n sin verificar (M9); RLS abierta P0 #2/#3 preexistente; ráfaga Realtime
+  al correr M10 sin probar; pruebas reales de función/INSERT/RPC pendientes de autorización.
+- **Tablero:** #77 (presupuesto por año/ajustes) y #80 (urgentes/líneas no consumen presupuesto) siguen
+  abiertos; **#80 se cierra al aplicar F0** (con versión y fecha).
