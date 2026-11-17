@@ -30,6 +30,8 @@ export const reporteEstadoCuentaSchema = z.object({
   tipoProveedor: arrStr,
   /** Multi-selección: array vacío = sin filtro. */
   categoria: arrStr,
+  /** Claves de cuenta (idCategoria, p. ej. 11-607-0). Multi-selección: array vacío = sin filtro. */
+  cuenta: arrStr,
   /** Multi-selección: array vacío = sin filtro. */
   seccion: arrStr,
   /** Estados (multi-selección). Query repetido (`?estados=X&estados=Y`). */

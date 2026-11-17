@@ -15,11 +15,13 @@ const moneda = (n: number | null | undefined) =>
 
 const hoyISO = () => new Date().toISOString().split('T')[0]!;
 
-/** 17 columnas del Excel (idénticas a v1, en este orden). */
+/** 19 columnas del Excel (las de v1 más «Tipo» (PUE/PPD/urgente…) y «Cuenta» (clave), antes de «Categoría»). */
 const COLS_EXCEL: { header: string; get: (r: ReporteCxpRow) => string | number }[] = [
   { header: 'Folio', get: (r) => r.folio ?? '' },
   { header: 'Proveedor', get: (r) => r.proveedor ?? '' },
   { header: 'Estado', get: (r) => r.estado ?? '' },
+  { header: 'Tipo', get: (r) => r.tipoSolicitud ?? '' },
+  { header: 'Cuenta', get: (r) => r.idCategoria ?? '' },
   { header: 'Categoría', get: (r) => r.categoria ?? '' },
   { header: 'Sección', get: (r) => r.seccion ?? '' },
   { header: 'Concepto', get: (r) => r.concepto ?? '' },
@@ -36,7 +38,7 @@ const COLS_EXCEL: { header: string; get: (r: ReporteCxpRow) => string | number }
   { header: 'Quién pagó', get: (r) => r.quienPago ?? '' },
 ];
 
-/** Exporta a Excel (.xlsx) — 17 columnas, hoja "CXP". ExcelJS lazy. */
+/** Exporta a Excel (.xlsx) — 19 columnas, hoja "CXP". ExcelJS lazy. */
 export async function exportarReporteExcel(filas: ReporteCxpRow[]): Promise<void> {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
@@ -53,7 +55,7 @@ export async function exportarReporteExcel(filas: ReporteCxpRow[]): Promise<void
   descargar(`Reporte_CXP_${hoyISO()}.xlsx`, blob);
 }
 
-/** Exporta a PDF — 7 columnas, encabezado azul #2c3e50, resumen (igual que v1). */
+/** Exporta a PDF — 8 columnas, encabezado azul #2c3e50, resumen (igual que v1). */
 export function exportarReportePDF(
   filas: ReporteCxpRow[],
   totales: TotalesReporteCxp,
@@ -65,11 +67,12 @@ export function exportarReportePDF(
   doc.text(`Fecha: ${new Date().toLocaleDateString('es-MX')}`, 14, 25);
 
   autoTable(doc, {
-    head: [['Folio', 'Proveedor', 'Estado', 'F. Solicitud', 'Total', 'Monto Aplicado', 'Balance']],
+    head: [['Folio', 'Proveedor', 'Estado', 'Tipo', 'F. Solicitud', 'Total', 'Monto Aplicado', 'Balance']],
     body: filas.map((r) => [
       r.folio ?? '',
       r.proveedor ?? '',
       r.estado ?? '',
+      r.tipoSolicitud ?? '',
       fechaCorta(r.fecSolicitud),
       moneda(r.total),
       moneda(r.montoAplicado),

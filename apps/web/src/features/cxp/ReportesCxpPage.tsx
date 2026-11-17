@@ -40,6 +40,7 @@ function filtrosIniciales(): FiltrosReporteCxp {
     proveedor: [],
     tipoProveedor: [],
     categoria: [],
+    cuenta: [],
     seccion: [],
     estados: [],
     urgente: '',
@@ -113,6 +114,8 @@ export default function ReportesCxpPage() {
     folio: (r) => r.folio,
     proveedor: (r) => r.proveedor,
     estado: (r) => r.estado,
+    tipoSolicitud: (r) => r.tipoSolicitud ?? null,
+    idCategoria: (r) => r.idCategoria ?? null,
     categoria: (r) => r.categoria,
     seccion: (r) => r.seccion,
     concepto: (r) => r.concepto,
@@ -216,6 +219,15 @@ export default function ReportesCxpPage() {
                   onChange={(v) => set('tipoProveedor', v)}
                   options={TIPOS_PROVEEDOR.map((t) => ({ value: t.value, label: t.label }))}
                   placeholder="Todos"
+                />
+              </div>
+              <div>
+                <label className={lbl}>Cuenta (clave)</label>
+                <MultiSearchSelect
+                  values={draft.cuenta ?? []}
+                  onChange={(v) => set('cuenta', v)}
+                  options={(combos?.cuentas ?? []).map((c) => ({ value: c.clave, label: c.etiqueta }))}
+                  placeholder="Todas las cuentas"
                 />
               </div>
               <div>
@@ -329,6 +341,8 @@ export default function ReportesCxpPage() {
                 <SortableTh campo="folio" sortKey={sortKey} dir={dir} onSort={toggle}>Folio</SortableTh>
                 <SortableTh campo="proveedor" sortKey={sortKey} dir={dir} onSort={toggle}>Proveedor</SortableTh>
                 <SortableTh campo="estado" sortKey={sortKey} dir={dir} onSort={toggle}>Estado</SortableTh>
+                <SortableTh campo="tipoSolicitud" sortKey={sortKey} dir={dir} onSort={toggle}>Tipo</SortableTh>
+                <SortableTh campo="idCategoria" sortKey={sortKey} dir={dir} onSort={toggle}>Cuenta</SortableTh>
                 <SortableTh campo="categoria" sortKey={sortKey} dir={dir} onSort={toggle}>Categoría</SortableTh>
                 <SortableTh campo="seccion" sortKey={sortKey} dir={dir} onSort={toggle}>Sección</SortableTh>
                 <SortableTh campo="concepto" sortKey={sortKey} dir={dir} onSort={toggle}>Concepto</SortableTh>
@@ -344,13 +358,13 @@ export default function ReportesCxpPage() {
             </thead>
             <tbody>
               {isLoading && (
-                <tr><td colSpan={14} className="px-4 py-8 text-center text-gray-400">Cargando…</td></tr>
+                <tr><td colSpan={16} className="px-4 py-8 text-center text-gray-400">Cargando…</td></tr>
               )}
               {isError && !isLoading && (
-                <tr><td colSpan={14} className="px-4 py-8 text-center text-red-600">No se pudo cargar el reporte.</td></tr>
+                <tr><td colSpan={16} className="px-4 py-8 text-center text-red-600">No se pudo cargar el reporte.</td></tr>
               )}
               {!isLoading && !isError && visibles.length === 0 && (
-                <tr><td colSpan={14} className="px-4 py-8 text-center text-gray-400">Sin registros para los filtros.</td></tr>
+                <tr><td colSpan={16} className="px-4 py-8 text-center text-gray-400">Sin registros para los filtros.</td></tr>
               )}
               {visibles.map((r) => {
                 const est = (r.estado && ESTADO_STYLE[r.estado]) || ESTADO_DEFAULT;
@@ -366,6 +380,8 @@ export default function ReportesCxpPage() {
                         {r.estado}
                       </span>
                     </td>
+                    <td className="px-4 py-2 text-gray-700">{r.tipoSolicitud}</td>
+                    <td className="px-4 py-2 font-mono text-xs text-gray-600">{r.idCategoria}</td>
                     <td className="px-4 py-2 text-gray-700">{r.categoria}</td>
                     <td className="px-4 py-2 text-gray-700">{r.seccion}</td>
                     <td className="px-4 py-2 text-gray-700">{r.concepto}</td>
@@ -430,6 +446,8 @@ function ModalDetalle({ row, onClose }: { row: ReporteCxpRow; onClose: () => voi
     ['Folio', row.folio ?? ''],
     ['Proveedor', row.proveedor ?? ''],
     ['Estado', row.estado ?? ''],
+    ['Tipo', row.tipoSolicitud ?? ''],
+    ['Cuenta', row.idCategoria ?? ''],
     ['Categoría', row.categoria ?? ''],
     ['Sección', row.seccion ?? ''],
     ['Concepto', row.concepto ?? ''],

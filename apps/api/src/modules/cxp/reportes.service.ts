@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { ReporteEstadoCuentaDto } from './reportes.schemas.js';
+import { coincideExacto, etiquetaTipoSolicitud } from './reportes-util.js';
 
 /** Devuelve el único elemento si el arreglo trae exactamente uno (para filtrar en la RPC). */
 function uno<T>(a?: T[]): T | undefined {
@@ -12,6 +13,8 @@ export interface ReporteCxpRow {
   idCxp: string;
   folio: string | null;
   proveedor: string | null;
+  /** Clave de la cuenta (idCategoria, p. ej. 11-607-0). Se agrega en el servidor. */
+  idCategoria?: string | null;
   estado: string | null;
   idEstado: number | null;
   categoria: string | null;
@@ -28,6 +31,8 @@ export interface ReporteCxpRow {
   quienPago: string | null;
   esUrgente: boolean | null;
   tipoProveedor: number | null;
+  /** Factura PUE, Factura PPD, Urgente, Línea de captura, Devolución, Sin XML… (se agrega en el servidor). */
+  tipoSolicitud?: string | null;
   anio: number | null;
   mes: number | null;
   balance: number | null;
@@ -83,6 +88,7 @@ export class ReportesCxpService {
     solicitantes: string[];
     autorizadores: string[];
     pagadores: string[];
+    cuentas: { clave: string; etiqueta: string }[];
   }> {
     const [proveedores, categorias, secciones, solicitantes, autorizadores, pagadores] =
       await Promise.all([
@@ -93,7 +99,18 @@ export class ReportesCxpService {
         this.valoresUnicos(6),
         this.valoresUnicos(7),
       ]);
-    return { proveedores, categorias, secciones, solicitantes, autorizadores, pagadores };
+    const { data: cats, error } = await this.supabase.admin
+      .from('PresCategorias')
+      .select('idCategoria, cuenta, seccion')
+      .order('idCategoria', { ascending: true });
+    if (error) throw new InternalServerErrorException(error.message);
+    const cuentas = (cats ?? [])
+      .filter((c) => !!c.idCategoria)
+      .map((c) => ({
+        clave: c.idCategoria,
+        etiqueta: [c.idCategoria, [c.cuenta, c.seccion].filter(Boolean).join(' / ')].filter(Boolean).join(' · '),
+      }));
+    return { proveedores, categorias, secciones, solicitantes, autorizadores, pagadores, cuentas };
   }
 
   /**
@@ -167,6 +184,9 @@ export class ReportesCxpService {
 
     let filas = (data ?? []) as unknown as ReporteCxpRow[];
 
+    // La RPC no devuelve la clave de la cuenta ni el tipo de solicitud: se agregan antes de filtrar.
+    await this.agregarDatosDeCxp(filas);
+
     // --- Filtros server-side adicionales ---
 
     // Rango de fechas.
@@ -182,47 +202,36 @@ export class ReportesCxpService {
       });
     }
 
-    // Multi-valor: proveedores (solo aplica filtrado en memoria cuando hay > 1).
+    // Cuenta por su clave (idCategoria).
+    const cuentas = (f.cuenta ?? []).filter(Boolean);
+    if (cuentas.length > 0)
+      filas = filas.filter((r) => coincideExacto(r.idCategoria, cuentas));
+
+    // Filtros de texto por IGUALDAD (también con un solo valor elegido). La RPC filtra con
+    // ILIKE '%…%' (contiene): sin esto, elegir «Acupark II» traía también «Acupark III».
     const proveedores = (f.proveedor ?? []).filter(Boolean);
-    if (proveedores.length > 1) {
-      const set = new Set(proveedores);
-      filas = filas.filter((r) => r.proveedor != null && set.has(r.proveedor));
-    }
+    if (proveedores.length > 0)
+      filas = filas.filter((r) => coincideExacto(r.proveedor, proveedores));
 
-    // Multi-valor: categorías.
     const categorias = (f.categoria ?? []).filter(Boolean);
-    if (categorias.length > 1) {
-      const set = new Set(categorias);
-      filas = filas.filter((r) => r.categoria != null && set.has(r.categoria));
-    }
+    if (categorias.length > 0)
+      filas = filas.filter((r) => coincideExacto(r.categoria, categorias));
 
-    // Multi-valor: secciones.
     const secciones = (f.seccion ?? []).filter(Boolean);
-    if (secciones.length > 1) {
-      const set = new Set(secciones);
-      filas = filas.filter((r) => r.seccion != null && set.has(r.seccion));
-    }
+    if (secciones.length > 0)
+      filas = filas.filter((r) => coincideExacto(r.seccion, secciones));
 
-    // Multi-valor: quién solicitó.
     const solicitantes = (f.quienSolicito ?? []).filter(Boolean);
-    if (solicitantes.length > 1) {
-      const set = new Set(solicitantes);
-      filas = filas.filter((r) => r.quienSolicito != null && set.has(r.quienSolicito));
-    }
+    if (solicitantes.length > 0)
+      filas = filas.filter((r) => coincideExacto(r.quienSolicito, solicitantes));
 
-    // Multi-valor: quién autorizó.
     const autorizadores = (f.quienAutorizo ?? []).filter(Boolean);
-    if (autorizadores.length > 1) {
-      const set = new Set(autorizadores);
-      filas = filas.filter((r) => r.quienAutorizo != null && set.has(r.quienAutorizo));
-    }
+    if (autorizadores.length > 0)
+      filas = filas.filter((r) => coincideExacto(r.quienAutorizo, autorizadores));
 
-    // Multi-valor: quién pagó.
     const pagadores = (f.quienPago ?? []).filter(Boolean);
-    if (pagadores.length > 1) {
-      const set = new Set(pagadores);
-      filas = filas.filter((r) => r.quienPago != null && set.has(r.quienPago));
-    }
+    if (pagadores.length > 0)
+      filas = filas.filter((r) => coincideExacto(r.quienPago, pagadores));
 
     // Multi-valor: tipo proveedor (> 1 valor → filtro en memoria).
     const tiposProveedor = (f.tipoProveedor ?? [])
@@ -261,5 +270,32 @@ export class ReportesCxpService {
     totales.balance = totales.montoTotal - totales.montoAplicado;
 
     return { filas, totales };
+  }
+
+  /**
+   * Agrega a cada fila la clave de su cuenta y el tipo de solicitud (PUE, PPD, urgente, línea de
+   * captura…): la RPC no los devuelve y no se toca (la usa también la v1). Se consulta `cxp` por lotes.
+   */
+  private async agregarDatosDeCxp(filas: ReporteCxpRow[]): Promise<void> {
+    const ids = filas.map((r) => r.idCxp);
+    const lotes: string[][] = [];
+    for (let i = 0; i < ids.length; i += 200) lotes.push(ids.slice(i, i + 200));
+    const mapa = new Map<string, { tipo: string; cuenta: string | null }>();
+    await Promise.all(
+      lotes.map(async (lote) => {
+        const { data, error } = await this.supabase.admin
+          .from('cxp')
+          .select('idCxp, idCategoria, tipoOperacion, idCxpPPD, diferido')
+          .in('idCxp', lote);
+        if (error) throw new InternalServerErrorException(error.message);
+        for (const m of data ?? [])
+          mapa.set(m.idCxp, { tipo: etiquetaTipoSolicitud(m), cuenta: m.idCategoria ?? null });
+      }),
+    );
+    for (const r of filas) {
+      const m = mapa.get(r.idCxp);
+      r.tipoSolicitud = m?.tipo ?? 'Otro';
+      r.idCategoria = m?.cuenta ?? null;
+    }
   }
 }

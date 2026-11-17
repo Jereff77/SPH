@@ -563,6 +563,12 @@ El backend (`reportes.service.ts`) invoca con `service_role` las 3 RPCs de v1:
 > ⚠️ **Coexistencia:** estas RPCs son de v1 y **no se tocan**. v2 las **lee** con service_role (mismo
 > patrón autorizado que Ventas → Reportes con `v_pdpdetalle_get_*`).
 
+### Cambios de v2.82.3 (2026-11-17)
+- **Filtro por igualdad exacta.** La RPC filtra con `ILIKE '%…%'` (contiene): elegir «Acupark II» traía también «Acupark III» (en datos reales, 40 filas de II y 31 de III). Ahora, tras la RPC, el servidor vuelve a filtrar por **igualdad** (sin mayúsculas, acentos ni espacios de más) en proveedor, categoría, sección y quién solicitó/autorizó/pagó, **también con un solo valor elegido** (`reportes-util.ts`, `coincideExacto`).
+- **Columna «Tipo»** (después de «Estado»; en tabla, detalle, Excel y PDF): Factura PUE, Factura PPD (por `idCxpPPD` o `diferido`), Urgente, Línea de captura, Devolución, Sin XML, Ajuste presupuestal u Otro. La RPC **no se toca**: el servidor consulta `cxp` por lotes de 200 y agrega el tipo.
+- **Filtro «Cuenta (clave)» y columna «Cuenta»** (clave `idCategoria`, p. ej. 11-607-0; antes de «Categoría»; también en el Excel, ahora de 19 columnas). El combo sale de `PresCategorias` (82 cuentas; etiqueta «clave · cuenta / sección»). **Por qué hacía falta:** 25 cuentas no tienen `descripcion` (la columna «Categoría» salía vacía y no se podían elegir, p. ej. 52-210-0, 52-090-0, 53-710-0) y 5 descripciones se repiten entre varias cuentas («Carga social» en 5 claves, «Abogados» en 2, etc.).
+- **Para el agente de soporte:** si alguien dice que «el reporte trae cuentas que no pedí» o «no encuentro mi cuenta en Categoría», es esto: usar el filtro **Cuenta (clave)**; el Excel trae la columna «Cuenta» con la clave.
+
 ### Correcciones vs v1
 - **Búsqueda real** por folio/concepto/proveedor (v1 sobreescribía `p_proveedor`).
 - **Todo el filtrado server-side**: el rango de fechas (sobre `fecSolicitud`), los estados (multi) y la
@@ -574,18 +580,18 @@ El backend (`reportes.service.ts`) invoca con `service_role` las 3 RPCs de v1:
 Panel de filtros colapsable (rango de fechas con `InputFecha`, proveedor/categoría/sección con
 `SearchSelect`, tipo proveedor, **8 estados** en checkboxes [Guardado, Enviado, Rechazado, Aprobado,
 Reprogramado, Pagado, Pago T. Bancaria, Aprobado sin pago aplicado], urgente, quién solicitó/autorizó/pagó,
-búsqueda). **4 tarjetas** (Total Registros, Monto Total, Monto Aplicado, Balance). **Tabla de 14 columnas**
-(Folio, Proveedor, Estado [badge coloreado], Categoría, Sección, Concepto, F. Solicitud, F. CFDI, Subtotal,
+búsqueda). **4 tarjetas** (Total Registros, Monto Total, Monto Aplicado, Balance). **Tabla de 16 columnas** desde v2.82.3
+(Folio, Proveedor, Estado [badge coloreado], Tipo, Cuenta, Categoría, Sección, Concepto, F. Solicitud, F. CFDI, Subtotal,
 Total, Monto Aplicado, Balance, Urgente, Acciones) con encabezado fijo azul (regla 7), orden por columna y
 **paginación 20/pág**. **Modal de detalle** con 17 campos. Default del rango de fechas = mes actual.
 
 ### Exportar
-- **Excel** (`exceljs` lazy): 17 columnas, hoja "CXP", archivo `Reporte_CXP_<aaaa-mm-dd>.xlsx`.
-- **PDF** (`jspdf`+`jspdf-autotable`): 7 columnas (Folio, Proveedor, Estado, F. Solicitud, Total, Monto
+- **Excel** (`exceljs` lazy): 19 columnas (desde v2.82.3, con «Tipo» y «Cuenta»), hoja "CXP", archivo `Reporte_CXP_<aaaa-mm-dd>.xlsx`.
+- **PDF** (`jspdf`+`jspdf-autotable`): 8 columnas (Folio, Proveedor, Estado, Tipo, F. Solicitud, Total, Monto
   Aplicado, Balance), encabezado de tabla `#2c3e50`, resumen al pie, `Reporte_CXP_<aaaa-mm-dd>.pdf`.
 
 ### Archivos
-- Backend: `cxp/reportes.{service,controller,schemas}.ts` (registrados en `cxp.module.ts`).
+- Backend: `cxp/reportes.{service,controller,schemas}.ts` y `reportes-util.ts` (+ `reportes-util.spec.ts`) (registrados en `cxp.module.ts`).
 - Frontend: `features/cxp/ReportesCxpPage.tsx` (lazy), `reportes.api.ts`, `reportes-export.ts`. Ruta
   `/cxp/reportes` en `router.tsx`; ítem "Reportes" (clave 460) en `menu.tsx`.
 
