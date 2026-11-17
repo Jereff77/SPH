@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { coincideExacto, etiquetaTipoSolicitud, normalizarTexto } from './reportes-util.ts';
+import { coincideExacto, etiquetaTipoSolicitud, normalizarTexto, TIPOS_SOLICITUD } from './reportes-util.ts';
 
 describe('coincideExacto: el filtro del reporte es por igualdad, no por «contiene»', () => {
   it('«Acupark II» NO trae «Acupark III» (el defecto del reporte)', () => {
@@ -33,6 +33,11 @@ describe('etiquetaTipoSolicitud', () => {
   it('PPD gana sobre el tipo de operación (por idCxpPPD o por diferido)', () => {
     assert.equal(etiquetaTipoSolicitud(m(1, 'P1')), 'Factura PPD');
     assert.equal(etiquetaTipoSolicitud(m(1, null, true)), 'Factura PPD');
+  });
+  it('todas las etiquetas posibles están en la lista del filtro «Tipo»', () => {
+    const posibles = [m(1), m(2), m(4), m(5), m(6), m(98), m(3), m(1, 'P1')].map(etiquetaTipoSolicitud);
+    for (const e of posibles) assert.ok((TIPOS_SOLICITUD as readonly string[]).includes(e), e);
+    assert.equal(new Set(TIPOS_SOLICITUD).size, TIPOS_SOLICITUD.length);
   });
   it('tipos de operación', () => {
     assert.equal(etiquetaTipoSolicitud(m(1)), 'Factura PUE');

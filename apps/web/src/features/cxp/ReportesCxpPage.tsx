@@ -41,6 +41,7 @@ function filtrosIniciales(): FiltrosReporteCxp {
     tipoProveedor: [],
     categoria: [],
     cuenta: [],
+    tipoSolicitud: [],
     seccion: [],
     estados: [],
     urgente: '',
@@ -219,6 +220,15 @@ export default function ReportesCxpPage() {
                   onChange={(v) => set('tipoProveedor', v)}
                   options={TIPOS_PROVEEDOR.map((t) => ({ value: t.value, label: t.label }))}
                   placeholder="Todos"
+                />
+              </div>
+              <div>
+                <label className={lbl}>Tipo</label>
+                <MultiSearchSelect
+                  values={draft.tipoSolicitud ?? []}
+                  onChange={(v) => set('tipoSolicitud', v)}
+                  options={toOpts(combos?.tiposSolicitud ?? [])}
+                  placeholder="Todos los tipos"
                 />
               </div>
               <div>

@@ -23,6 +23,18 @@ export function coincideExacto(valor: string | null | undefined, elegidos: reado
   return elegidos.some((e) => normalizarTexto(e) === v);
 }
 
+/** Todas las etiquetas posibles del tipo de solicitud (opciones del filtro «Tipo»). */
+export const TIPOS_SOLICITUD = [
+  'Factura PUE',
+  'Factura PPD',
+  'Urgente',
+  'Línea de captura',
+  'Devolución',
+  'Sin XML',
+  'Ajuste presupuestal',
+  'Otro',
+] as const;
+
 /** Etiqueta del tipo de solicitud para auditar: PUE, PPD, urgente, línea de captura… */
 export function etiquetaTipoSolicitud(m: {
   tipoOperacion: number | null;

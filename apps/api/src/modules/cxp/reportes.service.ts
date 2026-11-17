@@ -1,7 +1,7 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import type { ReporteEstadoCuentaDto } from './reportes.schemas.js';
-import { coincideExacto, etiquetaTipoSolicitud } from './reportes-util.js';
+import { coincideExacto, etiquetaTipoSolicitud, TIPOS_SOLICITUD } from './reportes-util.js';
 
 /** Devuelve el único elemento si el arreglo trae exactamente uno (para filtrar en la RPC). */
 function uno<T>(a?: T[]): T | undefined {
@@ -89,6 +89,7 @@ export class ReportesCxpService {
     autorizadores: string[];
     pagadores: string[];
     cuentas: { clave: string; etiqueta: string }[];
+    tiposSolicitud: string[];
   }> {
     const [proveedores, categorias, secciones, solicitantes, autorizadores, pagadores] =
       await Promise.all([
@@ -110,7 +111,16 @@ export class ReportesCxpService {
         clave: c.idCategoria,
         etiqueta: [c.idCategoria, [c.cuenta, c.seccion].filter(Boolean).join(' / ')].filter(Boolean).join(' · '),
       }));
-    return { proveedores, categorias, secciones, solicitantes, autorizadores, pagadores, cuentas };
+    return {
+      proveedores,
+      categorias,
+      secciones,
+      solicitantes,
+      autorizadores,
+      pagadores,
+      cuentas,
+      tiposSolicitud: [...TIPOS_SOLICITUD],
+    };
   }
 
   /**
@@ -206,6 +216,11 @@ export class ReportesCxpService {
     const cuentas = (f.cuenta ?? []).filter(Boolean);
     if (cuentas.length > 0)
       filas = filas.filter((r) => coincideExacto(r.idCategoria, cuentas));
+
+    // Tipo de solicitud (PUE, PPD, urgente…).
+    const tipos = (f.tipoSolicitud ?? []).filter(Boolean);
+    if (tipos.length > 0)
+      filas = filas.filter((r) => coincideExacto(r.tipoSolicitud, tipos));
 
     // Filtros de texto por IGUALDAD (también con un solo valor elegido). La RPC filtra con
     // ILIKE '%…%' (contiene): sin esto, elegir «Acupark II» traía también «Acupark III».

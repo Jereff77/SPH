@@ -46,6 +46,8 @@ export interface CombosReporte {
   pagadores: string[];
   /** Cuentas por su clave, para el filtro «Cuenta». */
   cuentas: { clave: string; etiqueta: string }[];
+  /** Tipos de solicitud para el filtro «Tipo». */
+  tiposSolicitud: string[];
 }
 
 export interface DependientesReporte {
@@ -65,6 +67,8 @@ export interface FiltrosReporteCxp {
   categoria?: string[];
   /** Claves de cuenta (idCategoria). Multi-selección: array vacío = todas. */
   cuenta?: string[];
+  /** Tipo de solicitud (Factura PUE, Factura PPD, Urgente…). Multi-selección: array vacío = todos. */
+  tipoSolicitud?: string[];
   /** Multi-selección: array vacío = todas. */
   seccion?: string[];
   /** Estados multi-selección. */
@@ -88,6 +92,7 @@ function qs(f: FiltrosReporteCxp): string {
   for (const v of f.tipoProveedor ?? []) sp.append('tipoProveedor', v);
   for (const v of f.categoria ?? []) sp.append('categoria', v);
   for (const v of f.cuenta ?? []) sp.append('cuenta', v);
+  for (const v of f.tipoSolicitud ?? []) sp.append('tipoSolicitud', v);
   for (const v of f.seccion ?? []) sp.append('seccion', v);
   for (const v of f.estados ?? []) sp.append('estados', v);
   if (f.urgente) sp.set('urgente', f.urgente);
