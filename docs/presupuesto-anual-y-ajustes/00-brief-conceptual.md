@@ -35,6 +35,7 @@
 | A8 | En el cálculo del presupuesto **cuentan los estados 7** (Pago T. Bancaria = gastado) **y 99** (Aprobado sin pago = comprometido), además de 6 y 4. Decisión de Jereff del plan de julio, que esta función respeta. Efecto en 2026: **cero pesos al decidirlo** (todo el monto de 7/99 era de 2025; con F0 antes de F1, las 4 líneas en 99 de 2026 aportan 65,013.00); sí cambia lo que se ve al consultar 2025. | 2026-07-02 |
 | A7 | Apartado PPD al autorizar, «liberar saldo», «reasignar factura», el pago toma la partida de su factura: **ya acordados** (#77) y van en el Paquete 2. | 2026-11-02 |
 | A9 | **Las solicitudes Urgentes y de Línea de Captura consumen presupuesto** como cualquier gasto: al **autorizarse** se **aparta** (comprometido, estado 4) y al **aplicarse el pago** se **consume** (gastado, estado 6). Para eso deben llevar subtotal (pendiente #80). Incluye las ya cargadas. | 2026-11-04 |
+| A10 | **Línea de captura (4), Devolución (5) y Sin XML (6): `subtotal = total` siempre, resuelto en BD con un trigger** (`docs/subtotal-igual-total-tipos-4-5-6/`), sin tocar el código. **Reemplaza a F0 para el tipo 4**: ya no lleva el campo «Subtotal (sin IVA)» capturado ni el tope 1.2×; F0 (formulario, M10, M11) queda solo para las **urgentes (tipo 2)**. | 2026-11-17 |
 
 ## 3. Nomenclatura canónica
 

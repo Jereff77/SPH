@@ -22,19 +22,39 @@ const BUCKET_CFDI = 'CFDIproveedores';
 /** Estados de pago realizado (para "Mostrar pagos realizados"). */
 const ESTADOS_PAGADOS = [6, 7];
 
+type ErrorPg = { code?: string; message?: string; details?: string };
+
+/** Texto del error de Postgres, en minúsculas, para identificar qué índice reventó. */
+function textoErrorPg(err: ErrorPg): string {
+  return `${err.message ?? ''} ${err.details ?? ''}`.toLowerCase();
+}
+
 /**
  * Detecta el error de PostgreSQL `unique_violation` (23505) sobre la clave de
  * rastreo de `movbancarios`. Sirve para devolver un 409 con un mensaje claro
  * ("ya existe un pago con esa clave de rastreo") en vez de un 500 genérico que
  * el filtro global enmascara como "Error interno del servidor".
  */
-function esRastreoDuplicado(err: {
-  code?: string;
-  message?: string;
-  details?: string;
-}): boolean {
-  const txt = `${err.message ?? ''} ${err.details ?? ''}`.toLowerCase();
+function esRastreoDuplicado(err: ErrorPg): boolean {
+  const txt = textoErrorPg(err);
   return err.code === '23505' && (txt.includes('rastreo') || txt.includes('movbancarios'));
+}
+
+/**
+ * `cxp_idMovBancarios_unico` (2026-08-27): un movimiento bancario solo puede
+ * quedar ligado a UNA solicitud. Si este índice revienta, alguien intentó
+ * aplicar el mismo pago a una segunda factura — el caso que reportó tesorería.
+ */
+function esPagoYaAplicadoAOtraFactura(err: ErrorPg): boolean {
+  return err.code === '23505' && textoErrorPg(err).includes('idmovbancarios');
+}
+
+/**
+ * `movbancarios_idUnico_unico` (2026-08-27): la huella del pago
+ * (referencia-autorización-rastreo) no acepta duplicados.
+ */
+function esHuellaDePagoDuplicada(err: ErrorPg): boolean {
+  return err.code === '23505' && textoErrorPg(err).includes('idunico');
 }
 
 /** Datos extraídos del comprobante por el webhook (mapeados a nuestros campos). */
@@ -350,6 +370,19 @@ export class PagosService {
       this.logger.error(`No se pudo actualizar el maestro PPD: ${upErr.message}`);
   }
 
+  /**
+   * El importe de un pago debe coincidir con el total de la solicitud (±0.01). Lo usan
+   * `registrarPago` y `asignarMovimiento` (en PPD): un abono pagado de más o de menos dejaría
+   * el saldo de la factura y el importe que ampara el REP desfasados para siempre.
+   */
+  private validarImporteContraTotal(importe: number, total: number | null): void {
+    if (Math.abs(importe - (total ?? 0)) > 0.01) {
+      throw new BadRequestException(
+        `El importe del pago (${importe.toFixed(2)}) no coincide con el total a pagar (${(total ?? 0).toFixed(2)}).`,
+      );
+    }
+  }
+
   /** Registra un pago manual: inserta el movimiento bancario y aplica el pago. */
   async registrarPago(
     idCxp: string,
@@ -359,11 +392,7 @@ export class PagosService {
   ): Promise<{ idmov: string }> {
     const sol = await this.pagable(idCxp);
     // El importe del pago debe coincidir con el total de la solicitud.
-    if (Math.abs(dto.importe - (sol.total ?? 0)) > 0.01) {
-      throw new BadRequestException(
-        `El importe del pago (${dto.importe.toFixed(2)}) no coincide con el total a pagar (${(sol.total ?? 0).toFixed(2)}).`,
-      );
-    }
+    this.validarImporteContraTotal(dto.importe, sol.total);
     const db = this.supabase.comoActor(actorUid);
     const idmov = this.generarId(16);
     const rastreo = dto.claveRastreo || this.generarId(20);
@@ -415,9 +444,21 @@ export class PagosService {
     });
     if (movErr) {
       this.logger.error(`Error insertando movbancario: ${movErr.message}`);
-      // 23505 = unique_violation. La clave de rastreo es ÚNICA: si ya existe, el
-      // pago muy probablemente ya fue registrado. Devolvemos 409 con mensaje claro
-      // (un 500 lo enmascararía como "Error interno del servidor").
+      // 23505 = unique_violation. Se evalúa PRIMERO la huella (`idUnico`) porque
+      // su mensaje también contiene la palabra "movbancarios" y caería en el
+      // rastreo, dando una explicación equivocada.
+      if (esHuellaDePagoDuplicada(movErr)) {
+        throw new ConflictException(
+          `Este pago ya está registrado. Coinciden la referencia, el número de ` +
+            `autorización y la clave de rastreo con un movimiento bancario que ya existe. ` +
+            `Búscalo en los movimientos del proveedor: si ya se aplicó a otra factura, ` +
+            `esta solicitud necesita su propio pago. Si de verdad son pagos distintos, ` +
+            `revisa que los datos capturados sean los del comprobante correcto.`,
+        );
+      }
+      // La clave de rastreo es ÚNICA: si ya existe, el pago muy probablemente ya
+      // fue registrado. Devolvemos 409 con mensaje claro (un 500 lo enmascararía
+      // como "Error interno del servidor").
       if (esRastreoDuplicado(movErr)) {
         throw new ConflictException(
           `Ya existe un movimiento bancario con la clave de rastreo "${rastreo}". ` +
@@ -455,6 +496,14 @@ export class PagosService {
         this.logger.error(
           `No se pudo revertir el movimiento huérfano ${idmov} tras fallar el pago: ${rollbackErr.message}`,
         );
+      if (esPagoYaAplicadoAOtraFactura(cxpErr)) {
+        throw new ConflictException(
+          `Ese pago ya está aplicado a otra factura. Un mismo movimiento bancario no ` +
+            `puede pagar dos solicitudes: si esta factura también se pagó, busca su ` +
+            `propio movimiento; si el pago anterior estaba mal asignado, desaplícalo ` +
+            `primero (permiso 401) y vuelve a aplicarlo aquí.`,
+        );
+      }
       throw new InternalServerErrorException('No se pudo aplicar el pago a la solicitud.');
     }
     await this.sincronizarMaestroPpd(sol.idCxpPPD, db);
@@ -552,11 +601,30 @@ export class PagosService {
       throw new BadRequestException('Ese movimiento ya está aplicado a otra solicitud.');
 
     const importe = mov.importe ?? 0;
+    // Abonos PPD (D7, Jereff 2026-11-02): mismo control de importe que `registrarPago`. Se
+    // valida ANTES de marcar el movimiento como aplicado (no hay nada que compensar).
+    if (sol.idCxpPPD) this.validarImporteContraTotal(importe, sol.total);
     const db = this.supabase.comoActor(actorUid);
-    await db
+
+    // El UPDATE va condicionado a `aplicado = false` (no basta con haberlo leído
+    // arriba: entre la lectura y la escritura cabe otra sesión haciendo lo mismo).
+    // Si no afecta ninguna fila, alguien se nos adelantó y se rechaza.
+    const { data: marcado, error: movUpdErr } = await db
       .from('movbancarios')
       .update({ aplicado: true, folioCFDI: sol.folio })
-      .eq('idmov', idmov);
+      .eq('idmov', idmov)
+      .eq('aplicado', false)
+      .select('idmov');
+    if (movUpdErr) {
+      this.logger.error(`Error marcando el movimiento ${idmov}: ${movUpdErr.message}`);
+      throw new InternalServerErrorException('No se pudo asignar el movimiento.');
+    }
+    if (!marcado || marcado.length === 0)
+      throw new ConflictException(
+        'Ese movimiento bancario acaba de aplicarse a otra solicitud. ' +
+          'Actualiza la lista de movimientos y elige uno que siga disponible.',
+      );
+
     const { error: cxpErr } = await db
       .from('cxp')
       .update({
@@ -570,6 +638,25 @@ export class PagosService {
       .eq('idCxp', idCxp);
     if (cxpErr) {
       this.logger.error(`Error asignando mov a cxp ${idCxp}: ${cxpErr.message}`);
+      // Compensación: el movimiento ya quedó marcado como aplicado (paso 1). Si la
+      // factura no se pudo ligar, hay que soltarlo — si no, queda "aplicado" sin
+      // dueño, invisible para la lista de disponibles. Así nacieron los 36
+      // movimientos huérfanos que arrastra el sistema.
+      const { error: rollbackErr } = await db
+        .from('movbancarios')
+        .update({ aplicado: false, folioCFDI: null })
+        .eq('idmov', idmov);
+      if (rollbackErr)
+        this.logger.error(
+          `No se pudo soltar el movimiento ${idmov} tras fallar la asignación: ${rollbackErr.message}`,
+        );
+      if (esPagoYaAplicadoAOtraFactura(cxpErr)) {
+        throw new ConflictException(
+          'Ese pago ya está aplicado a otra factura. Un mismo movimiento bancario no ' +
+            'puede pagar dos solicitudes: si el pago anterior estaba mal asignado, ' +
+            'desaplícalo primero (permiso 401) y vuelve a aplicarlo aquí.',
+        );
+      }
       throw new InternalServerErrorException('No se pudo asignar el movimiento.');
     }
     await this.sincronizarMaestroPpd(sol.idCxpPPD, db);

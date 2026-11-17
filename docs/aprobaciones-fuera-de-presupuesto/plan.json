@@ -1,0 +1,53 @@
+{
+  "modulo": "Aprobaciones fuera de presupuesto: motivo y reporte de auditoría",
+  "olas": [
+    {
+      "nombre": "0 · Brief y alcance",
+      "tareas": [
+        { "nombre": "Verificar evidencia y redactar el brief (00-brief-conceptual)", "estimadoMin": 30, "responsable": "Toribio" },
+        { "nombre": "Responder las 4 preguntas del brief (quién ve el reporte, forma del motivo, tope, años)", "estimadoMin": 10, "responsable": "Jereff" }
+      ]
+    },
+    {
+      "nombre": "1 · Diseño y mockups",
+      "tareas": [
+        { "nombre": "Diseño de datos: foto de auditoría al aprobar y SQL de la migración", "estimadoMin": 40, "responsable": "Toribio" },
+        { "nombre": "Mockups en Skydraw: modal de motivo (solicitar y aprobar) y pestaña del reporte", "estimadoMin": 60, "responsable": "Toribio" },
+        { "nombre": "Paquete: PRD, TRD, UI/UX, flujos, backend y plan", "estimadoMin": 60, "responsable": "Nicanor" },
+        { "nombre": "Visto bueno de Jereff al paquete y a los mockups", "estimadoMin": 15, "responsable": "Jereff" }
+      ]
+    },
+    {
+      "nombre": "2 · Validación adversarial (Opus)",
+      "tareas": [
+        { "nombre": "Validador: auditoría confiable (foto inmutable, trazabilidad, reconstruido vs real) y seguridad del reporte y su exportación", "estimadoMin": 45, "responsable": "Opus" },
+        { "nombre": "Conciliar hallazgos y corregir el diseño", "estimadoMin": 25, "responsable": "Toribio" }
+      ]
+    },
+    {
+      "nombre": "3 · Construcción: motivo obligatorio",
+      "tareas": [
+        { "nombre": "Autorizar el SQL exacto de la migración", "estimadoMin": 5, "responsable": "Jereff" },
+        { "nombre": "Migración de la foto de auditoría y su guardado al aprobar", "estimadoMin": 45, "responsable": "Toribio" },
+        { "nombre": "API y web: motivo obligatorio al solicitar y al aprobar fuera de presupuesto", "estimadoMin": 90, "responsable": "Nicanor" },
+        { "nombre": "Verificación: typecheck, lint, pruebas y revisión de Opus", "estimadoMin": 45, "responsable": "Opus" }
+      ]
+    },
+    {
+      "nombre": "4 · Construcción: reporte de auditoría",
+      "tareas": [
+        { "nombre": "Reconstrucción de las 142 aprobaciones anteriores, marcadas como reconstruidas", "estimadoMin": 45, "responsable": "Toribio" },
+        { "nombre": "API del reporte con filtros y exportación a Excel y PDF armada en el servidor", "estimadoMin": 120, "responsable": "Nicanor" },
+        { "nombre": "Web: pestaña del reporte con filtros por columna y exportación", "estimadoMin": 90, "responsable": "Nicanor" },
+        { "nombre": "Verificación: pruebas, revisión de Opus y cuenta de Toribio en la plataforma", "estimadoMin": 60, "responsable": "Opus" }
+      ]
+    },
+    {
+      "nombre": "5 · Cierre y documentación",
+      "tareas": [
+        { "nombre": "Documentar: bitácora, KB de CxP, manual, changelog y versión", "estimadoMin": 45, "responsable": "Toribio" },
+        { "nombre": "Commit selectivo", "estimadoMin": 10, "responsable": "Toribio" }
+      ]
+    }
+  ]
+}

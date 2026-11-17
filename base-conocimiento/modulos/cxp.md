@@ -1,13 +1,13 @@
 ---
 modulo: CxP (Cuentas por Pagar)
 estado: parcial              # Proveedores, Bancos, Solicitudes (alta+listado), Pendientes y Pagar en v2; resto por fases
-version_doc: 1.0
+version_doc: 1.1
 ultima_actualizacion: 2026-11-04
 submodulos: [Proveedores, Bancos, Solicitudes, "Pagar solicitudes", Aprobación, Pago/Conciliación, Reportes, "Claves SAT"]
 rutas: [/cxp/proveedores, /cxp/bancos, /cxp/solicitudes, /cxp/pendientes, /cxp/pagar, /cxp/ppd, /cxp/aprobar, /cxp/reportes, /]
 claves_permiso: [400, 401, 402, 410, 420, 430, 431, 440, 441, 450, 460, 470]
 tablas: [cxp, cxp_ppd, catProveedores, catBancos, catClavesProdServ, cxpComentarios, cxp_fechas_habilitadas, movbancarios, PresCategorias, v_resumenPresupuesto, SPHConfiguraciones, mail_avisos_rep, correo_cuentas]
-palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, lectura de comprobante, documentos privados, URL firmada, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, carga masiva, layout, plantilla, importación, Excel, retención, IVA, ISR, tiempo real, SSE, badge, círculo, contador, número de pendientes, pendientes por aprobar, aviso en el menú, notificación en el menú, solicitudes por aprobar, PPD, parcialidades, "complemento de pago", REP, dispensar, "saldo disponible", "factura diferida", "no me deja autorizar", "cfdi rechazado", "error interno del servidor", "solicitud duplicada", "pago mal conciliado", "no me deja subir la factura", "no me deja subir esta factura", "error al subir factura en la tarde", "cfdi no habilitado", "zona horaria", "hora de méxico", "fecha no habilitada", aviso, recordatorio, "correo automático", "me llegan muchos correos", "muchos correos del mismo", "me están atosigando", "correo repetido", "no me llegó el correo", "no le llegó el aviso", "avisar al proveedor", "correo al proveedor", "proveedor sin correo", "cuándo se manda el aviso", "por qué me bloquearon", "pendientes en el inicio", "pantalla de inicio", landing, "días para el bloqueo"]
+palabras_clave: [pago, cuenta por pagar, CxP, factura, CFDI, autorizar, aprobar, solicitud de pago, pagar solicitudes, aplicar pago, comprobante, lectura de comprobante, documentos privados, URL firmada, proveedor, banco, bancos, transferencia, SPEI, conciliación, movimiento bancario, desaplicar, presupuesto, devolución, urgente, RFC, claves SAT, carga masiva, layout, plantilla, importación, Excel, retención, IVA, ISR, tiempo real, SSE, badge, círculo, contador, número de pendientes, pendientes por aprobar, aviso en el menú, notificación en el menú, solicitudes por aprobar, PPD, parcialidades, "complemento de pago", REP, dispensar, "saldo disponible", "factura diferida", "no me deja autorizar", "cfdi rechazado", "error interno del servidor", "solicitud duplicada", "pago mal conciliado", "no me deja subir la factura", "no me deja subir esta factura", "error al subir factura en la tarde", "cfdi no habilitado", "zona horaria", "hora de méxico", "fecha no habilitada", aviso, recordatorio, "correo automático", "me llegan muchos correos", "muchos correos del mismo", "me están atosigando", "correo repetido", "no me llegó el correo", "no le llegó el aviso", "avisar al proveedor", "correo al proveedor", "proveedor sin correo", "cuándo se manda el aviso", "por qué me bloquearon", "pendientes en el inicio", "pantalla de inicio", landing, "días para el bloqueo", "no aparece el cliente en devoluciones", "no me aparece en devoluciones", "solo me deja escoger inversionistas", "el cliente no está en el selector de devoluciones", "devolución a un cliente ticket", "no puedo hacer la devolución", "el cliente existe pero no lo veo en cxp", "cliente sin razón social"]
 relacionado_con: [configuraciones, inversionistas, fideicomiso]
 ---
 
@@ -173,7 +173,7 @@ parametrizadas desde el backend.
    bloquea el envío con mensaje claro. Los ya **Pagados** no se tocan.
 7. **Al enviar**, el CFDI debe ser **del mes en curso** (misma regla que el alta): no se puede enviar a
    aprobación una factura de un mes anterior. ⚠️ Esta regla la imponía el trigger
-   `cxp_validar_fecha_cfdi_estado`, **hoy DESACTIVADO** por el bug del punto 9.
+   `cxp_validar_fecha_cfdi_estado`, **DESACTIVADO DE FORMA PERMANENTE** — ver punto 9.
 8. **Movimientos para pagar:** solo `tipo='Transferencia SPEI'` sin aplicar, filtrados por proveedor
    (nombre **o** importe = total). Los **depósitos** no aparecen (son entradas).
 9. **🔴 Trigger `trigger_cxp_validar_fecha_cfdi` DESACTIVADO de nuevo (incidente 2026-06-23).** ⚠️ Ya se
@@ -198,9 +198,15 @@ parametrizadas desde el backend.
      registros con la **huella delatora `idEstado=3` + `estado='Pagado'`**.
    - **Daño 2026-06-23:** 8 solicitudes pagadas (con `montoAplicado>0` e `idMovBancarios`) habían caído a
      `idEstado=3`; el usuario las corrigió a `idEstado=6` tras la desactivación.
-   - **Reactivar/Revertir:** `ALTER TABLE public.cxp ENABLE TRIGGER trigger_cxp_validar_fecha_cfdi;` (NO hacerlo
-     hasta corregir la lógica).
-   - **📌 PENDIENTE de arreglar la función** (no solo desactivarla): aplicar la regla **solo en INSERT**, o en
+   - ⛔⛔ **NO REACTIVAR. NUNCA. Decisión de negocio de Jereff (2026-09-07): el trigger se queda APAGADO
+     de forma PERMANENTE.** Ya no es un hotfix a la espera de arreglo — es el estado definitivo.
+     Que aparezca «desactivado» en la BD **no es un pendiente**, es la decisión. Es exactamente el
+     malentendido que provocó el incidente del 2026-06-23: alguien lo leyó como pendiente y lo activó.
+     **Consecuencia aceptada por el negocio:** las PUE con CFDI de meses anteriores **no se auto-rechazan**.
+     Si ese control importa, se hace por proceso, no por trigger.
+     *(El comando `ALTER TABLE public.cxp ENABLE TRIGGER trigger_cxp_validar_fecha_cfdi;` se documenta aquí
+     solo para que se reconozca si alguien lo encuentra ejecutado — no para usarlo.)*
+   - ~~**📌 PENDIENTE de arreglar la función**~~ **(YA NO APLICA, 2026-09-07)**: aplicar la regla **solo en INSERT**, o en
      UPDATE únicamente cuando `OLD."idEstado" IN (1,2)` (Guardado/Enviado) — nunca degradar estados ≥3; PPD ya
      se cubre con `diferido`. Detalle del fix en `base-conocimiento/PLAN-correccion-trigger-cxp-fecha-cfdi.md`,
      **bloqueado hasta definir el manejo de PPD**. Registro de la desactivación:
@@ -258,7 +264,7 @@ parametrizadas desde el backend.
 | "Al pagar no aparece el movimiento del proveedor." | No hay SPEI sin aplicar que coincida (nombre truncado **y** importe ≠ total), o es otro tipo. | Verificar el comprobante; usar la opción de capturar comprobante (PDF). |
 | "No me deja registrar el pago." | El importe del comprobante no coincide con el total de la solicitud. | Verificar el comprobante / monto. |
 | "Un pago quedó mal conciliado." | Asignación incorrecta de `movbancarios`. | Desaplicar (permiso 401) y reasignar. |
-| "Una solicitud **pagada vuelve sola a Rechazado** (`idEstado=3`) al cambiarla; el `estado` dice 'Pagado'." | Trigger `trigger_cxp_validar_fecha_cfdi` (CFDI de mes anterior a `fc`) — ver gotcha 9. | Trigger **DESACTIVADO** desde 2026-06-23; corregir `idEstado` a 6 en los registros afectados. No reactivar hasta el fix. |
+| "Una solicitud **pagada vuelve sola a Rechazado** (`idEstado=3`) al cambiarla; el `estado` dice 'Pagado'." | Trigger `trigger_cxp_validar_fecha_cfdi` (CFDI de mes anterior a `fc`) — ver gotcha 9. | Trigger **DESACTIVADO DE FORMA PERMANENTE** (decision de negocio, 2026-09-07); corregir `idEstado` a 6 en los registros afectados. NO reactivar: no esta pendiente de arreglo, se queda asi. |
 | "Error interno del servidor al aplicar pago por captura/comprobante." | **Resuelto en v2.22.1.** El INSERT a `movbancarios` enviaba columnas GENERADAS (`numAnio`/`numMes`). | Actualizar a v2.22.1+ (el backend ya no las envía). Si reaparece, revisar que ningún INSERT a `movbancarios` incluya columnas generadas. |
 | "**Error interno del servidor al registrar una factura PPD**." | El folio (UUID) del CFDI **ya existe en `cxp`** (factura capturada antes como solicitud normal/PUE o como otra parcialidad) → viola `cxp_folio_key UNIQUE(folio)`. Ver gotcha 10. | **Resuelto en v2.41.1:** el backend ahora avisa que la factura ya está registrada. La factura es un **duplicado**: verificar si ya se pagó. Si debe vivir en PPD, sanear como el caso 2026-06-23 (ligar la fila existente a un maestro `cxp_ppd`). |
 | "**Error interno del servidor al subir una factura o al autorizar, pero solo por la tarde/noche**." | Bug de zona horaria: el trigger de fechas medía el día en **UTC** en vez de hora de México; después de las 18:00 (México) veía el **día siguiente** (cerrado) y bloqueaba. Ver gotcha 11. | **Resuelto 2026-07-07** (trigger alineado a `America/Mexico_City`). Si reaparece: confirmar que `cxp_trigger_validar_fecha` use hora de México y que hoy exista habilitado en Parámetros → Fechas CxP. |
@@ -269,12 +275,19 @@ parametrizadas desde el backend.
 | "**¿Cuándo se manda el aviso?**" / "no me avisaron antes de bloquearme". | Calendario anclado al plazo del proveedor. | Proveedor y solicitante: días **1 al 5**. Gerente: **solo el día 5**. Solicitante otra vez el **día 20** (víspera de su bloqueo). Los otros 22 días del mes **no se envía nada** — es por diseño, no una falla. |
 | "**Tengo un complemento vencido y ya no me avisan**." | El correo solo mira las parcialidades pagadas el **mes anterior**: las que se pasaron de esa ventana no vuelven a generar correo. | Están visibles **en el panel del landing** (pantalla de inicio), marcadas en 🔴 vencido. Ese panel sí incluye las vencidas de meses anteriores. |
 | "**No veo el panel de complementos en el inicio**." | El panel solo se renderiza si **ese usuario** tiene pendientes (donde es `uidr` o `autorizo`). | No es un permiso: `GET /cxp/mis-rep` filtra por el uid del JWT. Si no aparece, esa persona no tiene complementos pendientes. |
-| "**Pagué una urgente / línea de captura y el presupuesto de la cuenta no se movió**" / "no me avisó que me pasaba". | `subtotal = 0` en esos dos tipos: la vista y la RPC de autorización no los ven (ver el gotcha de «Tipos de solicitud especiales»). Defecto conocido (tablero #80), en diseño. | Explicar que es un defecto de la pantalla, no del pago. No editar el subtotal a mano. Escalar a ticket solo si piden un número exacto de presupuesto. |
+
+| "**Mi urgente / línea de captura / devolución no aparece o me sale «fuera de presupuesto»**" / "**el presupuesto de la cuenta se movió mucho**". | Desde 2026-11-17 estos tipos **sí** cuentan en el presupuesto (aparta al aprobar, consume al pagar; solo en pesos). Si la cuenta ya estaba sobrepasada, la aprobación pasa por el aprobador de fuera de presupuesto. | Explicar que es el comportamiento nuevo (ver «Presupuesto: urgentes, líneas…»). No editar el subtotal a mano: el sistema lo iguala al total. Una urgente aprobada que nunca se pagó sigue apartando hasta que CxP la cierre (estado 99). |
+| "**El cliente existe pero no aparece en el selector de Devoluciones**" / "solo me deja escoger inversionistas". | Hasta 2026-09-01 el selector filtraba `razonsocial IS NOT NULL`: quien no tuviera razón social quedaba **invisible** (casos *Mauricio Valdez Salgado* y *Gabriela Ruiz Ruiz*). ⛔ **NO es por la bandera Inversionista/Ticket** — ese selector nunca filtró por tipo de cliente. | **Resuelto (2026-09-01):** el selector ya no filtra por razón social y cae al nombre completo. Si el sistema aún no tiene ese cambio, el destrabe es capturar **Personalidad** en Clientes (una Física llena su razón social sola). ⛔ **No** marcar la casilla "Inversionista": no destraba nada y ensucia el tipo del cliente. |
 
 **Cuándo escalar a ticket:** desaplicar/corregir pagos, inconsistencias de conciliación, solicitudes
 atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
 
 ## 9. Estado y pendientes
+
+> 📋 **Los pendientes de este módulo viven en el TABLERO** (Configuraciones ▸ Pendientes, tabla
+> `dev_pendientes`) desde el 2026-09-02 — regla 11 de `contexto.md` §1. Lo de abajo es **histórico**:
+> su estado puede estar vencido y **no se abren pendientes nuevos aquí**. Lo que sí sigue vivo en esta
+> sección es el **✅ hecho** (qué hace el módulo hoy), que es conocimiento, no trabajo pendiente.
 
 - ✅ **Proveedores** (catálogo CRUD + status).
 - ✅ **Bancos** (catálogo).
@@ -288,9 +301,9 @@ atoradas en un estado, o cargas de CFDI bloqueadas por fechas.
 - ✅ **🔒 Visibilidad de PPD por usuario (v2.40.3):** el estado de cuenta PPD muestra a cada usuario **solo sus**
   facturas; los de *Pagar solicitudes* (clave 400) y soporte ven todas. Incluye ver **PDF/XML** del CFDI en el
   detalle.
-- 📌 **PENDIENTE (BD):** corregir la función `cxp_validar_fecha_cfdi_estado` (trigger
-  `trigger_cxp_validar_fecha_cfdi`, **hoy DESACTIVADO** — ver gotcha 9) para que no degrade solicitudes ya
-  pagadas/aprobadas; reactivarlo solo tras el fix.
+- ⛔ **CERRADO como decisión de negocio (2026-09-07):** la función `cxp_validar_fecha_cfdi_estado` (trigger
+  `trigger_cxp_validar_fecha_cfdi`) **NO se va a corregir** y el trigger **se queda DESACTIVADO de forma
+  permanente** — ver gotcha 9. Las PUE con CFDI de meses anteriores no se auto-rechazan, y el negocio lo acepta.
 - ✅ **Aprobar Solicitudes** (430, bandeja del aprobador): regresar/rechazar/aprobar con validación de
   presupuesto + reasignar fuera de presupuesto + marca `autorizadoFP` + tiempo real (SSE).
 - ✅ **Pagar solicitudes** (tesorería): listado con filtros estilo Excel + **tiempo real (SSE)** +
@@ -377,11 +390,38 @@ Para poblar el catálogo en lote (en lugar de una por una) la pestaña **Claves 
   `ClavesSatTab.tsx` + `clavesSat.api.ts` (catálogo en Parámetros) + `clavesSatLayout.ts` (descargar/leer
   el layout Excel para la carga masiva).
 
+### ⚠️ Gotcha — el régimen NO basta para saber si hay retención (v2.70.1)
+
+**La regla:** las tasas de `RET_ISR_POR_REGIMEN` (612 → 10 % · 626 → 1.25 % · 606 → 10 %) y la
+retención de IVA (10.6667 %) son las que se le retienen a una **PERSONA FÍSICA**. Una **persona
+moral emite SIN retenciones**, y eso es lo correcto.
+
+**Por qué importa:** el régimen **626 (RESICO) del catálogo del SAT aplica a las dos
+personalidades**, física y moral. Hasta v2.70.0 `validarDeducciones` miraba solo el número de
+régimen, así que a un proveedor **persona moral en RESICO** le exigía la retención de persona
+física y **rechazaba su factura** con *«La factura debería incluir retención de ISR y no la
+trae»* (caso real reportado el 2026-09-02).
+
+**Cómo se resuelve hoy:** `esPersonaMoral(cfdi.emisorRfc)` en `cfdi.ts` — **RFC de 12 caracteres
+= persona moral**, 13 = física. Si es moral, `validarDeducciones` sale sin validar.
+
+- ⛔ **La personalidad se toma del RFC del COMPROBANTE, no de `catProveedores`.** El catálogo
+  puede tener el régimen desfasado o la personalidad sin capturar (verificado el 2026-09-02:
+  1 proveedor activo sin `personalidad`, y 0 de los 41 con `claveRegimen=626` figuran como
+  morales pese a que 191 de 352 lo son por RFC). En una discrepancia manda el CFDI.
+- 📌 **Se sale sin validar, no se exige "que no traiga retenciones".** El objetivo del fix era
+  dejar de rechazar lo correcto, no empezar a rechazar casos nuevos en una validación fiscal ya
+  en producción. Si alguna vez se quiere el caso inverso, es ahí donde va.
+- 612 y 606 son regímenes **exclusivos de persona física**: un emisor moral con esas claves trae
+  un comprobante mal emitido, y tampoco se le aplica la regla.
+
 ### Pendiente / notas
 - La validación XML↔PDF requiere que el PDF tenga texto (un PDF escaneado/imagen se
   rechaza con mensaje específico).
-- Tipos de solicitud Urgentes / Línea de Captura / Devoluciones / Facturas sin XML:
-  fase futura (el menú ya los lista como "Próx.").
+- ✅ **Tipos de solicitud Urgentes / Línea de Captura / Devoluciones / Facturas sin XML: YA IMPLEMENTADOS**
+  (verificado el 2026-09-07). Los cinco tipos tienen `disponible: true` en `SolicitudesPage.tsx`, el badge
+  "Próx." ya no se pinta para ninguno, y **Sin XML ya se usa en producción** (5 facturas con
+  `tipoOperacion = 6`). Esta línea decía "fase futura" y estaba desactualizada.
 - `cxp` no guarda desglose de impuestos (solo `subtotal`/`total`); las retenciones se
   validan pero no se almacenan desglosadas.
 
@@ -479,10 +519,20 @@ Solo para solicitudes **Aprobadas** (`idEstado=4`, sin pago previo). Abre un mod
   `components/tabla/ColumnFilter.tsx` (filtro Excel).
 
 ### Pendiente (fase futura)
-- Conciliación automática por monto, drag-drop, 1 pago↔N solicitudes, pagos parciales,
-  importación del estado de cuenta bancario.
-- Lectura de comprobante: sumar los parsers deterministas de los **otros 2 formatos** de banco (hoy caen al
-  fallback de IA hasta que se agreguen a `comprobantes.parser.ts`).
+- ⛔ **DESCARTADO (decisión de Jereff, 2026-09-07) — conciliación automática e importación del estado de
+  cuenta bancario: NO SE VA A HACER, por imposibilidad técnica.** *«No hay compatibilidad entre el estado
+  de cuenta y los datos que capturan al ingresar pagos»*: lo que entrega el banco y lo que el área captura
+  al registrar un pago **no comparten un identificador ni un formato común**, así que no hay llave para
+  cruzarlos. Un "match automático" solo podría adivinar por monto y fecha — y en cuentas por pagar,
+  adivinar mal es dar por pagada una factura que no lo está.
+  **No re-proponerlo.** Cambiaría la premisa solo si el banco entregara un layout con referencia
+  rastreable, o si el sistema empezara a mandar una referencia propia en cada transferencia.
+  *(Con esto caen también el drag-drop, 1 pago↔N solicitudes y los pagos parciales, que iban en el mismo
+  pendiente.)*
+- ⚠️ Lectura de comprobante: **solo existe UN parser determinista, el de Banbájio** (`FORMATOS` en
+  `comprobantes.parser.ts` tiene un único elemento, verificado 2026-09-07). Todo lo demás cae al **fallback
+  de IA**. ⚠️ No confundir: Banbájio/Actinver son las opciones de la **captura de pantalla**, no del parser.
+  Para agregar un banco hace falta un comprobante real de muestra.
 
 ---
 
@@ -673,18 +723,34 @@ Total, Monto Aplicado, Balance, Urgente, Acciones) con encabezado fijo azul (reg
   desde 2026-06-30 **exenta a `esUrgente=true`** (migración `2026-06-30-cxp-trigger-validar-fecha-exenta-urgentes.sql`),
   para que los Urgentes puedan registrarse cualquier día. *(El service de los tipos especiales no llama
   `cxp_puede_insertar` directamente; la validación efectiva la impone el trigger.)*
-- **Devoluciones**: la contraparte es un **Inversionista** (selector `GET /cxp/solicitudes/inversionistas`:
-  `inversionista` activos, no de prueba). Se guarda `idProveedor`=`idInversionista`, `tipoProveedor=2` y
-  `nombreProveedor`=`razonsocial` (resuelto en el backend; v1 lo dejaba en null).
+- **Devoluciones**: la contraparte es un **cliente de la tabla `inversionista`** (selector
+  `GET /cxp/solicitudes/inversionistas`: clientes **activos** y **no en papelera**). Se guarda
+  `idProveedor`=`idInversionista`, `tipoProveedor=2` y `nombreProveedor` con el nombre resuelto en el
+  backend (v1 lo dejaba en null).
+  - ⛔ **"Inversionista" aquí es el nombre de la TABLA, no un requisito de tipo.** El selector **NUNCA**
+    ha filtrado por la bandera `inversionista`/`ticket`/`arrendatario`: **cualquier** cliente activo puede
+    recibir una devolución. No pidas marcar la casilla "Inversionista" para destrabar un caso — no cambia
+    nada y ensucia el tipo del cliente (dispara `trigger_calcular_tipo_cliente` y lo mete en selectores
+    donde no pertenece).
   - **Documento adjunto OPCIONAL (v2.50.0):** se puede adjuntar un PDF o imagen (p. ej. la nota de crédito).
     Backend valida tipo por **allowlist de mimetype + magic bytes** (`subirDocumentoDevolucion`) y lo sube vía
     `subirArchivoCxp` al bucket `CFDIproveedores` (`{yyyy-MM}/{idInversionista}/{idCxp}.{ext}`) → `urlCFDI`. Se
     sirve firmado en el listado y en la bandeja de aprobación.
-  - ⚠️ **Gotcha (2026-06-18):** ese selector filtra **`razonsocial IS NOT NULL`** y muestra esa columna,
-    por lo que las **personas físicas sin razón social** no aparecían (caso *Mauricio Valdez Salgado*). Se
-    resolvió de fondo con el trigger de BD `v2_trg_inversionista_razonsocial`, que **autocompleta** la
-    `razonsocial` de las físicas con su nombre (ver `modulos/clientes.md` §9 y
-    `migraciones/2026-06-18-inversionista-autocompleta-razonsocial-fisica.sql`). El selector **no** se modificó.
+  - ✅ **Gotcha CERRADO (2026-09-01) — el cliente sin razón social ya no desaparece.** Historia, porque se
+    creyó cerrado dos veces:
+    1. **2026-06-18** (caso *Mauricio Valdez Salgado*): el selector filtraba **`razonsocial IS NOT NULL`**,
+       así que una **física sin razón social** no aparecía. Se tapó con el trigger de BD
+       `v2_trg_inversionista_razonsocial` (autocompleta la razón social de las físicas con su nombre) —
+       **pero el selector NO se tocó**, y el trigger solo entraba si `personalidad` era 'Fisica'.
+    2. **2026-09-01** (caso *Gabriela Ruiz Ruiz*, cliente **Ticket**): se dio de alta con **`personalidad`
+       vacía** → el trigger no entró → `razonsocial` NULL → invisible en Devoluciones otra vez. Encima, aun
+       seleccionándola, el alta la rechazaba con un **"El cliente/inversionista no existe" falso** (el
+       backend resolvía el nombre solo por `razonsocial`).
+    - **Arreglo definitivo (3 capas):** el selector **ya no filtra por razón social** y resuelve la etiqueta
+      con **fallback al nombre completo** (`etiquetaCliente()`, mismo patrón que Fideicomiso/Arrendatarios/
+      KVAs); `personalidad` es **obligatoria** en el alta de Clientes; y el trigger tiene una red final que
+      impide que la razón social quede vacía por cualquier vía
+      (`migraciones/2026-09-01-inversionista-razonsocial-nunca-vacia.sql`, ver `modulos/clientes.md` §9).
 - **Archivos** (Línea de Captura, Sin XML y Devolución): al bucket **`CFDIproveedores`**, ruta
   `{yyyy-MM}/{idProveedor}/{idCxp}.{ext}` → `urlCFDI`. El helper genérico `subirArchivoCxp` centraliza el
   upload (con **sanitización del segmento** anti path-traversal); `subirComprobante` (PDF obligatorio) y
@@ -701,27 +767,31 @@ Total, Monto Aplicado, Balance, Urgente, Acciones) con encabezado fijo azul (reg
   `AprobarSolicitudModal.tsx` (sección Documentos PDF/XML).
 
 ### Pendiente / notas
-- ⚠️ Cuando se **reactive** el trigger `cxp_validar_fecha_cfdi_estado` (hoy off), revisar el caso **Sin XML**:
+- **(YA NO APLICA: el trigger se queda apagado de forma permanente, decisión de negocio 2026-09-07.)** Se
+  conserva la nota por si algún día se retoma el tema — el caso **Sin XML** era:
   escribe `fecCFDI` = fecha de factura (capturada por el usuario), que podría ser de un mes anterior. El plan
   de corrección del trigger debe contemplar `tipoOperacion=6`.
 - Sin objetos nuevos en BD: todo se construye sobre `cxp`/`cxpComentarios`/`PresCategorias`/`catProveedores`/
   `inversionista` existentes.
 
-### ⚠️ Gotcha — las urgentes y las líneas de captura NO consumen presupuesto (verificado 2026-11-04; tablero #80)
-- **Síntoma:** una urgente o una línea de captura aprobada y hasta pagada **no baja el disponible** de su
-  cuenta, y su aprobador no ve que "se pase" del presupuesto.
-- **Causa:** `v_resumenPresupuesto` (y la RPC `cxp_autorizar_solicitud_pago`) suman **`cxp.subtotal`**
-  —no `total`—, y estos dos tipos nacen con `subtotal = 0` (los formularios solo piden el TOTAL; la columna
-  tiene `DEFAULT 0`). Para la vista valen cero pesos: ni "comprometido" (estado 4) ni "consumido" (estado 6).
-- **Magnitud al 2026-11-04:** 86 filas afectadas (35 urgentes + 51 líneas de captura). Las solicitudes
-  normales (tipo 1) sí traen subtotal real y sí cuentan.
-- **Qué decirle al usuario hoy:** es un defecto conocido, no un error suyo; el dinero sí sale, pero la
-  pantalla de presupuesto no lo refleja. **No** hay que recapturar nada ni inventar el subtotal a mano.
-- **Estado del arreglo:** **EN DISEÑO, nada construido ni aplicado.** Decisión de Jereff (2026-11-04, A9):
-  que al **autorizar** se aparte el presupuesto y al **aplicar el pago** se consuma. Ver la sección
-  «Presupuesto por año, "solo anual" y Ajuste Presupuestal — EN DISEÑO» al final de este documento.
+### ✅ Presupuesto: urgentes, líneas de captura, devoluciones y sin XML SÍ cuentan (resuelto 2026-11-17; tablero #80)
+- **Antes (hasta 2026-11-17):** estos tipos nacían con `subtotal = 0` y la vista `v_resumenPresupuesto` (que suma **`cxp.subtotal`**, no `total`) y la RPC `cxp_autorizar_solicitud_pago` no los veían: no bajaban el disponible ni activaban el control de aprobación.
+- **Ahora:** el trigger `trg_cxp_subtotal_igual_total` (BEFORE INSERT/UPDATE OF tipoOperacion, total, subtotal en `cxp`; función `cxp_subtotal_igual_total()`) deja **`subtotal = total`** así:
+  - **Línea de captura (4), Devolución (5) y Sin XML (6):** siempre, en pesos.
+  - **Urgente (2):** antes del pago (estados 1–4) y cuando el subtotal está vacío; ya pagada, respeta un ajuste del subtotal (previsto para la futura «comprobación del gasto»).
+  - **Solo MXN:** las facturas en otra moneda **todavía no afectan el presupuesto** (decisión de Jereff; se revisan aparte, tablero #79).
+- **Regla de negocio:** la urgente es un anticipo para un gasto que no alcanza el proceso normal (ej. la chapa de la puerta en sábado). Afecta el presupuesto por su **total** (con IVA): se **aparta** al aprobar (estado 4) y se **consume** al pagar (estado 6). La futura comprobación del gasto (subir facturas o notas y devolver el sobrante) ajustará el subtotal y devolverá lo que sobró al presupuesto; **hoy no existe**.
+- **Aprobación en cuenta sobrepasada:** la urgente pasa por el aprobador «fuera de presupuesto» (`SPHConfiguraciones 'Aprobar fuera de presupuesto'`) igual que cualquier gasto (opción A de Jereff); la RPC no cambió.
+- **Qué se corrigió ese día:** 153 filas con subtotal = total: 51 líneas, 67 devoluciones y 35 urgentes (las 5 «Sin XML» están en euros y quedaron en 0). Las 2 urgentes duplicadas de facturas ya pagadas (j0z0Vt7IWrW1i8l y 8yDZ3C0soB2ejVH) se cerraron como 99. Las 3 aprobadas sin pagar de 2026 (HDI, TRUVA, MYPSA; 630,490.80) cuentan como apartado hasta que CxP confirme. Las dos cargas del 29/sep (17.9 M en 11-607-1 y 5.6 M en 11-604-1) cuentan como gasto de 2026: esas cuentas quedaron sobrepasadas.
+- **Efecto en cuentas:** 52-020-0 (IMSS Patronal) pasó a 952,591.35 contra 735,070.75 acumulado; 47-000-0 (devoluciones, no presupuestable) muestra su consumo sin límite.
+- **Reversa:** ver el archivo de migración `base-conocimiento/migraciones/2026-11-17-cxp-subtotal-igual-total-tipos-4-5-6.sql` (función, trigger y corrección en el orden correcto).
 
 ## Solicitudes de Pago PPD (facturas en parcialidades) — v2  ✅
+
+> ✅ **v2.73.0 — columna «Solicitó»**: el listado de PPD muestra el nombre de quien registró cada factura
+> (`cxp_ppd.uidr` resuelto contra `catUsers`). Es **ordenable** y el buscador de arriba también busca por
+> ese nombre. El dato siempre estuvo ahí — se usaba para filtrar la visibilidad por usuario —, solo no se
+> mostraba.
 
 **Qué es.** Sección dedicada (`/cxp/ppd`, **clave 420**) para facturas con **MetodoPago = PPD** (Pago en
 Parcialidades o Diferido): una factura grande (p. ej. $1,000,000) se **dosifica** en varios pagos a lo largo
@@ -952,41 +1022,14 @@ les podía subir/dispensar el complemento). Se **regularizaron** creando el maes
 - El job de avisos requiere **al menos una cuenta de correo activa** en `correo_cuentas` (la del buzón de
   facturas) y `EMAIL_ENCRYPTION_KEY` configurada para descifrar su contraseña.
 
-## Presupuesto por año, «solo anual» y Ajuste Presupuestal — ⏳ EN DISEÑO (2026-11-04) — NADA CONSTRUIDO
+## Presupuesto por año, «solo anual» y Ajuste Presupuestal — ⏳ EN DISEÑO (actualizado 2026-11-17)
 
-> ⛔ **Para el agente de soporte: nada de esto existe todavía en la plataforma.** No le digas a nadie que
-> puede marcar una cuenta «solo anual», capturar un «Ajuste presupuestal» ni ver otro año en Cuentas. El
-> paquete de diseño está **pendiente del visto bueno de Jereff** (gate G3/G4); no hay código ni migraciones
-> aplicadas. Se documenta aquí para que, cuando se construya, esta KB ya traiga el contexto.
+> ⛔ **Para el agente de soporte: nada de esto existe todavía en la plataforma** (salvo lo marcado ✅). No le digas a nadie que puede marcar una cuenta «solo anual», capturar un «Ajuste presupuestal» ni ver otro año en Cuentas. El paquete de diseño está pendiente del visto bueno de Jereff.
 
-- **Paquete:** `version2/docs/presupuesto-anual-y-ajustes/` — `00-brief-conceptual` … `07-VERIFICACION-ADVERSARIAL`,
-  `migraciones-borrador.sql` (M1–M11, **no aplicado**), `presupuesto-ajustes.pen` y `mockups/` (8 pantallas).
-- **Qué se diseñó (tres cosas, y una fase 0 que va primero):**
-  1. **«Solo anual» por cuenta** (`PresCategorias.soloAnual`): el disponible es el presupuesto anual completo
-     desde enero, no el acumulado al mes. Se prende con la clave 213 (la de «Presup.»).
-  2. **Concepto 98 «Ajuste Presupuestal»** (`cxp.tipoOperacion = 98`, permiso **432**): registra un gasto ya
-     ocurrido sin factura; descripción obligatoria, nace ya contado (estado 6), sin IVA, uno por uno,
-     proveedor opcional (proveedor genérico «AJUSTE PRESUPUESTAL (SIN PROVEEDOR)»). Se anula (no se edita).
-  3. **Selector de año** en Configuraciones ▸ Cuentas, con una sola función de cálculo
-     `cxp_resumen_presupuesto_por_anio(p_anio)` que alimenta la vista, la RPC de autorización, el reporte y
-     el agente. Para años distintos al actual el acumulado es el año completo.
-  4. **F0 (decisión A9 de Jereff, 2026-11-04):** urgentes y líneas de captura **consumen presupuesto**: al
-     autorizar se aparta (estado 4, comprometido) y al aplicar el pago se consume (estado 6). Los formularios
-     piden un **Subtotal (sin IVA)** (arranca igual al monto; tope servidor 1.2 × total por las retenciones,
-     con casilla «el pago lleva retenciones»), y un CHECK de BD impide nuevas urgentes/líneas con subtotal 0.
-     Las 86 ya cargadas se rellenan con `subtotal = total` (M10), con excepciones por revisar.
-- **Orden de despliegue (excepción: la BD va después del código en F0):** F0 → F1 → F2, **tres pushes
-  separados**, cada uno por orden explícita de Jereff; cada migración con su autorización y SQL exacto.
-- **Estado de la validación:** adversarial Opus de F0 = **CONDICIONADO (0 ALTA, 4 MEDIA incorporadas)**.
-  **M10 está bloqueada** hasta que Jereff diga si dos cargas manuales del 29-sep (≈23.4 M, ACUPARK II y III,
-  como urgentes «CARGA MANUAL») son gasto de 2026, y hasta que CxP revise 34 urgentes/líneas aprobadas sin
-  pago (≈4.56 M; 2 duplicados confirmados de facturas ya pagadas).
-- **Efecto esperado en 2026 al aplicar F0:** 14 cuentas se mueven, 3 quedan «fuera de presupuesto»; el 91 %
-  del efecto son las dos cargas manuales. Detalle y cifras en `05-BACKEND.md` §7 del paquete.
-- **Aviso al equipo antes de M10** (ya en `06-PLAN.md` §3b): los aprobadores verán «fuera de presupuesto» en
-  solicitudes que antes pasaban; solo el aprobador FP (`SPHConfiguraciones 'Aprobar fuera de presupuesto'`)
-  podrá autorizarlas.
-- **Riesgos abiertos:** Looker/n8n sin verificar (M9); RLS abierta P0 #2/#3 preexistente; ráfaga Realtime
-  al correr M10 sin probar; pruebas reales de función/INSERT/RPC pendientes de autorización.
-- **Tablero:** #77 (presupuesto por año/ajustes) y #80 (urgentes/líneas no consumen presupuesto) siguen
-  abiertos; **#80 se cierra al aplicar F0** (con versión y fecha).
+- **Paquete:** `version2/docs/presupuesto-anual-y-ajustes/` (00 brief … 07 verificación, `migraciones-borrador.sql`, `presupuesto-ajustes.pen`, `mockups/`). Decisiones A9 (urgentes/líneas consumen) y **A10** (2026-11-17: líneas, devoluciones y sin XML con `subtotal = total` por trigger, sin código; F0 queda solo para urgentes).
+- **Tres piezas diseñadas, sin construir:** «solo anual» por cuenta (`PresCategorias.soloAnual`, clave 213); concepto 98 «Ajuste Presupuestal» (permiso 432); selector de año con la función `cxp_resumen_presupuesto_por_anio`.
+- ✅ **Ya aplicado el 2026-11-17 en producción:** el trigger de subtotal (líneas, devoluciones, sin XML y urgentes, solo pesos) — ver «Presupuesto: urgentes, líneas…» más arriba. Con eso F0 en su forma original (campo «Subtotal» en formularios, M10, M11) **ya no hace falta**.
+- **PPD, modelo acordado por Jereff (2026-11-17), aún sin implementar en la vista:** las facturas PPD se contarán desde `cxp_ppd` (la factura) y **sus parcialidades se excluirán de la suma de `cxp`** para no duplicar; una factura cuenta desde su **primera aprobación** (cuenta, año y mes de esa aprobación) por su **base completa**: lo pagado (`montoAplicado` / total) es consumido y el resto comprometido. Requiere cambiar `v_resumenPresupuesto` (y su copia en minúsculas) y la RPC de aprobación; hoy ninguna factura aprobada tiene saldo pendiente, así que no cambia cifras actuales. Hasta entonces las PPD cuentan por el subtotal de cada parcialidad (con el código de v2.82.0).
+- ✅ **La cuenta de una factura PPD se pide una sola vez, al subirla** (v2.82.0): «Solicitar otro pago» la muestra de solo lectura. Las 3 facturas con cuenta distinta a la de su pago se alinearon el 2026-11-17 (cuenta del pago).
+- **Pendientes de diseño con Jereff:** reporte de aprobaciones fuera de presupuesto con motivo obligatorio (`docs/aprobaciones-fuera-de-presupuesto/`), reporte de consumos por cuenta con desglose de facturas (`docs/reporte-consumos-por-cuenta/`), seguridad P0/RLS (`docs/remediacion-p0-seguridad/`), regla contable del cambio de año para PPD (tablero #77).
+- **Riesgos abiertos:** RLS abierta P0 #2/#3 (plan en `docs/remediacion-p0-seguridad/`); Looker usa roles propios `looker_reader` y `lkr_cxp` por conexión directa (no se afectan por esos cambios); un script Python en Hostinger usa `service_role` y debe seguir operando.

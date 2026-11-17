@@ -1,0 +1,77 @@
+{
+  "modulo": "Seguridad P0: cerrar el acceso directo a la base (RLS)",
+  "olas": [
+    {
+      "nombre": "0 · Verificación y plan",
+      "tareas": [
+        { "nombre": "Verificar estado real: permisos, políticas, código y tráfico de 24 h", "estimadoMin": 45, "responsable": "Toribio" },
+        { "nombre": "Redactar el plan por fases (06-PLAN) y declararlo en Skywrap", "estimadoMin": 25, "responsable": "Toribio" },
+        { "nombre": "Aclarar cómo se conectan Looker y n8n (pendiente M9)", "estimadoMin": 20, "responsable": "Toribio" },
+        { "nombre": "Responder lo que falte sobre Looker y n8n", "estimadoMin": 10, "responsable": "Jereff" }
+      ]
+    },
+    {
+      "nombre": "1 · SQL exacto y respaldo de reversa",
+      "tareas": [
+        { "nombre": "Generar firmas exactas de las 8 RPCs y el SQL del Paso 0", "estimadoMin": 20, "responsable": "Toribio" },
+        { "nombre": "Respaldo de reversa: inventario de permisos y políticas actuales como SQL restaurable", "estimadoMin": 30, "responsable": "Toribio" },
+        { "nombre": "SQL de los lotes A (segModulosUsuarios), B (dinero, datos personales y RBAC), C (resto y vistas) y D (permisos por defecto)", "estimadoMin": 60, "responsable": "Toribio" }
+      ]
+    },
+    {
+      "nombre": "2 · Validación adversarial (Opus)",
+      "tareas": [
+        { "nombre": "Validador 1: qué se rompe (todos los consumidores de los permisos que se quitan)", "estimadoMin": 40, "responsable": "Opus" },
+        { "nombre": "Validador 2: qué queda abierto (vistas definer, permisos a PUBLIC, defaults, Realtime)", "estimadoMin": 40, "responsable": "Opus" },
+        { "nombre": "Conciliar hallazgos y corregir el SQL", "estimadoMin": 30, "responsable": "Toribio" },
+        { "nombre": "Visto bueno del paquete y del SQL exacto del Paso 0", "estimadoMin": 10, "responsable": "Jereff" }
+      ]
+    },
+    {
+      "nombre": "3 · Paso 0: cerrar las RPCs peligrosas (P0-1 y P0-4)",
+      "tareas": [
+        { "nombre": "Aplicar REVOKE a anon y authenticated en las 8 RPCs", "estimadoMin": 10, "responsable": "Toribio" },
+        { "nombre": "Verificar: permisos, app con cuenta de Toribio y logs sin permission denied", "estimadoMin": 20, "responsable": "Toribio" }
+      ]
+    },
+    {
+      "nombre": "4 · Lote A: nadie con sesión se da permisos (P0-3)",
+      "tareas": [
+        { "nombre": "Autorizar el SQL exacto del lote A", "estimadoMin": 5, "responsable": "Jereff" },
+        { "nombre": "Aplicar el lote A en segModulosUsuarios", "estimadoMin": 10, "responsable": "Toribio" },
+        { "nombre": "Verificar con prueba negativa de auto-escalado y smoke de la app", "estimadoMin": 25, "responsable": "Toribio" }
+      ]
+    },
+    {
+      "nombre": "5 · Lote B: tablas de dinero, datos personales y RBAC (P0-2)",
+      "tareas": [
+        { "nombre": "Autorizar el SQL exacto del lote B", "estimadoMin": 5, "responsable": "Jereff" },
+        { "nombre": "Aplicar el lote B", "estimadoMin": 10, "responsable": "Toribio" },
+        { "nombre": "Verificar: prueba negativa directa a cxp, smoke de CxP, Ventas y Arrendatarios, logs", "estimadoMin": 40, "responsable": "Toribio" }
+      ]
+    },
+    {
+      "nombre": "6 · Lote C: resto de tablas y vistas (P0-2)",
+      "tareas": [
+        { "nombre": "Autorizar el SQL exacto del lote C", "estimadoMin": 5, "responsable": "Jereff" },
+        { "nombre": "Aplicar el lote C", "estimadoMin": 10, "responsable": "Toribio" },
+        { "nombre": "Verificar: inventario final de permisos, smoke de todos los módulos, logs", "estimadoMin": 45, "responsable": "Toribio" }
+      ]
+    },
+    {
+      "nombre": "7 · Lote D: permisos por defecto de tablas nuevas",
+      "tareas": [
+        { "nombre": "Autorizar el SQL exacto del lote D", "estimadoMin": 5, "responsable": "Jereff" },
+        { "nombre": "Aplicar el lote D y comprobar con una tabla de prueba que nace cerrada", "estimadoMin": 20, "responsable": "Toribio" }
+      ]
+    },
+    {
+      "nombre": "8 · Cierre y documentación",
+      "tareas": [
+        { "nombre": "Prueba negativa final y regresión completa con la cuenta de Toribio", "estimadoMin": 30, "responsable": "Toribio" },
+        { "nombre": "Documentar: bitácora, KB, estados en PLAN-remediacion-P0 y DEUDA, cierre en el tablero", "estimadoMin": 40, "responsable": "Toribio" },
+        { "nombre": "Commit selectivo", "estimadoMin": 10, "responsable": "Toribio" }
+      ]
+    }
+  ]
+}

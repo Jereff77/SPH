@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
@@ -8,10 +9,14 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { mapearErrorCxp } from '../../common/filters/cxp-error-mapper.js';
 import { SolicitudesService } from './solicitudes.service.js';
 import { BloqueoService } from './bloqueo.service.js';
-import { parsearComplementoPago, validarRepContra } from './cfdi.js';
+import { baseGastoCfdi, parsearComplementoPago, validarRepContra } from './cfdi.js';
 import { firmarDocumentos } from './documentos.util.js';
+import { recontarNumPagosPpd } from './ppd-contador.js';
+import { folioDeParcial, hoyMexicoISO, patronFoliosDeFactura } from './ppd-folio.js';
+import { subtotalParcial } from './ppd-subtotal.js';
 import {
   leerRepConfig,
   nivelRepPendiente,
@@ -28,6 +33,18 @@ const ID_ALFABETO =
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
+/** Intentos máximos para asignar el folio de una parcialidad ante colisiones concurrentes. */
+const MAX_INTENTOS_FOLIO = 3;
+
+/**
+ * ¿El error de Postgres es la violación del índice único del folio (`cxp_folio_key`)?
+ * (23505 = unique_violation). Otras restricciones únicas de `cxp` NO deben reintentarse.
+ */
+function esFolioDuplicado(err: { code?: string; message?: string; details?: string }): boolean {
+  const texto = `${err.message ?? ''} ${err.details ?? ''}`.toLowerCase();
+  return err.code === '23505' && texto.includes('cxp_folio_key');
+}
+
 /** Saldo de una factura PPD: total de la factura, lo solicitado (en proceso),
  * lo pagado y lo disponible para nuevas solicitudes. */
 export interface SaldoPpd {
@@ -35,6 +52,8 @@ export interface SaldoPpd {
   solicitado: number; // Σ parciales NO rechazadas (todo lo comprometido)
   pagado: number; // Σ montoAplicado de parciales pagadas (idEstado 6/7)
   disponible: number; // total − solicitado
+  subtotalFactura: number; // base del gasto de la factura (maestro `cxp_ppd.subtotal`)
+  subtotalAsignado: number; // Σ subtotal de parciales NO rechazadas (ya consumido de la base)
 }
 
 /**
@@ -91,26 +110,32 @@ export class PpdService {
 
   // ===================== Saldo / estado de cuenta =====================
 
-  /** Calcula el saldo de una factura PPD a partir de sus parcialidades. */
+  /**
+   * Calcula el saldo de una factura PPD a partir de sus parcialidades. El saldo en
+   * pesos y el subtotal asignado salen de la MISMA lectura (maestro + parciales):
+   * así `subtotalParcial` nunca mezcla fotos distintas de la factura.
+   */
   async saldoDe(idCxpPPD: string): Promise<SaldoPpd> {
     const { data: m } = await this.supabase.admin
       .from('cxp_ppd')
-      .select('total')
+      .select('total, subtotal')
       .eq('idCxpPPD', idCxpPPD)
       .maybeSingle();
     const total = m?.total ?? 0;
     const { data: ps, error } = await this.supabase.admin
       .from('cxp')
-      .select('total, montoAplicado, idEstado')
+      .select('total, subtotal, montoAplicado, idEstado')
       .eq('idCxpPPD', idCxpPPD)
       .eq('status', true);
     if (error) throw new InternalServerErrorException(error.message);
 
     let solicitado = 0;
     let pagado = 0;
+    let subtotalAsignado = 0;
     for (const p of ps ?? []) {
-      if (p.idEstado === 3) continue; // rechazada: libera su monto
+      if (p.idEstado === 3) continue; // rechazada: libera su monto y su subtotal
       solicitado += p.total ?? 0;
+      subtotalAsignado += p.subtotal ?? 0;
       if (p.idEstado === 6 || p.idEstado === 7) pagado += p.montoAplicado ?? 0;
     }
     return {
@@ -118,6 +143,8 @@ export class PpdService {
       solicitado: round2(solicitado),
       pagado: round2(pagado),
       disponible: round2(total - solicitado),
+      subtotalFactura: m?.subtotal ?? 0,
+      subtotalAsignado: round2(subtotalAsignado),
     };
   }
 
@@ -452,6 +479,8 @@ export class PpdService {
         moneda: cfdi.moneda,
         metodoPago: cfdi.metodoPago,
         subtotal: cfdi.subtotal,
+        descuento: cfdi.descuento,
+        base: baseGastoCfdi(cfdi), // SubTotal − Descuento: lo que se guarda como subtotal
         total: cfdi.total,
         conceptoResumen: cfdi.conceptoResumen,
         conceptos: cfdi.conceptos,
@@ -485,7 +514,30 @@ export class PpdService {
     return { urlXml, urlPdf };
   }
 
-  /** Inserta una solicitud parcial (fila `cxp`) ligada al maestro + comentario. */
+  /**
+   * Folios que ya ocupan el índice único `cxp_folio_key` para una factura: el UUID y todos
+   * los `<UUID>-…`, de TODAS las filas `cxp` (también rechazadas y `status=false`, que
+   * siguen ocupando el índice). Por eso NO filtra por `status` (a diferencia de `saldoDe`).
+   */
+  private async foliosUsados(uuidFactura: string): Promise<string[]> {
+    const { data, error } = await this.supabase.admin
+      .from('cxp')
+      .select('folio')
+      .like('folio', patronFoliosDeFactura(uuidFactura));
+    if (error) {
+      this.logger.error(`Error leyendo los folios de la factura PPD: ${error.message}`);
+      throw new InternalServerErrorException('No se pudo crear la solicitud parcial.');
+    }
+    return (data ?? []).map((r) => r.folio).filter((f): f is string => !!f);
+  }
+
+  /**
+   * Inserta una solicitud parcial (fila `cxp`) ligada al maestro + comentario.
+   * Folio (convención v1, ver `folioDeParcial`): la 1.ª parcialidad conserva el UUID de la
+   * factura; de la 2.ª en adelante lleva `<UUID>-ddmmaaaa` (+ consecutivo si ya existe).
+   * `idFolioDif` lleva SIEMPRE el UUID de la factura. Si dos peticiones eligen el mismo
+   * folio a la vez, la 2.ª recibe 23505 de `cxp_folio_key`: se relee y se reintenta.
+   */
   private async insertarParcial(
     ctx: {
       idCxpPPD: string;
@@ -499,43 +551,66 @@ export class PpdService {
       urlXLM: string | null;
       urlCFDI: string | null;
     },
-    p: { idCategoria: string; justificacion: string; monto: number; uidGerente: string },
+    p: {
+      idCategoria: string;
+      justificacion: string;
+      monto: number;
+      subtotal: number; // base presupuestal de este pago (ver `subtotalParcial`)
+      uidGerente: string;
+    },
     actorUid: string,
   ): Promise<{ idCxp: string }> {
     const idCxp = this.generarId(15);
-    const hoy = new Date().toISOString().split('T')[0]!;
+    const hoy = hoyMexicoISO(); // hora de México (D4), no UTC
     const db = this.supabase.comoActor(actorUid);
 
-    const { error } = await db.from('cxp').insert({
-      idCxp,
-      uidr: actorUid,
-      status: true,
-      idProveedor: ctx.idProveedor,
-      tipoProveedor: 1,
-      nombreProveedor: ctx.nombreProveedor,
-      fecCFDI: ctx.fecCFDI,
-      fecSolicitud: hoy,
-      folio: ctx.folio,
-      idFolioDif: ctx.folio,
-      idCxpPPD: ctx.idCxpPPD,
-      idCategoria: p.idCategoria,
-      concepto: ctx.concepto,
-      subtotal: null,
-      total: p.monto,
-      montoAplicado: 0,
-      urlXLM: ctx.urlXLM,
-      urlCFDI: ctx.urlCFDI,
-      ultimoComentario: p.justificacion,
-      nomCFDI: ctx.nomCFDI,
-      idEstado: 2, // nace Enviado → directo a la bandeja del aprobador
-      moneda: ctx.moneda,
-      tipoOperacion: 1,
-      esUrgente: false,
-      diferido: true,
-      tdc: false,
-      uidGerente: p.uidGerente,
-    });
-    if (error) {
+    for (let intento = 1; ; intento++) {
+      const folio = folioDeParcial(ctx.folio, hoy, await this.foliosUsados(ctx.folio));
+      const { error } = await db.from('cxp').insert({
+        idCxp,
+        uidr: actorUid,
+        status: true,
+        idProveedor: ctx.idProveedor,
+        tipoProveedor: 1,
+        nombreProveedor: ctx.nombreProveedor,
+        fecCFDI: ctx.fecCFDI,
+        fecSolicitud: hoy,
+        folio,
+        idFolioDif: ctx.folio, // el UUID real de la factura, siempre
+        idCxpPPD: ctx.idCxpPPD,
+        idCategoria: p.idCategoria,
+        concepto: ctx.concepto,
+        subtotal: p.subtotal,
+        total: p.monto,
+        montoAplicado: 0,
+        urlXLM: ctx.urlXLM,
+        urlCFDI: ctx.urlCFDI,
+        ultimoComentario: p.justificacion,
+        nomCFDI: ctx.nomCFDI,
+        idEstado: 2, // nace Enviado → directo a la bandeja del aprobador
+        moneda: ctx.moneda,
+        tipoOperacion: 1,
+        esUrgente: false,
+        diferido: true,
+        tdc: false,
+        uidGerente: p.uidGerente,
+      });
+      if (!error) break;
+
+      // Otra petición tomó el mismo folio entre la lectura y el insert: releer y reintentar.
+      if (esFolioDuplicado(error)) {
+        if (intento < MAX_INTENTOS_FOLIO) {
+          this.logger.warn(
+            `Folio ${folio} ya ocupado (intento ${intento}/${MAX_INTENTOS_FOLIO}); se relee y se reintenta.`,
+          );
+          continue;
+        }
+        this.logger.error(`No se pudo asignar un folio libre a la parcial PPD: ${error.message}`);
+        throw new ConflictException(
+          'Se registraron otros pagos de esta factura al mismo tiempo y no se pudo asignar el folio. Intente de nuevo.',
+        );
+      }
+      mapearErrorCxp(error); // traduce errores de trigger CxP (p. ej. periodo cerrado) a 400/403 claros
       this.logger.error(`Error creando parcial PPD: ${error.message}`);
       throw new InternalServerErrorException('No se pudo crear la solicitud parcial.');
     }
@@ -550,18 +625,10 @@ export class PpdService {
     return { idCxp };
   }
 
-  /** Recalcula `cxp_ppd.numPagos` = nº de parcialidades no rechazadas. */
+  /** Recalcula `cxp_ppd.numPagos` = nº de parcialidades no rechazadas (helper compartido). */
   private async actualizarContador(idCxpPPD: string, db = this.supabase.admin) {
-    const { count } = await this.supabase.admin
-      .from('cxp')
-      .select('idCxp', { count: 'exact', head: true })
-      .eq('idCxpPPD', idCxpPPD)
-      .eq('status', true)
-      .neq('idEstado', 3);
-    await db
-      .from('cxp_ppd')
-      .update({ numPagos: count ?? 0 })
-      .eq('idCxpPPD', idCxpPPD);
+    const err = await recontarNumPagosPpd(this.supabase.admin, db, idCxpPPD);
+    if (err) this.logger.warn(`No se pudo recontar numPagos de ${idCxpPPD}: ${err}`);
   }
 
   /** Primera vez: registra la factura PPD (maestro) + su primera parcialidad. */
@@ -618,6 +685,20 @@ export class PpdService {
         `El monto solicitado (${dto.monto.toFixed(2)}) no puede exceder el total de la factura (${cfdi.total.toFixed(2)}).`,
       );
 
+    // Base del gasto = SubTotal − Descuento (las retenciones no restan). Es la cifra
+    // del maestro y de la que se reparte entre las parcialidades. Se calcula ANTES de
+    // subir archivos: si no da un subtotal positivo, no debe quedar nada a medias.
+    const base = baseGastoCfdi(cfdi);
+    const subtotalPrimera = subtotalParcial(
+      { subtotal: base, total: cfdi.total },
+      dto.monto,
+      { disponible: cfdi.total, subtotalAsignado: 0 },
+    );
+    if (!(base > 0) || !(subtotalPrimera > 0))
+      throw new BadRequestException(
+        'No se puede calcular el subtotal de este pago (base de la factura o monto demasiado pequeño). Revise el monto o el CFDI.',
+      );
+
     // Aprobador (falla antes de subir archivos si la categoría no tiene responsable).
     const uidGerente = await this.solicitudes.responsableDeCategoria(dto.idCategoria);
     const { urlXml, urlPdf } = await this.subirArchivosCfdi(
@@ -628,7 +709,7 @@ export class PpdService {
     );
 
     const idCxpPPD = this.generarId(15);
-    const hoy = new Date().toISOString().split('T')[0]!;
+    const hoy = hoyMexicoISO(); // hora de México (D4), no UTC
     const db = this.supabase.comoActor(actorUid);
 
     const { error: mErr } = await db.from('cxp_ppd').insert({
@@ -642,7 +723,7 @@ export class PpdService {
       numPagos: 1,
       fecInicio: hoy,
       total: cfdi.total,
-      subtotal: cfdi.subtotal,
+      subtotal: base,
       montoAplicado: 0,
       nombreProveedor: proveedor.razonSocial,
       nomCFDI: cfdi.emisorNombre,
@@ -675,6 +756,7 @@ export class PpdService {
           idCategoria: dto.idCategoria,
           justificacion: dto.justificacion,
           monto: dto.monto,
+          subtotal: subtotalPrimera,
           uidGerente,
         },
         actorUid,
@@ -701,13 +783,18 @@ export class PpdService {
     const { data: m, error } = await this.supabase.admin
       .from('cxp_ppd')
       .select(
-        'idCxpPPD, folio, idProveedor, nombreProveedor, nomCFDI, concepto, fecCFDI, urlXLM, urlCFDI, status, uidr',
+        'idCxpPPD, folio, idProveedor, nombreProveedor, nomCFDI, concepto, fecCFDI, urlXLM, urlCFDI, status, uidr, idCategoria',
       )
       .eq('idCxpPPD', idCxpPPD)
       .maybeSingle();
     if (error) throw new InternalServerErrorException(error.message);
     if (!m || m.status === false)
       throw new NotFoundException('Factura PPD no encontrada.');
+    // La cuenta se pide una sola vez, al subir la factura: todo pago nuevo usa la de la factura
+    // (se ignora lo que mande el cliente). Así el presupuesto de una factura no se reparte entre cuentas.
+    const idCategoria = m.idCategoria;
+    if (!idCategoria)
+      throw new BadRequestException('La factura PPD no tiene cuenta asignada. Avise a soporte.');
     // Solo el dueño de la factura PPD (o quien puede ver todas: clave 400/soporte)
     // puede agregar parcialidades sobre ella.
     if (!(await this.puedeVerTodas(actorUid)) && m.uidr !== actorUid)
@@ -716,13 +803,39 @@ export class PpdService {
       throw new BadRequestException('La factura PPD no tiene proveedor asociado.');
     await this.bloqueo.verificar(actorUid, m.idProveedor);
 
+    // Periodo de captura abierto (Fechas CxP): el trigger de la BD rechaza el INSERT en días
+    // no habilitados. Se avisa ANTES de calcular nada, con un 400 claro (igual que el alta).
+    if (!(await this.solicitudes.puedeInsertar()).habilitado)
+      throw new BadRequestException(
+        'El periodo de captura está cerrado; no se pueden registrar solicitudes en este momento.',
+      );
+
     const saldo = await this.saldoDe(idCxpPPD);
     if (dto.monto > saldo.disponible + 0.01)
       throw new BadRequestException(
         `El monto solicitado (${dto.monto.toFixed(2)}) excede el disponible de la factura (${saldo.disponible.toFixed(2)}).`,
       );
 
-    const uidGerente = await this.solicitudes.responsableDeCategoria(dto.idCategoria);
+    // Una factura sin subtotal (heredada cuyo XML aún no se leyó) daría pagos con subtotal 0
+    // que el presupuesto no ve: se rechaza en lugar de guardar un 0 silencioso.
+    if (!(saldo.subtotalFactura > 0))
+      throw new BadRequestException(
+        'La factura PPD no tiene su subtotal registrado. Avise a soporte para completarlo antes de solicitar un pago.',
+      );
+
+    // Subtotal de este pago: proporción de lo que paga, o lo que falte si liquida.
+    // `saldo` trae la base de la factura y lo ya asignado de la MISMA lectura.
+    const subtotal = subtotalParcial(
+      { subtotal: saldo.subtotalFactura, total: saldo.total },
+      dto.monto,
+      saldo,
+    );
+    if (!(subtotal > 0))
+      throw new BadRequestException(
+        'El monto no alcanza a llevar subtotal (o la factura ya no tiene saldo). Ajuste el monto del pago.',
+      );
+
+    const uidGerente = await this.solicitudes.responsableDeCategoria(idCategoria);
     const { data: ref } = await this.supabase.admin
       .from('cxp')
       .select('moneda')
@@ -745,14 +858,38 @@ export class PpdService {
         urlCFDI: m.urlCFDI,
       },
       {
-        idCategoria: dto.idCategoria,
+        idCategoria,
         justificacion: dto.justificacion,
         monto: dto.monto,
+        subtotal,
         uidGerente,
       },
       actorUid,
     );
-    await this.actualizarContador(idCxpPPD, this.supabase.comoActor(actorUid));
+
+    // Verificación posterior (concurrencia): dos peticiones simultáneas pueden haber leído
+    // el mismo saldo e insertar entre las dos más de lo disponible. Se relee el saldo con
+    // la fila ya insertada; si se pasó, se deshace ESTA parcial (fila + su comentario).
+    // Si las dos pasaron a la vez, se deshacen ambas y cada una recibe 409: es seguro y
+    // el usuario solo reintenta.
+    const db = this.supabase.comoActor(actorUid);
+    const despues = await this.saldoDe(idCxpPPD);
+    if (despues.disponible < -0.01) {
+      const { error: cErr } = await db.from('cxpComentarios').delete().eq('idCxP', res.idCxp);
+      const { error: xErr } = await db.from('cxp').delete().eq('idCxp', res.idCxp);
+      if (cErr || xErr) {
+        this.logger.error(
+          `No se pudo deshacer la parcial ${res.idCxp} que excedió el saldo: ${(xErr ?? cErr)?.message}`,
+        );
+        throw new InternalServerErrorException('No se pudo registrar la solicitud parcial.');
+      }
+      await this.actualizarContador(idCxpPPD, db);
+      throw new ConflictException(
+        'Otro pago de esta factura se registró al mismo tiempo y ya no alcanza el saldo disponible. Revise el saldo e intente de nuevo.',
+      );
+    }
+
+    await this.actualizarContador(idCxpPPD, db);
     return res;
   }
 
@@ -816,21 +953,32 @@ export class PpdService {
     }
     if (!rep.uuid)
       throw new BadRequestException('El complemento no tiene folio fiscal (UUID).');
+    // El PDF (opcional) debe ser del mismo complemento que el XML.
+    if (pdf) await this.solicitudes.verificarPdfCorrespondeXml(pdf, rep.uuid);
+
+    // Un mismo REP puede amparar 2 o más parcialidades de LA MISMA factura (D3, Jereff
+    // 2026-11-02): el UUID del REP se acepta repetido solo entre filas con el mismo
+    // `idCxpPPD`. Los importes de las parcialidades que ya lo usan se descuentan de los
+    // DoctoRelacionado del REP (`montosYaCubiertos`): cada documento ampara una sola vez.
+    const { data: usos, error: usosErr } = await this.supabase.admin
+      .from('cxp')
+      .select('idCxp, idCxpPPD, total, montoAplicado')
+      .eq('uuidComplemento', rep.uuid);
+    if (usosErr) throw new InternalServerErrorException(usosErr.message);
+    const mismaFactura = (usos ?? []).filter((u) => u.idCxpPPD === sol.idCxpPPD);
+    const deOtraFactura = (usos ?? []).filter((u) => u.idCxpPPD !== sol.idCxpPPD);
+
     const errores = validarRepContra(rep, {
       folioFactura: maestro.folio,
       montoEsperado: sol.montoAplicado || sol.total,
       rfcProveedor: prov?.rfc ?? null,
       receptoresAutorizados: receptores,
+      montosYaCubiertos: mismaFactura.map((u) => u.montoAplicado || u.total || 0),
     });
     if (errores.length > 0) throw new BadRequestException(errores.join(' '));
 
-    // UUID del REP no duplicado.
-    const { data: dup } = await this.supabase.admin
-      .from('cxp')
-      .select('idCxp')
-      .eq('uuidComplemento', rep.uuid)
-      .limit(1);
-    if (dup && dup.length > 0)
+    // UUID del REP no duplicado en OTRA factura (en la misma factura se permite, ver arriba).
+    if (deOtraFactura.length > 0)
       throw new BadRequestException(
         'Ese complemento de pago ya fue registrado en otra solicitud.',
       );
@@ -857,7 +1005,9 @@ export class PpdService {
     }
 
     const db = this.supabase.comoActor(actorUid);
-    const { error: updErr } = await db
+    // UPDATE condicionado: solo escribe si la parcialidad aún no tiene complemento (evita que
+    // dos subidas simultáneas pisen la misma fila).
+    const { data: upd, error: updErr } = await db
       .from('cxp')
       .update({
         urlComplementoXml: pathXml,
@@ -865,11 +1015,49 @@ export class PpdService {
         uuidComplemento: rep.uuid,
         fecComplemento: new Date().toISOString(),
       })
-      .eq('idCxp', idCxp);
+      .eq('idCxp', idCxp)
+      .is('uuidComplemento', null)
+      .select('idCxp');
     if (updErr) {
       this.logger.error(`Error registrando complemento en ${idCxp}: ${updErr.message}`);
       throw new InternalServerErrorException(
         'No se pudo registrar el complemento de pago.',
+      );
+    }
+    if (!upd || upd.length === 0)
+      throw new ConflictException(
+        'Esta parcialidad ya tiene un complemento de pago registrado.',
+      );
+
+    // Re-verificación tras escribir (carrera entre parcialidades que suben el MISMO REP a la vez):
+    // con todos los usos ya escritos, se vuelve a validar. Si no cabe, se deshace y se responde 409.
+    const { data: usos2 } = await this.supabase.admin
+      .from('cxp')
+      .select('idCxp, idCxpPPD, total, montoAplicado')
+      .eq('uuidComplemento', rep.uuid);
+    const otros = (usos2 ?? []).filter((u) => u.idCxp !== idCxp);
+    const errores2 = otros.some((u) => u.idCxpPPD !== sol.idCxpPPD)
+      ? ['Ese complemento de pago ya fue registrado en otra solicitud.']
+      : validarRepContra(rep, {
+          folioFactura: maestro.folio,
+          montoEsperado: sol.montoAplicado || sol.total,
+          rfcProveedor: prov?.rfc ?? null,
+          receptoresAutorizados: receptores,
+          montosYaCubiertos: otros.map((u) => u.montoAplicado || u.total || 0),
+        });
+    if (errores2.length > 0) {
+      // Los archivos no se borran: la ruta `${rfc}/${uuid}` la comparten las parcialidades del REP.
+      await db
+        .from('cxp')
+        .update({
+          urlComplementoXml: null,
+          urlComplementoPdf: null,
+          uuidComplemento: null,
+          fecComplemento: null,
+        })
+        .eq('idCxp', idCxp);
+      throw new ConflictException(
+        'Este complemento se registró al mismo tiempo en otra parcialidad. Revise y vuelva a intentar.',
       );
     }
     await db.from('cxpComentarios').insert({

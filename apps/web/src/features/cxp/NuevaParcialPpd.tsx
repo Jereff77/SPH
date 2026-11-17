@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ppdApi, type FacturaPpd } from './ppd.api';
 import { solicitudesApi, type Catalogos } from './solicitudes.api';
-import { SearchSelect, type OpcionSelect } from '@/components/SearchSelect';
 import { ApiRequestError } from '@/lib/api';
 
 const moneda = (n: number, mon = 'MXN') =>
@@ -10,8 +9,9 @@ const moneda = (n: number, mon = 'MXN') =>
 
 /**
  * Nueva solicitud de pago parcial sobre una factura PPD YA registrada. No se
- * re-sube el CFDI: solo se captura el monto (≤ disponible), la categoría y la
- * justificación. La parcialidad nace Enviada (pasa por aprobación y pago).
+ * re-sube el CFDI: solo se captura el monto (≤ disponible) y la justificación. La cuenta es
+ * la de la factura (se pidió al subirla) y no se puede cambiar aquí. La parcialidad nace
+ * Enviada (pasa por aprobación y pago).
  */
 export function NuevaParcialPpd({
   factura,
@@ -22,30 +22,24 @@ export function NuevaParcialPpd({
   onClose: () => void;
   onCreada: () => void;
 }) {
-  const [idCategoria, setIdCategoria] = useState(factura.idCategoria || '');
-  const [justificacion, setJustificacion] = useState('');
-  const [monto, setMonto] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const mon = factura.moneda || 'MXN';
-
+  const idCategoria = factura.idCategoria || '';
   const { data: catalogos } = useQuery<Catalogos>({
     queryKey: ['cxp-sol-catalogos'],
     queryFn: () => solicitudesApi.catalogos(),
     staleTime: 5 * 60 * 1000,
   });
-  const opcionesCat: OpcionSelect[] = useMemo(
-    () =>
-      (catalogos?.categorias ?? []).map((c) => ({
-        value: c.idCategoria,
-        label: [c.cuenta, c.seccion].filter(Boolean).join(' / ') || c.idCategoria,
-      })),
-    [catalogos],
-  );
+  const cuenta = catalogos?.categorias.find((c) => c.idCategoria === idCategoria);
+  const etiquetaCuenta = cuenta
+    ? [cuenta.cuenta, cuenta.seccion].filter(Boolean).join(' / ')
+    : idCategoria;
+  const [justificacion, setJustificacion] = useState('');
+  const [monto, setMonto] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const mon = factura.moneda || 'MXN';
 
   const mCrear = useMutation({
     mutationFn: () =>
       ppdApi.nuevaParcial(factura.idCxpPPD, {
-        idCategoria,
         justificacion,
         monto: Number(monto),
       }),
@@ -114,16 +108,18 @@ export function NuevaParcialPpd({
             )}
           </label>
 
-          <label className="block text-xs text-gray-600">
-            Categoría / Clasificación
-            <SearchSelect
-              value={idCategoria}
-              onChange={setIdCategoria}
-              options={opcionesCat}
-              placeholder="Selecciona…"
-              className="mt-1"
-            />
-          </label>
+          <div className="block text-xs text-gray-600">
+            Cuenta
+            <div
+              className="mt-1 block w-full rounded-md border bg-gray-50 px-3 py-2 text-sm text-gray-700"
+              aria-readonly="true"
+            >
+              {etiquetaCuenta || '—'}
+            </div>
+            <span className="mt-1 block text-[11px] text-gray-500">
+              Es la cuenta de la factura; no se puede cambiar al solicitar un pago.
+            </span>
+          </div>
 
           <label className="block text-xs text-gray-600">
             Justificación / nota{' '}
@@ -146,7 +142,10 @@ export function NuevaParcialPpd({
             Cancelar
           </button>
           <button
-            onClick={() => mCrear.mutate()}
+            onClick={() => {
+              setError(null); // borra el aviso anterior (p. ej. 400 de periodo cerrado o 409 de concurrencia)
+              mCrear.mutate();
+            }}
             disabled={!puedeCrear}
             className="rounded-lg bg-[#1f2a4d] px-4 py-2 text-sm font-medium text-white hover:bg-[#172039] disabled:opacity-40"
           >

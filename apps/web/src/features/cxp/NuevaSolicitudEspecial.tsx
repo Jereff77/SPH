@@ -401,7 +401,7 @@ export function NuevaDevolucion({ onClose, onCreada }: Props) {
 
   const opcsInv: OpcionSelect[] = inversionistas.map((i) => ({
     value: i.idInversionista,
-    label: i.razonsocial ?? i.idInversionista,
+    label: i.etiqueta,
   }));
 
   const m = useMutation({

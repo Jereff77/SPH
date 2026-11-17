@@ -232,11 +232,16 @@ export class PendientesService {
     }
   }
 
-  /** Devuelve la solicitud a "Guardado" (idEstado=1). Solo desde estados 2–4. */
+  /**
+   * Devuelve la solicitud a "Guardado" (idEstado=1). Solo desde estados 2–4.
+   * Una parcialidad PPD rechazada (3) NO se devuelve: revivirla sin revalidar el saldo de
+   * la factura podría dejar más pagos pedidos que su total (el rechazo libera su monto y
+   * su subtotal); se captura un pago nuevo.
+   */
   async devolver(idCxp: string, actorUid: string): Promise<void> {
     const { data, error: errLeer } = await this.supabase.admin
       .from('cxp')
-      .select('idCxp, idEstado')
+      .select('idCxp, idEstado, idCxpPPD, diferido')
       .eq('idCxp', idCxp)
       .maybeSingle();
     if (errLeer) throw new InternalServerErrorException(errLeer.message);
@@ -245,6 +250,10 @@ export class PendientesService {
     if (!(e > 1 && e <= 4))
       throw new BadRequestException(
         'Solo se pueden devolver solicitudes enviadas, rechazadas o aprobadas.',
+      );
+    if ((data.idCxpPPD || data.diferido === true) && e === 3)
+      throw new BadRequestException(
+        'Un pago rechazado de una factura PPD no se regresa a Guardado: capture un pago nuevo.',
       );
 
     const { error } = await this.supabase

@@ -10,7 +10,9 @@
     "start:prod": "node dist/main.js",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "test:unit": "node --no-warnings --test src/modules/cxp/ppd-subtotal.spec.ts src/modules/cxp/ppd-folio.spec.ts src/modules/cxp/cfdi-base.spec.ts src/modules/cxp/cfdi-rep.spec.ts",
+    "test:integracion": "tsc -p tsconfig.pruebas.json && node --no-warnings node_modules/.cache/pruebas-cxp/modules/cxp/ppd-integracion.spec.js"
   },
   "dependencies": {
     "@erp/types": "workspace:*",

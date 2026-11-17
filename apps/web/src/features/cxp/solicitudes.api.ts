@@ -111,7 +111,10 @@ export interface CfdiAnalisis {
 
 export interface CatalogoInversionista {
   idInversionista: string;
+  /** Se sigue enviando por compatibilidad; para mostrar, usa `etiqueta`. */
   razonsocial: string | null;
+  /** Razón social o, si no la tiene, el nombre completo (lo resuelve el backend). */
+  etiqueta: string;
 }
 
 /** DTOs de los tipos de solicitud especiales. */

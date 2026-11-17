@@ -155,10 +155,10 @@ export const ppdApi = {
     fd.append('monto', String(dto.monto));
     return api.postForm<{ idCxpPPD: string; idCxp: string }>('/cxp/ppd', fd);
   },
-  /** Nueva solicitud parcial sobre una factura PPD existente. */
+  /** Nueva solicitud parcial sobre una factura PPD existente (la cuenta es la de la factura). */
   nuevaParcial: (
     idCxpPPD: string,
-    dto: { idCategoria: string; justificacion: string; monto: number },
+    dto: { justificacion: string; monto: number },
   ) => api.post<{ idCxp: string }>(`/cxp/ppd/${idCxpPPD}/parcial`, dto),
   /** Sube el Complemento de Pago (REP) de una parcialidad pagada. */
   subirComplemento: (idCxp: string, xml: File, pdf: File | null) => {

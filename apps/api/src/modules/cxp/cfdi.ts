@@ -24,6 +24,7 @@ export interface CfdiData {
   tipoComprobante: string | null; // I (ingreso), E (egreso)…
   moneda: string;
   subtotal: number;
+  descuento: number; // atributo Descuento (0 si el CFDI no lo trae)
   total: number;
   folio: string | null; // atributo Folio (NO el UUID)
   uuid: string | null; // TimbreFiscalDigital@UUID (folio fiscal)
@@ -115,6 +116,15 @@ function acumularImpuestos(
   }
 }
 
+/**
+ * Base del gasto de un CFDI (Jereff, 2026-11-02): SubTotal − Descuento, a 2 decimales.
+ * Las retenciones NO restan (el gasto es la base completa); el descuento sí, porque
+ * nunca se paga. Es la cifra que debe guardarse en `subtotal` de las solicitudes PPD.
+ */
+export function baseGastoCfdi(cfdi: Pick<CfdiData, 'subtotal' | 'descuento'>): number {
+  return Math.round((cfdi.subtotal - cfdi.descuento) * 100) / 100;
+}
+
 /** Parsea el contenido XML de un CFDI 4.0. Lanza Error si no es un CFDI válido. */
 export function parsearCfdi(xml: string): CfdiData {
   let root: Record<string, unknown>;
@@ -180,6 +190,7 @@ export function parsearCfdi(xml: string): CfdiData {
     tipoComprobante: str(root['@_TipoDeComprobante']) || null,
     moneda: str(root['@_Moneda']) || 'MXN',
     subtotal: num(root['@_SubTotal']),
+    descuento: num(root['@_Descuento']),
     total: num(root['@_Total']),
     folio: str(root['@_Folio']) || null,
     uuid,
@@ -392,13 +403,26 @@ export function parsearComplementoPago(xml: string): ComplementoPagoData {
   };
 }
 
+const aCentavos = (n: number): number => Math.round(n * 100);
+
 /**
  * Valida que un REP corresponda a una factura PPD y a un pago concreto:
  * - El receptor es un RFC autorizado de la empresa.
  * - El emisor coincide con el RFC del proveedor de la factura.
  * - Existe al menos un `DoctoRelacionado` cuyo `IdDocumento` = UUID de la factura.
- * - La suma de `ImpPagado` para ese documento coincide con el monto esperado (±0.01).
- * Devuelve la lista de errores (vacía = válido).
+ * - El importe pagado (`ImpPagado`) de esa factura en el REP corresponde al monto de ESTA
+ *   parcialidad (±0.01): o bien coincide con UN `DoctoRelacionado`, o bien la suma de los
+ *   `DoctoRelacionado` de la factura coincide con el monto (comportamiento histórico, para
+ *   un pago repartido en varios nodos).
+ *
+ * Un mismo REP puede amparar 2 o más parcialidades de la MISMA factura (D3, Jereff
+ * 2026-11-02): cada parcialidad se empata con su propio `DoctoRelacionado` por IMPORTE
+ * (no por `NumParcialidad`, que es la numeración del emisor y no la nuestra). Para que un
+ * documento no ampare dos veces, `montosYaCubiertos` trae los importes de las OTRAS
+ * parcialidades de la misma factura que ya registraron este REP: cada una consume el
+ * `DoctoRelacionado` de igual importe; si alguna no empata con uno solo (se validó por
+ * suma), consume todos los restantes. Sin `montosYaCubiertos` el comportamiento es el de
+ * siempre. Devuelve la lista de errores (vacía = válido).
  */
 export function validarRepContra(
   rep: ComplementoPagoData,
@@ -407,6 +431,8 @@ export function validarRepContra(
     montoEsperado: number; // monto pagado de la parcialidad
     rfcProveedor: string | null;
     receptoresAutorizados: string[];
+    /** Importes de las otras parcialidades de la misma factura que ya usan este REP. */
+    montosYaCubiertos?: number[];
   },
 ): string[] {
   const errores: string[] = [];
@@ -427,28 +453,42 @@ export function validarRepContra(
     );
   }
 
-  // Suma de ImpPagado de los doctos que referencian esta factura.
-  let impDelFolio = 0;
-  let encontrado = false;
+  // Importes (en centavos) de los doctos que referencian esta factura.
+  const importes: number[] = [];
   for (const p of rep.pagos) {
     for (const d of p.doctos) {
-      if (d.idDocumento === folio) {
-        encontrado = true;
-        impDelFolio += d.impPagado;
-      }
+      if (d.idDocumento === folio) importes.push(aCentavos(d.impPagado));
     }
   }
 
-  if (!encontrado) {
+  if (importes.length === 0) {
     errores.push(
       `El complemento no corresponde a esta factura: no referencia el folio fiscal ${folio}.`,
     );
     return errores; // sin el documento no tiene sentido validar el monto
   }
 
-  if (Math.abs(impDelFolio - opts.montoEsperado) > 0.01) {
+  // Doctos aún sin asignar: se descuentan los que ya amparan a otra parcialidad.
+  let restantes = [...importes];
+  for (const otro of opts.montosYaCubiertos ?? []) {
+    const c = aCentavos(otro);
+    const i = restantes.findIndex((x) => Math.abs(x - c) <= 1);
+    if (i >= 0) restantes.splice(i, 1);
+    else restantes = []; // se validó por suma: consumió todos los restantes
+  }
+
+  const esperado = aCentavos(opts.montoEsperado);
+  const sumaRestante = restantes.reduce((s, x) => s + x, 0);
+  const coincide =
+    restantes.some((x) => Math.abs(x - esperado) <= 1) || Math.abs(sumaRestante - esperado) <= 1;
+
+  if (!coincide) {
+    const compartido = (opts.montosYaCubiertos ?? []).length > 0;
     errores.push(
-      `El importe pagado en el complemento (${impDelFolio.toFixed(2)}) no coincide con el monto de la parcialidad (${opts.montoEsperado.toFixed(2)}).`,
+      `El importe pagado en el complemento (${(sumaRestante / 100).toFixed(2)}) no coincide con el monto de la parcialidad (${opts.montoEsperado.toFixed(2)}).` +
+        (compartido
+          ? ' El complemento ya ampara otras parcialidades de esta factura; cada documento del complemento solo puede amparar una parcialidad.'
+          : ''),
     );
   }
 

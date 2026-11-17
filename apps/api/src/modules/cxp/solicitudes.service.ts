@@ -12,6 +12,7 @@ import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { ClavesSatService } from './claves-sat.service.js';
 import { BloqueoService } from './bloqueo.service.js';
 import { firmarDocumentos } from './documentos.util.js';
+import { recontarNumPagosPpd } from './ppd-contador.js';
 import {
   parsearCfdi,
   validarDeducciones,
@@ -258,7 +259,9 @@ export class SolicitudesService {
   private async editable(idCxp: string, actorUid: string) {
     const { data, error } = await this.supabase.admin
       .from('cxp')
-      .select('idCxp, uidr, idEstado, idCategoria, fecCFDI, urlCFDI, urlXLM')
+      .select(
+        'idCxp, uidr, idEstado, idCategoria, fecCFDI, urlCFDI, urlXLM, idCxpPPD, diferido, idProveedor, folio, subtotal, total, moneda',
+      )
       .eq('idCxp', idCxp)
       .maybeSingle();
     if (error) throw new InternalServerErrorException(error.message);
@@ -286,19 +289,26 @@ export class SolicitudesService {
     };
   }
 
-  /** Elimina una solicitud guardada: archivos CFDI/XML, comentarios y el registro. */
+  /**
+   * Elimina una solicitud guardada: archivos CFDI/XML, comentarios y el registro.
+   * En una parcialidad PPD (`idCxpPPD`) NO se borran los archivos: son los MISMOS de la
+   * factura (el maestro `cxp_ppd` y todas sus parcialidades comparten XML/PDF) y borrarlos
+   * dejaría a la factura sin comprobante. En su lugar se recuenta `numPagos` del maestro.
+   */
   async eliminar(idCxp: string, actorUid: string): Promise<void> {
     const sol = await this.editable(idCxp, actorUid);
     const db = this.supabase.comoActor(actorUid);
 
-    for (const url of [sol.urlCFDI, sol.urlXLM]) {
-      if (!url) continue;
-      const p = this.pathDeUrlPublica(url);
-      if (p) {
-        try {
-          await this.supabase.admin.storage.from(p.bucket).remove([p.path]);
-        } catch (e) {
-          this.logger.warn(`No se pudo borrar archivo ${url}: ${(e as Error).message}`);
+    if (!sol.idCxpPPD) {
+      for (const url of [sol.urlCFDI, sol.urlXLM]) {
+        if (!url) continue;
+        const p = this.pathDeUrlPublica(url);
+        if (p) {
+          try {
+            await this.supabase.admin.storage.from(p.bucket).remove([p.path]);
+          } catch (e) {
+            this.logger.warn(`No se pudo borrar archivo ${url}: ${(e as Error).message}`);
+          }
         }
       }
     }
@@ -308,6 +318,11 @@ export class SolicitudesService {
     if (error) {
       this.logger.error(`Error eliminando cxp ${idCxp}: ${error.message}`);
       throw new InternalServerErrorException('No se pudo eliminar la solicitud.');
+    }
+
+    if (sol.idCxpPPD) {
+      const err = await recontarNumPagosPpd(this.supabase.admin, db, sol.idCxpPPD);
+      if (err) this.logger.warn(`No se pudo recontar numPagos de ${sol.idCxpPPD}: ${err}`);
     }
   }
 
@@ -322,8 +337,10 @@ export class SolicitudesService {
       );
     }
     // El CFDI debe ser del mes en curso (misma regla que el alta): una factura de
-    // un mes anterior no puede enviarse a aprobación.
-    if (!this.esMesActual(sol.fecCFDI)) {
+    // un mes anterior no puede enviarse a aprobación. Las parcialidades PPD (`diferido` o
+    // `idCxpPPD`) quedan exentas: sus facturas son de meses anteriores por definición.
+    const esPpd = !!sol.idCxpPPD || sol.diferido === true;
+    if (!esPpd && !this.esMesActual(sol.fecCFDI)) {
       throw new BadRequestException(
         `No se puede enviar: el CFDI (${sol.fecCFDI ?? 'sin fecha'}) no corresponde al mes en curso.`,
       );
@@ -383,6 +400,27 @@ export class SolicitudesService {
   }
 
   /**
+   * Comprueba que el PDF sea de la factura del XML: su folio fiscal (UUID) debe
+   * aparecer en el texto del PDF. Compartido por solicitudes (PUE), PPD y el
+   * complemento de pago (REP) para que todos validen igual.
+   */
+  async verificarPdfCorrespondeXml(pdf: Buffer, uuid: string): Promise<void> {
+    // pdf-parse agrega marcadores de página ("-- 1 of 1 --") aun sin texto real:
+    // se quitan para detectar bien el PDF escaneado/imagen.
+    const texto = (await this.textoDePdf(pdf)).replace(/--\s*\d+\s+of\s+\d+\s*--/gi, '');
+    if (!texto.trim()) {
+      throw new BadRequestException(
+        'No se pudo leer texto del PDF (¿es un PDF escaneado o imagen?). No se pudo validar que corresponda al XML.',
+      );
+    }
+    if (!this.normalizar(texto).includes(this.normalizar(uuid))) {
+      throw new BadRequestException(
+        `El PDF no corresponde al XML: no se encontró el folio fiscal del XML (${uuid}) dentro del PDF. Revise que ambos archivos sean de la misma factura.`,
+      );
+    }
+  }
+
+  /**
    * Ejecuta TODAS las validaciones de negocio sobre el CFDI. Lanza
    * BadRequestException con un mensaje claro en el primer fallo. Devuelve los
    * datos del CFDI y el proveedor detectado. No sube archivos ni inserta.
@@ -422,14 +460,24 @@ export class SolicitudesService {
       throw new BadRequestException((e as Error).message);
     }
 
-    // 2) Tipo de comprobante = Ingreso (I)
+    // 2) UUID presente
+    if (!cfdi.uuid) {
+      throw new BadRequestException('El XML no contiene el folio fiscal (UUID/Timbre).');
+    }
+
+    // 3) El PDF debe ser de ESTE XML. Va antes que cualquier regla de negocio: si
+    //    los archivos son de facturas distintas, los errores del XML (mes,
+    //    duplicado…) confunden al usuario porque no explican la causa real.
+    if (pdf) await this.verificarPdfCorrespondeXml(pdf, cfdi.uuid);
+
+    // 4) Tipo de comprobante = Ingreso (I)
     if (cfdi.tipoComprobante && cfdi.tipoComprobante !== 'I') {
       throw new BadRequestException(
         `El CFDI no es de tipo Ingreso (es "${cfdi.tipoComprobante}"). No puede registrarse como solicitud de pago.`,
       );
     }
 
-    // 3) RFC del receptor autorizado (la empresa)
+    // 5) RFC del receptor autorizado (la empresa)
     const receptores = await this.rfcReceptoresAutorizados();
     if (receptores.length > 0 && !receptores.includes(cfdi.receptorRfc)) {
       throw new BadRequestException(
@@ -437,26 +485,21 @@ export class SolicitudesService {
       );
     }
 
-    // 4) Método de pago (PUE para solicitudes normales; PPD para el módulo PPD)
+    // 6) Método de pago (PUE para solicitudes normales; PPD para el módulo PPD)
     if (cfdi.metodoPago !== metodoEsperado) {
       throw new BadRequestException(
         `Solo se aceptan facturas con método de pago ${metodoEsperado} (esta es ${cfdi.metodoPago ?? 'desconocido'}).`,
       );
     }
 
-    // 5) Fecha del mes actual (no aplica a PPD)
+    // 7) Fecha del mes actual (no aplica a PPD)
     if (exigirMesActual && !this.esMesActual(cfdi.fechaCFDI)) {
       throw new BadRequestException(
         `Solo se aceptan facturas del mes en curso. La factura es del ${cfdi.fechaCFDI || 'fecha desconocida'}.`,
       );
     }
 
-    // 6) UUID presente
-    if (!cfdi.uuid) {
-      throw new BadRequestException('El XML no contiene el folio fiscal (UUID/Timbre).');
-    }
-
-    // 7) Folio fiscal no duplicado (no aplica a PPD: el folio se repite por parcialidad)
+    // 8) Folio fiscal no duplicado (no aplica a PPD: el folio se repite por parcialidad)
     if (verificarDuplicado) {
       const { data: dup, error: dupErr } = await this.supabase.admin
         .from('cxp')
@@ -472,7 +515,7 @@ export class SolicitudesService {
       }
     }
 
-    // 8) Periodo de captura abierto
+    // 9) Periodo de captura abierto
     const { data: puede, error: rpcErr } = await this.supabase.admin.rpc(
       'cxp_puede_insertar',
     );
@@ -483,7 +526,7 @@ export class SolicitudesService {
       );
     }
 
-    // 9) Proveedor (emisor) registrado
+    // 10) Proveedor (emisor) registrado
     const { data: prov, error: provErr } = await this.supabase.admin
       .from('catProveedores')
       .select('idProveedor, razonSocial, rfc')
@@ -498,28 +541,13 @@ export class SolicitudesService {
       );
     }
 
-    // 10) Deducciones (retenciones) según régimen + catálogo de claves
+    // 11) Deducciones (retenciones) según régimen + catálogo de claves
     const reglas = await this.clavesSat.reglas(
       cfdi.conceptos.map((c) => c.claveProdServ),
     );
     const erroresDed = validarDeducciones(cfdi, reglas);
     if (erroresDed.length > 0) {
       throw new BadRequestException(erroresDed.join(' '));
-    }
-
-    // 11) Correspondencia XML ↔ PDF (UUID dentro del PDF)
-    if (pdf) {
-      const texto = await this.textoDePdf(pdf);
-      if (!texto.trim()) {
-        throw new BadRequestException(
-          'No se pudo leer texto del PDF (¿es un PDF escaneado o imagen?). No se pudo validar que corresponda al XML.',
-        );
-      }
-      if (!this.normalizar(texto).includes(this.normalizar(cfdi.uuid))) {
-        throw new BadRequestException(
-          'El PDF no corresponde al XML: no se encontró el folio fiscal del XML dentro del PDF.',
-        );
-      }
     }
 
     const totalEsperado =
@@ -649,28 +677,54 @@ export class SolicitudesService {
     return { idCxp };
   }
 
-  /** Edita los datos de una solicitud guardada (sin tocar los archivos CFDI). */
+  /**
+   * Edita los datos de una solicitud guardada (sin tocar los archivos CFDI).
+   * Un pago de factura PPD (`diferido` o con `idCxpPPD`) solo admite cambiar la
+   * clasificación (cuenta) y el concepto: su monto, subtotal, folio, proveedor y
+   * moneda vienen de la factura y repartirlos mal rompe el subtotal del presupuesto.
+   */
   async editar(
     idCxp: string,
     dto: EditarSolicitudDto,
     actorUid: string,
   ): Promise<void> {
-    await this.editable(idCxp, actorUid);
+    const sol = await this.editable(idCxp, actorUid);
     const db = this.supabase.comoActor(actorUid);
+
+    const esPpd = sol.diferido === true || !!sol.idCxpPPD;
+    if (esPpd) {
+      const dif = (guardado: number | null, nuevo: number) =>
+        Math.abs((guardado ?? 0) - nuevo) > 0.005;
+      const cambiaFactura =
+        dto.idProveedor !== sol.idProveedor ||
+        (dto.folio || null) !== ((sol.folio ?? '').trim() || null) ||
+        (dto.moneda || 'MXN') !== (sol.moneda || 'MXN') ||
+        dif(sol.subtotal, dto.subtotal) ||
+        dif(sol.total, dto.total);
+      if (cambiaFactura)
+        throw new BadRequestException(
+          'En un pago de factura PPD solo se puede cambiar la clasificación y el concepto.',
+        );
+    }
+
     const { error } = await db
       .from('cxp')
-      .update({
-        idProveedor: dto.idProveedor,
-        nombreProveedor: dto.nombreProveedor || null,
-        nomCFDI: dto.nomCFDI ?? '',
-        idCategoria: dto.idCategoria,
-        concepto: dto.concepto,
-        folio: dto.folio || null,
-        subtotal: dto.subtotal,
-        total: dto.total,
-        moneda: dto.moneda || 'MXN',
-        fecCFDI: dto.fecCFDI ?? null,
-      })
+      .update(
+        esPpd
+          ? { idCategoria: dto.idCategoria, concepto: dto.concepto }
+          : {
+              idProveedor: dto.idProveedor,
+              nombreProveedor: dto.nombreProveedor || null,
+              nomCFDI: dto.nomCFDI ?? '',
+              idCategoria: dto.idCategoria,
+              concepto: dto.concepto,
+              folio: dto.folio || null,
+              subtotal: dto.subtotal,
+              total: dto.total,
+              moneda: dto.moneda || 'MXN',
+              fecCFDI: dto.fecCFDI ?? null,
+            },
+      )
       .eq('idCxp', idCxp);
     if (error) {
       this.logger.error(`Error editando cxp ${idCxp}: ${error.message}`);
@@ -685,17 +739,54 @@ export class SolicitudesService {
   // resuelven el aprobador desde `PresCategorias.uidResponsable` (server-side, no del
   // cliente) e insertan un comentario inicial. Escrituras auditadas (`comoActor`).
 
-  /** Inversionistas/clientes para el selector de Devoluciones (no de prueba). */
-  async inversionistas() {
+  /**
+   * Nombre con el que se muestra un cliente: su razón social o, si no la tiene,
+   * su nombre completo. Mismo patrón que Fideicomiso/Arrendatarios/KVAs.
+   */
+  private etiquetaCliente(i: {
+    idInversionista: string;
+    razonsocial: string | null;
+    nombre: string | null;
+    apellido1: string | null;
+    apellido2: string | null;
+  }): string {
+    return (
+      (i.razonsocial?.trim()
+        ? i.razonsocial
+        : [i.nombre, i.apellido1, i.apellido2].filter(Boolean).join(' ')) ||
+      i.idInversionista
+    );
+  }
+
+  /**
+   * Clientes/inversionistas para el selector de Devoluciones (activos, no en la
+   * papelera), ya con su etiqueta resuelta en el backend.
+   *
+   * ⛔ NO se filtra por la bandera `inversionista`/`ticket` (cualquier cliente
+   * puede recibir una devolución) ni por `razonsocial IS NOT NULL`. Ese filtro
+   * existió hasta 2026-09-01 y ESCONDÍA del selector a quien no tuviera razón
+   * social (casos *Mauricio Valdez Salgado* y *Gabriela Ruiz Ruiz*): convertía un
+   * problema de presentación en uno de elegibilidad. La razón social vacía ya no
+   * debería ocurrir (trigger `v2_trg_inversionista_razonsocial` + validación en
+   * `clientes.schemas.ts`); este fallback es la red por si un dato viejo se cuela.
+   */
+  async inversionistas(): Promise<
+    { idInversionista: string; razonsocial: string | null; etiqueta: string }[]
+  > {
     const { data, error } = await this.supabase.admin
       .from('inversionista')
-      .select('idInversionista, razonsocial')
+      .select('idInversionista, razonsocial, nombre, apellido1, apellido2')
       .eq('status', true)
       .or('pruebas.is.null,pruebas.eq.false')
-      .not('razonsocial', 'is', null)
-      .order('razonsocial', { ascending: true });
+      .order('razonsocial', { ascending: true, nullsFirst: false });
     if (error) throw new InternalServerErrorException(error.message);
-    return data ?? [];
+    // `razonsocial` se sigue devolviendo (aunque el front use `etiqueta`) para que
+    // un bundle web anterior no se quede sin etiquetas durante el redeploy.
+    return (data ?? []).map((i) => ({
+      idInversionista: i.idInversionista,
+      razonsocial: i.razonsocial,
+      etiqueta: this.etiquetaCliente(i),
+    }));
   }
 
   /**
@@ -738,14 +829,19 @@ export class SolicitudesService {
     return data?.razonSocial ?? null;
   }
 
-  /** Razón social del inversionista (contraparte de una devolución). */
-  private async razonSocialInversionista(id: string): Promise<string | null> {
+  /**
+   * Nombre de la contraparte de una devolución (razón social o, en su defecto, el
+   * nombre completo). Devuelve null SOLO si el cliente no existe — antes devolvía
+   * null también cuando existía sin razón social, y el alta lo rechazaba con un
+   * "El cliente/inversionista no existe" falso.
+   */
+  private async nombreInversionista(id: string): Promise<string | null> {
     const { data } = await this.supabase.admin
       .from('inversionista')
-      .select('razonsocial')
+      .select('idInversionista, razonsocial, nombre, apellido1, apellido2')
       .eq('idInversionista', id)
       .maybeSingle();
-    return data?.razonsocial ?? null;
+    return data ? this.etiquetaCliente(data) : null;
   }
 
   /** Tipos de archivo permitidos como documento adjunto → extensión. */
@@ -973,7 +1069,7 @@ export class SolicitudesService {
   ): Promise<{ idCxp: string }> {
     await this.bloqueo.verificar(actorUid, null); // contraparte = inversionista (sin PPD)
     const uidGerente = await this.responsableDeCategoria(dto.idCategoria);
-    const nombreProveedor = await this.razonSocialInversionista(dto.idInversionista);
+    const nombreProveedor = await this.nombreInversionista(dto.idInversionista);
     if (!nombreProveedor)
       throw new BadRequestException('El cliente/inversionista no existe.');
     const idCxp = this.generarId(15);

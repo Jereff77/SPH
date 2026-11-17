@@ -19,6 +19,13 @@ import { RegistroCronService } from '../../common/cron/registro-cron.service.js'
 import { TAREA_CXP_COMPLEMENTOS } from '../../common/cron/cron.tareas.js';
 import type { Env } from '../../common/config/env.validation.js';
 
+/**
+ * Minutos tras los cuales un renglón `en_curso` se considera HUÉRFANO y puede
+ * adoptarse. Un envío normal tarda segundos (el SMTP corta a los 20 s), así que
+ * 15 minutos es holgado: nunca pisa un envío vivo.
+ */
+const MINUTOS_HUERFANO = 15;
+
 /** Parámetro de `SPHConfiguraciones` con la cuenta remitente de estos avisos. */
 const PARAM_CUENTA_REMITENTE = 'PPD_REP_CUENTA_REMITENTE';
 
@@ -366,14 +373,70 @@ export class ComplementosScheduler {
       .single();
 
     if (error) {
-      // 23505 = ya hay un aviso de este tipo para este destinatario hoy.
-      if ((error as { code?: string }).code !== '23505')
+      // 23505 = ya hay un renglón de este tipo para este destinatario hoy.
+      if ((error as { code?: string }).code !== '23505') {
         this.logger.warn(
           `No se pudo reservar el aviso a ${p.destinatario}: ${error.message}`,
         );
-      return null;
+        return null;
+      }
+      // Puede ser un renglón HUÉRFANO: el proceso murió entre reservar y enviar,
+      // y quedó en `en_curso` para siempre. Sin esto, ese destinatario perdía su
+      // aviso del día entero.
+      return this.adoptarHuerfano(p.dia, p.tipo, p.destinatario);
     }
     return (data as unknown as { id: number }).id;
+  }
+
+  /**
+   * Rescata un renglón que quedó `en_curso` porque el proceso murió antes de
+   * enviar, y lo vuelve a apartar para este intento.
+   *
+   * ⛔ NO sirve "marcarlo como fallido y reinsertar": el índice único
+   * `(fecha_mx, tipo, destinatario)` haría chocar el INSERT nuevo igual. Hay que
+   * **adoptar el renglón existente**, no crear otro.
+   *
+   * El UPDATE es la operación atómica que decide el ganador: si dos instancias
+   * intentan adoptarlo a la vez, la condición `estado = 'en_curso'` + el filtro de
+   * antigüedad solo se cumple para la primera; la segunda no recibe fila y se
+   * salta el envío. El candado "uno al día" sigue intacto.
+   *
+   * Solo se adoptan los `en_curso`: un `fallido` es un intento que YA ocurrió
+   * (el SMTP lo rechazó) y no debe repetirse el mismo día.
+   */
+  private async adoptarHuerfano(
+    dia: string,
+    tipo: TipoAviso,
+    destinatario: string,
+  ): Promise<number | null> {
+    const limite = new Date(Date.now() - MINUTOS_HUERFANO * 60_000).toISOString();
+    const { data, error } = await this.supabase.admin
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .from('mail_avisos_rep' as any)
+      // `fc` se refresca a propósito: marca cuándo empezó ESTE intento, para que
+      // el mismo criterio de antigüedad valga si también muriera.
+      .update({ estado: 'en_curso', fc: new Date().toISOString(), error: null })
+      .eq('fecha_mx', dia)
+      .eq('tipo', tipo)
+      .eq('destinatario', destinatario)
+      .eq('estado', 'en_curso')
+      .lt('fc', limite)
+      .select('id')
+      .maybeSingle();
+
+    if (error) {
+      this.logger.warn(
+        `No se pudo adoptar el aviso huérfano de ${destinatario}: ${error.message}`,
+      );
+      return null;
+    }
+    if (!data) return null; // ya se envió hoy, o otra instancia lo adoptó primero
+
+    const id = (data as unknown as { id: number }).id;
+    this.logger.warn(
+      `Aviso huérfano rescatado (id ${id}, ${tipo} → ${destinatario}): un intento anterior quedó a medias y se reintenta.`,
+    );
+    return id;
   }
 
   private async cerrar(

@@ -14,9 +14,12 @@ interface Props {
 }
 
 const inputCls =
-  'mt-1 block w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30';
+  'mt-1 block w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#3f5b87]/30 disabled:bg-gray-100 disabled:text-gray-500';
 
 export function EditarSolicitudModal({ solicitud, onClose, onGuardada }: Props) {
+  // Pago de una factura PPD: monto, subtotal, folio, proveedor, moneda y fecha vienen
+  // de la factura; aquí solo se puede cambiar la cuenta (partida) y el concepto.
+  const esPpd = solicitud.diferido === true;
   const { data: cat } = useQuery({
     queryKey: ['cxp-solicitudes-catalogos'],
     queryFn: () => solicitudesApi.catalogos(),
@@ -84,11 +87,19 @@ export function EditarSolicitudModal({ solicitud, onClose, onGuardada }: Props) 
           </div>
         )}
 
+        {esPpd && (
+          <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Pago de factura PPD: solo se puede cambiar la cuenta y el concepto. El monto,
+            el folio y los demás datos vienen de la factura.
+          </div>
+        )}
+
         <label className="block text-xs text-gray-600">
           Proveedor *
           <select
             value={idProveedor}
             onChange={(e) => setIdProveedor(e.target.value)}
+            disabled={esPpd}
             className={inputCls}
           >
             {/* Conserva el proveedor actual aunque no esté en el catálogo activo. */}
@@ -137,7 +148,12 @@ export function EditarSolicitudModal({ solicitud, onClose, onGuardada }: Props) 
         <div className="grid grid-cols-2 gap-3">
           <label className="block text-xs text-gray-600">
             Folio
-            <input value={folio} onChange={(e) => setFolio(e.target.value)} className={inputCls} />
+            <input
+              value={folio}
+              onChange={(e) => setFolio(e.target.value)}
+              disabled={esPpd}
+              className={inputCls}
+            />
           </label>
           <label className="block text-xs text-gray-600">
             Fecha CFDI
@@ -145,6 +161,7 @@ export function EditarSolicitudModal({ solicitud, onClose, onGuardada }: Props) 
               type="date"
               value={fecCFDI}
               onChange={(e) => setFecCFDI(e.target.value)}
+              disabled={esPpd}
               className={inputCls}
             />
           </label>
@@ -155,6 +172,7 @@ export function EditarSolicitudModal({ solicitud, onClose, onGuardada }: Props) 
               step="0.01"
               value={subtotal}
               onChange={(e) => setSubtotal(e.target.value)}
+              disabled={esPpd}
               className={inputCls}
             />
           </label>
@@ -165,6 +183,7 @@ export function EditarSolicitudModal({ solicitud, onClose, onGuardada }: Props) 
               step="0.01"
               value={total}
               onChange={(e) => setTotal(e.target.value)}
+              disabled={esPpd}
               className={inputCls}
             />
           </label>

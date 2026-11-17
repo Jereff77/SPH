@@ -10,6 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
 import { mapearErrorCxp } from '../../common/filters/cxp-error-mapper.js';
 import { firmarDocumentos } from './documentos.util.js';
+import { recontarNumPagosPpd } from './ppd-contador.js';
 
 const BUCKET_CFDI = 'CFDIproveedores';
 
@@ -129,7 +130,7 @@ export class AprobacionService {
   private async solicitudDelAprobador(idCxp: string, uidEsperado: string) {
     const { data, error } = await this.supabase.admin
       .from('cxp')
-      .select('idCxp, uidGerente, idEstado, idCategoria, subtotal')
+      .select('idCxp, uidGerente, idEstado, idCategoria, subtotal, idCxpPPD')
       .eq('idCxp', idCxp)
       .maybeSingle();
     if (error) throw new InternalServerErrorException(error.message);
@@ -228,7 +229,7 @@ export class AprobacionService {
 
   /** Rechazar (idEstado→3) con motivo (la factura debe refacturarse). */
   async rechazar(idCxp: string, comentario: string, actorUid: string): Promise<void> {
-    await this.solicitudDelAprobador(idCxp, actorUid);
+    const sol = await this.solicitudDelAprobador(idCxp, actorUid);
     const db = this.supabase.comoActor(actorUid);
     // `autorizo` = el aprobador real (del JWT). Imprescindible: el trigger de BD
     // `cxp_trigger_validar_fecha` valida el permiso 430 contra COALESCE(autorizo, uidr);
@@ -241,6 +242,11 @@ export class AprobacionService {
     if (error) {
       mapearErrorCxp(error); // traduce errores de trigger CxP a 403/400 claros
       throw new InternalServerErrorException('No se pudo rechazar la solicitud.');
+    }
+    // Parcialidad PPD: al rechazarse deja de contar en `numPagos` del maestro (libera su monto).
+    if (sol.idCxpPPD) {
+      const err = await recontarNumPagosPpd(this.supabase.admin, db, sol.idCxpPPD);
+      if (err) this.logger.warn(`No se pudo recontar numPagos de ${sol.idCxpPPD}: ${err}`);
     }
     await this.comentar(idCxp, comentario, actorUid);
   }

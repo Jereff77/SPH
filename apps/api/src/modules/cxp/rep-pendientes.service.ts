@@ -72,7 +72,7 @@ export class RepPendientesService {
       let q = this.supabase.admin
         .from('cxp')
         .select(
-          'idCxp, idProveedor, nombreProveedor, folio, total, montoAplicado, fecPago, uidr, autorizo',
+          'idCxp, idProveedor, nombreProveedor, folio, idFolioDif, total, montoAplicado, fecPago, uidr, autorizo',
         )
         .eq('status', true)
         .eq('diferido', true)
@@ -103,7 +103,8 @@ export class RepPendientesService {
           idCxp: String(p.idCxp),
           idProveedor: p.idProveedor ?? null,
           nombreProveedor: p.nombreProveedor ?? 'Proveedor sin nombre',
-          folio: p.folio ?? '',
+          // UUID fiscal real de la factura: las parcialidades llevan sufijo en `folio`.
+          folio: p.idFolioDif || p.folio || '',
           monto: Number(p.montoAplicado || p.total || 0),
           fecPago,
           uidr: p.uidr ?? null,

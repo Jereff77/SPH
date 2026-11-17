@@ -1,0 +1,95 @@
+{
+  "modulo": "Subtotal igual al total en líneas de captura, devoluciones, sin XML y urgentes",
+  "olas": [
+    {
+      "nombre": "0 · SQL y prueba en seco",
+      "tareas": [
+        {
+          "nombre": "Redactar el trigger, la corrección única y la reversa",
+          "estimadoMin": 25,
+          "responsable": "Toribio"
+        },
+        {
+          "nombre": "Probar todo dentro de una transacción con ROLLBACK (alta, edición y corrección)",
+          "estimadoMin": 25,
+          "responsable": "Toribio"
+        }
+      ]
+    },
+    {
+      "nombre": "1 · Validación adversarial (Opus)",
+      "tareas": [
+        {
+          "nombre": "Validador Opus: efectos en triggers, vistas, reportes y consumidores del subtotal",
+          "estimadoMin": 35,
+          "responsable": "Opus"
+        },
+        {
+          "nombre": "Conciliar hallazgos y corregir el SQL",
+          "estimadoMin": 15,
+          "responsable": "Toribio"
+        }
+      ]
+    },
+    {
+      "nombre": "2 · Aplicación en producción",
+      "tareas": [
+        {
+          "nombre": "Autorizar el SQL exacto",
+          "estimadoMin": 5,
+          "responsable": "Jereff"
+        },
+        {
+          "nombre": "Aplicar el trigger y la corrección de las 123 filas",
+          "estimadoMin": 10,
+          "responsable": "Toribio"
+        },
+        {
+          "nombre": "Verificar: cifras de la vista, 123 filas iguales al total, alta de prueba con ROLLBACK y logs",
+          "estimadoMin": 25,
+          "responsable": "Toribio"
+        }
+      ]
+    },
+    {
+      "nombre": "2b · Urgentes (tipo 2)",
+      "tareas": [
+        {
+          "nombre": "Redactar el SQL de urgentes (trigger extendido y corrección de las 35)",
+          "estimadoMin": 20,
+          "responsable": "Toribio"
+        },
+        {
+          "nombre": "Prueba en seco con ROLLBACK: alta, cambio de total, comprobación y cargas del 29/sep",
+          "estimadoMin": 20,
+          "responsable": "Toribio"
+        },
+        {
+          "nombre": "Validador Opus: urgentes, aprobación en cuentas sobrepasadas y efecto de las cargas del 29/sep",
+          "estimadoMin": 35,
+          "responsable": "Opus"
+        },
+        {
+          "nombre": "Conciliar hallazgos y aplicar el SQL de urgentes",
+          "estimadoMin": 25,
+          "responsable": "Toribio"
+        },
+        {
+          "nombre": "Verificar cifras de la vista y logs tras aplicar urgentes",
+          "estimadoMin": 20,
+          "responsable": "Toribio"
+        }
+      ]
+    },
+    {
+      "nombre": "3 · Cierre y documentación",
+      "tareas": [
+        {
+          "nombre": "Documentar: bitácora, KB de CxP, estado en el paquete de presupuesto y commit selectivo",
+          "estimadoMin": 30,
+          "responsable": "Toribio"
+        }
+      ]
+    }
+  ]
+}

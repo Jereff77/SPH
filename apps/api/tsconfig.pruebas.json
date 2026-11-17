@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "incremental": false,
+    "declaration": false,
+    "sourceMap": false,
+    "outDir": "./node_modules/.cache/pruebas-cxp"
+  },
+  "include": ["src/modules/cxp/ppd-integracion.spec.ts"],
+  "exclude": ["node_modules", "dist", "test"]
+}
