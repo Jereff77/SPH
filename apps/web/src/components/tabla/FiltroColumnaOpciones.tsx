@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+
+/** Ancho del popover (w-60 = 15rem = 240 px). */
+const ANCHO = 240;
 
 const norm = (s: string) =>
   s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
@@ -30,15 +34,50 @@ export function FiltroColumnaOpciones({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
-  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0, maxH: 320 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+
+  const abrir = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) {
+      setPos({
+        top: r.bottom + 4,
+        left: Math.max(8, Math.min(r.left, window.innerWidth - ANCHO - 8)),
+        // Alto disponible hasta el borde inferior de la pantalla (no depende de la tabla).
+        maxH: Math.max(160, window.innerHeight - r.bottom - 12),
+      });
+    }
+    setQ('');
+    setOpen(true);
+  };
 
   useEffect(() => {
     if (!open) return;
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (popRef.current?.contains(t) || btnRef.current?.contains(t)) return;
+      setOpen(false);
     };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
+    // Scroll fuera del popover (tabla/página) lo cierra; el de su propia lista no.
+    const onScroll = (e: Event) => {
+      if (popRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    const cerrar = () => setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', cerrar);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', cerrar);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [open]);
 
   // Activo solo si la selección restringe de verdad (algunos, no todos).
@@ -57,18 +96,21 @@ export function FiltroColumnaOpciones({
   };
 
   return (
-    <div className="relative" ref={ref}>
+    <>
       <button
+        ref={btnRef}
         type="button"
-        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+        onClick={(e) => { e.stopPropagation(); if (open) setOpen(false); else abrir(); }}
         title={`Filtrar — ${etiqueta}`}
         className={`rounded px-1 text-[10px] leading-none ${activo ? 'bg-white/25 text-white' : 'text-white/50 hover:text-white'}`}
       >
         ▼
       </button>
-      {open && (
+      {open && createPortal(
         <div
-          className="absolute left-0 top-full z-30 mt-1 w-60 rounded-lg border bg-white p-2 text-left normal-case tracking-normal text-gray-700 shadow-lg"
+          ref={popRef}
+          className="fixed z-[61] flex w-60 flex-col rounded-lg border bg-white p-2 text-left normal-case tracking-normal text-gray-700 shadow-lg"
+          style={{ top: pos.top, left: pos.left, maxHeight: pos.maxH }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{etiqueta}</div>
@@ -87,7 +129,7 @@ export function FiltroColumnaOpciones({
               Limpiar
             </button>
           </div>
-          <div className="max-h-52 overflow-auto">
+          <div className="min-h-0 flex-1 overflow-auto">
             {visibles.length === 0 && (
               <div className="px-1 py-2 text-xs text-gray-400">Sin coincidencias</div>
             )}
@@ -98,8 +140,9 @@ export function FiltroColumnaOpciones({
               </label>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }

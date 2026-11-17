@@ -23,6 +23,11 @@ palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parq
   Gestión de Cobranza, que admite varios meses o todo el año). Los **selectores que cargan datos del
   servidor** (Año, Inversionista, Periodo) NO son filtros de tabla y siguen siendo de una sola opción
   (salvo donde se habilitó multi explícitamente, como el Mes de Cobranza).
+  **Comportamiento del menú (v2.82.1):** el popover del filtro se dibuja en un **portal sobre `body`**
+  con posición fija, así que nunca queda recortado por el contenedor de la tabla (antes, con 1 o 2
+  filas, el menú quedaba atrapado y casi inutilizable). Su alto máximo es el que queda de pantalla
+  hasta el borde inferior y la lista de opciones se desplaza por dentro. Se cierra con clic fuera,
+  `Esc`, redimensionar o hacer scroll de la tabla; el scroll de su propia lista no lo cierra.
 
 ## Entidades de negocio
 
