@@ -2,7 +2,7 @@
 modulo: Configuraciones
 estado: desarrollado
 version_doc: 1.6
-ultima_actualizacion: 2026-09-07
+ultima_actualizacion: 2026-11-17
 submodulos: [Usuarios, Parámetros, Permisos, Sistema, Cambiar contraseña]
 rutas: [/configuraciones/usuarios, /configuraciones/parametros, /configuraciones/permisos, /configuraciones/sistema, /configuraciones/cambiar-contrasena, /registro]
 claves_permiso: [200, 203, 210, 212, 213, 214, 215, 216, 220, 221]
@@ -119,7 +119,8 @@ un administrador cree la contraseña por ellos:
 - **Modelo:** `PresCategorias` (cuenta; PK `idCategoria` manual; `responsable` = uid de `catUsers`;
   flags `presupuestable`, `status`) → `PresDetalle` (12 montos mensuales por año; `claveUnica` es
   **GENERADA**, no se inserta) → `Presupuestos` (presupuesto anual; 2026 activo). La vista
-  `v_resumenPresupuesto` da el **consumido** (subtotal gastado).
+  `v_resumenPresupuesto` da el consumo: **pagado** (`subtotal_gastado`) y **apartado** (`subtotal_comprometido`, aprobado sin pagar).
+  **Desde v2.82.2 la columna «Consumido» muestra pagado + apartado** y al pasar el cursor un **tooltip** con el desglose (pagado, apartado, total, presupuesto anual y disponible del año; en cuentas no presupuestables dice «sin límite»). Antes mostraba solo lo pagado, por eso una cuenta con pagos aprobados sin pagar se veía con menos consumo del real. Cuando la vista incluya el saldo apartado de las facturas PPD (pendiente, tablero #77), esta pantalla lo mostrará sola.
 - **Lectura:** usa la RPC de negocio `prescategorias_obtener_con_presupuesto` (cuentas + presupuesto
   anual + responsable) + `v_resumenPresupuesto` para el consumido.
 - **Acciones:** crear cuenta, cambiar responsable, toggles (`presupuestable`, `status`), **ajustar el

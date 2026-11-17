@@ -4,6 +4,7 @@ import { parametrosApi, type CuentaItem } from './parametros.api';
 import { PresupuestoMensualModal } from './PresupuestoMensualModal';
 import { Toggle } from '@/components/Toggle';
 import { IconGear } from '@/components/icons';
+import { Tooltip } from '@/components/ui/Tooltip';
 import {
   SortableTh,
   THEAD_STICKY,
@@ -223,7 +224,9 @@ export function CuentasTab() {
                   </div>
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums text-gray-600">
-                  {moneda(c.consumido)}
+                  <Tooltip contenido={<DesgloseConsumo c={c} />}>
+                    {moneda(c.consumido)}
+                  </Tooltip>
                 </td>
                 <td className="px-3 py-2">
                   <select
@@ -412,6 +415,34 @@ function AltaCuenta({
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+/** Desglose de «Consumido»: pagado + apartado, contra el presupuesto anual. */
+function DesgloseConsumo({ c }: { c: CuentaItem }) {
+  const fila = (etiqueta: string, valor: number, fuerte = false) => (
+    <div className={`flex justify-between gap-6 ${fuerte ? 'border-t border-white/30 pt-1 font-semibold' : ''}`}>
+      <span>{etiqueta}</span>
+      <span className="tabular-nums">{moneda(valor)}</span>
+    </div>
+  );
+  return (
+    <div className="space-y-1">
+      <p className="font-semibold">
+        {[c.cuenta, c.seccion].filter(Boolean).join(' · ') || c.idCategoria}
+      </p>
+      {fila('Pagado (consumido por pagos)', c.pagado)}
+      {fila('Apartado (aprobado, sin pagar)', c.apartado)}
+      {fila('Total consumido', c.consumido, true)}
+      {c.presupuestable ? (
+        <>
+          {fila('Presupuesto anual', c.presupuestoAnual)}
+          {fila('Disponible del año', c.presupuestoAnual - c.consumido)}
+        </>
+      ) : (
+        <p className="text-white/80">Cuenta no presupuestable: sin límite.</p>
+      )}
     </div>
   );
 }

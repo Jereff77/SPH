@@ -83,7 +83,9 @@ export class ParametrosService {
   /**
    * Lista las cuentas con su presupuesto anual usando la función de negocio
    * `prescategorias_obtener_con_presupuesto` (misma fuente que Flutter, para
-   * consistencia), y añade el "consumido" desde la vista v_resumenPresupuesto.
+   * consistencia), y añade el consumo desde la vista v_resumenPresupuesto:
+   * `pagado` (consumido por pagos), `apartado` (aprobado, sin pagar) y `consumido`
+   * = pagado + apartado (la cifra que muestra la columna «Consumido»).
    */
   async listarCuentas(filtroCuenta?: string, filtroSeccion?: string) {
     const { data: cuentas, error } = await this.supabase.admin.rpc(
@@ -99,21 +101,25 @@ export class ParametrosService {
 
     const { data: resumen } = await this.supabase.admin
       .from('v_resumenPresupuesto')
-      .select('idCategoria, subtotal_gastado, total_gastado_comprometido');
+      .select('idCategoria, subtotal_gastado, subtotal_comprometido');
     const mapR = new Map(
       (resumen ?? []).map((r) => [r.idCategoria, r] as const),
     );
 
     return (cuentas ?? []).map((c) => {
       const r = c.idCategoria ? mapR.get(c.idCategoria) : undefined;
+      const pagado = r?.subtotal_gastado ?? 0;
+      const apartado = r?.subtotal_comprometido ?? 0;
       return {
         idCategoria: c.idCategoria,
         cuenta: c.cuenta,
         seccion: c.seccion,
         descripcion: c.descripcion,
         presupuestoAnual: c.presupuesto_anual ?? 0,
-        consumido: r?.subtotal_gastado ?? 0,
-        comprometido: r?.total_gastado_comprometido ?? 0,
+        pagado,
+        apartado,
+        consumido: pagado + apartado,
+        comprometido: pagado + apartado,
         uidResponsable: c.uidResponsable,
         nombreResponsable: c.nomCompleto ?? null,
         idPresupuesto: c.idPresupuesto,

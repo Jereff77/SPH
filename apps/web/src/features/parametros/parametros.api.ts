@@ -16,7 +16,12 @@ export interface CuentaItem {
   seccion: string | null;
   descripcion: string | null;
   presupuestoAnual: number;
+  /** Pagado + apartado: lo que muestra la columna «Consumido». */
   consumido: number;
+  /** Consumido por pagos (solicitudes pagadas). */
+  pagado: number;
+  /** Aprobado y todavía sin pagar. */
+  apartado: number;
   comprometido: number;
   uidResponsable: string | null;
   nombreResponsable: string | null;
