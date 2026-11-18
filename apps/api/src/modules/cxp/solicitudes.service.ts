@@ -701,9 +701,9 @@ export class SolicitudesService {
         (dto.moneda || 'MXN') !== (sol.moneda || 'MXN') ||
         dif(sol.subtotal, dto.subtotal) ||
         dif(sol.total, dto.total);
-      if (cambiaFactura)
+      if (cambiaFactura || (dto.idCategoria ?? sol.idCategoria) !== sol.idCategoria)
         throw new BadRequestException(
-          'En un pago de factura PPD solo se puede cambiar la clasificación y el concepto.',
+          'En un pago de factura PPD solo se puede cambiar el concepto: la cuenta es la de la factura.',
         );
     }
 
@@ -711,7 +711,7 @@ export class SolicitudesService {
       .from('cxp')
       .update(
         esPpd
-          ? { idCategoria: dto.idCategoria, concepto: dto.concepto }
+          ? { concepto: dto.concepto }
           : {
               idProveedor: dto.idProveedor,
               nombreProveedor: dto.nombreProveedor || null,

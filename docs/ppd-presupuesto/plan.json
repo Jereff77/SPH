@@ -1,0 +1,43 @@
+{
+  "modulo": "PPD y presupuesto: subtotal al pagar y apartado de la factura",
+  "olas": [
+    {
+      "nombre": "0 · Diseño y SQL",
+      "tareas": [
+        { "nombre": "Brief con las reglas acordadas y datos verificados", "estimadoMin": 30, "responsable": "Toribio" },
+        { "nombre": "Redactar el SQL: trigger, corrección de datos, vistas y función de aprobación", "estimadoMin": 60, "responsable": "Toribio" },
+        { "nombre": "Prueba en seco con ROLLBACK: pagos parciales, desaplicar, vista y aprobación", "estimadoMin": 45, "responsable": "Toribio" }
+      ]
+    },
+    {
+      "nombre": "1 · Validación adversarial (Opus)",
+      "tareas": [
+        { "nombre": "Validador Opus: consumidores de la vista, función de aprobación, trigger y datos", "estimadoMin": 45, "responsable": "Opus" },
+        { "nombre": "Conciliar hallazgos y corregir el SQL", "estimadoMin": 30, "responsable": "Toribio" }
+      ]
+    },
+    {
+      "nombre": "2 · Base de datos en producción",
+      "tareas": [
+        { "nombre": "Autorizar el SQL exacto", "estimadoMin": 5, "responsable": "Jereff" },
+        { "nombre": "Aplicar trigger y corrección de datos y verificar", "estimadoMin": 20, "responsable": "Toribio" },
+        { "nombre": "Aplicar las vistas y la función de aprobación y verificar cifras por cuenta", "estimadoMin": 30, "responsable": "Toribio" }
+      ]
+    },
+    {
+      "nombre": "3 · Código (API y web)",
+      "tareas": [
+        { "nombre": "API: modal de aprobación con la base en la primera aprobación; PPD sin cálculo de subtotal; cuenta fija al editar", "estimadoMin": 75, "responsable": "Toribio" },
+        { "nombre": "Web: cuenta bloqueada al editar un pago PPD y aviso de PPD ya apartada", "estimadoMin": 30, "responsable": "Toribio" },
+        { "nombre": "Pruebas, typecheck y lint", "estimadoMin": 30, "responsable": "Toribio" }
+      ]
+    },
+    {
+      "nombre": "4 · Cierre y documentación",
+      "tareas": [
+        { "nombre": "Documentar (bitácora, KB, versión) y commit selectivo", "estimadoMin": 40, "responsable": "Toribio" },
+        { "nombre": "Push (orden de Jereff) y verificación con la cuenta de Toribio", "estimadoMin": 20, "responsable": "Jereff" }
+      ]
+    }
+  ]
+}

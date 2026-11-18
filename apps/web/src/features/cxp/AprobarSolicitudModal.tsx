@@ -144,8 +144,10 @@ export function AprobarSolicitudModal({
               </div>
             )}
             <div className={fila}>
-              <span className="text-gray-500">Subtotal</span>
-              <span className="font-semibold text-gray-800">{moneda(solicitud.subtotal)}</span>
+              <span className="text-gray-500">{pres?.esPpd ? 'Base que se aparta' : 'Subtotal'}</span>
+              <span className="font-semibold text-gray-800">
+                {pres?.esPpd && pres.ppdYaApartada ? 'Ya apartada' : moneda(pres?.esPpd ? pres.subtotal : solicitud.subtotal)}
+              </span>
             </div>
           </div>
 
@@ -218,6 +220,13 @@ export function AprobarSolicitudModal({
                   {moneda(pres.gasto)} ({pres.avanceTotal.toFixed(0)}%)
                 </span>
               </div>
+              {pres.esPpd && (
+                <p className="pt-1 text-xs text-gray-600">
+                  {pres.ppdYaApartada
+                    ? 'Esta factura PPD ya tiene su presupuesto apartado desde su primera aprobación; no se vuelve a validar.'
+                    : 'Factura PPD: al aprobar su primer pago se aparta la base completa de la factura.'}
+                </p>
+              )}
               {pres.fuera && (
                 <p className="pt-1 text-xs font-medium text-red-700">
                   ⚠️ Excede el presupuesto disponible.

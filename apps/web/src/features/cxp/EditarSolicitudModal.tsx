@@ -18,7 +18,7 @@ const inputCls =
 
 export function EditarSolicitudModal({ solicitud, onClose, onGuardada }: Props) {
   // Pago de una factura PPD: monto, subtotal, folio, proveedor, moneda y fecha vienen
-  // de la factura; aquí solo se puede cambiar la cuenta (partida) y el concepto.
+  // de la factura, incluida la cuenta (se pide una sola vez, al subir la factura); aquí solo se puede cambiar el concepto.
   const esPpd = solicitud.diferido === true;
   const { data: cat } = useQuery({
     queryKey: ['cxp-solicitudes-catalogos'],
@@ -89,7 +89,7 @@ export function EditarSolicitudModal({ solicitud, onClose, onGuardada }: Props) 
 
         {esPpd && (
           <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Pago de factura PPD: solo se puede cambiar la cuenta y el concepto. El monto,
+            Pago de factura PPD: solo se puede cambiar el concepto. La cuenta, el monto,
             el folio y los demás datos vienen de la factura.
           </div>
         )}
@@ -121,6 +121,7 @@ export function EditarSolicitudModal({ solicitud, onClose, onGuardada }: Props) 
           <select
             value={idCategoria}
             onChange={(e) => setIdCategoria(e.target.value)}
+            disabled={esPpd}
             className={inputCls}
           >
             {!cat?.categorias.some((c) => c.idCategoria === idCategoria) && (

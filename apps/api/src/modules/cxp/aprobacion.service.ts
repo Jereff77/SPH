@@ -130,7 +130,7 @@ export class AprobacionService {
   private async solicitudDelAprobador(idCxp: string, uidEsperado: string) {
     const { data, error } = await this.supabase.admin
       .from('cxp')
-      .select('idCxp, uidGerente, idEstado, idCategoria, subtotal, idCxpPPD')
+      .select('idCxp, uidGerente, idEstado, idCategoria, subtotal, idCxpPPD, moneda')
       .eq('idCxp', idCxp)
       .maybeSingle();
     if (error) throw new InternalServerErrorException(error.message);
@@ -167,6 +167,36 @@ export class AprobacionService {
     return data;
   }
 
+  /**
+   * Cuánto presupuesto aparta aprobar esta solicitud. Normal: su subtotal. PPD: la FACTURA aparta su base
+   * completa en la primera aprobación; si ya hay otra parcialidad aprobada o pagada, no aparta nada más
+   * (ya está apartada). Factura en otra moneda: no afecta el presupuesto (por ahora).
+   */
+  private async incrementoPresupuestal(sol: {
+    idCxp: string;
+    idCxpPPD: string | null;
+    subtotal: number | null;
+    moneda?: string | null;
+  }): Promise<{ incremento: number; ppdYaApartada: boolean }> {
+    if (!sol.idCxpPPD) return { incremento: sol.subtotal ?? 0, ppdYaApartada: false };
+    if ((sol.moneda ?? 'MXN') !== 'MXN') return { incremento: 0, ppdYaApartada: false };
+    const { count, error } = await this.supabase.admin
+      .from('cxp')
+      .select('idCxp', { count: 'exact', head: true })
+      .eq('idCxpPPD', sol.idCxpPPD)
+      .eq('status', true)
+      .neq('idCxp', sol.idCxp)
+      .in('idEstado', [4, 6, 7, 99]);
+    if (error) throw new InternalServerErrorException(error.message);
+    if ((count ?? 0) > 0) return { incremento: 0, ppdYaApartada: true };
+    const { data: m } = await this.supabase.admin
+      .from('cxp_ppd')
+      .select('subtotal')
+      .eq('idCxpPPD', sol.idCxpPPD)
+      .maybeSingle();
+    return { incremento: m?.subtotal ?? 0, ppdYaApartada: false };
+  }
+
   /** Datos de presupuesto para el modal de aprobación (respeta "Ver como"). */
   async presupuesto(idCxp: string, actorUid: string, verComo?: string) {
     const uid = await this.supabase.uidEfectivo(actorUid, verComo);
@@ -174,12 +204,12 @@ export class AprobacionService {
     const pres = await this.resumenPresupuesto(sol.idCategoria);
     const uidFP = await this.uidAprobadorFP();
 
-    const subtotal = sol.subtotal ?? 0;
+    const { incremento: subtotal, ppdYaApartada } = await this.incrementoPresupuestal(sol);
     const totalGastadoComprometido = pres?.total_gastado_comprometido ?? 0;
     const presupuestoAcumulado = pres?.presupuesto_acumulado ?? 0;
     const presupuestable = pres?.presupuestable ?? false;
     const gasto = totalGastadoComprometido + subtotal;
-    const fuera = presupuestable && gasto > presupuestoAcumulado;
+    const fuera = presupuestable && !ppdYaApartada && gasto > presupuestoAcumulado;
     const esAprobadorFP = !!uidFP && uidFP === uid;
 
     return {
@@ -197,6 +227,8 @@ export class AprobacionService {
       esAprobadorFP,
       puedeReasignar: fuera && !esAprobadorFP,
       hayAprobadorFP: !!uidFP,
+      esPpd: !!sol.idCxpPPD,
+      ppdYaApartada,
     };
   }
 
@@ -266,10 +298,11 @@ export class AprobacionService {
     // Estado presupuestal ANTES de aprobar (para marcar autorizadoFP).
     const pres = await this.resumenPresupuesto(sol.idCategoria);
     const presupuestable = pres?.presupuestable ?? false;
+    const { incremento, ppdYaApartada } = await this.incrementoPresupuestal(sol);
     const fuera =
       presupuestable &&
-      (pres?.total_gastado_comprometido ?? 0) + (sol.subtotal ?? 0) >
-        (pres?.presupuesto_acumulado ?? 0);
+      !ppdYaApartada &&
+      (pres?.total_gastado_comprometido ?? 0) + incremento > (pres?.presupuesto_acumulado ?? 0);
 
     // ¿El periodo permite autorizar hoy?
     const { data: puede, error: puedeErr } = await this.supabase.admin.rpc(

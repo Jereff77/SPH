@@ -155,8 +155,8 @@ describe('nuevaParcial: folio estilo v1 y fecha en hora de México', () => {
     assert.equal(fila['idFolioDif'], UUID, 'idFolioDif guarda SIEMPRE el UUID real de la factura');
     // D4: en UTC ya era 2/nov; en México es 1/nov.
     assert.equal(fila['fecSolicitud'], HOY_MX);
-    // subtotal de la Fase 1 sigue calculándose (3000 de 12000 → 2500 de 10000)
-    assert.equal(fila['subtotal'], 2500);
+    // Sin subtotal al crearse: lo asigna la BD cuando se paga (trigger), y el apartado lo hace la factura.
+    assert.equal(fila['subtotal'] ?? null, null);
   });
 
   it('mismo día: la 3.ª parcial lleva consecutivo -2 y la 4.ª -3', async () => {
@@ -666,5 +666,59 @@ describe('subirComplemento(): REP compartido entre parcialidades de la misma fac
     assert.deepEqual(await t.ppd.subirComplemento('X1', xml, null, UID), { uuid: REP });
     assert.equal(filasCxp(t)[0]!['uuidComplemento'], REP);
     assert.equal(t.ctx.storage.subidos.length, 1);
+  });
+});
+
+// ============================================================================================
+// 9. Aprobación: cuánto presupuesto aparta aprobar un pago (PPD: la factura aparta su base completa)
+// ============================================================================================
+describe('aprobación: incremento presupuestal de un pago PPD', () => {
+  type Inc = (sol: { idCxp: string; idCxpPPD: string | null; subtotal: number | null; moneda?: string | null }) =>
+    Promise<{ incremento: number; ppdYaApartada: boolean }>;
+  const incremento = (t: { aprobacion: unknown }): Inc =>
+    (t.aprobacion as { incrementoPresupuestal: Inc }).incrementoPresupuestal.bind(t.aprobacion);
+
+  it('primera aprobación de la factura: aparta su base completa (10,000), no el pago', async () => {
+    const t = montar({ tablas: { cxp_ppd: [maestro()], cxp: [parcial('X1', { idEstado: 2, total: 3000, subtotal: null })] } });
+    const r = await incremento(t)({ idCxp: 'X1', idCxpPPD: 'M1', subtotal: null, moneda: 'MXN' });
+    assert.deepEqual(r, { incremento: 10000, ppdYaApartada: false });
+  });
+
+  it('si ya hay otra parcialidad aprobada o pagada: no aparta nada más y queda marcada como ya apartada', async () => {
+    const t = montar({
+      tablas: {
+        cxp_ppd: [maestro()],
+        cxp: [parcial('X1', { idEstado: 4, subtotal: null }), parcial('X2', { idEstado: 2, folio: `${UUID}-x`, subtotal: null })],
+      },
+    });
+    const r = await incremento(t)({ idCxp: 'X2', idCxpPPD: 'M1', subtotal: null, moneda: 'MXN' });
+    assert.deepEqual(r, { incremento: 0, ppdYaApartada: true });
+  });
+
+  it('una parcialidad rechazada (3), enviada (2) o dada de baja no cuenta como apartada', async () => {
+    const t = montar({
+      tablas: {
+        cxp_ppd: [maestro()],
+        cxp: [
+          parcial('X1', { idEstado: 3, subtotal: null }),
+          parcial('X3', { idEstado: 4, status: false, folio: `${UUID}-y`, subtotal: null }),
+          parcial('X2', { idEstado: 2, folio: `${UUID}-x`, subtotal: null }),
+        ],
+      },
+    });
+    const r = await incremento(t)({ idCxp: 'X2', idCxpPPD: 'M1', subtotal: null, moneda: 'MXN' });
+    assert.deepEqual(r, { incremento: 10000, ppdYaApartada: false });
+  });
+
+  it('una solicitud normal aparta su subtotal, como siempre', async () => {
+    const t = montar({ tablas: {} });
+    const r = await incremento(t)({ idCxp: 'N1', idCxpPPD: null, subtotal: 777.5 });
+    assert.deepEqual(r, { incremento: 777.5, ppdYaApartada: false });
+  });
+
+  it('un pago PPD en otra moneda no afecta el presupuesto (por ahora)', async () => {
+    const t = montar({ tablas: { cxp_ppd: [maestro()], cxp: [parcial('X1', { idEstado: 2, subtotal: null })] } });
+    const r = await incremento(t)({ idCxp: 'X1', idCxpPPD: 'M1', subtotal: null, moneda: 'USD' });
+    assert.deepEqual(r, { incremento: 0, ppdYaApartada: false });
   });
 });

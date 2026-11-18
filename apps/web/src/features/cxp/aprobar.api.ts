@@ -39,6 +39,10 @@ export interface PresupuestoAprobacion {
   esAprobadorFP: boolean;
   puedeReasignar: boolean;
   hayAprobadorFP: boolean;
+  /** Pago de una factura PPD: la factura aparta su base completa en la primera aprobación. */
+  esPpd: boolean;
+  /** La factura PPD ya tiene su presupuesto apartado por una parcialidad anterior: no se vuelve a validar. */
+  ppdYaApartada: boolean;
 }
 
 export interface ResultadoAprobacion {

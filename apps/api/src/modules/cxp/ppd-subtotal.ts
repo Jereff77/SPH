@@ -1,4 +1,7 @@
 // Funciones puras del subtotal de las solicitudes (parcialidades) PPD.
+// REFERENCIA: desde 2026-11-17 el subtotal lo asigna la base de datos al pagarse (trigger
+// `cxp_ppd_subtotal_al_pagar`, docs/ppd-presupuesto/); el servicio ya NO usa esta función. Se conserva
+// con sus pruebas como espejo del algoritmo (el trigger redondea cada pago y cierra el último con el remanente).
 // Sin dependencias: se prueban con `node --test` (ver `ppd-subtotal.spec.ts`).
 
 const aCentavos = (n: number): number => Math.round(n * 100);

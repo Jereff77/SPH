@@ -16,7 +16,6 @@ import { baseGastoCfdi, parsearComplementoPago, validarRepContra } from './cfdi.
 import { firmarDocumentos } from './documentos.util.js';
 import { recontarNumPagosPpd } from './ppd-contador.js';
 import { folioDeParcial, hoyMexicoISO, patronFoliosDeFactura } from './ppd-folio.js';
-import { subtotalParcial } from './ppd-subtotal.js';
 import {
   leerRepConfig,
   nivelRepPendiente,
@@ -53,7 +52,6 @@ export interface SaldoPpd {
   pagado: number; // Σ montoAplicado de parciales pagadas (idEstado 6/7)
   disponible: number; // total − solicitado
   subtotalFactura: number; // base del gasto de la factura (maestro `cxp_ppd.subtotal`)
-  subtotalAsignado: number; // Σ subtotal de parciales NO rechazadas (ya consumido de la base)
 }
 
 /**
@@ -112,8 +110,8 @@ export class PpdService {
 
   /**
    * Calcula el saldo de una factura PPD a partir de sus parcialidades. El saldo en
-   * pesos y el subtotal asignado salen de la MISMA lectura (maestro + parciales):
-   * así `subtotalParcial` nunca mezcla fotos distintas de la factura.
+   * pesos sale de la MISMA lectura (maestro + parciales). El subtotal de cada pago NO se
+   * calcula aquí: lo asigna la base de datos al pagarse (trigger `cxp_ppd_subtotal_al_pagar`).
    */
   async saldoDe(idCxpPPD: string): Promise<SaldoPpd> {
     const { data: m } = await this.supabase.admin
@@ -124,18 +122,16 @@ export class PpdService {
     const total = m?.total ?? 0;
     const { data: ps, error } = await this.supabase.admin
       .from('cxp')
-      .select('total, subtotal, montoAplicado, idEstado')
+      .select('total, montoAplicado, idEstado')
       .eq('idCxpPPD', idCxpPPD)
       .eq('status', true);
     if (error) throw new InternalServerErrorException(error.message);
 
     let solicitado = 0;
     let pagado = 0;
-    let subtotalAsignado = 0;
     for (const p of ps ?? []) {
-      if (p.idEstado === 3) continue; // rechazada: libera su monto y su subtotal
+      if (p.idEstado === 3) continue; // rechazada: libera su monto
       solicitado += p.total ?? 0;
-      subtotalAsignado += p.subtotal ?? 0;
       if (p.idEstado === 6 || p.idEstado === 7) pagado += p.montoAplicado ?? 0;
     }
     return {
@@ -144,7 +140,6 @@ export class PpdService {
       pagado: round2(pagado),
       disponible: round2(total - solicitado),
       subtotalFactura: m?.subtotal ?? 0,
-      subtotalAsignado: round2(subtotalAsignado),
     };
   }
 
@@ -555,7 +550,6 @@ export class PpdService {
       idCategoria: string;
       justificacion: string;
       monto: number;
-      subtotal: number; // base presupuestal de este pago (ver `subtotalParcial`)
       uidGerente: string;
     },
     actorUid: string,
@@ -580,7 +574,8 @@ export class PpdService {
         idCxpPPD: ctx.idCxpPPD,
         idCategoria: p.idCategoria,
         concepto: ctx.concepto,
-        subtotal: p.subtotal,
+        // Sin subtotal hasta que se pague: el apartado lo hace la factura y la BD asigna el subtotal al pagar.
+        subtotal: null,
         total: p.monto,
         montoAplicado: 0,
         urlXLM: ctx.urlXLM,
@@ -685,18 +680,13 @@ export class PpdService {
         `El monto solicitado (${dto.monto.toFixed(2)}) no puede exceder el total de la factura (${cfdi.total.toFixed(2)}).`,
       );
 
-    // Base del gasto = SubTotal − Descuento (las retenciones no restan). Es la cifra
-    // del maestro y de la que se reparte entre las parcialidades. Se calcula ANTES de
-    // subir archivos: si no da un subtotal positivo, no debe quedar nada a medias.
+    // Base del gasto = SubTotal − Descuento (las retenciones no restan). Es la cifra del maestro:
+    // la factura aparta esa base completa al aprobarse el primer pago. Se calcula ANTES de subir
+    // archivos: si no da una base positiva, no debe quedar nada a medias.
     const base = baseGastoCfdi(cfdi);
-    const subtotalPrimera = subtotalParcial(
-      { subtotal: base, total: cfdi.total },
-      dto.monto,
-      { disponible: cfdi.total, subtotalAsignado: 0 },
-    );
-    if (!(base > 0) || !(subtotalPrimera > 0))
+    if (!(base > 0))
       throw new BadRequestException(
-        'No se puede calcular el subtotal de este pago (base de la factura o monto demasiado pequeño). Revise el monto o el CFDI.',
+        'No se puede calcular la base de la factura (SubTotal menos Descuento). Revise el CFDI.',
       );
 
     // Aprobador (falla antes de subir archivos si la categoría no tiene responsable).
@@ -756,7 +746,6 @@ export class PpdService {
           idCategoria: dto.idCategoria,
           justificacion: dto.justificacion,
           monto: dto.monto,
-          subtotal: subtotalPrimera,
           uidGerente,
         },
         actorUid,
@@ -816,23 +805,11 @@ export class PpdService {
         `El monto solicitado (${dto.monto.toFixed(2)}) excede el disponible de la factura (${saldo.disponible.toFixed(2)}).`,
       );
 
-    // Una factura sin subtotal (heredada cuyo XML aún no se leyó) daría pagos con subtotal 0
-    // que el presupuesto no ve: se rechaza en lugar de guardar un 0 silencioso.
+    // Una factura sin base registrada (heredada cuyo XML aún no se leyó) no puede apartar presupuesto:
+    // se rechaza en lugar de dejar un pago que el presupuesto no ve.
     if (!(saldo.subtotalFactura > 0))
       throw new BadRequestException(
         'La factura PPD no tiene su subtotal registrado. Avise a soporte para completarlo antes de solicitar un pago.',
-      );
-
-    // Subtotal de este pago: proporción de lo que paga, o lo que falte si liquida.
-    // `saldo` trae la base de la factura y lo ya asignado de la MISMA lectura.
-    const subtotal = subtotalParcial(
-      { subtotal: saldo.subtotalFactura, total: saldo.total },
-      dto.monto,
-      saldo,
-    );
-    if (!(subtotal > 0))
-      throw new BadRequestException(
-        'El monto no alcanza a llevar subtotal (o la factura ya no tiene saldo). Ajuste el monto del pago.',
       );
 
     const uidGerente = await this.solicitudes.responsableDeCategoria(idCategoria);
@@ -861,7 +838,6 @@ export class PpdService {
         idCategoria,
         justificacion: dto.justificacion,
         monto: dto.monto,
-        subtotal,
         uidGerente,
       },
       actorUid,
