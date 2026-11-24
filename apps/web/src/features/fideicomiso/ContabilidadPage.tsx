@@ -12,6 +12,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fideicomisoApi, MESES, type PivoteFila } from './fideicomiso.api';
 import { configuracionApi } from '@/features/configuraciones/configuracion.api';
 import { ApiRequestError } from '@/lib/api';
+import { SearchSelect, type OpcionSelect } from '@/components/SearchSelect';
+import { claveCatalogo, limpiarTexto } from '@/lib/similitud';
 
 /** Índice 0-based de un mes corto ('Ene'..'Dic') tolerando `string`. */
 const idxMes = (m: string) => (MESES as readonly string[]).indexOf(m);
@@ -790,6 +792,25 @@ function ModalNuevo({
 
 /* ────────────────────────── Modal: Catálogo ────────────────────────── */
 
+/** Estilo del combo «selecciona o escribe» para que case con los demás campos del modal. */
+const COMBO_CATALOGO = 'm-select-wide flex items-center justify-between gap-2 text-left cursor-pointer';
+
+/** Opciones únicas (por clave: sin importar mayúsculas/acentos/espacios) de textos del catálogo, sin huecos. */
+function opcionesUnicas(valores: (string | null | undefined)[]): OpcionSelect[] {
+  const porClave = new Map<string, string>();
+  for (const v of valores) {
+    const k = claveCatalogo(v);
+    if (k !== '' && !porClave.has(k)) porClave.set(k, limpiarTexto(v));
+  }
+  return [...porClave.values()].map((t) => ({ value: t, label: t }));
+}
+
+/** Menor valor no nulo, o `null` si no hay ninguno. */
+function minimo(valores: (number | null)[]): number | null {
+  const nums = valores.filter((n): n is number => typeof n === 'number');
+  return nums.length > 0 ? Math.min(...nums) : null;
+}
+
 function ModalCatalogo({ onClose, notify }: { onClose: () => void; notify: (m: string) => void }) {
   const queryClient = useQueryClient();
   const { data: conceptos = [] } = useQuery({
@@ -797,8 +818,6 @@ function ModalCatalogo({ onClose, notify }: { onClose: () => void; notify: (m: s
     queryFn: () => fideicomisoApi.contabilidadConceptos(),
     staleTime: 10 * 60 * 1000,
   });
-  const tipos = useMemo(() => distintos(conceptos.map((c) => c.tipo)), [conceptos]);
-
   const [tipo, setTipo] = useState('');
   const [concepto, setConcepto] = useState('');
   const [sub, setSub] = useState('');
@@ -807,16 +826,39 @@ function ModalCatalogo({ onClose, notify }: { onClose: () => void; notify: (m: s
   const [ordenTipo, setOrdenTipo] = useState('99');
   const [ordenConcepto, setOrdenConcepto] = useState('99');
 
+  // Cascada por clave (sin importar mayúsculas/acentos/espacios): cada nivel lista lo que
+  // ya existe bajo el anterior, y se puede elegir o escribir uno nuevo en el mismo combo.
+  const kTipo = claveCatalogo(tipo);
+  const kConcepto = claveCatalogo(concepto);
+  const kSub = claveCatalogo(sub);
+  const kDesc = claveCatalogo(desc);
+  const filasTipo = useMemo(() => (kTipo ? conceptos.filter((c) => claveCatalogo(c.tipo) === kTipo) : []), [conceptos, kTipo]);
+  const filasConcepto = useMemo(
+    () => (kConcepto ? filasTipo.filter((c) => claveCatalogo(c.concepto) === kConcepto) : []),
+    [filasTipo, kConcepto],
+  );
+  const filasSub = useMemo(() => filasConcepto.filter((c) => claveCatalogo(c.subconcepto) === kSub), [filasConcepto, kSub]);
+  const opcTipos = useMemo(() => opcionesUnicas(conceptos.map((c) => c.tipo)), [conceptos]);
+  const opcConceptos = useMemo(() => opcionesUnicas(filasTipo.map((c) => c.concepto)), [filasTipo]);
+  const opcSubs = useMemo(() => opcionesUnicas(filasConcepto.map((c) => c.subconcepto)), [filasConcepto]);
+  const opcDescs = useMemo(() => opcionesUnicas(filasSub.map((c) => c.descripcion)), [filasSub]);
+
+  // El orden de un Tipo / Concepto que ya existe se hereda (solo lo nuevo se captura).
+  const ordenTipoHeredado = minimo(filasTipo.map((c) => c.ordenTipo));
+  const ordenConceptoHeredado = minimo(filasConcepto.map((c) => c.ordenConcepto));
+  // La combinación completa ya está en el catálogo → no tiene sentido enviarla.
+  const existeCompleto = kTipo !== '' && kConcepto !== '' && filasSub.some((c) => claveCatalogo(c.descripcion) === kDesc);
+
   const m = useMutation({
     mutationFn: () =>
       fideicomisoApi.crearConcepto({
-        tipo: tipo.trim(),
-        concepto: concepto.trim(),
-        subconcepto: sub.trim() || undefined,
-        descripcion: desc.trim() || undefined,
+        tipo: limpiarTexto(tipo),
+        concepto: limpiarTexto(concepto),
+        subconcepto: limpiarTexto(sub) || undefined,
+        descripcion: limpiarTexto(desc) || undefined,
         aplicaIVA: iva,
-        ordenTipo: Number(ordenTipo) || 99,
-        ordenConcepto: Number(ordenConcepto) || 99,
+        ordenTipo: ordenTipoHeredado ?? (Number(ordenTipo) || 99),
+        ordenConcepto: ordenConceptoHeredado ?? (Number(ordenConcepto) || 99),
       }),
     onSuccess: () => {
       notify('Concepto agregado al catálogo ✓');
@@ -842,19 +884,58 @@ function ModalCatalogo({ onClose, notify }: { onClose: () => void; notify: (m: s
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">
-          <datalist id="cat-tipos-list">{tipos.map((t) => <option key={t} value={t} />)}</datalist>
           <Campo label="Tipo">
-            <input className="m-select-wide" list="cat-tipos-list" value={tipo} onChange={(e) => setTipo(e.target.value)} placeholder="Selecciona o escribe nuevo tipo"
-              style={{ padding: '9px 12px' }} />
+            <SearchSelect
+              value={tipo}
+              options={opcTipos}
+              onChange={(v) => { if (v === tipo) return; setTipo(v); setConcepto(''); setSub(''); setDesc(''); }}
+              placeholder="Selecciona o escribe uno nuevo"
+              permitirNuevo
+              enPortal
+              className="min-w-0 flex-1"
+              triggerClassName={COMBO_CATALOGO}
+            />
           </Campo>
           <Campo label="Concepto">
-            <input className="m-select-wide" value={concepto} onChange={(e) => setConcepto(e.target.value)} placeholder="Nombre del concepto" style={{ padding: '9px 12px' }} />
+            <SearchSelect
+              value={concepto}
+              options={opcConceptos}
+              onChange={(v) => { if (v === concepto) return; setConcepto(v); setSub(''); setDesc(''); }}
+              placeholder="Selecciona o escribe uno nuevo"
+              disabled={!tipo.trim()}
+              permitirNuevo
+              enPortal
+              className="min-w-0 flex-1"
+              triggerClassName={COMBO_CATALOGO}
+            />
           </Campo>
           <Campo label="SubConcepto">
-            <input className="m-select-wide" value={sub} onChange={(e) => setSub(e.target.value)} placeholder="Opcional" style={{ padding: '9px 12px' }} />
+            <SearchSelect
+              value={sub}
+              options={opcSubs}
+              onChange={(v) => { if (v === sub) return; setSub(v); setDesc(''); }}
+              placeholder="Opcional: selecciona o escribe"
+              etiquetaVacio="Sin subconcepto"
+              disabled={!concepto.trim()}
+              permitirNuevo
+              enPortal
+              className="min-w-0 flex-1"
+              triggerClassName={COMBO_CATALOGO}
+            />
           </Campo>
           <Campo label="Descripción">
-            <input className="m-select-wide" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Opcional" style={{ padding: '9px 12px' }} />
+            <SearchSelect
+              value={desc}
+              options={opcDescs}
+              onChange={setDesc}
+              placeholder="Opcional: selecciona o escribe"
+              etiquetaVacio="Sin descripción"
+              disabled={!concepto.trim()}
+              permitirNuevo
+              enPortal
+              className="min-w-0 flex-1"
+              triggerClassName={COMBO_CATALOGO}
+            />
           </Campo>
           <Campo label="Aplica IVA">
             <div style={{ flex: 1, display: 'flex', gap: 16, padding: '6px 0' }}>
@@ -868,15 +949,22 @@ function ModalCatalogo({ onClose, notify }: { onClose: () => void; notify: (m: s
           </Campo>
           <div className="m-field" style={{ gap: 8 }}>
             <span className="m-label">Orden tipo</span>
-            <input type="number" min={0} max={999} value={ordenTipo} onChange={(e) => setOrdenTipo(e.target.value)}
-              style={{ width: 70, padding: '7px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 12, textAlign: 'center', outline: 'none' }} />
+            <input type="number" min={0} max={999} value={ordenTipoHeredado ?? ordenTipo} disabled={ordenTipoHeredado !== null}
+              title={ordenTipoHeredado !== null ? 'Heredado del tipo que ya existe' : undefined}
+              onChange={(e) => setOrdenTipo(e.target.value)}
+              style={{ width: 70, padding: '7px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 12, textAlign: 'center', outline: 'none', background: ordenTipoHeredado !== null ? '#f0f0f3' : undefined }} />
             <span className="m-label" style={{ marginLeft: 8 }}>Orden concepto</span>
-            <input type="number" min={0} max={999} value={ordenConcepto} onChange={(e) => setOrdenConcepto(e.target.value)}
-              style={{ width: 70, padding: '7px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 12, textAlign: 'center', outline: 'none' }} />
+            <input type="number" min={0} max={999} value={ordenConceptoHeredado ?? ordenConcepto} disabled={ordenConceptoHeredado !== null}
+              title={ordenConceptoHeredado !== null ? 'Heredado del concepto que ya existe' : undefined}
+              onChange={(e) => setOrdenConcepto(e.target.value)}
+              style={{ width: 70, padding: '7px 10px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 12, textAlign: 'center', outline: 'none', background: ordenConceptoHeredado !== null ? '#f0f0f3' : undefined }} />
           </div>
+          {existeCompleto && (
+            <div style={{ fontSize: 11, color: '#c0392b', marginTop: 2 }}>Esa combinación ya existe en el catálogo.</div>
+          )}
         </div>
         <div className="modal-footer">
-          <button className="btn-agregar" disabled={m.isPending} onClick={submit}>{m.isPending ? 'Guardando…' : 'Agregar al catálogo'}</button>
+          <button className="btn-agregar" disabled={m.isPending || existeCompleto} onClick={submit}>{m.isPending ? 'Guardando…' : 'Agregar al catálogo'}</button>
         </div>
       </div>
     </div>

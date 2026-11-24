@@ -1,13 +1,13 @@
 ---
 modulo: Fideicomiso
 estado: parcial
-version_doc: 1.7
-ultima_actualizacion: 2026-09-07
+version_doc: 1.8
+ultima_actualizacion: 2026-11-24
 rutas_v2: [/fideicomiso/dashboard, /fideicomiso/aportaciones, /fideicomiso/adhesiones, /fideicomiso/contabilidad, /fideicomiso/dispersiones, /fideicomiso/reportes]
 rutas_v1: [i06_fideicomiso]
 claves_permiso: [500, 510, 511, 520, 530, 540]
 tablas: [fidePdpDispersion, fideicomiso, fideCondiciones, fide_periodos_dispersion, fideContabilidad, fideContaConceptos, fideContaHistorial, fideSaldosBanco, v_fideicomiso, v_propiedadesfide, v_pagos]
-palabras_clave: [fideicomiso, dispersión, dispersiones, aportación, aportaciones, adhesión, adhesiones, rendimiento, kardex, ticket, contabilidad, pivote, concepto contable, inversión, rendimiento promedio, retención ISR, comisión SPH, "promoción", "promoción del 9%", "promoción a 2 años", "cuánto dura la promoción", "cuándo termina mi promoción", "por qué me bajó el rendimiento", "fin de promoción", "ya no me pagan el 9%", "promoAnios", "se duplicó en dispersiones", "aparece repetido", "renglón duplicado", "no se puede editar la celda", "se duplica y no se puede modificar", "número de adhesión", "rfc invertido", "nombre invertido", "aportación no aparece", "no aparece el inversionista en aportaciones", "no me sale el cliente en aportaciones", "no aparece el cliente en el selector", "el cliente existe pero no lo encuentro para asignarlo", "cliente en papelera", "ordenar alfabéticamente", "ordenar por tipo", "ordenar por concepto", "cómo ordeno la tabla de contabilidad"]
+palabras_clave: [fideicomiso, dispersión, dispersiones, aportación, aportaciones, adhesión, adhesiones, rendimiento, kardex, ticket, contabilidad, pivote, concepto contable, inversión, rendimiento promedio, retención ISR, comisión SPH, "promoción", "promoción del 9%", "promoción a 2 años", "cuánto dura la promoción", "cuándo termina mi promoción", "por qué me bajó el rendimiento", "fin de promoción", "ya no me pagan el 9%", "promoAnios", "se duplicó en dispersiones", "aparece repetido", "renglón duplicado", "no se puede editar la celda", "se duplica y no se puede modificar", "número de adhesión", "rfc invertido", "nombre invertido", "aportación no aparece", "no aparece el inversionista en aportaciones", "no me sale el cliente en aportaciones", "no aparece el cliente en el selector", "el cliente existe pero no lo encuentro para asignarlo", "cliente en papelera", "ordenar alfabéticamente", "ordenar por tipo", "ordenar por concepto", "cómo ordeno la tabla de contabilidad", "alta de catálogo", "agregar un subconcepto", "creé un concepto en vez de un subconcepto", "escribí mal el concepto", "concepto repetido en el catálogo", "concepto mal escrito", "quisiste decir", "no me deja agregar al catálogo", "esa combinación ya existe"]
 relacionado_con: [inversionistas, clientes, parques]
 ---
 
@@ -50,7 +50,7 @@ Hay **un solo fideicomiso** activo: *Fideicomiso Innovación SPH* (`idFide = jsR
 | **Aportaciones** `/fideicomiso/aportaciones` | 510 | Réplica de `aportaciones_widget` de v1: selector inversionista (+ **engrane ⚙️ → Configuración completa**, ver abajo) → propiedad-ticket → tabla de `v_pagos` con # / Tipo Pago / **Fecha Plan (editable inline → `pdpDetalle.fecha`)** / Plan de Pagos (`monto`) / Fecha Pago / Pagos / Balance (`pagos−monto`) / % Avance / **opciones**: **$ Pagos** (lista de `pagos`, ver comprobante, eliminar, y **agregar pago de ticket** [`tipomovimiento=3`] con IVA opcional + comprobante a bucket `cxp`) y **💬 Comentarios** (`v_comentarios` + alta en `comentarios`). Reutiliza `PagosVentaService`/`EscriturasService` de Ventas. |
 | **Configuración del propietario** (engrane ⚙️ de Aportaciones) | 510 | Réplica COMPLETA de `config_propietario_fide` de v1 (`ConfigFideModal`): selector de propiedad + 5 pestañas. **Datos Generales** (edición de `inversionista`), **Documentos** (subir PDF a bucket `Documentos` + lista + eliminar, sobre `inversionista_docs`), **Propiedades/Naves** (alta de nave-ticket: parque-ticket + nave A–E + ID 1–4 → INSERT `naves`+`propiedades`; lista tipo DatTickets con valor/pagos/avance y **eliminar** vía RPC `propiedades_eliminar_propiedad`), **Adhesiones/Condiciones** (`fideCondiciones`: adhesión, PM, medio, apartado, rendimiento 1–12, Prom9%, comentarios; INSERT/UPDATE), **Plan de Pagos** (genera PDP Único/Enganche/Parcialidad [monto=valor/N, fechas mensuales]; tabla editable de partidas [fecha/monto/tipo] con **recálculo por enganche** vía RPC `pdpdetalle_reevaluar_monto_por_enganche`; totales vs `v_totales`; **Activar** [si cuadran], **Desactivar**, **Eliminar** PDP). Reutiliza `PlanesService` (datos/docs) + `ConfigFideService`. |
 | **Adhesiones** `/fideicomiso/adhesiones` | 520 | Misma vista que Dashboard (`v_fideicomiso`), accesible también con la clave 520. |
-| **Contabilidad** `/fideicomiso/contabilidad` | 520 | Réplica fiel del grid Excel de v1: tabla pivote por año (Ene..Dic + subtotales + GRAN TOTAL), **edición inline** de cada celda/mes, **toggle de IVA** por celda (punto), **notas** por celda (tooltip), fila **Saldo estado de cuenta** (banco) con conciliación vs gran total (tolerancia 0.80, ✓ cuadrado / diferencia), **filtros por columna** (texto y signo +/0/−), **alta de movimientos** (cascada + notas + IVA + monto, con reemplazo si ya existe) y **+ Catálogo** (alta de conceptos). Cada cambio se audita y registra en `fideContaHistorial`. |
+| **Contabilidad** `/fideicomiso/contabilidad` | 520 | Réplica fiel del grid Excel de v1: tabla pivote por año (Ene..Dic + subtotales + GRAN TOTAL), **edición inline** de cada celda/mes, **toggle de IVA** por celda (punto), **notas** por celda (tooltip), fila **Saldo estado de cuenta** (banco) con conciliación vs gran total (tolerancia 0.80, ✓ cuadrado / diferencia), **filtros por columna** (texto y signo +/0/−), **alta de movimientos** (cascada + notas + IVA + monto, con reemplazo si ya existe) y **+ Catálogo** (alta de conceptos: Tipo, Concepto, SubConcepto y Descripción son combos «elige o escribe uno nuevo» con aviso «¿Quisiste decir…?», ver «alta de catálogo», v2.83.0). Cada cambio se audita y registra en `fideContaHistorial`. |
 | **Dispersion** `/fideicomiso/dispersiones` | 530 | Por fideicomiso + periodo (1ra..20ma): resumen por adherente (Nombre, Personalidad, Adhesión, Monto Inversión, **Rendimiento del Trimestre**, Retención ISR, **Rendimiento Neto**, **Comisión SPH**, Dispersión Trimestral) ordenable + totales. ⚠️ **Rendimiento Neto y Comisión SPH se agregaron en v2.72.0** (petición del área, tablero #69); antes la columna del bruto se llamaba «Renta del Trimestre». **Filtros**: por nombre, personalidad (Física/Moral), adhesión, Limpiar, y "Solo con fin de promoción en este periodo" (`dias_promocion>0 && dias_normal>0`). **Clic en el nombre → Desglose Detallado**: tabla con **una fila por cada ticket/pago de inversión del periodo seleccionado** (Monto Inversión, Fecha Pago, Días Efectivos [prorrateados según cuándo entró el capital al trimestre — p. ej. 81 días si el pago cayó dentro del trimestre], Rendimiento Anual %/$ [=monto×tasa], Renta del Trimestre, Retención ISR, Dispersión Trimestral) + Resumen Total que **suma** esas filas, con **export PNG** (html-to-image) y **CSV**. ⚠️ Gotcha: el RPC trae los campos invertidos — **`rfc_inversionista` = NOMBRE**, `nombre_inversionista` = RFC. |
 | **Reportes** `/fideicomiso/reportes` | 540 | **Kardex** de dispersiones por inversionista **+ filtro por Propiedad** (recalcula KPIs/totales/dona server-side) **+ toggle "Mostrar"**: «Solo los que ya pasaron» (fecfin≤hoy) o «Todos los meses (con cálculos)» — muestra también los cálculos de los meses futuros (las filas futuras ya traen `calculo`/`dispersion`); los totales del pie se ajustan a lo mostrado. Tarjeta resumen: dona Pagados/Pendientes + KPIs (izq) e info Personalidad/Rendimiento (der). **Export a PDF (jsPDF) y Excel (.xlsx, ExcelJS)**, ambos con **logo + diseño** (encabezado azul, tabla, totales); `kardex-export.ts`, ambas libs cargadas de forma diferida. |
 
@@ -209,6 +209,43 @@ Hay **un solo fideicomiso** activo: *Fideicomiso Innovación SPH* (`idFide = jsR
   orden por defecto sigue siendo el del catálogo (`fideContaConceptos.ordenTipo`/`ordenConcepto` que aplica
   `pivot_contabilidad`). ⚠️ El **export a Excel no refleja este orden** (baja el reporte del API en orden de
   catálogo, igual que ya ignoraba los filtros de columna).
+- **Contabilidad (alta de catálogo «elige o escribe», v2.83.0):** en **+ Catálogo** (`ModalCatalogo` de
+  `ContabilidadPage.tsx`) los 4 niveles —Tipo → Concepto → SubConcepto → Descripción— son **un solo combo**
+  (`SearchSelect` con `permitirNuevo`): al abrirlo lista lo que ya existe **bajo el nivel anterior**; al
+  escribir filtra; lo que no existe se ofrece como «+ Crear «texto»» (queda con la marca verde «nuevo»).
+  Para agregar un **subconcepto** a un concepto existente basta elegir ese concepto en la lista (antes había
+  que reescribir su nombre idéntico: un typo creaba un **concepto** nuevo en vez de un subconcepto).
+  - **Aviso de typo:** si lo escrito se parece (≥ 0.80) a uno existente —letra de menos («DESAROLLO»), plural
+    («PAGOS»), palabra que sobra o falta («PAGO DESARROLLO» vs «PAGO DE DESARROLLO»)— muestra arriba
+    «¿Quisiste decir…?»; en ese caso **Enter no crea** (crear exige clic explícito en «+ Crear»). Lógica en
+    `apps/web/src/lib/similitud.ts` (`buscarSimilares`, Levenshtein + comparación por palabras sin «de/del/la»
+    y en singular). Lo escrito que **ya existe** (aunque cambien mayúsculas, acentos o espacios) **elige el
+    existente** en lugar de ofrecer crearlo.
+  - **Orden heredado:** si el Tipo o el Concepto ya existen, «Orden tipo»/«Orden concepto» se llenan solos
+    con el menor que ya tienen y quedan bloqueados; solo lo nuevo captura (defecto 99). Antes los
+    subconceptos agregados a un concepto existente quedaban en 99 (casos Baldemar, HOPI y MYPSA).
+  - **Combinación repetida:** si Tipo+Concepto+SubConcepto+Descripción ya están en el catálogo, la pantalla
+    avisa «Esa combinación ya existe en el catálogo» y bloquea el botón.
+  - **Servidor (manda; `crearConcepto` + `catalogo-texto.ts`):** compara contra todo el catálogo con
+    `claveCatalogo` (sin acentos, minúsculas, espacios colapsados; `''`/`' '`/`'-'`/`NULL` = hueco) y, si un
+    nivel ya existe, guarda **la escritura existente** y **hereda su orden** (ignora el que mande el cliente);
+    responde 409 «Ya existe ese concepto en el catálogo: A › B › C.» si la combinación completa ya está.
+    Corrige un error previo: el duplicado se buscaba con `descripcion = ''` pero se guardaba `NULL`, así que
+    un alta sin descripción nunca se detectaba como repetida. La misma regla de comparación vive en
+    `apps/web/src/lib/similitud.ts` (si se cambia una, cambiar la otra). Pruebas: `catalogo-texto.spec.ts` (11).
+  - **Desplegable en portal:** el modal tiene `overflow:hidden`, así que el combo usa `enPortal` (se dibuja
+    sobre `document.body`, `position: fixed`; abre hacia arriba si no cabe abajo). `SearchSelect` conserva su
+    comportamiento de siempre para las otras ~18 pantallas (las 3 opciones nuevas vienen apagadas).
+  - ⚠️ **Lo que NO impide:** un typo que no se parezca lo bastante, o que el usuario acepte con «+ Crear»,
+    sigue creando una variante nueva. **La tabla `fideContaConceptos` no tiene restricción única** (solo la
+    llave primaria), así que dos altas simultáneas podrían repetirse; el catálogo es chico (decenas de
+    filas) y el alta es rara. Para corregir un concepto mal escrito hay que **unificarlo a mano** en
+    catálogo y movimientos (`fideContabilidad`): el pivote agrupa por el texto exacto del concepto.
+  - **Verificación (2026-11-24):** typecheck y lint de web y API, 174 pruebas de Jest del API, build de
+    producción y recorrido visual en un harness desechable con el catálogo real (typo → sugerencia → elegir;
+    «hopi» elige HOPI; «Proveedor Nuevo» crea subconcepto bajo PAGO DE DESARROLLO con orden 3/3;
+    combinación repetida bloquea el botón). **No se probó con la cuenta de Toribio en la plataforma real**
+    (la revisa Jereff tras el despliegue).
 
 ## Arquitectura v2 (seguridad)
 - **El frontend NUNCA toca Supabase.** Se eliminaron los 3 patrones inseguros de v1: el WebView con HTML
@@ -339,3 +376,18 @@ Evaluar si se agrega como atajo.
   el botón cicla catálogo → A→Z → Z→A → catálogo; **un clic más cuando marca `Z▼` regresa al orden
   del catálogo**. Es solo visual y por sesión (no persiste ni cambia datos); el Excel siempre sale en
   orden de catálogo.
+
+- **Síntoma: "quise agregar un subconcepto y se creó un concepto nuevo" / "el concepto aparece repetido
+  con otro nombre" (p. ej. PAGO DE DESARROLLO / PAGO DESARROLLO)** → Causa: hasta v2.82.5 el alta de
+  catálogo era de texto libre y el servidor solo rechazaba un duplicado **idéntico letra por letra**, así
+  que un typo creaba un concepto nuevo. Desde **v2.83.0** (+ Catálogo): Concepto y SubConcepto son combos —
+  para agregar un subconcepto, **elegir el concepto existente de la lista** y escribir el subconcepto en su
+  combo; si lo escrito se parece a uno existente aparece «¿Quisiste decir…?». Para **corregir uno ya mal
+  creado**: no hay pantalla de edición del catálogo; hay que unificar el texto en `fideContaConceptos` y en
+  los movimientos (`fideContabilidad`) —el pivote agrupa por el texto exacto— con apoyo del equipo de TI.
+
+- **Síntoma: "+ Catálogo no me deja guardar / dice «Esa combinación ya existe en el catálogo»"** →
+  Causa: Tipo + Concepto + SubConcepto + Descripción ya están en el catálogo (se compara sin importar
+  mayúsculas, acentos ni espacios; un subconcepto vacío equivale a «sin subconcepto»). Regla verificada:
+  `ModalCatalogo` (bloquea el botón) y `crearConcepto` (409 «Ya existe ese concepto en el catálogo: …»).
+  Si lo que se quiere es un movimiento, usar **Nuevo** (alta de movimiento), no el catálogo.

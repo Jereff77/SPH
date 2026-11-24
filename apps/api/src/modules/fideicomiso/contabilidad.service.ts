@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { SupabaseService } from '../../common/supabase/supabase.service.js';
+import { resolverAltaCatalogo, type FilaCatalogo } from './catalogo-texto.js';
 import type {
   CeldaDto,
   ConceptoDto,
@@ -248,35 +249,49 @@ export class ContabilidadService {
     return { ok: true, reemplazado: false };
   }
 
-  /** Alta de un concepto del catálogo (`fideContaConceptos`). */
+  /**
+   * Alta de un concepto del catálogo (`fideContaConceptos`).
+   *
+   * Compara contra el catálogo **sin importar mayúsculas, acentos ni espacios**
+   * (el catálogo es chico: decenas de filas) y, si el Tipo / Concepto /
+   * SubConcepto / Descripción ya existen, guarda la escritura existente y hereda
+   * su orden — así un alta no puede crear una variante de lo que ya hay. Un typo
+   * ("PAGO DESARROLLO") sí entra como nuevo: el aviso «¿Quisiste decir…?» vive en
+   * la pantalla.
+   */
   async crearConcepto(dto: ConceptoDto, actorUid: string): Promise<{ ok: true; id: number }> {
-    const subconcepto = dto.subconcepto ?? '';
-    const descripcion = dto.descripcion ? dto.descripcion : null;
-
-    // Verificar duplicado (tipo + concepto + subconcepto + descripción).
-    const { data: existe, error: errBusca } = await this.supabase.admin
+    const { data: filas, error: errBusca } = await this.supabase.admin
       .from('fideContaConceptos')
-      .select('id')
-      .eq('tipo', dto.tipo)
-      .eq('concepto', dto.concepto)
-      .eq('subconcepto', subconcepto)
-      .eq('descripcion', descripcion ?? '')
-      .limit(1);
+      .select('tipo, concepto, subconcepto, descripcion, orden_tipo, orden_concepto')
+      .limit(5000);
     if (errBusca) throw new InternalServerErrorException(errBusca.message);
-    if (existe && existe.length > 0)
-      throw new ConflictException('Ya existe ese concepto en el catálogo.');
+
+    const alta = resolverAltaCatalogo((filas ?? []) as FilaCatalogo[], {
+      tipo: dto.tipo,
+      concepto: dto.concepto,
+      subconcepto: dto.subconcepto,
+      descripcion: dto.descripcion,
+      ordenTipo: dto.ordenTipo,
+      ordenConcepto: dto.ordenConcepto,
+    });
+    if (alta.duplicadoDe) {
+      const ruta = [alta.tipo, alta.concepto, alta.subconcepto.trim(), alta.descripcion]
+        .filter((p) => p && p.trim() !== '')
+        .join(' › ');
+      throw new ConflictException(`Ya existe ese concepto en el catálogo: ${ruta}.`);
+    }
 
     const db = this.supabase.comoActor(actorUid);
     const { data, error } = await db
       .from('fideContaConceptos')
       .insert({
-        tipo: dto.tipo,
-        concepto: dto.concepto,
-        subconcepto,
-        descripcion,
+        tipo: alta.tipo,
+        concepto: alta.concepto,
+        subconcepto: alta.subconcepto,
+        descripcion: alta.descripcion,
         aplicaIVA: dto.aplicaIVA,
-        orden_tipo: dto.ordenTipo,
-        orden_concepto: dto.ordenConcepto,
+        orden_tipo: alta.ordenTipo,
+        orden_concepto: alta.ordenConcepto,
       })
       .select('id')
       .single();
