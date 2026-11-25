@@ -461,9 +461,11 @@ function CargosForm({
   const queryClient = useQueryClient();
   const [preset, setPreset] = useState(CONCEPTOS_PRESET[0]!.value);
   const [libre, setLibre] = useState('');
+  // El mes de inicio arranca en 1 (nunca fuera de las opciones del selector: un valor
+  // fuera de rango se veía como «1» pero se enviaba tal cual — caso N22, 2026-11-09).
   const [form, setForm] = useState<Omit<ConceptoInput, 'concepto'>>({
     monto: 0,
-    mesInicio: 4,
+    mesInicio: 1,
     periodo: 1,
     dividir: true,
   });
@@ -472,6 +474,9 @@ function CargosForm({
 
   const concepto = preset === '__libre__' ? libre.trim() : preset;
   const opcionesMes = Array.from({ length: Math.max(1, plazo) }, (_, i) => i + 1);
+  // El periodo no puede rebasar el fin del contrato: mesInicio + periodo − 1 ≤ plazo.
+  const maxPeriodo = Math.max(1, plazo - form.mesInicio + 1);
+  const opcionesPeriodo = Array.from({ length: maxPeriodo }, (_, i) => i + 1);
 
   async function agregar(e: React.FormEvent) {
     e.preventDefault();
@@ -484,11 +489,15 @@ function CargosForm({
       setError('El monto y el periodo deben ser mayores a 0.');
       return;
     }
+    if (form.mesInicio < 1 || form.mesInicio + form.periodo - 1 > plazo) {
+      setError(`El cargo se saldría del contrato: el plan dura ${plazo} meses.`);
+      return;
+    }
     setGuardando(true);
     try {
       await arrendatariosApi.agregarConcepto(idArrePdp, { ...form, concepto });
       setLibre('');
-      setForm({ monto: 0, mesInicio: 4, periodo: 1, dividir: true });
+      setForm({ monto: 0, mesInicio: 1, periodo: 1, dividir: true });
       await queryClient.invalidateQueries({ queryKey: ['arre-detalle', idArrePdp] });
       onCambio();
     } catch (err) {
@@ -544,7 +553,15 @@ function CargosForm({
           Mes inicio
           <select
             value={form.mesInicio}
-            onChange={(e) => setForm((f) => ({ ...f, mesInicio: Number(e.target.value) }))}
+            onChange={(e) => {
+              const mesInicio = Number(e.target.value);
+              // Si el nuevo inicio deja corto el plazo, se recorta el periodo.
+              setForm((f) => ({
+                ...f,
+                mesInicio,
+                periodo: Math.min(f.periodo, Math.max(1, plazo - mesInicio + 1)),
+              }));
+            }}
             className="mt-1 block w-full rounded border px-2 py-1.5 text-sm"
           >
             {opcionesMes.map((n) => (
@@ -561,7 +578,7 @@ function CargosForm({
             onChange={(e) => setForm((f) => ({ ...f, periodo: Number(e.target.value) }))}
             className="mt-1 block w-full rounded border px-2 py-1.5 text-sm"
           >
-            {opcionesMes.map((n) => (
+            {opcionesPeriodo.map((n) => (
               <option key={n} value={n}>
                 {n}
               </option>

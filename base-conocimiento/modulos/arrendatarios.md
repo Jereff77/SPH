@@ -1,14 +1,14 @@
 ---
 modulo: Arrendatarios
 estado: desarrollado
-version_doc: 2.5
+version_doc: 2.6
 ultima_actualizacion: 2026-11-24
 rutas_v2: [/arrendatarios, /arrendatarios/planes, /arrendatarios/reportes]
 rutas_v1: [i02_arrendatarios]
 claves_permiso: [10, 20, 21, 22, 23, 24, 25]
 tablas: [inversionista, arrenPropiedades, arrePdp, arrePdpDetalle, arreConceptos, inversionista_docs, naves, parques, inpc, movbancarios, v_arrendadasNaves, catUsers, segModulos, auditoria, notasEntidad, arre_traspasos_deposito, arre_pagos]
 rpcs: [arrepdp_crear_plan_simple_rpc, arrepdp_generar_corrida_desde_plan_simple, arrepdpdetalle_aplicar_meses_gracia, arrepdpdetalle_obtener_resumen_por_plan, arrepdpdetalle_actualizar_campo_manual, arrepdpdetalle_calcular_anio_por_plan, arrepdpdetalle_recalcular_anos_contrato, actualizar_anios_planes_nuevos, actualizar_ciclo_plan_pago, actualizar_inpc_por_ciclo, arrepdp_agregar_concepto_financiado, arrepdp_eliminar_plan_con_restricciones, aplicar_pago_arrendatario, pagos_arrendatarios, contratos_por_vencer, contratos_vencidos_sin_renovacion, movbancarios_sin_aplicar, v2_arrepdp_renovar, v2_arrepdp_activar_renovaciones, v2_arrepdp_cancelar_anticipado, v2_arrepdpdetalle_cambiar_moneda, arre_traspaso_candidatos, arre_traspasar_deposito, arre_revertir_traspaso, arre_aplicar_pago_atomico]
-palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo, arrendatario no aparece, no aparece en arrendatarios, no aparece en el selector, nave no disponible, nave disponible para rentar, sin clasificar, plan de renta huérfano, arrePdp huérfano, el plan no tiene parcialidades, con plan pero vacío, no me aparece el plan, no puedo liberar la nave, no puedo desvincular la nave, motivo de la desvinculación, motivo de baja, motivoBaja, por qué se liberó la nave, historial de la nave, papelera, cliente en papelera no sale, no aparece un arrendatario en el selector, contrato firmado, contratoFirmado, idContratoDoc, switch contrato, ya tenemos el contrato, subir el contrato, documento del contrato, contrato no firmado, file too large, archivo muy grande, no me deja subir el contrato, tope de tamaño, 50 MB, notas del plan, chat del plan, MontseAI, nota, comentario del plan, avisos automáticos, panel de notas, borrar una nota, "moneda null", "moneda vacía", "sin moneda", "cambiar la moneda", "cambiar moneda de un concepto", "moneda editable", "Datos de entrada inválidos al renovar", "no me deja renovar", "error al renovar el plan", "renovación programada", "no veo la renovación", "ya renové y no aparece", "renovación registrada", "no aparece el botón renovar", "no sale el botón renovar", "falta el botón Renovar", "quién renovó", "cuándo se renovó", "estado de cuenta por moneda", "plan en dólares y pesos", "mezcla de monedas", "Mtto BQ", "no se puede cambiar la moneda", "pago aplicado moneda", "el depósito es USD", "sin tipo de cambio", traspaso de depósito, traspasar depósito, depósito de garantía, depósito en garantía, complemento del depósito, revertir traspaso, traspasado, nave hermana, depósito por cobrar, el depósito bajó, Deumex]
+palabras_clave: [arrendatario, inquilino, renta, arrendamiento, contrato, arrePdp, plan de renta, corrida, vigencia, meses de gracia, cortesía, concepto financiado, KVA, INPC, actualizar INPC manual, INPC manual no funciona, no cambia el monto, lo modifica desde el año 1, desfase del año, anio desalineado, año por concepto, cobranza, aplicar pago, depósito, contrato por vencer, contrato vencido, liberar nave, renovación, renovar plan, fecha fin, fecFin, cancelación anticipada, cancelar contrato, motivo cancelación, reportes, exportar, permisos por botón, importar estado de cuenta, SPEI recibido, movbancarios, BanBajío, conciliación, depósito no aparece, estado de cuenta excel, rastreo, arrendatario no aparece, no aparece en arrendatarios, no aparece en el selector, nave no disponible, nave disponible para rentar, sin clasificar, plan de renta huérfano, arrePdp huérfano, el plan no tiene parcialidades, con plan pero vacío, no me aparece el plan, no puedo liberar la nave, no puedo desvincular la nave, motivo de la desvinculación, motivo de baja, motivoBaja, por qué se liberó la nave, historial de la nave, papelera, cliente en papelera no sale, no aparece un arrendatario en el selector, contrato firmado, contratoFirmado, idContratoDoc, switch contrato, ya tenemos el contrato, subir el contrato, documento del contrato, contrato no firmado, file too large, archivo muy grande, no me deja subir el contrato, tope de tamaño, 50 MB, notas del plan, chat del plan, MontseAI, nota, comentario del plan, avisos automáticos, panel de notas, borrar una nota, "moneda null", "moneda vacía", "sin moneda", "cambiar la moneda", "cambiar moneda de un concepto", "moneda editable", "Datos de entrada inválidos al renovar", "no me deja renovar", "error al renovar el plan", "renovación programada", "no veo la renovación", "ya renové y no aparece", "renovación registrada", "no aparece el botón renovar", "no sale el botón renovar", "falta el botón Renovar", "quién renovó", "cuándo se renovó", "estado de cuenta por moneda", "plan en dólares y pesos", "mezcla de monedas", "Mtto BQ", "no se puede cambiar la moneda", "pago aplicado moneda", "el depósito es USD", "sin tipo de cambio", traspaso de depósito, traspasar depósito, depósito de garantía, depósito en garantía, complemento del depósito, revertir traspaso, traspasado, nave hermana, depósito por cobrar, el depósito bajó, Deumex, "cargo fuera del contrato", "el cargo se saldría del contrato", "se duplicaron los meses", "cargos después de terminado el contrato", "cargos en meses que no existen", "mes inicio 4", FUERA_DEL_PLAZO]
 relacionado_con: [parques, clientes, inversionistas, cxp, notas]
 ---
 
@@ -50,7 +50,8 @@ La tab **Plan de Pagos** tiene **layout de 2 columnas** (modal ampliado):
   Mantenimiento/Vigilancia con **$ x m² · SubTotal en vivo (=$xm²·m²) · meses de gracia** y
   **Total Mes** en vivo) y botón **Crear** (orquesta las 3 RPCs). Si **sí** tiene plan:
   acciones (Activar/Desactivar/Eliminar), **Cargos** (concepto Adecuaciones/Otros servicios/
-  Otro libre, Monto, Dividir, Mes inicio, Periodo → `arrepdp_agregar_concepto_financiado`) y
+  Otro libre, Monto, Dividir, Mes inicio, Periodo → `arrepdp_agregar_concepto_financiado`; **solo
+  dentro del plazo del contrato**, ver «Cargos dentro del plazo») y
   lista de **Conceptos** (eliminar solo los cargos KVA; los base Renta/Admin/Mtto/Vig/Depósito
   y sus "(Cortesia)" no se eliminan).
 - **Derecha** — **Previsualización** de la corrida (lee el **detalle**, sirve para el plan recién
@@ -721,6 +722,32 @@ naves de $237,002.955) = **$26,639.11** por cobrar. **No entra dinero al banco**
 - **Pruebas del API con Jest** (`pnpm --filter @erp/api test`, `apps/api/jest.config.cjs`; los specs de `modules/cxp/` corren aparte con `node --test`).
 - `fallaBd(logger, contexto, error, codigo?)` acepta un código opcional que viaja en el cuerpo del error.
 
+## Cargos dentro del plazo del contrato (v2.84.1, 2026-11-24)
+
+**Caso N22 (2026-11-09):** un plan de **3 meses** recibió «RENTA TERRENO» ($10,510.65) en los **meses 4, 5 y 6**
+(feb–abr 2027, después del fin del contrato). Causa en dos capas:
+
+1. **Formulario «Cargos»** (`PlanPagoForm.tsx`, `CargosForm`): «Mes inicio» arrancaba fijo en **4**. El selector
+   solo ofrece 1..plazo, así que en un plan de 3 meses se **veía «1»** pero el estado seguía en 4 y eso se enviaba.
+   La usuaria capturó periodo 3 → partidas 4, 5 y 6 (la nota del plan lo confirma: «monto 10,510.65 a 3 mes(es)»).
+2. **Sin candado atrás**: el Zod solo pedía `mesInicio ≥ 0` y la RPC `arrepdp_agregar_concepto_financiado` validaba
+   `p_mes_inicio` entre 1 y 12, **nunca contra el plazo** ni el último mes del cargo. Un segundo plan (36 meses, cargo
+   desde el mes 2 × 36) tenía la partida 37 por la misma razón.
+
+**Regla desde v2.84.1 — un cargo cabe en el contrato:** `mesInicio ≥ 1` y `mesInicio + periodo − 1 ≤ plazo`, en las tres capas:
+- **Web:** mes inicio arranca en 1; «Periodo» solo ofrece hasta `plazo − mesInicio + 1` y se recorta al cambiar el mes;
+  antes de enviar avisa «El cargo se saldría del contrato: el plan dura N meses».
+- **API** (`PlanesArreService.agregarConcepto`): lee el plazo real del plan y responde **400** «El cargo se saldría del
+  contrato: el plan dura N meses y el cargo abarcaría del mes A al B»; Zod exige `mesInicio ≥ 1`.
+- **BD** (migración `2026-11-09-arrepdp-concepto-financiado-dentro-del-plazo.sql`, aplicada en producción el
+  2026-11-09): la RPC devuelve `{exito:false, codigo:'FUERA_DEL_PLAZO'}` sin insertar nada. Probado: inicio 4 × 1 e
+  inicio 2 × 3 en el plan de 3 meses → rechazados, conteo de partidas sin cambio.
+
+**Decisiones de Jereff (2026-11-24):** las partidas 4–6 de N22 las borró él; la partida 37 del plan de 36 meses
+(`PDP_261013234632_b2b33c99`, «Renta de infraestructura eléctrica», $600, 01/08/2029, sin pago) **se queda** (descartado).
+La RPC **conserva el tope «mes de inicio ≤ 12»** (descartado quitarlo): un cargo que empiece en el mes 13 o después se
+rechaza con «El mes de inicio debe estar entre 1 y 12» aunque el plan dure 36 meses.
+
 ## Para el agente de soporte
 - **"En el dashboard no veo la tarjeta de 2 meses"** → se quitó en v2.80.0; las tarjetas son 1, 3 y 6 meses (rangos sin traslape).
 - **"Un contrato no sale en Sin contrato firmado"** → la tarjeta solo lista planes vigentes con `contratoFirmado=false` y vínculo activo; si ya se marcó firmado, está vencido, desvinculado o es de prueba/Tickets, no aparece.
@@ -846,3 +873,10 @@ naves de $237,002.955) = **$26,639.11** por cobrar. **No entra dinero al banco**
 - **"No puedo editar el precio / la moneda de una partida" (dice «Sin permiso para editar»)** → desde v2.81.1 editar la corrida exige la clave **25** (antes bastaba la 20). Pedir la clave en Configuraciones ▸ Permisos.
 - **"No me deja borrar «Renta/Vigilancia/Depósito…» o agregar un cargo con ese nombre"** → son conceptos base del plan (protegidos); un cargo libre debe llevar otro nombre (p. ej. «Mantenimiento de subestación»).
 - **"Las fechas salen distintas (05/03/2026)"** → desde v2.81.1 el módulo muestra siempre día y mes con dos dígitos.
+- **"Se duplicaron los meses al agregar un cargo" / "aparecen cargos después de que termina el contrato"** → antes de v2.84.1 el
+  formulario «Cargos» arrancaba en mes 4 aunque mostrara «1» (caso N22, 2026-11-09). Desde v2.84.1 no puede pasar: la pantalla, el
+  API y la BD rechazan un cargo que se salga del plazo («El cargo se saldría del contrato: el plan dura N meses», código
+  `FUERA_DEL_PLAZO`). Si ya existen partidas con `numPartida > plazo`, se borran a mano (soporte), nunca desde la pantalla.
+- **"No me deja agregar un cargo: «El mes de inicio debe estar entre 1 y 12»"** → es un tope de la RPC que se conserva por decisión
+  (2026-11-24): un cargo no puede empezar en el mes 13 o después aunque el plan dure 36 meses. Alternativa: capturarlo cuando el
+  plan se renueve, o pedir a soporte que lo inserte.
