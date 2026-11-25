@@ -11,9 +11,24 @@ type Db = ReturnType<SupabaseService['comoActor']>;
 
 const fmtFecha = (f: string | null | undefined) => f ?? '-';
 
-/** Fila de la pantalla Escrituras: una por propiedad con plan de pagos (`pdp`). */
+/** Tamaño de página al leer tablas completas (PostgREST corta en 1000 filas por petición). */
+const PAGE = 1000;
+/** Máximo de ids por consulta `.in(...)`: evita URLs enormes. */
+const LOTE_IN = 150;
+
+const lotes = <T>(xs: T[], n: number): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n));
+  return out;
+};
+
+/**
+ * Fila de la pantalla Escrituras: una por plan de pagos (`pdp`) activo y una por cada
+ * nave que todavía no tiene plan (`tienePlan = false`: sin estatus ni fecha que capturar).
+ */
 export interface EscrituraRow {
-  idPdp: string;
+  /** Plan de pagos; `null` mientras la nave no tenga un plan activo. */
+  idPdp: string | null;
   idPropiedad: string | null;
   idNave: string | null;
   idInversionista: string | null;
@@ -23,16 +38,61 @@ export interface EscrituraRow {
   numNave: string | null;
   /** Razón social del inversionista (con respaldo a nombre+apellido). */
   inversionista: string | null;
-  /** Estatus manual: `true` = Escriturada, `false` = Pendiente. */
+  /** `false` = la nave no tiene plan de pagos (se muestra «Sin plan»). */
+  tienePlan: boolean;
+  /** Estatus manual: `true` = Escriturada, `false` = Pendiente (siempre `false` sin plan). */
   escriturada: boolean;
-  /** Fecha de escrituración (obligatoria cuando está Escriturada). */
+  /** Fecha de escrituración (obligatoria cuando está Escriturada; `null` sin plan). */
   fechaEscrituracion: string | null;
 }
 
+/** Respuesta del listado: todas las filas y los conteos (escrituradas/pendientes solo cuentan naves con plan). */
+export interface EscriturasResp {
+  filas: EscrituraRow[];
+  /** Todas las naves mostradas (con plan + sin plan). */
+  total: number;
+  conPlan: number;
+  sinPlan: number;
+  escrituradas: number;
+  pendientes: number;
+}
+
+interface PlanDb {
+  idPdp: string;
+  idPropiedad: string | null;
+  escriturada: boolean;
+  fechaEscrituracion: string | null;
+}
+interface PropiedadDb {
+  idPropiedad: string;
+  idNave: string | null;
+  idInversionista: string | null;
+  status: boolean | null;
+  PActual: boolean | null;
+}
+interface NaveDb {
+  idNave: string;
+  numNave: number | null;
+  numNaveNAME: string | null;
+  idParque: string | null;
+}
+interface ParqueDb {
+  idParque: string;
+  nomParque: string | null;
+}
+/** Fila intermedia antes de resolver nombres. */
+type FilaBase = Pick<
+  EscrituraRow,
+  'idPdp' | 'idPropiedad' | 'idNave' | 'idInversionista' | 'tienePlan' | 'escriturada' | 'fechaEscrituracion'
+>;
+
 /**
- * Ventas > Escrituras (clave 630). Seguimiento de la escrituración **por propiedad**:
+ * Ventas > Escrituras (clave 630). Seguimiento de la escrituración **por nave**:
  * una fila por plan de pagos (`pdp`) de una nave vendida, con su estatus
- * (`pdp.escriturada`) y su fecha (`pdp.fechaEscrituracion`), ambos editables aquí.
+ * (`pdp.escriturada`) y su fecha (`pdp.fechaEscrituracion`), ambos editables aquí,
+ * **más una fila «Sin plan» por cada nave que aún no tiene plan** (lista completa de
+ * naves; sin nada que editar: la escrituración vive dentro del plan de pagos y la
+ * nave pasa sola a «Pendiente» cuando se le crea uno).
  * Cálculos sin vistas (desde tablas base) y **excluyendo el parque de Tickets**
  * (regla del módulo). Toda mutación se audita con `comoActor(uid)` + bitácora `actividad`.
  */
@@ -42,71 +102,137 @@ export class EscriturasService {
 
   constructor(private readonly supabase: SupabaseService) {}
 
-  async listar(): Promise<{
-    filas: EscrituraRow[];
-    total: number;
-    escrituradas: number;
-    pendientes: number;
-  }> {
-    const { data, error } = await this.supabase.admin
-      .from('pdp')
-      .select('idPdp, idPropiedad, escriturada, fechaEscrituracion')
-      .eq('status', true)
-      .eq('esTicket', false);
-    if (error) {
-      this.logger.error(`Error listando escrituras: ${error.message}`);
-      throw new InternalServerErrorException('No se pudieron cargar las escrituras.');
-    }
-    const planes = data ?? [];
-    if (planes.length === 0) return { filas: [], total: 0, escrituradas: 0, pendientes: 0 };
+  async listar(): Promise<EscriturasResp> {
+    const [planes, propiedades, parquesLista] = await Promise.all([
+      this.leerPaginas<PlanDb>('pdp', (desde, hasta) =>
+        this.supabase.admin
+          .from('pdp')
+          .select('idPdp, idPropiedad, escriturada, fechaEscrituracion')
+          .eq('status', true)
+          .eq('esTicket', false)
+          .order('idPdp', { ascending: true })
+          .range(desde, hasta),
+      ),
+      this.leerPaginas<PropiedadDb>('propiedades', (desde, hasta) =>
+        this.supabase.admin
+          .from('propiedades')
+          .select('idPropiedad, idNave, idInversionista, status, PActual')
+          .order('idPropiedad', { ascending: true })
+          .range(desde, hasta),
+      ),
+      // Parques que NO son de Tickets (regla del módulo).
+      this.leerPaginas<ParqueDb>('parques', (desde, hasta) =>
+        this.supabase.admin
+          .from('parques')
+          .select('idParque, nomParque')
+          .eq('status', true)
+          .eq('esTicket', false)
+          .order('idParque', { ascending: true })
+          .range(desde, hasta),
+      ),
+    ]);
 
-    // Propiedad → nave + inversionista.
-    const idsProp = [...new Set(planes.map((p) => p.idPropiedad).filter((x): x is string => !!x))];
-    const propMap = new Map<string, { idNave: string | null; idInversionista: string | null }>();
-    if (idsProp.length > 0) {
-      const { data: props } = await this.supabase.admin
-        .from('propiedades')
-        .select('idPropiedad, idNave, idInversionista')
-        .in('idPropiedad', idsProp);
-      for (const p of props ?? [])
-        propMap.set(p.idPropiedad, { idNave: p.idNave, idInversionista: p.idInversionista });
-    }
+    const parquesMap = new Map<string, string | null>(
+      parquesLista.map((p) => [p.idParque, p.nomParque]),
+    );
 
-    // Nave → numNaveNAME + parque.
-    const idsNave = [
-      ...new Set([...propMap.values()].map((p) => p.idNave).filter((x): x is string => !!x)),
+    // Naves visibles: activas, que no son de Tickets y de un parque que tampoco lo es.
+    const idsParque = [...parquesMap.keys()];
+    const visibles: NaveDb[] =
+      idsParque.length === 0
+        ? []
+        : await this.leerPaginas<NaveDb>('naves', (desde, hasta) =>
+            this.supabase.admin
+              .from('naves')
+              .select('idNave, numNave, numNaveNAME, idParque')
+              .eq('status', true)
+              .eq('esTicket', false)
+              .in('idParque', idsParque)
+              .order('idNave', { ascending: true })
+              .range(desde, hasta),
+          );
+    const navesMap = new Map<string, NaveDb>(visibles.map((n) => [n.idNave, n]));
+
+    const propPorId = new Map<string, PropiedadDb>(propiedades.map((p) => [p.idPropiedad, p]));
+
+    // Un plan activo SIEMPRE se muestra, aunque su nave no cumpla el filtro de «visibles»
+    // (comportamiento previo de la pantalla): se completan sus naves y parques.
+    const navesDePlanes = [
+      ...new Set(
+        planes
+          .map((pl) => (pl.idPropiedad ? propPorId.get(pl.idPropiedad)?.idNave : null))
+          .filter((x): x is string => !!x && !navesMap.has(x)),
+      ),
     ];
-    const navesMap = new Map<string, { numNaveNAME: string | null; idParque: string | null }>();
-    if (idsNave.length > 0) {
-      const { data: naves } = await this.supabase.admin
+    for (const grupo of lotes(navesDePlanes, LOTE_IN)) {
+      const { data, error } = await this.supabase.admin
         .from('naves')
-        .select('idNave, numNaveNAME, idParque')
-        .in('idNave', idsNave);
-      for (const n of naves ?? [])
-        navesMap.set(n.idNave, { numNaveNAME: n.numNaveNAME, idParque: n.idParque });
+        .select('idNave, numNave, numNaveNAME, idParque')
+        .in('idNave', grupo);
+      if (error) this.fallo('naves de planes', error.message);
+      for (const n of (data ?? []) as NaveDb[]) navesMap.set(n.idNave, n);
     }
-    const idsParque = [
-      ...new Set([...navesMap.values()].map((n) => n.idParque).filter((x): x is string => !!x)),
+    const parquesFaltan = [
+      ...new Set(
+        [...navesMap.values()]
+          .map((n) => n.idParque)
+          .filter((x): x is string => !!x && !parquesMap.has(x)),
+      ),
     ];
-    const parquesMap = new Map<string, string | null>();
-    if (idsParque.length > 0) {
-      const { data: pq } = await this.supabase.admin
+    for (const grupo of lotes(parquesFaltan, LOTE_IN)) {
+      const { data, error } = await this.supabase.admin
         .from('parques')
         .select('idParque, nomParque')
-        .in('idParque', idsParque);
-      for (const p of pq ?? []) parquesMap.set(p.idParque, p.nomParque);
+        .in('idParque', grupo);
+      if (error) this.fallo('parques de planes', error.message);
+      for (const p of (data ?? []) as ParqueDb[]) parquesMap.set(p.idParque, p.nomParque);
+    }
+
+    // Dueño vigente de cada nave (para las que aún no tienen plan): propiedad activa y actual.
+    const duenoVigente = new Map<string, string>();
+    for (const p of propiedades) {
+      if (p.idNave && p.idInversionista && p.status === true && p.PActual === true && !duenoVigente.has(p.idNave))
+        duenoVigente.set(p.idNave, p.idInversionista);
+    }
+
+    // Filas con plan (una por plan) + filas sin plan (una por nave visible sin plan).
+    const bases: FilaBase[] = [];
+    const navesConPlan = new Set<string>();
+    for (const pl of planes) {
+      const prop = pl.idPropiedad ? propPorId.get(pl.idPropiedad) : undefined;
+      if (prop?.idNave) navesConPlan.add(prop.idNave);
+      bases.push({
+        idPdp: pl.idPdp,
+        idPropiedad: pl.idPropiedad,
+        idNave: prop?.idNave ?? null,
+        idInversionista: prop?.idInversionista ?? null,
+        tienePlan: true,
+        escriturada: pl.escriturada,
+        fechaEscrituracion: pl.fechaEscrituracion,
+      });
+    }
+    for (const nv of visibles) {
+      if (navesConPlan.has(nv.idNave)) continue;
+      bases.push({
+        idPdp: null,
+        idPropiedad: null,
+        idNave: nv.idNave,
+        idInversionista: duenoVigente.get(nv.idNave) ?? null,
+        tienePlan: false,
+        escriturada: false,
+        fechaEscrituracion: null,
+      });
     }
 
     // Inversionista → razón social (con respaldo a nombre + apellido).
-    const idsInv = [
-      ...new Set([...propMap.values()].map((p) => p.idInversionista).filter((x): x is string => !!x)),
-    ];
+    const idsInv = [...new Set(bases.map((b) => b.idInversionista).filter((x): x is string => !!x))];
     const invMap = new Map<string, string | null>();
-    if (idsInv.length > 0) {
-      const { data: invs } = await this.supabase.admin
+    for (const grupo of lotes(idsInv, LOTE_IN)) {
+      const { data: invs, error } = await this.supabase.admin
         .from('inversionista')
         .select('idInversionista, razonsocial, nombre, apellido1')
-        .in('idInversionista', idsInv);
+        .in('idInversionista', grupo);
+      if (error) this.fallo('inversionistas', error.message);
       for (const i of invs ?? [])
         invMap.set(
           i.idInversionista,
@@ -116,19 +242,13 @@ export class EscriturasService {
         );
     }
 
-    const filas: EscrituraRow[] = planes.map((pl) => {
-      const prop = pl.idPropiedad ? propMap.get(pl.idPropiedad) : undefined;
-      const nv = prop?.idNave ? navesMap.get(prop.idNave) : undefined;
+    const filas: EscrituraRow[] = bases.map((b) => {
+      const nv = b.idNave ? navesMap.get(b.idNave) : undefined;
       return {
-        idPdp: pl.idPdp,
-        idPropiedad: pl.idPropiedad,
-        idNave: prop?.idNave ?? null,
-        idInversionista: prop?.idInversionista ?? null,
+        ...b,
         parque: nv?.idParque ? (parquesMap.get(nv.idParque) ?? null) : null,
-        numNave: nv?.numNaveNAME ?? null,
-        inversionista: prop?.idInversionista ? (invMap.get(prop.idInversionista) ?? null) : null,
-        escriturada: pl.escriturada,
-        fechaEscrituracion: pl.fechaEscrituracion,
+        numNave: nv?.numNaveNAME ?? (nv?.numNave != null ? String(nv.numNave) : null),
+        inversionista: b.idInversionista ? (invMap.get(b.idInversionista) ?? null) : null,
       };
     });
 
@@ -140,8 +260,39 @@ export class EscriturasService {
         (a.inversionista ?? '').localeCompare(b.inversionista ?? '', 'es'),
     );
 
-    const escrituradas = filas.filter((f) => f.escriturada).length;
-    return { filas, total: filas.length, escrituradas, pendientes: filas.length - escrituradas };
+    const conPlan = filas.filter((f) => f.tienePlan).length;
+    const escrituradas = filas.filter((f) => f.tienePlan && f.escriturada).length;
+    return {
+      filas,
+      total: filas.length,
+      conPlan,
+      sinPlan: filas.length - conPlan,
+      escrituradas,
+      pendientes: conPlan - escrituradas,
+    };
+  }
+
+  /** Lee una consulta completa por páginas de 1000 (hay que ordenar por una clave estable). */
+  private async leerPaginas<T>(
+    etiqueta: string,
+    pagina: (
+      desde: number,
+      hasta: number,
+    ) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
+  ): Promise<T[]> {
+    const filas: T[] = [];
+    for (let desde = 0; ; desde += PAGE) {
+      const { data, error } = await pagina(desde, desde + PAGE - 1);
+      if (error) this.fallo(etiqueta, error.message);
+      filas.push(...((data ?? []) as T[]));
+      if (!data || data.length < PAGE) break;
+    }
+    return filas;
+  }
+
+  private fallo(etiqueta: string, mensaje: string): never {
+    this.logger.error(`Error listando escrituras (${etiqueta}): ${mensaje}`);
+    throw new InternalServerErrorException('No se pudieron cargar las escrituras.');
   }
 
   /**

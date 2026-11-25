@@ -18,8 +18,24 @@ function opcionesCol(
   );
 }
 
-/** Etiqueta del estatus de escrituración. */
+/** Etiqueta del estatus de escrituración de un plan. */
 const estatusLabel = (escriturada: boolean): string => (escriturada ? 'Escriturada' : 'Pendiente');
+
+/** Estatus de una fila: «Sin plan» si la nave todavía no tiene plan de pagos. */
+const estatusFila = (f: EscrituraRow): string =>
+  !f.tienePlan ? 'Sin plan' : estatusLabel(f.escriturada);
+
+/** Etiqueta gris de una nave sin plan de pagos: no hay estatus ni fecha que capturar. */
+function EtiquetaSinPlan() {
+  return (
+    <span
+      title="Esta nave todavía no tiene plan de pagos: la escrituración se captura cuando se crea uno."
+      className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500"
+    >
+      Sin plan
+    </span>
+  );
+}
 
 /** Interruptor de estatus Escriturada / Pendiente. */
 function SwitchEstatus({
@@ -92,11 +108,12 @@ const pct = (parte: number, total: number): number =>
   total === 0 ? 0 : Math.round((parte / total) * 100);
 
 /**
- * Ventas → Escrituras (clave 630). Seguimiento de la escrituración por propiedad:
- * una fila por nave vendida con plan de pagos. Permite ver de un vistazo cuántas
- * naves faltan por escriturar, marcar el **estatus** (switch Escriturada/Pendiente)
- * y capturar la **fecha de escrituración**. Para marcar Escriturada la fecha es
- * obligatoria. Excluye el parque de Tickets.
+ * Ventas → Escrituras (clave 630). Seguimiento de la escrituración por nave: lista
+ * **todas las naves** (excepto las del parque de Tickets). Las que tienen plan de pagos
+ * permiten ver de un vistazo cuántas faltan por escriturar, marcar el **estatus**
+ * (switch Escriturada/Pendiente) y capturar la **fecha de escrituración** (obligatoria
+ * para marcar Escriturada). Las que no tienen plan salen con la etiqueta «Sin plan»,
+ * sin switch ni fecha, y pasan solas a «Pendiente» cuando se les crea un plan.
  */
 export function EscriturasPage() {
   const queryClient = useQueryClient();
@@ -149,7 +166,7 @@ export function EscriturasPage() {
   const optParque = useMemo(() => opcionesCol(filas, (f) => f.parque), [filas]);
   const optNave = useMemo(() => opcionesCol(filas, (f) => f.numNave), [filas]);
   const optInv = useMemo(() => opcionesCol(filas, (f) => f.inversionista), [filas]);
-  const optEstatus = ['Escriturada', 'Pendiente'];
+  const optEstatus = ['Escriturada', 'Pendiente', 'Sin plan'];
 
   // Buscador global (parque / nave / inversionista) + filtros de columna.
   const filtradas = useMemo(() => {
@@ -167,7 +184,7 @@ export function EscriturasPage() {
       if (parqueSel.size > 0 && !parqueSel.has(f.parque ?? '')) return false;
       if (naveSel.size > 0 && !naveSel.has(f.numNave ?? '')) return false;
       if (invSel.size > 0 && !invSel.has(f.inversionista ?? '')) return false;
-      if (estatusSel.size > 0 && !estatusSel.has(estatusLabel(f.escriturada))) return false;
+      if (estatusSel.size > 0 && !estatusSel.has(estatusFila(f))) return false;
       return true;
     });
   }, [filas, busca, parqueSel, naveSel, invSel, estatusSel]);
@@ -178,7 +195,7 @@ export function EscriturasPage() {
       parque: (f) => f.parque,
       numNave: (f) => f.numNave,
       inversionista: (f) => f.inversionista,
-      estatus: (f) => (f.escriturada ? 1 : 0),
+      estatus: (f) => (!f.tienePlan ? 2 : f.escriturada ? 1 : 0),
       fechaEscrituracion: (f) => f.fechaEscrituracion,
     },
     { key: 'parque', dir: 'asc' },
@@ -186,12 +203,18 @@ export function EscriturasPage() {
   );
 
   // Las tarjetas se adaptan a los filtros: cuentan lo que se ve.
-  const escrituradas = useMemo(() => filtradas.filter((f) => f.escriturada).length, [filtradas]);
-  const pendientes = filtradas.length - escrituradas;
-  const avance = pct(escrituradas, filtradas.length);
+  // «Escrituradas» y «Faltan» solo cuentan naves con plan: el avance no se diluye con las que aún no lo tienen.
+  const conPlan = useMemo(() => filtradas.filter((f) => f.tienePlan).length, [filtradas]);
+  const sinPlan = filtradas.length - conPlan;
+  const escrituradas = useMemo(
+    () => filtradas.filter((f) => f.tienePlan && f.escriturada).length,
+    [filtradas],
+  );
+  const pendientes = conPlan - escrituradas;
+  const avance = pct(escrituradas, conPlan);
 
   function alternarEstatus(f: EscrituraRow) {
-    if (guardando) return;
+    if (guardando || !f.idPdp) return;
     if (!f.escriturada && !f.fechaEscrituracion) {
       setError(
         `Captura primero la fecha de escrituración de la nave ${f.numNave ?? ''} para marcarla como Escriturada.`,
@@ -203,7 +226,7 @@ export function EscriturasPage() {
   }
 
   function cambiarFecha(f: EscrituraRow, iso: string) {
-    if (guardando) return;
+    if (guardando || !f.idPdp) return;
     const nueva = iso || null;
     if (nueva === (f.fechaEscrituracion ?? null)) return;
     if (!nueva && f.escriturada) {
@@ -240,7 +263,7 @@ export function EscriturasPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-800">Escrituras</h1>
           <p className="text-sm text-gray-500">
-            Naves con plan de pagos · fecha prevista de escrituración
+            Todas las naves · seguimiento de escrituración
           </p>
         </div>
         <button
@@ -255,19 +278,32 @@ export function EscriturasPage() {
       </div>
 
       {/* Resumen por estatus, adaptado a los filtros. */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Tarjeta titulo="Naves con plan" valor={filtradas.length} color="text-[#1f2a4d]" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Tarjeta
+          titulo="Total de naves"
+          valor={filtradas.length}
+          color="text-[#1f2a4d]"
+          detalle={`${conPlan} con plan de pagos`}
+        />
+        <Tarjeta
+          titulo="Sin plan de pagos"
+          valor={sinPlan}
+          color="text-[#3f5b87]"
+          detalle={`${pct(sinPlan, filtradas.length)} % de las naves`}
+        />
         <Tarjeta
           titulo="Escrituradas"
           valor={escrituradas}
           color="text-[#1a7f4b]"
-          detalle={`${avance} % de avance`}
+          detalle={
+            conPlan === 0 ? 'Sin naves con plan' : `${avance} % de avance (de las ${conPlan} con plan)`
+          }
         />
         <Tarjeta
           titulo="Faltan por escriturar"
           valor={pendientes}
           color="text-amber-600"
-          detalle={`${filtradas.length === 0 ? 0 : 100 - avance} % pendiente`}
+          detalle={`${conPlan === 0 ? 0 : 100 - avance} % pendiente`}
         >
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
             <div className="h-full rounded-full bg-[#1a7f4b]" style={{ width: `${avance}%` }} />
@@ -338,29 +374,37 @@ export function EscriturasPage() {
               </tr>
             )}
             {ordenados.map((f) => (
-              <tr key={f.idPdp} className="hover:bg-gray-50">
+              <tr key={f.idPdp ?? `nave-${f.idNave}`} className="hover:bg-gray-50">
                 <td className="px-4 py-2 text-gray-700">{f.parque ?? '—'}</td>
                 <td className="px-4 py-2 font-semibold text-gray-700">{f.numNave ?? '—'}</td>
                 <td className="px-4 py-2 text-gray-700">{f.inversionista ?? '—'}</td>
                 <td className="px-4 py-2">
-                  <SwitchEstatus
-                    escriturada={f.escriturada}
-                    onToggle={() => alternarEstatus(f)}
-                    disabled={guardando}
-                  />
+                  {f.tienePlan ? (
+                    <SwitchEstatus
+                      escriturada={f.escriturada}
+                      onToggle={() => alternarEstatus(f)}
+                      disabled={guardando}
+                    />
+                  ) : (
+                    <EtiquetaSinPlan />
+                  )}
                 </td>
                 <td className="px-4 py-2">
-                  <div className="w-40">
-                    <InputFecha
-                      key={`${f.idPdp}-${reinicio}`}
-                      value={f.fechaEscrituracion ?? ''}
-                      onChange={(iso) => cambiarFecha(f, iso)}
-                      disabled={guardando}
-                      className={`w-full rounded-md border px-2.5 py-1.5 text-sm tabular-nums outline-none focus:ring-2 focus:ring-[#3f5b87]/30 ${
-                        f.fechaEscrituracion ? 'border-gray-200' : 'border-[#3f5b87]'
-                      }`}
-                    />
-                  </div>
+                  {f.tienePlan ? (
+                    <div className="w-40">
+                      <InputFecha
+                        key={`${f.idPdp}-${reinicio}`}
+                        value={f.fechaEscrituracion ?? ''}
+                        onChange={(iso) => cambiarFecha(f, iso)}
+                        disabled={guardando}
+                        className={`w-full rounded-md border px-2.5 py-1.5 text-sm tabular-nums outline-none focus:ring-2 focus:ring-[#3f5b87]/30 ${
+                          f.fechaEscrituracion ? 'border-gray-200' : 'border-[#3f5b87]'
+                        }`}
+                      />
+                    </div>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -370,7 +414,8 @@ export function EscriturasPage() {
 
       <p className="text-xs text-gray-400">
         El estatus y la fecha se guardan al instante. Para marcar una nave como Escriturada, captura
-        primero su fecha.
+        primero su fecha. Las naves «Sin plan» pasan solas a Pendiente cuando se les crea un plan de
+        pagos.
       </p>
     </div>
   );

@@ -78,7 +78,11 @@ palabras_clave: [inversionista, arrendatario, propietario, propiedad, nave, parq
   a través del backend (el token nunca se expone al frontend).
 - **Tipo de pago** (`pdpDetalle.tipoPago`): clasifica cada parcialidad de un plan de pagos de venta.
   Valores: **Anticipo**, **Parcialidad**, **Escrituración** (en BD `Escrituracion`). Editable desde Ventas →
-  Planes (doble clic). La pantalla **Escrituras** (Ventas) lista solo las de tipo `Escrituracion`.
+  Planes (doble clic). ⚠️ La pantalla **Escrituras** (Ventas) **ya no usa este tipo** desde v2.75.0: su estatus y
+  fecha viven en el plan (`pdp.escriturada` / `pdp.fechaEscrituracion`), y desde **v2.84.0** lista **todas las naves**.
+- **«Sin plan» (Ventas ▸ Escrituras):** etiqueta gris de una nave **sin plan de pagos activo**. No tiene interruptor ni
+  fecha porque la escrituración vive en el plan; al crearle uno la nave pasa sola a **Pendiente**. No cuenta como
+  escriturada ni como pendiente: son tarjetas aparte. Ver `modulos/inversionistas.md` §3b.
 - **Saldo vencido / Cartera vencida:** monto de una parcialidad **ya vencida** (su `fecha` < hoy) que **no
   ha sido cubierta** por pagos (`monto − Σ pagos > 0`). Los **días de atraso** se cuentan desde la fecha de
   vencimiento de la parcialidad más antigua sin cubrir. Se usa en Ventas → **Dashboard** (naves con atrasos)

@@ -1,0 +1,3430 @@
+{
+  "version": 1,
+  "nombre": "Escrituras — todas las naves (propuesta)",
+  "variables": {
+    "fondo": {
+      "claro": "#f9fafb",
+      "oscuro": "#0b1020"
+    },
+    "superficie": {
+      "claro": "#ffffff",
+      "oscuro": "#151c33"
+    },
+    "borde": {
+      "claro": "#e5e7eb",
+      "oscuro": "#2a3558"
+    },
+    "texto": {
+      "claro": "#1f2937",
+      "oscuro": "#e5e9f5"
+    },
+    "textoSuave": {
+      "claro": "#6b7280",
+      "oscuro": "#9aa5c4"
+    },
+    "azul": {
+      "claro": "#1f2a4d",
+      "oscuro": "#2a3a6d"
+    },
+    "azulMedio": {
+      "claro": "#3f5b87",
+      "oscuro": "#6f8fc4"
+    },
+    "verde": {
+      "claro": "#1a7f4b",
+      "oscuro": "#3ecf8e"
+    },
+    "ambar": {
+      "claro": "#d97706",
+      "oscuro": "#fbbf24"
+    },
+    "pista": {
+      "claro": "#d1d5db",
+      "oscuro": "#3a4468"
+    },
+    "sinPlanFondo": {
+      "claro": "#f3f4f6",
+      "oscuro": "#1d2645"
+    },
+    "sombraSuave": {
+      "claro": "#1f2a4d1f",
+      "oscuro": "#00000066"
+    },
+    "blanco": "#ffffff"
+  },
+  "marcos": [
+    {
+      "tipo": "marco",
+      "nombre": "Escrituras — todas las naves (propuesta)",
+      "x": 0,
+      "y": 0,
+      "ancho": 1440,
+      "alto": 900,
+      "relleno": "$fondo",
+      "layout": "fila",
+      "hijos": [
+        {
+          "tipo": "marco",
+          "nombre": "Barra lateral",
+          "ancho": 28,
+          "alto": "fill",
+          "relleno": "$azul",
+          "hijos": []
+        },
+        {
+          "tipo": "marco",
+          "nombre": "Contenido",
+          "layout": "columna",
+          "ancho": "fill",
+          "alto": "fill",
+          "hijos": [
+            {
+              "tipo": "marco",
+              "nombre": "Barra superior",
+              "layout": "fila",
+              "alinear": "centro",
+              "justificar": "entre",
+              "ancho": "fill",
+              "alto": 54,
+              "padding": [
+                0,
+                16
+              ],
+              "relleno": "$superficie",
+              "borde": {
+                "color": "$texto",
+                "grosor": 1,
+                "lado": "abajo"
+              },
+              "hijos": [
+                {
+                  "tipo": "icono",
+                  "nombre": "menu",
+                  "ancho": 20,
+                  "alto": 20,
+                  "color": "$textoSuave"
+                },
+                {
+                  "tipo": "marco",
+                  "nombre": "Usuario",
+                  "layout": "fila",
+                  "alinear": "centro",
+                  "separacion": 16,
+                  "hijos": [
+                    {
+                      "tipo": "texto",
+                      "texto": "Apellido, Nombre",
+                      "tamano": 13,
+                      "color": "$textoSuave"
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Botón Salir",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "separacion": 6,
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "radio": 6,
+                      "borde": {
+                        "color": "$texto",
+                        "grosor": 1
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "icono",
+                          "nombre": "log-out",
+                          "ancho": 16,
+                          "alto": 16,
+                          "color": "$texto"
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "Salir",
+                          "tamano": 13,
+                          "color": "$texto"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "tipo": "marco",
+              "nombre": "Cuerpo",
+              "layout": "columna",
+              "separacion": 16,
+              "padding": 24,
+              "ancho": "fill",
+              "alto": "fill",
+              "hijos": [
+                {
+                  "tipo": "marco",
+                  "nombre": "Título de la página",
+                  "layout": "fila",
+                  "alinear": "fin",
+                  "justificar": "entre",
+                  "ancho": "fill",
+                  "hijos": [
+                    {
+                      "tipo": "marco",
+                      "nombre": "Títulos",
+                      "layout": "columna",
+                      "separacion": 2,
+                      "hijos": [
+                        {
+                          "tipo": "texto",
+                          "texto": "Escrituras",
+                          "tamano": 24,
+                          "color": "$texto",
+                          "peso": 700
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "Todas las naves · seguimiento de escrituración",
+                          "tamano": 13,
+                          "color": "$textoSuave"
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Botón Exportar Excel",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "padding": [
+                        8,
+                        14
+                      ],
+                      "radio": 8,
+                      "relleno": "$verde",
+                      "hijos": [
+                        {
+                          "tipo": "texto",
+                          "texto": "Exportar Excel",
+                          "tamano": 13,
+                          "color": "$blanco",
+                          "peso": 500
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "tipo": "marco",
+                  "nombre": "Tarjetas de resumen",
+                  "layout": "fila",
+                  "separacion": 12,
+                  "ancho": "fill",
+                  "hijos": [
+                    {
+                      "tipo": "marco",
+                      "nombre": "Tarjeta · Total de naves",
+                      "layout": "columna",
+                      "separacion": 4,
+                      "padding": 16,
+                      "ancho": "fill",
+                      "alto": 124,
+                      "radio": 16,
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1
+                      },
+                      "sombra": {
+                        "x": 0,
+                        "y": 1,
+                        "desenfoque": 3,
+                        "color": "$sombraSuave"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "texto",
+                          "texto": "Total de naves",
+                          "tamano": 14,
+                          "color": "$textoSuave",
+                          "peso": 500
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "462",
+                          "tamano": 30,
+                          "color": "$azul",
+                          "peso": 700
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "213 con plan de pagos",
+                          "tamano": 12,
+                          "color": "$textoSuave"
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Tarjeta · Sin plan de pagos",
+                      "layout": "columna",
+                      "separacion": 4,
+                      "padding": 16,
+                      "ancho": "fill",
+                      "alto": 124,
+                      "radio": 16,
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1
+                      },
+                      "sombra": {
+                        "x": 0,
+                        "y": 1,
+                        "desenfoque": 3,
+                        "color": "$sombraSuave"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "texto",
+                          "texto": "Sin plan de pagos",
+                          "tamano": 14,
+                          "color": "$textoSuave",
+                          "peso": 500
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "249",
+                          "tamano": 30,
+                          "color": "$azulMedio",
+                          "peso": 700
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "54 % de las naves",
+                          "tamano": 12,
+                          "color": "$textoSuave"
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Tarjeta · Escrituradas",
+                      "layout": "columna",
+                      "separacion": 4,
+                      "padding": 16,
+                      "ancho": "fill",
+                      "alto": 124,
+                      "radio": 16,
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1
+                      },
+                      "sombra": {
+                        "x": 0,
+                        "y": 1,
+                        "desenfoque": 3,
+                        "color": "$sombraSuave"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "texto",
+                          "texto": "Escrituradas",
+                          "tamano": 14,
+                          "color": "$textoSuave",
+                          "peso": 500
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "95",
+                          "tamano": 30,
+                          "color": "$verde",
+                          "peso": 700
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "45 % de avance (de las 213 con plan)",
+                          "tamano": 12,
+                          "color": "$textoSuave"
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Tarjeta · Faltan por escriturar",
+                      "layout": "columna",
+                      "separacion": 4,
+                      "padding": 16,
+                      "ancho": "fill",
+                      "alto": 124,
+                      "radio": 16,
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1
+                      },
+                      "sombra": {
+                        "x": 0,
+                        "y": 1,
+                        "desenfoque": 3,
+                        "color": "$sombraSuave"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "texto",
+                          "texto": "Faltan por escriturar",
+                          "tamano": 14,
+                          "color": "$textoSuave",
+                          "peso": 500
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "118",
+                          "tamano": 30,
+                          "color": "$ambar",
+                          "peso": 700
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "55 % pendiente",
+                          "tamano": 12,
+                          "color": "$textoSuave"
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Barra de avance",
+                          "ancho": "fill",
+                          "alto": 6,
+                          "radio": 3,
+                          "relleno": "$pista",
+                          "hijos": [
+                            {
+                              "tipo": "rect",
+                              "nombre": "Avance",
+                              "x": 0,
+                              "y": 0,
+                              "ancho": 135,
+                              "alto": 6,
+                              "radio": 3,
+                              "relleno": "$verde"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "tipo": "marco",
+                  "nombre": "Buscador y conteo",
+                  "layout": "fila",
+                  "alinear": "centro",
+                  "justificar": "entre",
+                  "ancho": "fill",
+                  "hijos": [
+                    {
+                      "tipo": "marco",
+                      "nombre": "Buscador",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": 384,
+                      "alto": 34,
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "radio": 8,
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$texto",
+                        "grosor": 1
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "texto",
+                          "texto": "Buscar por parque, nave o inversionista…",
+                          "tamano": 13,
+                          "color": "$textoSuave"
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "texto",
+                      "texto": "462 naves",
+                      "tamano": 13,
+                      "color": "$textoSuave"
+                    }
+                  ]
+                },
+                {
+                  "tipo": "marco",
+                  "nombre": "Tabla de naves",
+                  "layout": "columna",
+                  "ancho": "fill",
+                  "clip": true,
+                  "radio": 12,
+                  "relleno": "$superficie",
+                  "borde": {
+                    "color": "$borde",
+                    "grosor": 1
+                  },
+                  "alto": "fill",
+                  "hijos": [
+                    {
+                      "tipo": "marco",
+                      "nombre": "Encabezado de tabla",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 41,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$azul",
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Cabecera",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 6,
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Parque",
+                                  "tamano": 12,
+                                  "color": "$blanco",
+                                  "peso": 700,
+                                  "mayusculas": true
+                                },
+                                {
+                                  "tipo": "texto",
+                                  "texto": "▲",
+                                  "tamano": 9,
+                                  "color": "$blanco"
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "chevron-down",
+                                  "ancho": 12,
+                                  "alto": 12,
+                                  "color": "$blanco",
+                                  "opacidad": 0.7
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 140,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Cabecera",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 6,
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Nave",
+                                  "tamano": 12,
+                                  "color": "$blanco",
+                                  "peso": 700,
+                                  "mayusculas": true
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "chevron-down",
+                                  "ancho": 12,
+                                  "alto": 12,
+                                  "color": "$blanco",
+                                  "opacidad": 0.7
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Cabecera",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 6,
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Inversionista",
+                                  "tamano": 12,
+                                  "color": "$blanco",
+                                  "peso": 700,
+                                  "mayusculas": true
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "chevron-down",
+                                  "ancho": 12,
+                                  "alto": 12,
+                                  "color": "$blanco",
+                                  "opacidad": 0.7
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 230,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Cabecera",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 6,
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Estatus",
+                                  "tamano": 12,
+                                  "color": "$blanco",
+                                  "peso": 700,
+                                  "mayusculas": true
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "chevron-down",
+                                  "ancho": 12,
+                                  "alto": 12,
+                                  "color": "$blanco",
+                                  "opacidad": 0.7
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha de escrituración",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Cabecera",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 6,
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Fecha de escrituración",
+                                  "tamano": 12,
+                                  "color": "$blanco",
+                                  "peso": 700,
+                                  "mayusculas": true
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "chevron-down",
+                                  "ancho": 12,
+                                  "alto": 12,
+                                  "color": "$blanco",
+                                  "opacidad": 0.7
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Actitek · 01",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Actitek",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 140,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "01",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "—",
+                              "tamano": 13,
+                              "color": "$textoSuave"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 230,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Sin plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "padding": [
+                                3,
+                                10
+                              ],
+                              "radio": 999,
+                              "relleno": "$sinPlanFondo",
+                              "borde": {
+                                "color": "$borde",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Sin plan",
+                                  "tamano": 12,
+                                  "color": "$textoSuave",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "—",
+                              "tamano": 13,
+                              "color": "$textoSuave"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Actitek · 02",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Actitek",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 140,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "02",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "—",
+                              "tamano": 13,
+                              "color": "$textoSuave"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 230,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Sin plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "padding": [
+                                3,
+                                10
+                              ],
+                              "radio": 999,
+                              "relleno": "$sinPlanFondo",
+                              "borde": {
+                                "color": "$borde",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Sin plan",
+                                  "tamano": 12,
+                                  "color": "$textoSuave",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "—",
+                              "tamano": 13,
+                              "color": "$textoSuave"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Actitek · 03",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Actitek",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 140,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "03",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "—",
+                              "tamano": 13,
+                              "color": "$textoSuave"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 230,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Sin plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "padding": [
+                                3,
+                                10
+                              ],
+                              "radio": 999,
+                              "relleno": "$sinPlanFondo",
+                              "borde": {
+                                "color": "$borde",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Sin plan",
+                                  "tamano": 12,
+                                  "color": "$textoSuave",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "—",
+                              "tamano": 13,
+                              "color": "$textoSuave"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Acupark I · 1",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Acupark I",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 140,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "1",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "—",
+                              "tamano": 13,
+                              "color": "$textoSuave"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 230,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Sin plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "padding": [
+                                3,
+                                10
+                              ],
+                              "radio": 999,
+                              "relleno": "$sinPlanFondo",
+                              "borde": {
+                                "color": "$borde",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Sin plan",
+                                  "tamano": 12,
+                                  "color": "$textoSuave",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "—",
+                              "tamano": 13,
+                              "color": "$textoSuave"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Acupark I · 4",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Acupark I",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 140,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "4",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "ROBERTO MENDIOLA SAENZ",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 230,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Estatus con plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 8,
+                              "hijos": [
+                                {
+                                  "tipo": "marco",
+                                  "nombre": "Interruptor",
+                                  "ancho": 36,
+                                  "alto": 20,
+                                  "radio": 10,
+                                  "relleno": "$pista",
+                                  "hijos": [
+                                    {
+                                      "tipo": "ovalo",
+                                      "nombre": "Perilla",
+                                      "x": 2,
+                                      "y": 2,
+                                      "ancho": 16,
+                                      "alto": 16,
+                                      "relleno": "$blanco",
+                                      "sombra": {
+                                        "x": 0,
+                                        "y": 1,
+                                        "desenfoque": 2,
+                                        "color": "$sombraSuave"
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Pendiente",
+                                  "tamano": 12,
+                                  "color": "$textoSuave",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Campo fecha",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "justificar": "entre",
+                              "ancho": 160,
+                              "alto": 34,
+                              "padding": [
+                                0,
+                                10
+                              ],
+                              "radio": 6,
+                              "relleno": "$superficie",
+                              "borde": {
+                                "color": "$azulMedio",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "dd/mm/aaaa",
+                                  "tamano": 13,
+                                  "color": "$textoSuave"
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "calendar",
+                                  "ancho": 16,
+                                  "alto": 16,
+                                  "color": "$azulMedio"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Acupark I · 14",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Acupark I",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 140,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "14",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "CLAUDIA RIVAS TREJO",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 230,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Estatus con plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 8,
+                              "hijos": [
+                                {
+                                  "tipo": "marco",
+                                  "nombre": "Interruptor",
+                                  "ancho": 36,
+                                  "alto": 20,
+                                  "radio": 10,
+                                  "relleno": "$pista",
+                                  "hijos": [
+                                    {
+                                      "tipo": "ovalo",
+                                      "nombre": "Perilla",
+                                      "x": 2,
+                                      "y": 2,
+                                      "ancho": 16,
+                                      "alto": 16,
+                                      "relleno": "$blanco",
+                                      "sombra": {
+                                        "x": 0,
+                                        "y": 1,
+                                        "desenfoque": 2,
+                                        "color": "$sombraSuave"
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Pendiente",
+                                  "tamano": 12,
+                                  "color": "$textoSuave",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Campo fecha",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "justificar": "entre",
+                              "ancho": 160,
+                              "alto": 34,
+                              "padding": [
+                                0,
+                                10
+                              ],
+                              "radio": 6,
+                              "relleno": "$superficie",
+                              "borde": {
+                                "color": "$azulMedio",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "dd/mm/aaaa",
+                                  "tamano": 13,
+                                  "color": "$textoSuave"
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "calendar",
+                                  "ancho": 16,
+                                  "alto": 16,
+                                  "color": "$azulMedio"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Acupark II · 1",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Acupark II",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 140,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "1",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "GRUPO INDUSTRIAL DEL BAJIO SA DE CV",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 230,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Estatus con plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 8,
+                              "hijos": [
+                                {
+                                  "tipo": "marco",
+                                  "nombre": "Interruptor",
+                                  "ancho": 36,
+                                  "alto": 20,
+                                  "radio": 10,
+                                  "relleno": "$verde",
+                                  "hijos": [
+                                    {
+                                      "tipo": "ovalo",
+                                      "nombre": "Perilla",
+                                      "x": 18,
+                                      "y": 2,
+                                      "ancho": 16,
+                                      "alto": 16,
+                                      "relleno": "$blanco",
+                                      "sombra": {
+                                        "x": 0,
+                                        "y": 1,
+                                        "desenfoque": 2,
+                                        "color": "$sombraSuave"
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Escriturada",
+                                  "tamano": 12,
+                                  "color": "$verde",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Campo fecha",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "justificar": "entre",
+                              "ancho": 160,
+                              "alto": 34,
+                              "padding": [
+                                0,
+                                10
+                              ],
+                              "radio": 6,
+                              "relleno": "$superficie",
+                              "borde": {
+                                "color": "$borde",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "19/03/2025",
+                                  "tamano": 13,
+                                  "color": "$texto"
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "calendar",
+                                  "ancho": 16,
+                                  "alto": 16,
+                                  "color": "$azulMedio"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Acupark II · 2",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Acupark II",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 140,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "2",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "MARIO ESPINOZA CANTU",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 230,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Estatus con plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 8,
+                              "hijos": [
+                                {
+                                  "tipo": "marco",
+                                  "nombre": "Interruptor",
+                                  "ancho": 36,
+                                  "alto": 20,
+                                  "radio": 10,
+                                  "relleno": "$verde",
+                                  "hijos": [
+                                    {
+                                      "tipo": "ovalo",
+                                      "nombre": "Perilla",
+                                      "x": 18,
+                                      "y": 2,
+                                      "ancho": 16,
+                                      "alto": 16,
+                                      "relleno": "$blanco",
+                                      "sombra": {
+                                        "x": 0,
+                                        "y": 1,
+                                        "desenfoque": 2,
+                                        "color": "$sombraSuave"
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Escriturada",
+                                  "tamano": 12,
+                                  "color": "$verde",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Campo fecha",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "justificar": "entre",
+                              "ancho": 160,
+                              "alto": 34,
+                              "padding": [
+                                0,
+                                10
+                              ],
+                              "radio": 6,
+                              "relleno": "$superficie",
+                              "borde": {
+                                "color": "$borde",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "31/10/2025",
+                                  "tamano": 13,
+                                  "color": "$texto"
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "calendar",
+                                  "ancho": 16,
+                                  "alto": 16,
+                                  "color": "$azulMedio"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Acupark II · 3",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Acupark II",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 140,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "3",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "PATRICIA OLVERA LUNA",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 230,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Estatus con plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 8,
+                              "hijos": [
+                                {
+                                  "tipo": "marco",
+                                  "nombre": "Interruptor",
+                                  "ancho": 36,
+                                  "alto": 20,
+                                  "radio": 10,
+                                  "relleno": "$pista",
+                                  "hijos": [
+                                    {
+                                      "tipo": "ovalo",
+                                      "nombre": "Perilla",
+                                      "x": 2,
+                                      "y": 2,
+                                      "ancho": 16,
+                                      "alto": 16,
+                                      "relleno": "$blanco",
+                                      "sombra": {
+                                        "x": 0,
+                                        "y": 1,
+                                        "desenfoque": 2,
+                                        "color": "$sombraSuave"
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Pendiente",
+                                  "tamano": 12,
+                                  "color": "$textoSuave",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Campo fecha",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "justificar": "entre",
+                              "ancho": 160,
+                              "alto": 34,
+                              "padding": [
+                                0,
+                                10
+                              ],
+                              "radio": 6,
+                              "relleno": "$superficie",
+                              "borde": {
+                                "color": "$azulMedio",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "dd/mm/aaaa",
+                                  "tamano": 13,
+                                  "color": "$textoSuave"
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "calendar",
+                                  "ancho": 16,
+                                  "alto": 16,
+                                  "color": "$azulMedio"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Acupark II · 9",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Acupark II",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 140,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "9",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "LORENA PACHECO VEGA",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 230,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Sin plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "padding": [
+                                3,
+                                10
+                              ],
+                              "radio": 999,
+                              "relleno": "$sinPlanFondo",
+                              "borde": {
+                                "color": "$borde",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Sin plan",
+                                  "tamano": 12,
+                                  "color": "$textoSuave",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "—",
+                              "tamano": 13,
+                              "color": "$textoSuave"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Acupark II · 10",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Acupark II",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 140,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "10",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "HECTOR SALAZAR PRIETO",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 230,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Estatus con plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 8,
+                              "hijos": [
+                                {
+                                  "tipo": "marco",
+                                  "nombre": "Interruptor",
+                                  "ancho": 36,
+                                  "alto": 20,
+                                  "radio": 10,
+                                  "relleno": "$verde",
+                                  "hijos": [
+                                    {
+                                      "tipo": "ovalo",
+                                      "nombre": "Perilla",
+                                      "x": 18,
+                                      "y": 2,
+                                      "ancho": 16,
+                                      "alto": 16,
+                                      "relleno": "$blanco",
+                                      "sombra": {
+                                        "x": 0,
+                                        "y": 1,
+                                        "desenfoque": 2,
+                                        "color": "$sombraSuave"
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Escriturada",
+                                  "tamano": 12,
+                                  "color": "$verde",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Campo fecha",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "justificar": "entre",
+                              "ancho": 160,
+                              "alto": 34,
+                              "padding": [
+                                0,
+                                10
+                              ],
+                              "radio": 6,
+                              "relleno": "$superficie",
+                              "borde": {
+                                "color": "$borde",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "05/11/2025",
+                                  "tamano": 13,
+                                  "color": "$texto"
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "calendar",
+                                  "ancho": 16,
+                                  "alto": 16,
+                                  "color": "$azulMedio"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Acupark II · 11",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Acupark II",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 140,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "11",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "—",
+                              "tamano": 13,
+                              "color": "$textoSuave"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 230,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Sin plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "padding": [
+                                3,
+                                10
+                              ],
+                              "radio": 999,
+                              "relleno": "$sinPlanFondo",
+                              "borde": {
+                                "color": "$borde",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Sin plan",
+                                  "tamano": 12,
+                                  "color": "$textoSuave",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 220,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "—",
+                              "tamano": 13,
+                              "color": "$textoSuave"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tipo": "marco",
+      "nombre": "Escrituras — casos de fila y filtro",
+      "x": 1560,
+      "y": 0,
+      "ancho": 1440,
+      "alto": 640,
+      "relleno": "$fondo",
+      "layout": "columna",
+      "separacion": 24,
+      "padding": 40,
+      "hijos": [
+        {
+          "tipo": "marco",
+          "nombre": "Títulos",
+          "layout": "columna",
+          "separacion": 4,
+          "ancho": "fill",
+          "hijos": [
+            {
+              "tipo": "texto",
+              "texto": "Escrituras · cómo se ve cada caso",
+              "tamano": 24,
+              "color": "$texto",
+              "peso": 700
+            },
+            {
+              "tipo": "texto",
+              "texto": "Datos de ejemplo ficticios. Propuesta para aprobación: todavía no está construida.",
+              "tamano": 13,
+              "color": "$textoSuave"
+            }
+          ]
+        },
+        {
+          "tipo": "marco",
+          "nombre": "Casos y filtro",
+          "layout": "fila",
+          "separacion": 40,
+          "alinear": "inicio",
+          "ancho": "fill",
+          "hijos": [
+            {
+              "tipo": "marco",
+              "nombre": "Casos de fila",
+              "layout": "columna",
+              "separacion": 14,
+              "ancho": 880,
+              "hijos": [
+                {
+                  "tipo": "texto",
+                  "texto": "Los tres casos de una fila",
+                  "tamano": 15,
+                  "color": "$texto",
+                  "peso": 600
+                },
+                {
+                  "tipo": "marco",
+                  "nombre": "Tabla de ejemplo",
+                  "layout": "columna",
+                  "ancho": "fill",
+                  "clip": true,
+                  "radio": 12,
+                  "relleno": "$superficie",
+                  "borde": {
+                    "color": "$borde",
+                    "grosor": 1
+                  },
+                  "hijos": [
+                    {
+                      "tipo": "marco",
+                      "nombre": "Encabezado de tabla",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 41,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$azul",
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 130,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Cabecera",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 6,
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Parque",
+                                  "tamano": 12,
+                                  "color": "$blanco",
+                                  "peso": 700,
+                                  "mayusculas": true
+                                },
+                                {
+                                  "tipo": "texto",
+                                  "texto": "▲",
+                                  "tamano": 9,
+                                  "color": "$blanco"
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "chevron-down",
+                                  "ancho": 12,
+                                  "alto": 12,
+                                  "color": "$blanco",
+                                  "opacidad": 0.7
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 70,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Cabecera",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 6,
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Nave",
+                                  "tamano": 12,
+                                  "color": "$blanco",
+                                  "peso": 700,
+                                  "mayusculas": true
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "chevron-down",
+                                  "ancho": 12,
+                                  "alto": 12,
+                                  "color": "$blanco",
+                                  "opacidad": 0.7
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Cabecera",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 6,
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Inversionista",
+                                  "tamano": 12,
+                                  "color": "$blanco",
+                                  "peso": 700,
+                                  "mayusculas": true
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "chevron-down",
+                                  "ancho": 12,
+                                  "alto": 12,
+                                  "color": "$blanco",
+                                  "opacidad": 0.7
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 170,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Cabecera",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 6,
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Estatus",
+                                  "tamano": 12,
+                                  "color": "$blanco",
+                                  "peso": 700,
+                                  "mayusculas": true
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "chevron-down",
+                                  "ancho": 12,
+                                  "alto": 12,
+                                  "color": "$blanco",
+                                  "opacidad": 0.7
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha de escrituración",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 190,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Cabecera",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 6,
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Fecha de escrituración",
+                                  "tamano": 12,
+                                  "color": "$blanco",
+                                  "peso": 700,
+                                  "mayusculas": true
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "chevron-down",
+                                  "ancho": 12,
+                                  "alto": 12,
+                                  "color": "$blanco",
+                                  "opacidad": 0.7
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Acupark I · 4",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 130,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Acupark I",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 70,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "4",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "ROBERTO MENDIOLA SAENZ",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 170,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Estatus con plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 8,
+                              "hijos": [
+                                {
+                                  "tipo": "marco",
+                                  "nombre": "Interruptor",
+                                  "ancho": 36,
+                                  "alto": 20,
+                                  "radio": 10,
+                                  "relleno": "$pista",
+                                  "hijos": [
+                                    {
+                                      "tipo": "ovalo",
+                                      "nombre": "Perilla",
+                                      "x": 2,
+                                      "y": 2,
+                                      "ancho": 16,
+                                      "alto": 16,
+                                      "relleno": "$blanco",
+                                      "sombra": {
+                                        "x": 0,
+                                        "y": 1,
+                                        "desenfoque": 2,
+                                        "color": "$sombraSuave"
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Pendiente",
+                                  "tamano": 12,
+                                  "color": "$textoSuave",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 190,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Campo fecha",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "justificar": "entre",
+                              "ancho": 160,
+                              "alto": 34,
+                              "padding": [
+                                0,
+                                10
+                              ],
+                              "radio": 6,
+                              "relleno": "$superficie",
+                              "borde": {
+                                "color": "$azulMedio",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "dd/mm/aaaa",
+                                  "tamano": 13,
+                                  "color": "$textoSuave"
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "calendar",
+                                  "ancho": 16,
+                                  "alto": 16,
+                                  "color": "$azulMedio"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Acupark II · 2",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 130,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Acupark II",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 70,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "2",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "MARIO ESPINOZA CANTU",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 170,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Estatus con plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "separacion": 8,
+                              "hijos": [
+                                {
+                                  "tipo": "marco",
+                                  "nombre": "Interruptor",
+                                  "ancho": 36,
+                                  "alto": 20,
+                                  "radio": 10,
+                                  "relleno": "$verde",
+                                  "hijos": [
+                                    {
+                                      "tipo": "ovalo",
+                                      "nombre": "Perilla",
+                                      "x": 18,
+                                      "y": 2,
+                                      "ancho": 16,
+                                      "alto": 16,
+                                      "relleno": "$blanco",
+                                      "sombra": {
+                                        "x": 0,
+                                        "y": 1,
+                                        "desenfoque": 2,
+                                        "color": "$sombraSuave"
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Escriturada",
+                                  "tamano": 12,
+                                  "color": "$verde",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 190,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Campo fecha",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "justificar": "entre",
+                              "ancho": 160,
+                              "alto": 34,
+                              "padding": [
+                                0,
+                                10
+                              ],
+                              "radio": 6,
+                              "relleno": "$superficie",
+                              "borde": {
+                                "color": "$borde",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "31/10/2025",
+                                  "tamano": 13,
+                                  "color": "$texto"
+                                },
+                                {
+                                  "tipo": "icono",
+                                  "nombre": "calendar",
+                                  "ancho": 16,
+                                  "alto": 16,
+                                  "color": "$azulMedio"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Fila Actitek · 01",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "ancho": "fill",
+                      "alto": 51,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "relleno": "$superficie",
+                      "borde": {
+                        "color": "$borde",
+                        "grosor": 1,
+                        "lado": "abajo"
+                      },
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Parque",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 130,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "Actitek",
+                              "tamano": 13,
+                              "color": "$texto"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Nave",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 70,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "01",
+                              "tamano": 13,
+                              "color": "$texto",
+                              "peso": 600
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Inversionista",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": "fill",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "—",
+                              "tamano": 13,
+                              "color": "$textoSuave"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Estatus",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 170,
+                          "hijos": [
+                            {
+                              "tipo": "marco",
+                              "nombre": "Sin plan",
+                              "layout": "fila",
+                              "alinear": "centro",
+                              "padding": [
+                                3,
+                                10
+                              ],
+                              "radio": 999,
+                              "relleno": "$sinPlanFondo",
+                              "borde": {
+                                "color": "$borde",
+                                "grosor": 1
+                              },
+                              "hijos": [
+                                {
+                                  "tipo": "texto",
+                                  "texto": "Sin plan",
+                                  "tamano": 12,
+                                  "color": "$textoSuave",
+                                  "peso": 500
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Fecha",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "ancho": 190,
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "—",
+                              "tamano": 13,
+                              "color": "$textoSuave"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "tipo": "marco",
+                  "nombre": "Nota 1",
+                  "layout": "fila",
+                  "separacion": 12,
+                  "ancho": "fill",
+                  "alinear": "inicio",
+                  "hijos": [
+                    {
+                      "tipo": "marco",
+                      "nombre": "Insignia 1",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "justificar": "centro",
+                      "ancho": 22,
+                      "alto": 22,
+                      "radio": 11,
+                      "relleno": "$azulMedio",
+                      "hijos": [
+                        {
+                          "tipo": "texto",
+                          "texto": "1",
+                          "tamano": 12,
+                          "color": "$blanco",
+                          "peso": 700
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Texto de la nota",
+                      "layout": "columna",
+                      "separacion": 2,
+                      "ancho": "fill",
+                      "hijos": [
+                        {
+                          "tipo": "texto",
+                          "texto": "Con plan, pendiente (Acupark I · 4)",
+                          "tamano": 13,
+                          "color": "$texto",
+                          "peso": 600,
+                          "ancho": "fill"
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "Igual que hoy: switch apagado y campo de fecha con borde azul. Al capturar la fecha y encender el switch queda Escriturada.",
+                          "tamano": 13,
+                          "color": "$textoSuave",
+                          "ancho": "fill"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "tipo": "marco",
+                  "nombre": "Nota 2",
+                  "layout": "fila",
+                  "separacion": 12,
+                  "ancho": "fill",
+                  "alinear": "inicio",
+                  "hijos": [
+                    {
+                      "tipo": "marco",
+                      "nombre": "Insignia 2",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "justificar": "centro",
+                      "ancho": 22,
+                      "alto": 22,
+                      "radio": 11,
+                      "relleno": "$azulMedio",
+                      "hijos": [
+                        {
+                          "tipo": "texto",
+                          "texto": "2",
+                          "tamano": 12,
+                          "color": "$blanco",
+                          "peso": 700
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Texto de la nota",
+                      "layout": "columna",
+                      "separacion": 2,
+                      "ancho": "fill",
+                      "hijos": [
+                        {
+                          "tipo": "texto",
+                          "texto": "Con plan, escriturada (Acupark II · 2)",
+                          "tamano": 13,
+                          "color": "$texto",
+                          "peso": 600,
+                          "ancho": "fill"
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "Igual que hoy: switch verde y fecha capturada. Se puede regresar a Pendiente.",
+                          "tamano": 13,
+                          "color": "$textoSuave",
+                          "ancho": "fill"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "tipo": "marco",
+                  "nombre": "Nota 3",
+                  "layout": "fila",
+                  "separacion": 12,
+                  "ancho": "fill",
+                  "alinear": "inicio",
+                  "hijos": [
+                    {
+                      "tipo": "marco",
+                      "nombre": "Insignia 3",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "justificar": "centro",
+                      "ancho": 22,
+                      "alto": 22,
+                      "radio": 11,
+                      "relleno": "$azulMedio",
+                      "hijos": [
+                        {
+                          "tipo": "texto",
+                          "texto": "3",
+                          "tamano": 12,
+                          "color": "$blanco",
+                          "peso": 700
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Texto de la nota",
+                      "layout": "columna",
+                      "separacion": 2,
+                      "ancho": "fill",
+                      "hijos": [
+                        {
+                          "tipo": "texto",
+                          "texto": "Sin plan de pagos (Actitek · 01) — NUEVO",
+                          "tamano": 13,
+                          "color": "$texto",
+                          "peso": 600,
+                          "ancho": "fill"
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "Etiqueta gris «Sin plan», sin switch y sin campo de fecha: la escrituración se guarda dentro del plan de pagos, así que sin plan no hay nada que marcar. El inversionista se muestra solo si la nave tiene propiedad asignada.",
+                          "tamano": 13,
+                          "color": "$textoSuave",
+                          "ancho": "fill"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "tipo": "marco",
+              "nombre": "Filtro y reglas",
+              "layout": "columna",
+              "separacion": 20,
+              "ancho": 440,
+              "hijos": [
+                {
+                  "tipo": "texto",
+                  "texto": "Filtro de la columna Estatus",
+                  "tamano": 15,
+                  "color": "$texto",
+                  "peso": 600
+                },
+                {
+                  "tipo": "marco",
+                  "nombre": "Menú del filtro",
+                  "layout": "columna",
+                  "separacion": 2,
+                  "padding": 12,
+                  "ancho": 240,
+                  "radio": 10,
+                  "relleno": "$superficie",
+                  "borde": {
+                    "color": "$borde",
+                    "grosor": 1
+                  },
+                  "sombra": {
+                    "x": 0,
+                    "y": 8,
+                    "desenfoque": 24,
+                    "color": "$sombraSuave"
+                  },
+                  "hijos": [
+                    {
+                      "tipo": "texto",
+                      "texto": "ESTATUS",
+                      "tamano": 11,
+                      "color": "$textoSuave",
+                      "peso": 700,
+                      "mayusculas": true
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Opción Escriturada",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "separacion": 10,
+                      "padding": [
+                        8,
+                        6
+                      ],
+                      "ancho": "fill",
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Casilla",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "justificar": "centro",
+                          "ancho": 16,
+                          "alto": 16,
+                          "radio": 4,
+                          "relleno": "$azul",
+                          "borde": {
+                            "color": "$azul",
+                            "grosor": 1
+                          },
+                          "hijos": [
+                            {
+                              "tipo": "icono",
+                              "nombre": "check",
+                              "ancho": 12,
+                              "alto": 12,
+                              "color": "$blanco"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "Escriturada",
+                          "tamano": 13,
+                          "color": "$texto"
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Opción Pendiente",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "separacion": 10,
+                      "padding": [
+                        8,
+                        6
+                      ],
+                      "ancho": "fill",
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Casilla",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "justificar": "centro",
+                          "ancho": 16,
+                          "alto": 16,
+                          "radio": 4,
+                          "relleno": "$azul",
+                          "borde": {
+                            "color": "$azul",
+                            "grosor": 1
+                          },
+                          "hijos": [
+                            {
+                              "tipo": "icono",
+                              "nombre": "check",
+                              "ancho": 12,
+                              "alto": 12,
+                              "color": "$blanco"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "Pendiente",
+                          "tamano": 13,
+                          "color": "$texto"
+                        }
+                      ]
+                    },
+                    {
+                      "tipo": "marco",
+                      "nombre": "Opción Sin plan",
+                      "layout": "fila",
+                      "alinear": "centro",
+                      "separacion": 10,
+                      "padding": [
+                        8,
+                        6
+                      ],
+                      "ancho": "fill",
+                      "hijos": [
+                        {
+                          "tipo": "marco",
+                          "nombre": "Casilla",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "justificar": "centro",
+                          "ancho": 16,
+                          "alto": 16,
+                          "radio": 4,
+                          "relleno": "$azul",
+                          "borde": {
+                            "color": "$azul",
+                            "grosor": 1
+                          },
+                          "hijos": [
+                            {
+                              "tipo": "icono",
+                              "nombre": "check",
+                              "ancho": 12,
+                              "alto": 12,
+                              "color": "$blanco"
+                            }
+                          ]
+                        },
+                        {
+                          "tipo": "texto",
+                          "texto": "Sin plan",
+                          "tamano": 13,
+                          "color": "$texto"
+                        },
+                        {
+                          "tipo": "marco",
+                          "nombre": "Etiqueta nuevo",
+                          "layout": "fila",
+                          "alinear": "centro",
+                          "padding": [
+                            2,
+                            8
+                          ],
+                          "radio": 999,
+                          "relleno": "$azulMedio",
+                          "hijos": [
+                            {
+                              "tipo": "texto",
+                              "texto": "NUEVO",
+                              "tamano": 10,
+                              "color": "$blanco",
+                              "peso": 700
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "tipo": "marco",
+                  "nombre": "Reglas de la pantalla",
+                  "layout": "columna",
+                  "separacion": 12,
+                  "padding": 20,
+                  "ancho": "fill",
+                  "radio": 12,
+                  "relleno": "$superficie",
+                  "borde": {
+                    "color": "$borde",
+                    "grosor": 1
+                  },
+                  "hijos": [
+                    {
+                      "tipo": "texto",
+                      "texto": "Qué cambia y qué no",
+                      "tamano": 13,
+                      "color": "$texto",
+                      "peso": 600
+                    },
+                    {
+                      "tipo": "texto",
+                      "texto": "•  Las tarjetas «Escrituradas» y «Faltan por escriturar» cuentan solo naves con plan: el avance es 95 de 213 (45 %).",
+                      "tamano": 13,
+                      "color": "$textoSuave",
+                      "ancho": "fill"
+                    },
+                    {
+                      "tipo": "texto",
+                      "texto": "•  Buscador, filtros por columna y orden funcionan igual; las tarjetas se adaptan a lo que se ve.",
+                      "tamano": 13,
+                      "color": "$textoSuave",
+                      "ancho": "fill"
+                    },
+                    {
+                      "tipo": "texto",
+                      "texto": "•  Exportar Excel incluye las naves sin plan con estatus «Sin plan» y la fecha vacía.",
+                      "tamano": 13,
+                      "color": "$textoSuave",
+                      "ancho": "fill"
+                    },
+                    {
+                      "tipo": "texto",
+                      "texto": "•  Sigue sin mostrarse el parque «A3 (Tickets)» (178 naves), por regla del módulo.",
+                      "tamano": 13,
+                      "color": "$textoSuave",
+                      "ancho": "fill"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

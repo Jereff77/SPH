@@ -96,7 +96,7 @@ export async function exportarEscriturasExcel(o: EscriturasExportOpts): Promise<
     r.getCell(1).value = f.parque ?? '';
     r.getCell(2).value = f.numNave ?? '';
     r.getCell(3).value = f.inversionista ?? '';
-    r.getCell(4).value = f.escriturada ? 'Escriturada' : 'Pendiente';
+    r.getCell(4).value = !f.tienePlan ? 'Sin plan' : f.escriturada ? 'Escriturada' : 'Pendiente';
     r.getCell(4).alignment = { horizontal: 'center' };
     r.getCell(5).value = fechaCorta(f.fechaEscrituracion);
     r.getCell(5).alignment = { horizontal: 'center' };
@@ -106,11 +106,12 @@ export async function exportarEscriturasExcel(o: EscriturasExportOpts): Promise<
     }
   });
 
-  // Total de naves (con el desglose por estatus).
-  const escrituradas = o.filas.filter((f) => f.escriturada).length;
+  // Total de naves (con el desglose por estatus; escrituradas/pendientes solo cuentan naves con plan).
+  const conPlan = o.filas.filter((f) => f.tienePlan).length;
+  const escrituradas = o.filas.filter((f) => f.tienePlan && f.escriturada).length;
   const totRow = ws.getRow(HEAD + 1 + o.filas.length);
   ws.mergeCells(totRow.number, 1, totRow.number, NCOL);
-  totRow.getCell(1).value = `Total: ${o.filas.length} naves · ${escrituradas} escrituradas · ${o.filas.length - escrituradas} pendientes`;
+  totRow.getCell(1).value = `Total: ${o.filas.length} naves · ${escrituradas} escrituradas · ${conPlan - escrituradas} pendientes · ${o.filas.length - conPlan} sin plan`;
   for (let c = 1; c <= NCOL; c++) {
     const cell = totRow.getCell(c);
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };

@@ -273,9 +273,13 @@ export interface ReporteGrafico {
   totalVencido: number;
 }
 
-/** Fila de la pantalla Escrituras (una por propiedad con plan de pagos). */
+/**
+ * Fila de la pantalla Escrituras: una por plan de pagos activo y una por cada nave que
+ * todavía no tiene plan (`tienePlan = false`: sin estatus ni fecha que capturar).
+ */
 export interface EscrituraRow {
-  idPdp: string;
+  /** Plan de pagos; `null` mientras la nave no tenga un plan activo. */
+  idPdp: string | null;
   idPropiedad: string | null;
   idNave: string | null;
   idInversionista: string | null;
@@ -284,16 +288,21 @@ export interface EscrituraRow {
   /** Número de nave (numNaveNAME) — filtro independiente. */
   numNave: string | null;
   inversionista: string | null;
-  /** Estatus manual: `true` = Escriturada, `false` = Pendiente. */
+  /** `false` = la nave no tiene plan de pagos (se muestra «Sin plan»). */
+  tienePlan: boolean;
+  /** Estatus manual: `true` = Escriturada, `false` = Pendiente (siempre `false` sin plan). */
   escriturada: boolean;
-  /** Fecha de escrituración (obligatoria si está Escriturada). */
+  /** Fecha de escrituración (obligatoria si está Escriturada; `null` sin plan). */
   fechaEscrituracion: string | null;
 }
 
-/** Respuesta del listado de Escrituras (filas + total + conteos de estatus). */
+/** Respuesta del listado de Escrituras (todas las filas + conteos; escrituradas/pendientes solo cuentan naves con plan). */
 export interface EscriturasResp {
   filas: EscrituraRow[];
+  /** Todas las naves mostradas (con plan + sin plan). */
   total: number;
+  conPlan: number;
+  sinPlan: number;
   escrituradas: number;
   pendientes: number;
 }

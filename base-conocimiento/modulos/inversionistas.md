@@ -1,13 +1,13 @@
 ---
 modulo: Inversionistas / Propietarios (Ventas)
 estado: parcial              # Gestión de Cobranza + Dashboard gráfico + Planes + Escrituras en v2
-version_doc: 2.5
-ultima_actualizacion: 2026-08-05
+version_doc: 2.6
+ultima_actualizacion: 2026-11-24
 submodulos: [Gestión de Cobranza, Dashboard gráfico, Reportes, Planes, Configuración, Escrituras]
 rutas: [/ventas, /ventas/dashboard, /ventas/reportes, /ventas/planes, /ventas/escrituras]
 claves_permiso: [600, 610, 611, 620, 630]
 tablas: [inversionista, inversionista_docs, propiedades, naves, kvasAsignados, pdp, pdpDetalle, pagos, rgPdp, rgPdpDetalle, raPdp, raPdpDetalle, comentarios, actividad, parques, v_rentasCombinadas, iaSesiones, iaConversaciones]
-palabras_clave: [inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, avance, renta garantizada, renta administrada, configuración, documentos, escrituración, dashboard, gráfico, atrasos, vencido, días de atraso, KPI, gestión de cobranza, reportes, estado de cuenta, vencidos, saldo vencido, exportar, CSV, PDF, JSON, Montse AI, asistente, IA, chat, OpenRouter, comentarios, razón social, inversionista no aparece, no aparece en planes, no aparece en el selector, sin clasificar, "trasladar saldo", "devolución", "escrituración pendiente", "nave no aparece disponible", "plan huérfano", "pdp huérfano", "pdp fantasma", "el plan no tiene parcialidades", "con plan pero vacío", "no me aparece el plan", "plan sin corrida", "total del plan en cero", "no puedo desvincular la nave", "no aparece el cliente en el selector", "no me sale el inversionista en aportaciones", "el cliente existe pero no lo encuentro para asignarlo", "cliente en papelera", "eliminar plan", "eliminar el plan de pagos", "borrar el plan", "eliminar plan completo", "no puedo eliminar la última parcialidad", "no me deja eliminar la partida", "quitar el plan para desvincular"]
+palabras_clave: [inversionista, propietario, dueño, propiedad, nave, parque, vincular nave, nave disponible, nave vendida, situación, KVAs, KVAs Alta, KVAs Media, tipoTension, venta, plan de pagos, PDP, parcialidad, cobranza, cobranza real, pago, eliminar pago, terreno, construcción, ticket, descuento, saldo a favor, avance, renta garantizada, renta administrada, configuración, documentos, escrituración, dashboard, gráfico, atrasos, vencido, días de atraso, KPI, gestión de cobranza, reportes, estado de cuenta, vencidos, saldo vencido, exportar, CSV, PDF, JSON, Montse AI, asistente, IA, chat, OpenRouter, comentarios, razón social, inversionista no aparece, no aparece en planes, no aparece en el selector, sin clasificar, "trasladar saldo", "devolución", "escrituración pendiente", "nave no aparece disponible", "plan huérfano", "pdp huérfano", "pdp fantasma", "el plan no tiene parcialidades", "con plan pero vacío", "no me aparece el plan", "plan sin corrida", "total del plan en cero", "no puedo desvincular la nave", "no aparece el cliente en el selector", "no me sale el inversionista en aportaciones", "el cliente existe pero no lo encuentro para asignarlo", "cliente en papelera", "eliminar plan", "eliminar el plan de pagos", "borrar el plan", "eliminar plan completo", "no puedo eliminar la última parcialidad", "no me deja eliminar la partida", "quitar el plan para desvincular", "no aparece la nave en escrituras", "escrituras no muestra todas las naves", "sale sin plan en escrituras", "nave sin plan de pagos", "etiqueta sin plan", "lista completa de naves", "no puedo marcar escriturada", "no tiene fecha de escrituración", "faltan por escriturar no cuadra"]
 relacionado_con: [parques, arrendatarios, cxp, clientes, fideicomiso]
 ---
 
@@ -342,28 +342,37 @@ aplica a Dashboard/Reportes/saldos-vencidos, **NO** a este selector operativo de
   (hallazgo ALTO de monto negativo corregido; atomicidad/concurrencia resueltas con la RPC transaccional).
   La decisión de **cuándo** aplicarla sobre contratos es operativa del negocio (modifica el plan de pagos).
 
-## 3b. Escrituras (`/ventas/escrituras`, clave 630) — rediseñada en v2.75.0
-Pantalla de **seguimiento de escrituración por propiedad**: una fila por **plan de pagos (`pdp`)** de una nave
+## 3b. Escrituras (`/ventas/escrituras`, clave 630) — rediseñada en v2.75.0; lista TODAS las naves desde v2.84.0
+Pantalla de **seguimiento de escrituración por propiedad**. Desde **v2.84.0** es **una fila por nave** (todas); hasta v2.83.x era una fila por **plan de pagos (`pdp`)** de una nave
 vendida (status=true, `esTicket=false`), para ver de un vistazo **cuántas naves faltan por escriturar** y
 capturar la fecha. **Rediseño v2.75.0 (decisión de Jereff, 2026-10-06):** el estatus y la fecha dejaron de vivir
 en `pdpDetalle` (por pago) y pasaron a **`pdp.escriturada` / `pdp.fechaEscrituracion`** (por propiedad). Una
-propiedad tiene a lo más un `pdp` (verificado: 0 propiedades con 2+ planes). Naves Disponibles/Bloqueadas **no se
-escrituran** y no aparecen; las **21 naves Vendidas sin plan** tampoco (negocio aún no define cómo entran).
-Cálculos sin vistas: `escrituras.service.ts` lee `pdp` y enriquece por separado con `propiedades` → `naves`
+propiedad tiene a lo más un `pdp` (verificado: 0 propiedades con 2+ planes; una nave, a lo más un plan activo). Hasta v2.83.x, Naves Disponibles/Bloqueadas **no se
+escrituraban** y no aparecían; las **21 naves Vendidas sin plan** tampoco.
+**⭐ v2.84.0 (petición de Jereff 2026-08-26 → aprobada 2026-11-24 con «basta con la etiqueta gris»; tablero #66 → terminado):**
+la pantalla lista **todas las naves activas** (`naves.status=true`, `esTicket=false`, de un parque con `status=true` y
+`esTicket=false`), tengan plan o no, sin importar su `situacion`. Al 24/11/2026: **462 naves = 213 con plan + 249 sin plan**
+(95 escrituradas · 118 pendientes; de las 249 sin plan, 20 ya tienen dueño vigente). Una nave **sin plan** sale con la
+etiqueta gris **«Sin plan»**, sin interruptor ni fecha (la escrituración vive en `pdp` y una nave sin `pdp` no tiene dónde
+guardarla); al **crearle un plan** pasa sola a **Pendiente** y ya se captura. Un plan activo **siempre** se muestra, aunque su
+nave o parque no pasen el filtro de visibles (comportamiento previo). El inversionista mostrado es el **dueño vigente**
+(`propiedades.status=true` y `PActual=true`); una propiedad dada de baja no cuenta.
+Cálculos sin vistas: `escrituras.service.ts` lee `pdp`, `propiedades`, `parques` y `naves` (paginado de a 1000 filas y `.in()` en lotes de 150 por el largo de la URL) y los une en memoria: `propiedades` → `naves`
 (`numNaveNAME`) → `parques` (`nomParque`) e `inversionista` (`razonsocial`). **Nunca se escribe «Ticket» en la UI**
 (los usuarios no distinguen naves de Tickets; el filtro es interno).
-- **Tarjetas:** **Naves con plan** · **Escrituradas** (% de avance) · **Faltan por escriturar** (% pendiente + barra
-  de avance). Se **adaptan a los filtros** (cuentan lo que se ve).
-- **Columnas:** **Parque** · **Nave** · **Inversionista** · **Estatus** (interruptor) · **Fecha de escrituración**
-  (`InputFecha` dd/mm/aaaa siempre visible; vacía resalta en azul). **Ya no hay Monto, Tipo Pago ni No. de pago.**
-  Encabezado sticky azul, ordenable, filtros multi-selección (7c) en Parque/Nave/Inversionista/Estatus, buscador
+- **Tarjetas (v2.84.0, cuatro):** **Total de naves** (con el detalle «N con plan de pagos») · **Sin plan de pagos** · **Escrituradas** (% de avance sobre las naves **con plan**) · **Faltan por escriturar** (% pendiente + barra
+  de avance). Se **adaptan a los filtros** (cuentan lo que se ve). **Faltan = naves con plan − escrituradas**: una nave
+  «Sin plan» no cuenta como pendiente ni como escriturada (tiene su propia tarjeta).
+- **Columnas:** **Parque** · **Nave** · **Inversionista** · **Estatus** (interruptor; en las naves sin plan, la etiqueta gris «Sin plan») · **Fecha de escrituración**
+  (`InputFecha` dd/mm/aaaa siempre visible; vacía resalta en azul). **Ya no hay Monto, Tipo Pago ni No. de pago.** En las naves «Sin plan» la fecha sale como «—».
+  Encabezado sticky azul, ordenable, filtros multi-selección (7c) en Parque/Nave/Inversionista/Estatus (Escriturada · Pendiente · Sin plan), buscador
   (parque, nave, inversionista). Orden por defecto: parque → nave.
 - **Reglas:** para marcar **Escriturada la fecha es obligatoria** (la pantalla pide capturarla primero; el servidor
   lo valida: 400 si no hay fecha) y **no se puede borrar la fecha de una nave Escriturada**. Pendiente puede tener
   fecha (fecha prevista) o no. El estatus y la fecha se guardan al instante.
-- **Excel:** Parque · Nave · Inversionista · Estatus · Fecha, con fila de total (naves · escrituradas · pendientes).
+- **Excel:** Parque · Nave · Inversionista · Estatus · Fecha, con fila de total («N naves · X escrituradas · Y pendientes · Z sin plan»); el Estatus de una nave sin plan sale como «Sin plan» y su fecha vacía.
   Se arma en el navegador (ExcelJS) respetando búsqueda, filtros y orden — **excepción acordada** (contexto.md 7d).
-- **API:** `GET ventas/escrituras` → `{filas,total,escrituradas,pendientes}`; `PATCH ventas/escrituras/:idPdp/estatus`
+- **API:** `GET ventas/escrituras` → `{filas,total,conPlan,sinPlan,escrituradas,pendientes}` (cada fila lleva `tienePlan`; en las naves sin plan `idPdp` e `idPropiedad` son `null` y la pantalla no llama a los PATCH); `PATCH ventas/escrituras/:idPdp/estatus`
   (`{escriturada, fecha?}`); `PATCH ventas/escrituras/:idPdp/fecha-escrituracion` (`{fecha}`, nullable). Se **eliminaron**
   `.../monto` y `.../fecha` (fecha programada). `EscriturasService.actualizarFecha(idPdpDet…)` se **conserva** porque
   lo usa **Fideicomiso** (reprogramar partidas, `pdpDetalle.fecha`).
@@ -373,7 +382,11 @@ Cálculos sin vistas: `escrituras.service.ts` lee `pdp` y enriquece por separado
   fecha más reciente (46 planes, todos con fecha; 5 planes tenían 2 filas con valores distintos y se resolvieron así).
   Las columnas viejas de `pdpDetalle.escriturada/fechaEscrituracion` **quedan como respaldo, sin uso** (retirarlas es
   un paso aparte, con autorización). Auditoría: `trg_auditoria` de `pdp` + bitácora `actividad` (pantalla «Escrituras»).
-- **Diseño:** mockup en `docs/escrituras/escrituras.pen` (Pencil).
+- **Diseño:** mockup v2.75.0 en `docs/escrituras/escrituras.pen` (Pencil); v2.84.0 (todas las naves + «Sin plan») en
+  `docs/escrituras/escrituras-todas-las-naves.skydraw.json` (Skydraw).
+- **Pruebas (v2.84.0):** `escrituras.service.spec.ts` — 10 pruebas con Supabase falso en memoria (todas las naves, excluye
+  Tickets/bajas, dueño vigente vs. baja, nave sin plan → Pendiente al crear plan, plan activo siempre visible, orden
+  parque → nave numérico, >1000 naves paginado con inversionistas por lotes, error 500 genérico, solo lectura).
 
 ## 4. Modelo de datos (todo EXISTENTE; sin DDL nuevo)
 - **Catálogo/propietario:** `inversionista` (PK `idInversionista`), `inversionista_docs`, `propiedades`
@@ -420,7 +433,7 @@ Cálculos sin vistas: `escrituras.service.ts` lee `pdp` y enriquece por separado
   `ventas/reportes/vencidos`, `ventas/reportes/vencidos-resumen`, `ventas/reportes/vencidos-evolucion`
   (todos con filtros anio/mes/razonsocial/parque/propiedad). Backend `reportes.service.ts` → RPCs
   `v_pdpdetalle_get_*`.
-- **Escrituras (630):** ver §3b (v2.75.0): `GET ventas/escrituras`, `PATCH ventas/escrituras/:idPdp/estatus` y
+- **Escrituras (630):** ver §3b (v2.75.0; todas las naves desde v2.84.0): `GET ventas/escrituras`, `PATCH ventas/escrituras/:idPdp/estatus` y
   `PATCH ventas/escrituras/:idPdp/fecha-escrituracion`. Backend: `escrituras.service.ts`.
 
 ## 6. Seguridad
@@ -481,6 +494,25 @@ Cálculos sin vistas: `escrituras.service.ts` lee `pdp` y enriquece por separado
   inversionista pasa a `situacion='Vendida'` y deja de listarse; vuelve a `'Disponible'` solo si se
   **desvincula** (botón 🗑 de la tarjeta), y eso **solo se permite si la propiedad NO tiene plan de
   pagos** (`tienenPdp`/`idPdp`).
+- **"No aparece la nave en Escrituras" / "Escrituras no muestra todas las naves"** (`/ventas/escrituras`, clave 630,
+  desde **v2.84.0**) → la pantalla lista **todas** las naves con `naves.status=true` y `esTicket=false` cuyo parque
+  también está activo y no es de Tickets (`EscriturasService.listar()`, `apps/api/src/modules/ventas/escrituras.service.ts`).
+  **No** depende de la `situacion` (Disponible/Vendida) ni de tener plan. Si una nave no sale, está dada de baja, es de
+  Tickets o su parque está inactivo/de Tickets. Antes de v2.84.0 solo salían las naves con plan de pagos.
+- **"Sale «Sin plan» y no puedo marcarla Escriturada / no tiene fecha"** → una nave **sin plan de pagos activo** no tiene
+  fila en `pdp`, y la escrituración se guarda en `pdp.escriturada` / `pdp.fechaEscrituracion`; por eso su fila no tiene
+  interruptor ni fecha (la pantalla no llama al servidor para ella). Solución: **crear el plan** en Ventas → Planes; la
+  nave pasa sola a **Pendiente** y ahí se captura la escrituración. «Sin plan» **no** es un estatus que se pueda cambiar.
+- **"Aquí sale «Sin plan» pero en Planes/Cobranza parece tener plan"** → Escrituras se guía por la **fila activa de `pdp`**
+  (`status=true`, `esTicket=false`), no por las banderas de `propiedades` (`pdpActivo`/`tienenPdp`/`idPdp`). Hay 18
+  propiedades heredadas de v1 con `pdpActivo=true` e `idPdp` vacío (una sin fila en `pdp`) que aquí salen «Sin plan»:
+  es el dato real. **Decisión cerrada de Jereff (2026-08-05): no se sanean de oficio**; si el cliente topa con una se
+  atiende como ticket y con su autorización.
+- **"Faltan por escriturar no cuadra con el Total de naves"** → es correcto: **Faltan = naves con plan − escrituradas**;
+  las «Sin plan» tienen su propia tarjeta y no cuentan como pendientes, y el % de avance se calcula solo sobre las naves
+  con plan. Las tarjetas y el Excel respetan los filtros activos (cuentan lo que se ve).
+- **"El inversionista de una nave sin plan"** → el nombre sale del **dueño vigente** (`propiedades.status=true` y
+  `PActual=true`); una nave sin plan puede tenerlo (20 al 24/11/2026) o salir sin inversionista.
 
 ### 9a. Detectar un **plan de pagos huérfano** ("con plan" pero no muestra nada)
 
