@@ -20,6 +20,20 @@ function mesAnio(iso: string | null | undefined): string {
   return `${MESES_LARGO[mi] ?? ''} ${y}`.trim();
 }
 
+/** Redondea a centavos (las RPC traen más de 2 decimales y la pantalla solo muestra 2). */
+const centavos = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/**
+ * «Aportación para distribuir» = Rendimiento del Trimestre + Comisión SPH (petición del
+ * área, 2026-11-25). Cada sumando se redondea a centavos ANTES de sumar, para que la columna
+ * se pueda sumar a mano con lo que se ve en pantalla y dé lo mismo que la fila de totales.
+ * Devuelve null si la fila no trae ninguno de los dos (adhesiones sin pagos en el periodo).
+ */
+function porAportar(r: DispersionResumen): number | null {
+  if (r.rendimiento_bruto_total == null && r.rendimiento_sph_total == null) return null;
+  return centavos(centavos(r.rendimiento_bruto_total ?? 0) + centavos(r.rendimiento_sph_total ?? 0));
+}
+
 /**
  * Fideicomiso → Dispersión (clave 530). Réplica del WebView de v1: por fideicomiso
  * + periodo, resumen por adherente con **filtros por columna estilo Excel**
@@ -114,6 +128,7 @@ export function DispersionesPage() {
       retencion_isr_total: (r) => r.retencion_isr_total,
       rendimiento_neto_total: (r) => r.rendimiento_neto_total,
       rendimiento_sph_total: (r) => r.rendimiento_sph_total,
+      por_aportar: (r) => porAportar(r),
       dispersion_neta_total: (r) => r.dispersion_neta_total,
     },
     { key: 'no_adhesion', dir: 'asc' },
@@ -169,10 +184,10 @@ export function DispersionesPage() {
 
       {/* Tabla con filtros por columna (estilo Excel) */}
       <div className="max-h-[calc(100vh-18rem)] overflow-auto rounded-xl border bg-white shadow-sm">
-        {/* min-w subido de 900 a 1100: la tabla pasó de 7 a 9 columnas (se
-            agregaron Rendimiento Neto y Comisión SPH) y con 900 los importes se
-            comprimían. El contenedor ya tiene overflow-auto. */}
-        <table className="w-full min-w-[1100px] text-sm">
+        {/* min-w subido de 900 a 1100 y luego a 1250: la tabla pasó de 7 a 10 columnas
+            (Rendimiento Neto, Comisión SPH y Aportación para distribuir) y con menos
+            ancho los importes se comprimían. El contenedor ya tiene overflow-auto. */}
+        <table className="w-full min-w-[1250px] text-sm">
           <thead className={THEAD_STICKY}>
             <tr className={THEAD_TR}>
               <SortableTh
@@ -213,15 +228,16 @@ export function DispersionesPage() {
               <SortableTh campo="retencion_isr_total" sortKey={sortKey} dir={dir} onSort={toggle} align="right">Retención ISR</SortableTh>
               <SortableTh campo="rendimiento_neto_total" sortKey={sortKey} dir={dir} onSort={toggle} align="right">Rendimiento Neto</SortableTh>
               <SortableTh campo="rendimiento_sph_total" sortKey={sortKey} dir={dir} onSort={toggle} align="right">Comisión SPH</SortableTh>
+              <SortableTh campo="por_aportar" sortKey={sortKey} dir={dir} onSort={toggle} align="right">Aportación para distribuir</SortableTh>
               <SortableTh campo="dispersion_neta_total" sortKey={sortKey} dir={dir} onSort={toggle} align="right">Dispersión Trimestral</SortableTh>
             </tr>
           </thead>
           <tbody className="divide-y">
             {isLoading && (
-              <tr><td colSpan={9} className="px-4 py-6 text-center text-gray-400">Cargando…</td></tr>
+              <tr><td colSpan={10} className="px-4 py-6 text-center text-gray-400">Cargando…</td></tr>
             )}
             {!isLoading && ordenados.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-6 text-center text-gray-400">Sin dispersiones para este periodo.</td></tr>
+              <tr><td colSpan={10} className="px-4 py-6 text-center text-gray-400">Sin dispersiones para este periodo.</td></tr>
             )}
             {ordenados.map((r) => {
               const fisica = (r.tipo_persona ?? '').toLowerCase() === 'fisica';
@@ -246,6 +262,7 @@ export function DispersionesPage() {
                       SPH por administrar, calculado aparte. Por eso va en su propia
                       columna y no entre el neto y la dispersión como una resta. */}
                   <td className="px-4 py-2 text-right tabular-nums text-[#8a5a1a]">{moneda(r.rendimiento_sph_total)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{moneda(porAportar(r))}</td>
                   <td className="px-4 py-2 text-right font-medium tabular-nums text-[#3f5b1a]">{moneda(r.dispersion_neta_total)}</td>
                 </tr>
               );
@@ -260,6 +277,9 @@ export function DispersionesPage() {
                 <td className="px-4 py-2 text-right tabular-nums">{moneda(tot.isr)}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{moneda(tot.neto)}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{moneda(tot.sph)}</td>
+                {/* Igual que los demás totales: se calcula con los importes completos
+                    (Rendimiento total + Comisión SPH total), no con las filas ya redondeadas. */}
+                <td className="px-4 py-2 text-right tabular-nums">{moneda(centavos(tot.renta + tot.sph))}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{moneda(tot.disp)}</td>
               </tr>
             </tfoot>
